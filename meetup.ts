@@ -52,9 +52,8 @@ export default (config: Config) => {
         const dataStr = new Stream.PassThrough();
 
         return Promise.all([
-            upload(`M:${new Date().toISOString()}`, dataStr), //.pipe(gz)),
+            upload(`M:${new Date().toISOString()}`, dataStr), ///.pipe(gz)),
             downloadMembers(agent)(dataStr)
-                // .then(() => new Promise(cb => gz.flush(cb)))
         ]);
     }
 

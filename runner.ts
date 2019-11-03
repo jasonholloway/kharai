@@ -15,13 +15,16 @@ export default (config: Config, spec: Spec, dynamo: DynamoDB) => {
 
     const run = async () => {
         let state = await loadState();
+        const origVersion = state.version;
 
         while(isDue(state)) {
             state = await dispatch(state);
             console.log('next', state);
         }
 
-        await saveState(state);
+        if(state.version > origVersion) {
+            await saveState(state);
+        }
     }
 
     const isDue = (state: State) => {
