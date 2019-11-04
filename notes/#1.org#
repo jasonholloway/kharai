@@ -1,0 +1,192 @@
+the same machine can do diffing of csvs
+
+but there is conceptual separation between the two tasks, the two stages
+
+by putting them to execute in turn we lose comparmentalisation: ie errors can kill one stage while leaving the other to carry on happily
+
+though there is an essential coupling between the two stages: diffing shouldonly occur when there is something to newly diff
+
+but failures in diffing shouldn't stop the scraping
+
+so - there are two machines with two states, and the two should be coupled by some kind of stated condition
+the /due condition/ isn't just of time, but of state
+
+---
+
+the differ should state that it is only due when the downloader gets ahead of its own cursor
+this condition will then span two states, and potentially two rows in the table
+as each row has its own version, key and data.
+
+phase needn't be special, though why not
+
+---
+
+the condition could most simply be expressed as an evaluable predicate in javascript
+though we want the expression to be actionable close to the data - like a ConditionExpression (though one that spans multiple items)
+which can't be
+if the state to be compared spans rows then we have to read the entire thing
+
+though our throughput is always going to be small here: data is going to be slim, and how often will our conditions be checked? actually, fairly regularly, after every phase
+
+in evaluating, we want to lazily load states, to minimize what we summon from the cloud
+instead of a proper evaluated language, we can 'shallowly embed' using the evaluative glue of the language itself
+
+---
+
+the condition doesn't have to be expressed in data, in fact it's certainly better that it is not
+
+it's part of the runnable spec!
+
+when states change, then each condition gets run to see if it should kick in
+
+and finally, all states should be transactionally written as one
+
+---
+
+what if multiple agents were running at once? then they wouldn't overwrite each other, but they might gazump each other - the spec should be such to allow 
+things to coexist as much as possible
+
+what i'm imagining is a workflow of limited size
+
+though if another workflow wanted to read the state of another, it surely could do; streams could be created, not mediated by a crappy condition engine, but by wasteful polling
+
+the benefits of separation, at the cost of efficient timely execution
+
+---
+
+so, we need
+- multiple states
+	machines should be executed in some arbitrary sequence, so they're concurrent until one waits on another
+- a better parsing of 'due'
+	two modes, strategies of waiting: no, two /layers/ of waiting
+	firstly each machine is only loaded and run if its /due/ value is ready - this saves us loading machines needlessly
+	secondly, conditions should be checked if in place
+	  and how do we know if a condition is in place? because we know the phase of the machine; and from the phase, we can figure the waiting behaviour
+		but conditions can't be per-phase, as phases are multiples - almost nascent machines ready to unfold into full workflows
+		while elegant this destroys the simplicity of single-threaded execution and state
+		
+		conditions are per-machine, but the form of the condition is determined by the /current state/ of the machine, so is singular
+		if a machine is due in time, then we load its phase, and...
+
+    maybe the condition check could itself be performed 'manually' within the code of a phase
+		the machine will be run, and its waiting phase will just be a loading of another machine's state,
+		a checking of it, and a changing of its own phase based on this
+		I like this a lot, a big avoidance of building, a commendation of the generality of the underlying model
+
+	--------
+
+so, we need...
+- multiple machines
+- states loadable via the context
+- all states transactionally committed when at rest 
+	
+
+the orchestrator of machines is itself a machine, of course
+so even the dispatch of machines can be suspended from the original issue
+
+the original machine must be able to load a list of machine names to dispatch
+which is its own state
+
+------
+
+but now the thought comes that more state could be given to the original orchestrator itself
+machine's phases and due times, for instance, could belong to the orchestrator
+then the full state of a machine could be lazily loaded after that point
+
+but now, by vertically separating the state into two classes, into a more private head and more public body, with the possibility of freeing restrictions on the body data
+the protection of the body goes too - what if the body is put but not the state? then we'll get inconsistencies
+
+bodies are owned, and writable only by the owning machine
+
+what's to stop another orchestrator, also with the machine listed, from dispatching against its body?
+at the same time it is ok for there to be multiple orchestrators, as long as they don't garble the subject machine by their contentious orchestrations
+
+ie phase and version belong to the machine
+then the machine can stand as itself
+
+-----
+
+so if the orchestrator is but one machine amongst others
+it has its own phase and version (as if these were all owned by /it/, who would own its own phase and version?)
+
+so...
+the main requirement is for multiple machine states to be loadable and savable
+loading should be via a lazy, cached provider
+and then saving of machine states should be done as one big transaction at the end
+
+---
+
+but the orchestrator machine state is itself to be saved
+so the loading and saving of states is above the level of the orchestrator
+its at the level of the /RUN/
+
+each /RUN/ establishes its provisions (its UoW effectively), loads up its known orchestrator machine
+and executes it
+
+but - something is orchestrating the /RUNs/! and this orchestrator has inalienable rights of determining dispatches below
+(or, rather, its always possible for it to make sense to have that power)
+that is, the above orchestrator should be able to pipe in from above what machines are to be run
+
+in which case, what do we gain by treating the orchestrator as a machine as well?
+
+---
+
+it seems the simpler way of doing itis just having a hard-coded list of machines to execute
+these can, for more flexibility, be provided as part of the initial invocation of the run
+
+/there always has to be something invoking the run/
+
+so we will /ALWAYS/ need this mechanism
+
+the question is how much is proper to this layer
+child runnables are not needed now, termination isn't needed now
+but if it were then we'd need a machine storing the states of things, of owned things
+though machineyness is only needed when state has to be protected
+whatever... we will always need invocation of a list of machines
+
+---
+
+*we need a RUN*
+
+---
+
+we want to run machines concurrently: there's no point in putting them in series
+
+but then, if one machine changes state before the other manages to get its condition raised?
+but this will always occur, given that even if phases are run in series, their order will be arbitrary
+and no guarantees can be given; so that's all fine then... yup
+
+---
+
+machines should be dispatched concurrently, at their own pace
+but at each interstice there's the possiblity ofupdating the condition table
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+		
+		
+		
+
+
+
+
+
+
+
+
+
+
+

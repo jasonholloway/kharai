@@ -7,6 +7,6 @@ const dynamo = new DynamoDB({ apiVersion: '2012-08-10' });
 const spec = createSpec(config);
 const runner = createRunner(config, spec, dynamo);
 
-runner.run()
+runner.run(['memberDownloader'])
     .then(console.log)
     .catch(console.log)
