@@ -12,16 +12,12 @@
     "aws-sdk": "^2.562.0",
     "cheerio": "^1.0.0-rc.3",
     "flatqueue": "^1.1.0",
-    "heap": "^0.2.6",
-    "priorityqueuejs": "^1.0.0",
     "superagent": "^5.1.0",
     "superagent-proxy": "^2.0.0"
   },
   "devDependencies": {
     "@types/cheerio": "^0.22.13",
-    "@types/heap": "^0.2.28",
     "@types/node": "^12.12.5",
-    "@types/priorityqueuejs": "^1.0.1",
     "@types/superagent": "^4.1.4",
     "ts-node": "^8.4.1",
     "typescript": "^3.6.4"
