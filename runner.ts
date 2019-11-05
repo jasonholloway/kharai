@@ -2,9 +2,7 @@ import DynamoDB from 'aws-sdk/clients/dynamodb'
 import { clone, promisify } from './util'
 import { Config } from './config';
 import { Spec } from './spec';
-import { clearTimeout, setTimeout } from 'timers';
-import FlatQueue from 'flatqueue'
-
+import createScheduler from'./scheduler'
 
 type State = { 
     id: string,
@@ -15,70 +13,65 @@ type State = {
     data: any 
 }
 
-
-const createDispatcher = () => {
-    let heap = new FlatQueue<State>();
-    let waiter: NodeJS.Timeout
-
-    const fire = () => {
-        const now = Date.now();
-        const due = -heap.peek();
-
-        //don't think the below even has to be checked...
-        if(due <= now) {
-            //...
-
-        }
-        else {
-            waiter = setTimeout(fire, now - due);
-        }
-    }
-
-    return {
-        addJob(job: State) {
-            const now = Date.now();
-            const due = -heap.peek();
-
-            heap.push(-due, job);
-
-            if(heap.peekValue() === job) {
-                clearTimeout(waiter);
-                waiter = setTimeout(fire, now - due);
-            }
-        }
-    }
+type Context = {
+    saveAll(): void
 }
 
+type Machine = {
+    state: State
+}
 
 export default (config: Config, spec: Spec, dynamo: DynamoDB) => {
 
-    let waiter: NodeJS.Timeout;
+    const scheduler = createScheduler();
 
-    const run = (ids: string[]) => {
+    const schedule = (x: Context) => (m: Machine) =>
+        scheduler.add({
+            due: m.state.due,
+            run: async () => {
+                const result = await perform(m.state);
+                m.state = result.state;
 
-
-        //continue firing jobs off
-        //till empty
-        //then we wait till a new job appears
-
-
-        return Promise.all(
-            ids.map(async id => {
-                let state = await loadState(id);
-                const origVersion = state.version;
-
-                while(isDue(state)) {
-                    state = await dispatch(state);
-                    console.log('next', state);
+                if(result.forceSave) {
+                    x.saveAll();
                 }
 
-                return state.version > origVersion
-                    ? [state]
-                    : [];
-            }))
-            .then(states => states.reduce((prev, v) => [...prev, ...v]))
-            .then(saveStates);      
+                //is state terminal?
+                //is saving otherwise due? - after period, when finishing run
+
+                schedule(x)(m);
+            }
+        });
+
+    const run = async (ids: string[]) => {
+        const states = await Promise.all(ids.map(loadMachine)); //loading could be done in multiple here
+
+        const x = {
+            saveAll() {}
+        };
+
+        states.map(state => ({ state }))
+            .forEach(schedule(x));
     }
+
+
+    //     return await Promise.all(
+    //         ids.map(async id => {
+    //             let state = await loadMachine(id);
+    //             const origVersion = state.version;
+
+    //             while(isDue(state)) {
+    //                 state = await dispatch(state);
+    //                 console.log('next', state);
+    //             }
+
+    //             return state.version > origVersion
+    //                 ? [state]
+    //                 : [];
+    //         }))
+    //         .then(states => states.reduce((prev, v) => [...prev, ...v]))
+    //         .then(saveStates);      
+    // }
             
             //async (states) => {
                 //but saving has to be total, as one transaction
@@ -88,13 +81,13 @@ export default (config: Config, spec: Spec, dynamo: DynamoDB) => {
             //     }
             // })
 
-    const isDue = (state: State) => {
-        const now = Date.now();
-        const due = state.due || 0;
-        return due <= now;
+    type Result = {
+        state: State,
+        forceSave: boolean
     }
 
-    const dispatch = (origState: State): Promise<State> => {
+
+    const perform = (origState: State): Promise<Result> => {
         const state = clone(origState)
 
         const handler = spec.match(state.phase)
@@ -102,7 +95,7 @@ export default (config: Config, spec: Spec, dynamo: DynamoDB) => {
 
         return promisify(handler(state))
             .then(next => {
-                let phase, delay = 0, save = false;
+                let phase, delay = 0, forceSave = false;
 
                 if(typeof next == 'string') {
                     phase = next;
@@ -110,32 +103,27 @@ export default (config: Config, spec: Spec, dynamo: DynamoDB) => {
                 else if(typeof next == 'object') {
                     phase = next.next;
                     delay = next.delay || 0;
-                    save = !!next.save;
+                    forceSave = !!next.save;
                 }
                 else {
                     [phase, delay] = next;
+                    delay = delay || 0;
                 }
 
                 state.phase = phase;
                 state.due = Date.now() + delay;
                 state.version++;
 
-                if(save) {
-                    //BUT!!! this needs redoing
-                    //as it no longer makes much sense: basically, given this instruction
-                    //we need to save everything as soon as possible
-                    //but we can't just save this one alone...
-                    // return saveStates([state])
-                    //     .then(() => state);
-                }
-
-                return state;
+                return {
+                   state,
+                   forceSave
+                };
             })
     }
 
     //what happens if the phase is wrong??? to the error state please
 
-    const loadState = (id: string) : Promise<State> =>
+    const loadMachine = (id: string) : Promise<State> =>
         dynamo.getItem({
             TableName: config.tableName,
             Key: {
