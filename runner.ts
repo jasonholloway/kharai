@@ -71,7 +71,7 @@ export default (config: Config, spec: Spec, dynamo: DynamoDB) => {
                 //
 
                 //
-                // 
+                // we need to stop executing: a timer needs to tell us to cancel promptish
                 //
                 //
             }));
@@ -82,10 +82,10 @@ export default (config: Config, spec: Spec, dynamo: DynamoDB) => {
     const dispatch = (origState: State): Promise<Result> => {
         const state = clone(origState)
 
-        const perform = spec.match(state.phase)
-        if(!perform) throw Error(`no handler found for '${state.phase}'`);
+        const action = spec.match(state.phase) //should be called 'bindAction'
+        if(!action) throw Error(`no handler found for '${state.phase}'`);
 
-        return promisify(perform(state))
+        return promisify(action(state))
             .then(next => {
                 let phase, delay = 0, forceSave = false;
 
