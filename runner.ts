@@ -4,96 +4,88 @@ import { Config } from './config';
 import { Spec } from './spec';
 import createScheduler from'./scheduler'
 
-type State = { 
-    id: string,
-    type?: string,
-    version: number, 
-    phase?: string, 
-    due: number, 
-    data: any 
-}
-
-type Context = {
-    saveAll(): void
-}
-
-type Machine = {
-    state: State
-}
-
 export default (config: Config, spec: Spec, dynamo: DynamoDB) => {
 
     const scheduler = createScheduler();
 
-    const schedule = (x: Context) => (m: Machine) =>
-        scheduler.add({
-            due: m.state.due,
-            run: async () => {
-                const result = await perform(m.state);
-                m.state = result.state;
-
-                if(result.forceSave) {
-                    x.saveAll();
-                }
-
-                //is state terminal?
-                //is saving otherwise due? - after period, when finishing run
-
-                schedule(x)(m);
-            }
-        });
-
-    const run = async (ids: string[]) => {
-        const states = await Promise.all(ids.map(loadMachine)); //loading could be done in multiple here
-
-        const x = {
-            saveAll() {}
-        };
-
-        states.map(state => ({ state }))
-            .forEach(schedule(x));
+    type State = { 
+        readonly id: string,
+        readonly type?: string,
+        version: number, 
+        phase?: string, 
+        due: number, 
+        data: any 
     }
 
-
-    //     return await Promise.all(
-    //         ids.map(async id => {
-    //             let state = await loadMachine(id);
-    //             const origVersion = state.version;
-
-    //             while(isDue(state)) {
-    //                 state = await dispatch(state);
-    //                 console.log('next', state);
-    //             }
-
-    //             return state.version > origVersion
-    //                 ? [state]
-    //                 : [];
-    //         }))
-    //         .then(states => states.reduce((prev, v) => [...prev, ...v]))
-    //         .then(saveStates);      
-    // }
-            
-            //async (states) => {
-                //but saving has to be total, as one transaction
-
-            //     if(state.version > origVersion) {
-            //         await saveState(state);
-            //     }
-            // })
+    type MachineContext = {
+        state: State
+        saveAll(): void
+    }
 
     type Result = {
         state: State,
         forceSave: boolean
     }
 
+    const schedule = (m: MachineContext) =>
+        scheduler.add({
+            due: m.state.due,
+            run: async () => {
+                const { state, forceSave } = await dispatch(m.state);
+                m.state = state;
 
-    const perform = (origState: State): Promise<Result> => {
+                if(forceSave) {
+                    m.saveAll();
+                }
+
+                //is state terminal?
+                //is saving otherwise due? - after period, when finishing run
+
+                schedule(m);
+            }
+        });
+
+    const run = (ids: string[]) =>
+        loadMachines(ids)
+            .then(runMachines);
+
+    const loadMachines = (ids: string[]): Promise<State[]> =>
+        Promise.all(ids.map(loadMachine));  //should load all at once - think we need transactionality here...
+
+    const runMachines = (states: State[]) => {
+        let saving = Promise.resolve();
+
+        const machines = states
+            .map(state => ({
+                state,
+                saveAll: () => {
+                    const captured = clone(machines.map(m => m.state))
+                    saving = saving
+                        .then(() => saveStates(captured))
+                        .catch(e => {})
+                }
+
+                //
+                // saving should be done by a special looping agent
+                // with its own sink that can be sunk at the top of the program
+                //
+
+                //
+                // 
+                //
+                //
+            }));
+
+        machines.forEach(schedule);
+    }
+
+    const dispatch = (origState: State): Promise<Result> => {
         const state = clone(origState)
 
-        const handler = spec.match(state.phase)
-        if(!handler) throw Error(`no handler found for '${state.phase}'`);
+        const perform = spec.match(state.phase)
+        if(!perform) throw Error(`no handler found for '${state.phase}'`);
 
-        return promisify(handler(state))
+        return promisify(perform(state))
             .then(next => {
                 let phase, delay = 0, forceSave = false;
 
@@ -166,23 +158,6 @@ export default (config: Config, spec: Spec, dynamo: DynamoDB) => {
                 }
             }))
         }).promise();
-
-
-        // dynamo.putItem({
-        //     TableName: config.tableName,
-        //     Item: {
-        //         part: { S: 'state' },
-        //         version: { N: state.version.toString() },
-        //         phase: { S: state.phase },
-        //         data: { S: JSON.stringify(state.data) },
-        //         due: { N: state.due.toString() }
-        //     },
-        //     ConditionExpression: 'version < :version',
-        //     ExpressionAttributeValues: {
-        //         ':version': { N: state.version.toString() }
-        //     }
-        // })
-        // .promise();
 
     return {
         run
