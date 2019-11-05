@@ -2,7 +2,8 @@ import DynamoDB from 'aws-sdk/clients/dynamodb'
 import { clone, promisify } from './util'
 import { Config } from './config';
 import { Spec } from './spec';
-import PriorityQueue from 'priorityqueuejs'
+import { clearTimeout, setTimeout } from 'timers';
+import FlatQueue from 'flatqueue'
 
 
 type State = { 
@@ -14,24 +15,44 @@ type State = {
     data: any 
 }
 
-//the below is still incomplete/rubbish
-//isDue should be attempted at each interstice for every waiting machine
-//need an ordered set of due jobs <<<<<<< this 
-//we should continually run things from the ordered set
-//till there's nothing within range
-//machines should only requeue themselves when their phase hase finished
 
-//also, need to respect explicit save points = checkpoints
-//given a checkpoint instruction, we should save states AS SOON AS POSSIBLE because the thing to be saved is valuable
-//so, such an instruction should inject a saving process that has to finish before we continue (though individual phases can get on with it in the bg)
-//this again suggests the orchestrator being a machine itself
+const createDispatcher = () => {
+    let heap = new FlatQueue<State>();
+    let waiter: NodeJS.Timeout
 
-//so, when save is signalled...
-//that's it, need the ordered list approach
-//
-//
+    const fire = () => {
+        const now = Date.now();
+        const due = -heap.peek();
+
+        //don't think the below even has to be checked...
+        if(due <= now) {
+            //...
+
+        }
+        else {
+            waiter = setTimeout(fire, now - due);
+        }
+    }
+
+    return {
+        addJob(job: State) {
+            const now = Date.now();
+            const due = -heap.peek();
+
+            heap.push(-due, job);
+
+            if(heap.peekValue() === job) {
+                clearTimeout(waiter);
+                waiter = setTimeout(fire, now - due);
+            }
+        }
+    }
+}
+
 
 export default (config: Config, spec: Spec, dynamo: DynamoDB) => {
+
+    let waiter: NodeJS.Timeout;
 
     const run = (ids: string[]) => {
 

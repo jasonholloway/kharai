@@ -11,6 +11,7 @@
   "dependencies": {
     "aws-sdk": "^2.562.0",
     "cheerio": "^1.0.0-rc.3",
+    "flatqueue": "^1.1.0",
     "heap": "^0.2.6",
     "priorityqueuejs": "^1.0.0",
     "superagent": "^5.1.0",
