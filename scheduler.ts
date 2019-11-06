@@ -1,62 +1,63 @@
-/// <reference path="types.d.ts" />
-import FlatQueue from 'flatqueue'
-import { RunContext } from './runner';
+import FastPriorityQueue from 'fastpriorityqueue'
 
 export type Schedulable = {
     due: number,
-    run: () => void
+    do: () => void
 }
 
-const createScheduler = (run: RunContext) => {
-    let heap = new FlatQueue<Schedulable>();
+const createScheduler = (sink: (e: any) => void) => {
     let waiter: NodeJS.Timeout
+    let heap = new FastPriorityQueue<Schedulable>((a, b) => a.due < b.due);
     let go = true;
+
+    const log = (...args: any[]) => console.debug('scheduler:', ...args)
 
     const wait = (due: number) => {
         const delay = due - Date.now();
-        console.debug(`scheduler: refire in ${delay}ms`);
+        log(`wait ${delay}ms`);
 
         clearTimeout(waiter);
         waiter = setTimeout(fire, delay);
     }
 
     const fire = () => {
+        log('fire');
         try {
             if(go) {
-                const job = heap.peekValue();
-                heap.pop();
+                const job = heap.poll()!;
 
-                job.run();
+                job.do();
 
-                if(heap.length) {
-                    wait(-heap.peek());
+                if(go && heap.size) {
+                    wait(heap.peek()!.due);
                 }
             }
         } 
         catch(err) {
             go = false;
             clearTimeout(waiter);
-            run.sink(err);
+            sink(err);
         }
     }
 
     return {
         add(job: Schedulable) {
-            if(!go) return false;
+            if(go) {
+                const due = job.due;
 
-            const due = job.due;
+                heap.add(job);
 
-            heap.push(-due, job);
+                const isNext = heap.peek() === job;
+                if(isNext) wait(due);
 
-            const isNext = heap.peekValue() === job;
-            if(isNext) wait(due);
-
-            return true;
+                return true;
+            } 
+            return false;
         },
         close() {
+            log('close');
             go = false;
             clearTimeout(waiter);
-            console.debug('scheduler: close')
         }
     }
 }

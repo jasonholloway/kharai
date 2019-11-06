@@ -7,16 +7,16 @@ export type Context = {
     data: any 
 }
 
-export type Spec = { 
-    match: (phase?: string) => Behaviour<any> 
+export type Binder = { 
+    bindAction: (phase?: string) => Behaviour<any> 
 }
 
 type Next<P> = P | readonly [P, number] | { next: P, delay?: number, save?: boolean }
 type Behaviour<P> = (x: Context) => Next<P> | Promise<Next<P>>
 
-function specify<S extends { [key: string]: Behaviour<keyof S> }>(s: S) : Spec {
+function specify<S extends { [key: string]: Behaviour<keyof S> }>(s: S) : Binder {
     return { 
-        match: (phase?: string) => s[phase || '']
+        bindAction: (phase?: string) => s[phase || '']
      };
 }
 
