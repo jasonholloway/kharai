@@ -12,6 +12,11 @@ export type RunContext = {
     sink(error: Error): void
 }
 
+type Entity = {
+    version: number
+    dbVersion: number
+}
+
 type MachineContext = {
     readonly run: RunContext
     readonly state: State,
@@ -174,25 +179,36 @@ export default (config: Config, spec: Spec, dynamo: DynamoDB) => {
     // otherwise the condition will always fail
     //
 
-    const saveStates = (states: State[]) : Promise<any> =>
-        dynamo.transactWriteItems({
-            TransactItems: states.map(state => ({
-                Put: {
-                    TableName: config.tableName,
-                    Item: {
-                        part: { S: state.id },
-                        version: { N: state.version.toString() },
-                        phase: { S: state.phase },
-                        data: { S: JSON.stringify(state.data) },
-                        due: { N: state.due.toString() }
-                    },
-                    ConditionExpression: 'version < :version',
-                    ExpressionAttributeValues: {
-                        ':version': { N: state.version.toString() }
+    //
+    // try to save after behavioural error
+    //
+
+    const saveStates = (states: State[]) : Promise<any> => {
+        const pendings = states.filter(s => s.version > s.dbVersion)
+        if(pendings.length) {
+            return dynamo.transactWriteItems({
+                TransactItems: pendings.map(state => ({
+                    Put: {
+                        TableName: config.tableName,
+                        Item: {
+                            part: { S: state.id },
+                            version: { N: state.version.toString() },
+                            phase: { S: state.phase },
+                            data: { S: JSON.stringify(state.data) },
+                            due: { N: state.due.toString() }
+                        },
+                        ConditionExpression: 'version < :version',
+                        ExpressionAttributeValues: {
+                            ':version': { N: state.version.toString() }
+                        }
                     }
-                }
-            }))
-        }).promise()
+                }))
+            }).promise()
+        }
+        else {
+            return Promise.resolve();
+        }
+    }
 
         //
         // FURTHER PROBLEM

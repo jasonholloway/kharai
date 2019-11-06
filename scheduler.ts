@@ -1,4 +1,4 @@
-/// <reference path="scheduler.d.ts" />
+/// <reference path="types.d.ts" />
 import FlatQueue from 'flatqueue'
 import { RunContext } from './runner';
 

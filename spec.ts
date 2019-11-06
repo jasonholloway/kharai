@@ -67,6 +67,11 @@ export default (config: Config) =>
         },
     });
 
+    //
+    // on error, we should try to save what we have
+    // which differentiates errors into two kinds: drastic and behavioural
+    //
+
     // Run:
     //   LoadState |>
     //     | Cookie ->
