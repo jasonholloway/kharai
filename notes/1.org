@@ -148,6 +148,57 @@ whatever... we will always need invocation of a list of machines
 
 *we need a RUN*
 
+---
+
+we want to run machines concurrently: there's no point in putting them in series
+
+but then, if one machine changes state before the other manages to get its condition raised?
+but this will always occur, given that even if phases are run in series, their order will be arbitrary
+and no guarantees can be given; so that's all fine then... yup
+
+---
+
+machines should be dispatched concurrently, at their own pace
+but at each interstice there's the possiblity ofupdating the condition table
+
+
+------------------------------------------
+
+phases should have timings associated so we know whether we should fire them or not
+if we're really out of time, we shouldn't proceed to do something very long-running
+
+but the easiest way of doing this would just be to have a time threshold, with no concern about average durations
+
+so, hamfistedly, the threshold can be applied to the start time rather than the putative end time
+
+basically, we don't want to execute anything at all (except for final saving) once the threshold is passed
+
+----------------------------------------
+
+machines will move at their own pace - imagine a machine that gets stuck, not erroring, not terminating
+in the meantime its siblings will be forging ahead
+so the behaviour of a constellation of machines is not determinate
+
+it would only be so if we forced all machines to operate in lockstep, with a preordained order; here our efficiency evaporates
+
+but some bits can be safely concurrent; others should ultimately be in exactly this lockstep: like we need barriers as well as conditions
+eventually...
+
+do conditions even make sense if the listening machine might or might not be around to hear that the condition has changed?
+maybe in this case the scheduling should be quite different, in that a listener should be coopted onto the thread of the source
+
+a listener to s3 uploads, for instance, would detect a change, and immediately after the upload would be invoked, blocking the progress of the uploader
+
+to let things move at their own pace, to allow slack, we need buffers
+but passing of important data like this is poorly suited to our model: what's better is using monotonic cursors, that can then refer to buffers (s3 is the buffer in this case)
+
+so lockstep isn't needed
+how about conditions? they make sense, belonging to the listener, and checked at its pace
+
+
+
+
+
 
 
 

@@ -4,17 +4,13 @@ import { Config } from './config';
 import { Spec } from './spec';
 import createScheduler, { Scheduler } from'./scheduler'
 import { EventEmitter } from 'events';
+import createThreader, { Threader } from './threader';
 
 export type RunContext = {
     readonly timeout: number
     isCancelled(): boolean
     events: EventEmitter
     sink(error: Error): void
-}
-
-type Entity = {
-    version: number
-    dbVersion: number
 }
 
 type MachineContext = {
@@ -51,6 +47,8 @@ export default (config: Config, spec: Spec, dynamo: DynamoDB) => {
 
     const runMachines = (run: RunContext) => (states: State[]) => {
         const scheduler = createScheduler(run);
+        const threader = createThreader(scheduler);
+
         let saving = Promise.resolve();
 
         console.debug('running', states)
@@ -72,32 +70,33 @@ export default (config: Config, spec: Spec, dynamo: DynamoDB) => {
                 saveAll
             }));
 
-        machines.forEach(schedule(scheduler));
-
-        return scheduler.complete
-            .then(saveAll)
-            .then(() => saving)
-    }
-
-    const schedule = (scheduler: Scheduler) => (m: MachineContext) => {
-        console.debug(`scheduling ${m.state.id}:${m.state.phase}; due ${m.state.due}`)
-        scheduler.add({
+        machines.forEach(m => threader.add({
             due: m.state.due,
-            run: async () => {
+            async run() {
                 const { state, forceSave } = await dispatch(m.state);
-                m.set(state)
+                m.set(state);
 
                 if(forceSave) {
                     m.saveAll();
                 }
 
-                schedule(scheduler)(m);
+                return state.due;
             }
-        });
+        }));
+
+        return threader.complete()
+            .then(saveAll)
+            .then(() => saving)
     }
 
-    //the timeout could just cancel everything indiscriminately
-    //or we could let things decide whether to cancel themselves
+    // below should be made slightly more abstract by scheduler: we shouldn't have to recurse so blatantly here
+    // we just want to return a delay or a completion message
+
+    //so scheduler should self-schedule
+    //and take on rerunnable jobs
+
+    //then this will allow us to terminate nicely from below
+    //
 
     //
     // saving should be done by a special looping agent
@@ -105,8 +104,12 @@ export default (config: Config, spec: Spec, dynamo: DynamoDB) => {
     //
 
     //
-    // we need to stop executing: a timer needs to tell us to cancel promptish
-    //
+    // we need to stop rescheduling if the job will be past the threshold
+    // but we also need a way for the scheduler to complete if there are no active jobs in play
+    // so an active job tries to schedule itself for the future, but the scheduler quietly drops it
+    // similarly, the scheduler will know what's alive and what's not
+    // it needs a register of active jobs - how about passing from one state to the next
+    // either way job registration is to be reformed
     //
 
     const dispatch = (origState: State): Promise<Result> => {
@@ -175,16 +178,14 @@ export default (config: Config, spec: Spec, dynamo: DynamoDB) => {
         });
 
     //
-    // below should only try to save what's changed
-    // otherwise the condition will always fail
-    //
-
-    //
     // try to save after behavioural error
     //
 
     const saveStates = (states: State[]) : Promise<any> => {
-        const pendings = states.filter(s => s.version > s.dbVersion)
+        const pendings = states
+            .filter(s => s.version > s.dbVersion)
+            .map(clone)
+
         if(pendings.length) {
             return dynamo.transactWriteItems({
                 TransactItems: pendings.map(state => ({
