@@ -2,82 +2,107 @@ import DynamoDB from 'aws-sdk/clients/dynamodb'
 import { clone, promisify } from './util'
 import { Config } from './config';
 import { Spec } from './spec';
-import createScheduler from'./scheduler'
+import createScheduler, { Scheduler } from'./scheduler'
+import { EventEmitter } from 'events';
+
+export type RunContext = {
+    readonly timeout: number
+    isCancelled(): boolean
+    events: EventEmitter
+    sink(error: Error): void
+}
+
+type MachineContext = {
+    readonly run: RunContext
+    readonly state: State,
+    set(state: State): void
+    saveAll(): void
+}
+
+type State = { 
+    readonly id: string,
+    readonly type?: string,
+    readonly dbVersion: number,
+    version: number, 
+    phase?: string, 
+    due: number, 
+    data: any 
+}
+
+type Result = {
+    state: State,
+    forceSave: boolean
+}
 
 export default (config: Config, spec: Spec, dynamo: DynamoDB) => {
 
-    const scheduler = createScheduler();
+    const execute = (run: RunContext) => (ids: string[]) =>
+        loadMachines(ids)
+            .then(runMachines(run))
+            .catch(run.sink)
 
-    type State = { 
-        readonly id: string,
-        readonly type?: string,
-        version: number, 
-        phase?: string, 
-        due: number, 
-        data: any 
+    const loadMachines = (ids: string[]): Promise<State[]> =>
+        Promise.all(ids.map(loadMachine));  //should load all at once - think we need transactionality here...
+
+    const runMachines = (run: RunContext) => (states: State[]) => {
+        const scheduler = createScheduler(run);
+        let saving = Promise.resolve();
+
+        console.debug('running', states)
+
+        const saveAll = (): void => {
+            const captured = clone(machines.map(m => m.state))
+            saving = saving
+                .then(() => saveStates(captured))
+                .catch(run.sink)
+        }
+
+        const machines = states
+            .map(state => ({
+                run,
+                state,
+                set(state: State) {
+                    this.state = state;
+                },
+                saveAll
+            }));
+
+        machines.forEach(schedule(scheduler));
+
+        return scheduler.complete
+            .then(saveAll)
+            .then(() => saving)
     }
 
-    type MachineContext = {
-        state: State
-        saveAll(): void
-    }
-
-    type Result = {
-        state: State,
-        forceSave: boolean
-    }
-
-    const schedule = (m: MachineContext) =>
+    const schedule = (scheduler: Scheduler) => (m: MachineContext) => {
+        console.debug(`scheduling ${m.state.id}:${m.state.phase}; due ${m.state.due}`)
         scheduler.add({
             due: m.state.due,
             run: async () => {
                 const { state, forceSave } = await dispatch(m.state);
-                m.state = state;
+                m.set(state)
 
                 if(forceSave) {
                     m.saveAll();
                 }
 
-                //is state terminal?
-                //is saving otherwise due? - after period, when finishing run
-
-                schedule(m);
+                schedule(scheduler)(m);
             }
         });
-
-    const run = (ids: string[]) =>
-        loadMachines(ids)
-            .then(runMachines);
-
-    const loadMachines = (ids: string[]): Promise<State[]> =>
-        Promise.all(ids.map(loadMachine));  //should load all at once - think we need transactionality here...
-
-    const runMachines = (states: State[]) => {
-        let saving = Promise.resolve();
-
-        const machines = states
-            .map(state => ({
-                state,
-                saveAll: () => {
-                    const captured = clone(machines.map(m => m.state))
-                    saving = saving
-                        .then(() => saveStates(captured))
-                        .catch(e => {})
-                }
-
-                //
-                // saving should be done by a special looping agent
-                // with its own sink that can be sunk at the top of the program
-                //
-
-                //
-                // we need to stop executing: a timer needs to tell us to cancel promptish
-                //
-                //
-            }));
-
-        machines.forEach(schedule);
     }
+
+    //the timeout could just cancel everything indiscriminately
+    //or we could let things decide whether to cancel themselves
+
+    //
+    // saving should be done by a special looping agent
+    // with its own sink that can be sunk at the top of the program
+    //
+
+    //
+    // we need to stop executing: a timer needs to tell us to cancel promptish
+    //
+    //
 
     const dispatch = (origState: State): Promise<Result> => {
         const state = clone(origState)
@@ -123,21 +148,31 @@ export default (config: Config, spec: Spec, dynamo: DynamoDB) => {
             }
         })
         .promise()
-        .then(({ Item: x }) => ({ 
-            id,
-            version: x && x.version 
-                ? parseInt(x.version.N || '0') 
-                : 0,
-            phase: x && x.phase
-                ? x.phase.S
-                : 'start',
-            data: x && x.data 
-                ? JSON.parse(x.data.S || '{}') 
-                : {},
-            due: x && x.due 
-                ? parseInt(x.due.N || '0') 
-                : 0
-        }));
+        .then(({ Item: x }) => {
+            const version = x && x.version 
+                    ? parseInt(x.version.N || '0') 
+                    : 0;
+
+            return { 
+                id,
+                version,
+                dbVersion: version,
+                phase: x && x.phase
+                    ? x.phase.S
+                    : 'start',
+                data: x && x.data 
+                    ? JSON.parse(x.data.S || '{}') 
+                    : {},
+                due: x && x.due 
+                    ? parseInt(x.due.N || '0') 
+                    : 0
+            }
+        });
+
+    //
+    // below should only try to save what's changed
+    // otherwise the condition will always fail
+    //
 
     const saveStates = (states: State[]) : Promise<any> =>
         dynamo.transactWriteItems({
@@ -157,9 +192,23 @@ export default (config: Config, spec: Spec, dynamo: DynamoDB) => {
                     }
                 }
             }))
-        }).promise();
+        }).promise()
+
+        //
+        // FURTHER PROBLEM
+        // saving happens in background; dbVersion can't therefore be part of state
+        // dbVersion is to be known only to the saving agent
+        //
+        // SO...
+        // we want our singlethreaded saving agent with its small switchable queue
+        // and we want it to have access to its own magic state
+        // in fact; why can't it be a loading/saving agent?
+        //
+        // MACHINECONTEXT ENTITYCONTEXT - the latter is what concerns us
+        //
+
 
     return {
-        run
+        execute
     };
 }

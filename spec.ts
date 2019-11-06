@@ -1,8 +1,15 @@
 import createMeetup from './meetup'
 import { Config } from './config';
 
-export type Context = { version: Readonly<number>,  data: any }
-export type Spec = { match: (phase?: string) => Behaviour<any> }
+export type Context = { 
+    readonly id: string, 
+    readonly version: number,  
+    data: any 
+}
+
+export type Spec = { 
+    match: (phase?: string) => Behaviour<any> 
+}
 
 type Next<P> = P | readonly [P, number] | { next: P, delay?: number, save?: boolean }
 type Behaviour<P> = (x: Context) => Next<P> | Promise<Next<P>>
@@ -12,6 +19,10 @@ function specify<S extends { [key: string]: Behaviour<keyof S> }>(s: S) : Spec {
         match: (phase?: string) => s[phase || '']
      };
 }
+
+const isString = (v: any): v is string =>
+    typeof v === 'string';
+
 
 export default (config: Config) => 
     specify({
@@ -25,15 +36,16 @@ export default (config: Config) =>
             console.log('data', x.data)
             console.log('typeof memberCookie', typeof x.data.memberCookie)
 
-            if(typeof x.data.memberCookie !== 'string') {
+            if(!isString(x.data.memberCookie)) {
                 return 'refreshCookie';
             }
 
             await meetup.getMembers(x.data.memberCookie); //should return code if cookie bad
 
             return {
-                next: 'start', 
-                delay: 1000 * 60 * 60 * 1
+                next: 'downloadMembers', 
+                delay: 1000 * 60 * 60 * 1,
+                save: true
             } as const
         },
 
@@ -43,7 +55,7 @@ export default (config: Config) =>
 
             const meetup = createMeetup(config)
             
-            const cookie = await meetup.getCookie();
+            const cookie = await meetup.getCookie(); //and failure???
             console.log('cookie', cookie);
 
             x.data.memberCookie = cookie;
