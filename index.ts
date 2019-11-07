@@ -1,11 +1,21 @@
 import createRunner, { RunContext } from './runner'
 import config from './config'
 import createSpec from './spec'
-import DynamoDB from 'aws-sdk/clients/dynamodb';
+import AWS from 'aws-sdk'
 import createScheduler from './scheduler';
 
-const dynamo = new DynamoDB({ apiVersion: '2012-08-10' });
-const spec = createSpec(config);
+AWS.config.update({
+    apiVersion: '2012-08-10',
+    sslEnabled: false,
+    httpOptions: {
+        proxy: 'localhost:8080'
+    }
+})
+
+const dynamo = new AWS.DynamoDB();
+const s3 = new AWS.S3();
+
+const spec = createSpec(config, s3);
 const runner = createRunner(config, spec, dynamo);
 
 const sink = (err: any) => {

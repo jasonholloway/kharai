@@ -41,7 +41,7 @@ const createThreader = (scheduler: Scheduler) => {
                     new Promise((resolve, reject) => {
                         schedule(job, resolve, reject) 
                     })
-                    .then(() => log('complete', job)))
+                    .then(() => log('done', job)))
             }
         },
 

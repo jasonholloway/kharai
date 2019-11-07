@@ -5,14 +5,15 @@ import { Stream, Writable } from 'stream';
 import zlib from 'zlib'
 import { Config } from './config';
 import { CookieAccessInfo, Cookie } from 'cookiejar';
+import { S3 } from 'aws-sdk'
 
 const superagentProxy = require('superagent-proxy')
 superagentProxy(superagent);
 
 
-export default (config: Config) => {
+export default (config: Config, s3: S3) => {
 
-    const { upload } = createUpload(config);
+    const { upload } = createUpload(config, s3);
 
     const createAgent = (setup?: superagent.Plugin) => superagent
         .agent()

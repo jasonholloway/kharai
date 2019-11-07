@@ -1,5 +1,6 @@
 import createMeetup from './meetup'
-import { Config } from './config';
+import { Config } from './config'
+import { S3 } from 'aws-sdk'
 
 export type Context = { 
     readonly id: string, 
@@ -24,14 +25,14 @@ const isString = (v: any): v is string =>
     typeof v === 'string';
 
 
-export default (config: Config) => 
+export default (config: Config, s3: S3) => 
     specify({
         start() {
             return 'downloadMembers'
         },
 
         async downloadMembers(x) {
-            const meetup = createMeetup(config)
+            const meetup = createMeetup(config, s3)
 
             console.log('data', x.data)
             console.log('typeof memberCookie', typeof x.data.memberCookie)
@@ -53,7 +54,7 @@ export default (config: Config) =>
             //should guard against doing this too often here
             //when was last cookie sought?
 
-            const meetup = createMeetup(config)
+            const meetup = createMeetup(config, s3)
             
             const cookie = await meetup.getCookie(); //and failure???
             console.log('cookie', cookie);
