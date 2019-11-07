@@ -4,6 +4,7 @@ import { Config } from './config';
 import { Spec } from './spec';
 import { Scheduler } from'./scheduler'
 import createThreader from './threader';
+import createSaver from './saver';
 
 export type RunContext = {
     readonly timeout: number
@@ -11,8 +12,7 @@ export type RunContext = {
     sink(error: Error): void
 }
 
-
-type Machine = {
+export type Machine = {
     readonly id: string,
     readonly type?: string,
     readonly db: { version: number },
@@ -44,8 +44,7 @@ export default (config: Config, spec: Spec, dynamo: DynamoDB) => {
 
     const runMachines = (run: RunContext) => (machines: Machine[]) => {
         const threader = createThreader(run.scheduler);
-
-        let saving = Promise.resolve();
+        const saver = createSaver(config, dynamo, run);
 
         log('running', machines)
 
@@ -60,7 +59,7 @@ export default (config: Config, spec: Spec, dynamo: DynamoDB) => {
                     m.state = r.state;
 
                     if(r.forceSave) {
-                        saveAll();
+                        saver.save(machines);
                     }
 
                     return r.state.due < run.timeout
@@ -69,27 +68,15 @@ export default (config: Config, spec: Spec, dynamo: DynamoDB) => {
                 }
             }));
 
-        const saveAll = (): void => {
-            const captured = machines.map(m => ({ ...m, state: clone(m.state) }))
-            saving = saving
-                .then(() => saveMachines(captured)) //need to get the dbVersion updated!
-                .catch(run.sink)
-        }
-
         const saveRethrow = (err: any) => {
-            saveAll();
+            saver.save(machines);
             throw err;
         }
 
         return threader.complete()
-            .then(saveAll)
-            .then(() => saving)
+            .finally(() => saver.save(machines))
+            .then(saver.complete)
     }
-
-    //
-    // saving should be done by a special looping agent
-    // with its own sink that can be sunk at the top of the program
-    //
 
     const dispatch = (m: Machine): Promise<Result> => {
         log('dispatching')
@@ -160,47 +147,6 @@ export default (config: Config, spec: Spec, dynamo: DynamoDB) => {
                 }
             }
         });
-
-    const saveMachines = (machines: Machine[]) : Promise<any> => {
-        const pendings = machines
-            .filter(m => m.state.version > m.db.version)
-            .map(clone)
-
-        log('pendings', pendings)
-
-        if(pendings.length) {
-            return dynamo.transactWriteItems({
-                TransactItems: pendings.map(m => ({
-                    Put: {
-                        TableName: config.tableName,
-                        Item: {
-                            part: { S: m.id },
-                            version: { N: m.state.version.toString() },
-                            phase: { S: m.state.phase },
-                            data: { S: JSON.stringify(m.state.data) },
-                            due: { N: m.state.due.toString() }
-                        },
-                        ConditionExpression: 'version < :version',
-                        ExpressionAttributeValues: {
-                            ':version': { N: m.state.version.toString() }
-                        }
-                    }
-                }))
-            }).promise()
-            .then(() => {
-                pendings.forEach(m => m.db.version = m.state.version)
-            })
-        }
-        else {
-            return Promise.resolve();
-        }
-    }
-
-        //
-        // FURTHER PROBLEM
-        // saving happens in background; dbVersion can't therefore be part of state
-        // dbVersion is to be known only to the saving agent
-        //
 
     return {
         execute
