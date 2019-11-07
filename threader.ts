@@ -1,6 +1,7 @@
 import { Scheduler } from './scheduler'
 
 export type Threadable = {
+    name: string,
     due: number,
     do(): Promise<number|false>
 }

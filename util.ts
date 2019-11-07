@@ -1,3 +1,4 @@
+import { isArray } from 'util'
 
 export const peek = <V>(tag: string, lens?: (v: V) => any) => (v: V) => {
     console.log(tag, lens ? lens(v) : v)
@@ -14,3 +15,6 @@ export const isPromise = (x: any): x is Promise<any> =>
 
 export const clone = <X>(x: X): X => 
     JSON.parse(JSON.stringify(x));
+
+export const isTuple2 = <A, B>(v: any): v is readonly [A, B] =>
+    isArray(v) && v.length == 2;

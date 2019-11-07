@@ -1,6 +1,7 @@
 import createMeetup from './meetup'
 import { Config } from './config'
 import { S3 } from 'aws-sdk'
+import { promisify } from './util';
 
 export type Context = { 
     readonly id: string, 
@@ -8,16 +9,19 @@ export type Context = {
     data: any 
 }
 
-export type Binder = { 
-    bindAction: (phase?: string) => Behaviour<any> 
+export type Binder<P> = { 
+    bindAction: (phase?: string) => Action<P> 
 }
 
 type Next<P> = P | readonly [P, number] | { next: P, delay?: number, save?: boolean }
 type Behaviour<P> = (x: Context) => Next<P> | Promise<Next<P>>
+type Action<P> = (x: Context) => Promise<Next<P>>
 
-function specify<S extends { [key: string]: Behaviour<keyof S> }>(s: S) : Binder {
+
+function specify<S extends { [key: string]: Behaviour<keyof S> }>(s: S) : Binder<keyof S> {
     return { 
-        bindAction: (phase?: string) => s[phase || '']
+        bindAction: (phase?: string) => 
+            (x: Context) => promisify(s[phase || ''](x))
      };
 }
 
@@ -25,7 +29,7 @@ const isString = (v: any): v is string =>
     typeof v === 'string';
 
 
-export default (config: Config, s3: S3) => 
+const createSpec = (config: Config, s3: S3) => 
     specify({
         start() {
             return 'downloadMembers'
@@ -90,3 +94,6 @@ export default (config: Config, s3: S3) =>
     // if the program were endlessly active obviously this would be easy
     //
     //
+
+export default createSpec
+export type Spec = ReturnType<typeof createSpec>
