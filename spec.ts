@@ -13,10 +13,40 @@ export type Binder<P> = {
     bindAction: (phase?: string) => Action<P> 
 }
 
-type Next<P> = 
-    P | readonly [P, number] 
-    | { next: P, delay?: number, save?: boolean } 
-    | { next: P, watch: readonly [string, string] }
+export type Result<P> = Readonly<{
+    phase: P,
+    due: number,
+    watch?: readonly [string[], string],
+    data: any,
+    save?: boolean
+}>
+
+export type Next<P> = (x: Context) => Result<P>
+
+const next = <P extends string>(then: P, save?: boolean): Next<P> =>
+    x => ({ 
+        phase: then, 
+        due: 0, 
+        data: x.data, 
+        save 
+    })
+
+const delay = <P extends string>(ms: number, then: P, save?: boolean): Next<P> =>
+    x => ({ 
+        phase: then, 
+        due: Date.now() + Math.max(0, ms), 
+        data: x.data,
+        save 
+    })
+
+const watch = <P extends string>(targets: string[], condition: string, then: P, save?: boolean): Next<P> =>
+    x => ({ 
+        phase: then, 
+        due: 0,
+        watch: [targets, condition] as const,
+        data: x.data,
+        save 
+    })
 
 type Behaviour<P> = (x: Context) => Next<P> | Promise<Next<P>>
 type Action<P> = (x: Context) => Promise<Next<P>>
@@ -35,22 +65,15 @@ const createSpec = (config: Config, s3: S3) =>
         async downloadMembers(x) {
             const meetup = createMeetup(config, s3)
 
-            console.log('data', x.data)
-            console.log('typeof memberCookie', typeof x.data.memberCookie)
-
             if(!isString(x.data.memberCookie)) {
-                return 'refreshCookie';
+                return next('refreshCookie')
             }
 
             await meetup.getMembers(x.data.memberCookie); //should return code if cookie bad
 
             x.data.blobId++; //this should match what's actually been saved
 
-            return {
-                save: true,
-                delay: 1000 * 60 * 60 * 1,
-                next: 'downloadMembers', 
-            } as const
+            return delay(1000 * 60 * 60, 'downloadMembers', true)
         },
 
         async refreshCookie(x) {
@@ -64,26 +87,21 @@ const createSpec = (config: Config, s3: S3) =>
 
             x.data.memberCookie = cookie;
 
-            return { 
-                save: true ,
-                next: 'downloadMembers', 
-            } as const
+            return next('downloadMembers', true)
         },
 
         ////////////////////////////////////////////////////////////////
 
+
         watchForDownload(x) {
-            return {
-                watch: ['meetupDownloader', `y => y.version > ${x.data.cursor}`],
-                next: 'aha'
-            }
+            return watch(['meetupDownloader'], 'y.version > x.data.cursor', 'aha')
         },
 
         aha(x) {
             //should be able to read other's data here, as captured
             x.data.cursor++;
             console.log('TOOT')
-            return 'watchForDownload'
+            return next('watchForDownload');
         },
 
     });

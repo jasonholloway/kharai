@@ -1,10 +1,11 @@
 import DynamoDB from 'aws-sdk/clients/dynamodb'
 import { clone, isTuple2 } from './util'
 import { Config } from './config';
-import { Spec } from './spec';
+import { Spec, Next, Result } from './spec';
 import { Scheduler } from'./scheduler'
 import createThreader from './threader';
 import createSaver from './saver';
+import { isArray } from 'util';
 
 export type RunContext = {
     readonly timeout: number
@@ -24,11 +25,6 @@ type State = {
     phase?: string, 
     due: number, 
     data: any 
-}
-
-type Result = {
-    state: State,
-    forceSave: boolean
 }
 
 export default (config: Config, spec: Spec, dynamo: DynamoDB) => {
@@ -56,14 +52,16 @@ export default (config: Config, spec: Spec, dynamo: DynamoDB) => {
                     log('thread do')
                     const r = await dispatch(m).catch(saveRethrow);
 
-                    m.state = r.state;
+                    m.state.data = r.data;
+                    m.state.due = r.due;
+                    m.state.version++;
 
-                    if(r.forceSave) {
+                    if(r.save) {
                         saver.save(machines);
                     }
 
-                    return r.state.due < run.timeout
-                        ? r.state.due
+                    return r.due < run.timeout
+                        ? r.due
                         : false;
                 }
             }));
@@ -78,42 +76,20 @@ export default (config: Config, spec: Spec, dynamo: DynamoDB) => {
             .then(saver.complete)
     }
 
-    const dispatch = (m: Machine): Promise<Result> => {
+    const dispatch = (m: Machine): Promise<Result<string>> => {
         log('dispatching')
-        const state = clone(m.state)
 
-        const action = spec.bindAction(state.phase);
-        if(!action) throw Error(`no action found for '${state.phase}'`);
+        const action = spec.bindAction(m.state.phase);
+        if(!action) throw Error(`no action found for '${m.state.phase}'`);
 
-        const context = { id: m.id, version: m.state.version, data: m.state.data };
+        const context = { 
+            id: m.id, 
+            version: m.state.version, 
+            data: clone(m.state.data) 
+        };
 
-        return action(context) //data will get overwritter like this and lost...
-            .then(next => {
-                let phase, delay = 0, forceSave = false;
-
-                if(typeof next == 'string') {
-                    phase = next;
-                }
-                else if(isTuple2(next)) {
-                    [phase, delay] = next;
-                    delay = delay ? Math.max(0, delay) : 0;
-                }
-                else {
-                    phase = next.next;
-                    delay = next.delay ? Math.max(0, next.delay) : 0;
-                    forceSave = !!next.save;
-                }
-
-                state.phase = phase;
-                state.due = Date.now() + delay;
-                state.data = context.data;
-                state.version++;
-
-                return {
-                   state,
-                   forceSave
-                };
-            })
+        return action(context)
+            .then(fn => fn(context)); //data will get overwritter like this and lost...
     }
 
     //what happens if the phase is wrong??? to the error state please
