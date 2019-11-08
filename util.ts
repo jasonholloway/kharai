@@ -10,6 +10,9 @@ export const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, 
 export const promisify = <X>(x: X | Promise<X>) =>
     isPromise(x) ? x : Promise.resolve(x);
 
+export const isString = (v: any): v is string =>
+    typeof v === 'string';
+
 export const isPromise = (x: any): x is Promise<any> =>
     x.then && x.catch;
 

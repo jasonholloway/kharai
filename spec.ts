@@ -1,7 +1,7 @@
 import createMeetup from './meetup'
 import { Config } from './config'
 import { S3 } from 'aws-sdk'
-import { promisify } from './util';
+import { promisify, isString } from './util';
 
 export type Context = { 
     readonly id: string, 
@@ -13,7 +13,11 @@ export type Binder<P> = {
     bindAction: (phase?: string) => Action<P> 
 }
 
-type Next<P> = P | readonly [P, number] | { next: P, delay?: number, save?: boolean }
+type Next<P> = 
+    P | readonly [P, number] 
+    | { next: P, delay?: number, save?: boolean } 
+    | { next: P, watch: readonly [string, string] }
+
 type Behaviour<P> = (x: Context) => Next<P> | Promise<Next<P>>
 type Action<P> = (x: Context) => Promise<Next<P>>
 
@@ -25,15 +29,8 @@ function specify<S extends { [key: string]: Behaviour<keyof S> }>(s: S) : Binder
      };
 }
 
-const isString = (v: any): v is string =>
-    typeof v === 'string';
-
-
 const createSpec = (config: Config, s3: S3) => 
     specify({
-        start() {
-            return 'downloadMembers'
-        },
 
         async downloadMembers(x) {
             const meetup = createMeetup(config, s3)
@@ -47,10 +44,12 @@ const createSpec = (config: Config, s3: S3) =>
 
             await meetup.getMembers(x.data.memberCookie); //should return code if cookie bad
 
+            x.data.blobId++; //this should match what's actually been saved
+
             return {
-                next: 'downloadMembers', 
+                save: true,
                 delay: 1000 * 60 * 60 * 1,
-                save: true
+                next: 'downloadMembers', 
             } as const
         },
 
@@ -66,10 +65,27 @@ const createSpec = (config: Config, s3: S3) =>
             x.data.memberCookie = cookie;
 
             return { 
+                save: true ,
                 next: 'downloadMembers', 
-                save: true 
             } as const
         },
+
+        ////////////////////////////////////////////////////////////////
+
+        watchForDownload(x) {
+            return {
+                watch: ['meetupDownloader', `y => y.version > ${x.data.cursor}`],
+                next: 'aha'
+            }
+        },
+
+        aha(x) {
+            //should be able to read other's data here, as captured
+            x.data.cursor++;
+            console.log('TOOT')
+            return 'watchForDownload'
+        },
+
     });
 
     //

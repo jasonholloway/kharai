@@ -39,6 +39,6 @@ scheduler.add({
     }
 })
 
-runner.execute(run)(['memberDownloader'])
+runner.execute(run)(['memberDownloader2'])
     .then(() => console.log('DONE'))
     .catch(sink)
