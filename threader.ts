@@ -26,6 +26,13 @@ const createThreader = (scheduler: Scheduler) => {
                             job.due = result;
                             schedule(job, onComplete, onError);
                         }
+
+                        //other possibility: set hook for resumption in state manager
+
+                        //when waiting for all threads to finish,
+                        //some threads will be stuck waiting for their hooks to fire
+                        //the state manager itself must be closed down
+                        //and it will tell us that it is complete: then the thread is released
                     })
                     .catch(onError)
                 }

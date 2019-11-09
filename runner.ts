@@ -1,11 +1,41 @@
-import DynamoDB from 'aws-sdk/clients/dynamodb'
-import { clone, isTuple2 } from './util'
+import { AttributeMap } from 'aws-sdk/clients/dynamodb'
+import { clone } from './util'
 import { Config } from './config';
-import { Spec, Next, Result } from './spec';
+import { Spec, Result } from './spec';
 import { Scheduler } from'./scheduler'
 import createThreader from './threader';
 import createSaver from './saver';
-import { isArray } from 'util';
+import { DbMap, Storable, Store } from './store';
+
+export type Machine = Storable & {
+    phase?: string, 
+    due: number, 
+    data: any 
+}
+
+export const machineDb: DbMap<Machine> = {
+    load: (base: Storable, item: AttributeMap): Machine =>
+        ({
+            ...base,
+            phase: item.phase
+                ? item.phase.S
+                : 'start',
+            data: item && item.data 
+                ? JSON.parse(item.data.S || '{}') 
+                : {},
+            due: item && item.due 
+                ? parseInt(item.due.N || '0') 
+                : 0
+        }),
+
+    save: (item: AttributeMap, m: Machine): AttributeMap =>
+        ({
+            ...item,
+            phase: { S: m.phase },
+            data: { S: JSON.stringify(m.data) },
+            due: { N: m.due.toString() }
+        })
+}
 
 export type RunContext = {
     readonly timeout: number
@@ -13,53 +43,43 @@ export type RunContext = {
     sink(error: Error): void
 }
 
-export type Machine = {
-    readonly id: string,
-    readonly type?: string,
-    readonly db: { version: number },
-    state: State
-}
-
-type State = { 
-    version: number, 
-    phase?: string, 
-    due: number, 
-    data: any 
-}
-
-export default (config: Config, spec: Spec, dynamo: DynamoDB) => {
+export default (config: Config, spec: Spec, store: Store) => {
 
     const log = (...args: any[]) => console.debug('runner:', ...args)
+
+    const machineStore = store.createClient(machineDb)
 
     const execute = (run: RunContext) => (ids: string[]) =>
         loadMachines(ids)
             .then(runMachines(run))
 
     const loadMachines = (ids: string[]): Promise<Machine[]> =>
-        Promise.all(ids.map(loadMachine));  //should load all at once - think we need transactionality here...
+        Promise.all(ids.map(machineStore.load));  //should load all at once - think we need transactionality here...
 
     const runMachines = (run: RunContext) => (machines: Machine[]) => {
         const threader = createThreader(run.scheduler);
-        const saver = createSaver(config, dynamo, run);
+        const saver = createSaver(store);
 
         log('running', machines)
 
         machines.forEach(m => 
             threader.add({
                 name: m.id,
-                due: m.state.due,
+                due: m.due,
                 async do() {
                     log('thread do')
-                    const r = await dispatch(m).catch(saveRethrow);
+                    const r = await dispatch(m)
+                        .catch(saveRethrow);
 
-                    m.state.data = r.data;
-                    m.state.due = r.due;
-                    m.state.version++;
+                    m.data = r.data;
+                    m.due = r.due;
+                    m.version++;
 
                     if(r.save) {
                         saver.save(machines);
                     }
 
+                    //below: specify hook as well as due
                     return r.due < run.timeout
                         ? r.due
                         : false;
@@ -79,13 +99,13 @@ export default (config: Config, spec: Spec, dynamo: DynamoDB) => {
     const dispatch = (m: Machine): Promise<Result<string>> => {
         log('dispatching')
 
-        const action = spec.bindAction(m.state.phase);
-        if(!action) throw Error(`no action found for '${m.state.phase}'`);
+        const action = spec.bindAction(m.phase);
+        if(!action) throw Error(`no action found for '${m.phase}'`);
 
         const context = { 
             id: m.id, 
-            version: m.state.version, 
-            data: clone(m.state.data) 
+            version: m.version, 
+            data: clone(m.data) 
         };
 
         return action(context)
@@ -93,36 +113,6 @@ export default (config: Config, spec: Spec, dynamo: DynamoDB) => {
     }
 
     //what happens if the phase is wrong??? to the error state please
-
-    const loadMachine = (id: string) : Promise<Machine> =>
-        dynamo.getItem({
-            TableName: config.tableName,
-            Key: {
-                part: { S: id }
-            }
-        })
-        .promise()
-        .then(({ Item: x }) => {
-            const version = x && x.version 
-                    ? parseInt(x.version.N || '0') 
-                    : 0;
-            return { 
-                id,
-                db: { version },
-                state: {
-                    version,
-                    phase: x && x.phase
-                        ? x.phase.S
-                        : 'start',
-                    data: x && x.data 
-                        ? JSON.parse(x.data.S || '{}') 
-                        : {},
-                    due: x && x.due 
-                        ? parseInt(x.due.N || '0') 
-                        : 0
-                }
-            }
-        });
 
     return {
         execute

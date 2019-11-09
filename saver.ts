@@ -1,12 +1,8 @@
-import { RunContext, Machine } from "./runner";
+import { Machine, machineDb } from "./runner";
 import { EventEmitter } from "events";
-import { clone } from "./util";
-import { DynamoDB } from "aws-sdk";
-import { Config } from "./config";
+import { Store } from "./store";
 
-const log = (...args: any[]) => console.debug('saver:', ...args);
-
-const createSaver = (config: Config, dynamo: DynamoDB, run: RunContext) => {
+const createSaver = (store: Store) => {
     let go = true;
     let active = 0;
     let saving = Promise.resolve();
@@ -18,52 +14,25 @@ const createSaver = (config: Config, dynamo: DynamoDB, run: RunContext) => {
             .on('error', reject)
     })
 
+    const client = store.createClient(machineDb);
+
     return {
         save(machines: Machine[]): void {
             if(!go) return;
 
-            const captured = machines.map(m => ({ ...m, state: clone(m.state) }))
+            const captured = [...machines];
 
             active++;
-            saving = saving.then(async () => {
-                const pendings = captured
-                    .filter(m => m.state.version > m.db.version);
-
-                if(pendings.length === 0) return;
-                else {
-                    log('pendings', pendings)
-
-                    await dynamo.transactWriteItems({
-                        TransactItems: pendings.map(m => ({
-                            Put: {
-                                TableName: config.tableName,
-                                Item: {
-                                    part: { S: m.id },
-                                    version: { N: m.state.version.toString() },
-                                    phase: { S: m.state.phase },
-                                    data: { S: JSON.stringify(m.state.data) },
-                                    due: { N: m.state.due.toString() }
-                                },
-                                ConditionExpression: 'version < :version',
-                                ExpressionAttributeValues: {
-                                    ':version': { N: m.state.version.toString() }
-                                }
-                            }
-                        }))
-                    })
-                    .promise();
-
-                    pendings.forEach(m => m.db.version = m.state.version)
-                }
-            })
-            .catch(err => {
-                go = false;
-                events.emit('error', err)
-            })
-            .finally(() => {
-                active--;
-                events.emit('saved');
-            })
+            saving = saving
+                .then(() => client.save(captured))
+                .catch(err => {
+                    go = false;
+                    events.emit('error', err)
+                })
+                .finally(() => {
+                    active--;
+                    events.emit('saved');
+                })
         },
         complete(): Promise<void> {
             go = false;

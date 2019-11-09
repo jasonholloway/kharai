@@ -196,6 +196,106 @@ so lockstep isn't needed
 how about conditions? they make sense, belonging to the listener, and checked at its pace
 
 
+-------------------------------------------
+
+
+instead of saying that the next phase is due a certain time, actions should be able to say 'when something has changed'
+though the problem with this is that the comparand is a bit of state that is not serialized, but held in memory
+
+a watch is set, and then checked after every phase of the watched
+maybe this condition could in fact be serialized
+
+but then when it comes to initializing the run, we'd presumably check the condition immediately
+
+and if the condition relates to a state we own, we can check it very efficiently ourselves
+
+but if it relates to another state, then we'll have to poll at a certain frequency
+this second polling could even be done by the machine itself
+
+---------------------------------------------
+
+how about combos of types and names
+
+given one machine, does it make sense to have multiple other ones of exactly the same type hanging of it
+yes - as they may differ significantly in data
+data as well as type determines behaviour
+
+------------------------------------------
+
+the role of the time-based scheduler? just to stop scheduling, and to tell us when nothing more has been scheduled
+
+but now we will have an event-based scheduler
+that should be dispatched immediately
+and will continue as a machine
+
+------------------------------------------
+
+                        //or wait for an incoming event to retrigger us
+                        //so the threader still ensures the thread goes forward as one
+                        //yet doesnt rely on the scheduler alone
+
+                        //but hooks would have to be put in here?
+                        //yes - the condition would be taken from the result
+                        //and passed to the state engine
+                        //which might immediately trigger our callback
+
+                        //hooks should presumably be loaded before anything else
+                        //but there's always the possibility of hooking machines being
+                        //dependent on each other, and so a simple ordering like so wouldn't
+                        //resolve all situations anyway
+                        //either solve it, or live with the poossibility of it occuring
+
+                        //what's the worst that would happen?
+                        //a particular machine state could be missed 
+                        //and so the supposed guarantee of locality - that nothing would be missed
+                        //would be lost in a single unfortunate case
+
+                        //how nice it would be to be certain of seeing every local change
+
+                        //but machines always move at their own pace - you can never be sure that
+                        //in the time it has taken to reset the condition
+                        //lots of movement in the target hasn't occured and been missed
+                        //without a comunicative buffer mechanism (ie an inbox) there's no way round this
+                        //sampling approach
+
+                        //so machines always move at their own pace, and are always liable to miss micro movements
+
+                        //that's one mode anyway: another is buffering, another is cooperative yielding and serialization
+                        //how would we support these? buffering itself would have its own persistent and evanescent modes
+                        //such buffering could be supported using our normal machine mechanism: a persistent buffer would
+                        //be commonly available (with local cacheing layer), and producer and consumer would communicate
+                        //via exposed state
+
+                        //lockstep transmission could also be done, but only by cooperation of producer and consumer: they could mutually
+                        //wait on one another, as interlinked state machines
+
+                        //and how about the other way round? how could we implement the other modes in terms of this one?
+                        //lockstep can't pretend to be concurrent, unless it were its own scheduler, executing small participles
+                        //with buffering, messages could be sent from here to there, properly like actors
+                        //this is sufficient to model anything, but is more complicated in its implementation requirements
+                        //there's no need for persistence with our machines
+
+                        //
+                        //
+                        //
+                        //
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

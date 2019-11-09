@@ -3,6 +3,7 @@ import config from './config'
 import createSpec from './spec'
 import AWS from 'aws-sdk'
 import createScheduler from './scheduler';
+import createStore from './store';
 
 AWS.config.update({
     apiVersion: '2012-08-10',
@@ -16,7 +17,8 @@ const dynamo = new AWS.DynamoDB();
 const s3 = new AWS.S3();
 
 const spec = createSpec(config, s3);
-const runner = createRunner(config, spec, dynamo);
+const store = createStore(config, dynamo)
+const runner = createRunner(config, spec, store);
 
 const sink = (err: any) => {
     console.error(err)
