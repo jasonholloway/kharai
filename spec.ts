@@ -2,6 +2,7 @@ import createMeetup from './meetup'
 import { Config } from './config'
 import { S3 } from 'aws-sdk'
 import { promisify, isString } from './util';
+import { MachineState } from './runner';
 
 export type Context = { 
     readonly id: string, 
@@ -14,10 +15,11 @@ export type Binder<P> = {
 }
 
 export type Result<P> = Readonly<{
-    phase: P,
-    due: number,
-    watch?: readonly [string[], string],
-    data: any,
+    state: MachineState, //somehow constrain phase here
+    // phase: P,
+    // due: number,
+    // watch?: readonly [string[], string],
+    // data: any,
     save?: boolean
 }>
 
@@ -25,26 +27,32 @@ export type Next<P> = (x: Context) => Result<P>
 
 const next = <P extends string>(then: P, save?: boolean): Next<P> =>
     x => ({ 
-        phase: then, 
-        due: 0, 
-        data: x.data, 
+        state: {
+            phase: then, 
+            due: 0, 
+            data: x.data, 
+        },
         save 
     })
 
 const delay = <P extends string>(ms: number, then: P, save?: boolean): Next<P> =>
     x => ({ 
-        phase: then, 
-        due: Date.now() + Math.max(0, ms), 
-        data: x.data,
+        state: {
+            phase: then, 
+            due: Date.now() + Math.max(0, ms), 
+            data: x.data,
+        },
         save 
     })
 
 const watch = <P extends string>(targets: string[], condition: string, then: P, save?: boolean): Next<P> =>
     x => ({ 
-        phase: then, 
-        due: 0,
-        watch: [targets, condition] as const,
-        data: x.data,
+        state: {
+            phase: then, 
+            due: 0,
+            watch: [targets, condition] as const,
+            data: x.data,
+        },
         save 
     })
 

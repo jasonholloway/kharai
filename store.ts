@@ -7,23 +7,24 @@ import { AttributeMap } from "aws-sdk/clients/dynamodb";
 // that supports the existing behaviour
 //
 
-export type Storable = {
+export type Storable<S> = {
     id: string,
     version: number,
-    db: { version: number }
+    db: { version: number },
+    state: S
 }
 
-export type DbMap<V extends Storable> = {
-    load(base: Storable, x: AttributeMap): V,
-    save(attr: AttributeMap, v: V): AttributeMap
+export type DbMap<S> = {
+    load(x: AttributeMap): S,
+    save(state: S): AttributeMap
 }
 
 
 const createStore = (config: Config, dynamo: DynamoDB) => {
 
-    const createClient = <V extends Storable>(map: DbMap<V>) =>
+    const createClient = <S>(map: DbMap<S>) =>
         ({
-            load: (id: string): Promise<V> =>
+            load: (id: string): Promise<Storable<S>> =>
                 dynamo.getItem({
                     TableName: config.tableName,
                     Key: {
@@ -38,26 +39,26 @@ const createStore = (config: Config, dynamo: DynamoDB) => {
                             ? parseInt(x.version.N || '0') 
                             : 0;
 
-                    const base = { 
+                    return { 
                         id, 
                         version, 
-                        db: { version }
-                    }
-
-                    return map.load(base, x)
+                        db: { version },
+                        state: map.load(x)
+                    };
                 }),
 
-            async save(storables: V[]): Promise<void> {
+            async save(storables: Storable<S>[]): Promise<void> {
                 const pendings = storables
                     .filter(s => s.version > s.db.version);
 
                 if(pendings.length === 0) return;
                 else {
                     const items = pendings
-                        .map(s => map.save({  
+                        .map(s => ({
+                            ...map.save(s.state),
                             part: { S: s.id },
                             version: { N: s.version.toString() }
-                        }, s));
+                        }))
 
                     await dynamo.transactWriteItems({
                         TransactItems: items.map(item => ({

@@ -7,16 +7,17 @@ import createThreader from './threader';
 import createSaver from './saver';
 import { DbMap, Storable, Store } from './store';
 
-export type Machine = Storable & {
+export type MachineState = {
     phase?: string, 
     due: number, 
     data: any 
 }
 
-export const machineDb: DbMap<Machine> = {
-    load: (base: Storable, item: AttributeMap): Machine =>
+export type Machine = Storable<MachineState>
+
+export const machineDb: DbMap<MachineState> = {
+    load: (item: AttributeMap): MachineState =>
         ({
-            ...base,
             phase: item.phase
                 ? item.phase.S
                 : 'start',
@@ -28,9 +29,8 @@ export const machineDb: DbMap<Machine> = {
                 : 0
         }),
 
-    save: (item: AttributeMap, m: Machine): AttributeMap =>
+    save: (m: MachineState): AttributeMap =>
         ({
-            ...item,
             phase: { S: m.phase },
             data: { S: JSON.stringify(m.data) },
             due: { N: m.due.toString() }
@@ -65,14 +65,13 @@ export default (config: Config, spec: Spec, store: Store) => {
         machines.forEach(m => 
             threader.add({
                 name: m.id,
-                due: m.due,
+                due: m.state.due,
                 async do() {
                     log('thread do')
                     const r = await dispatch(m)
                         .catch(saveRethrow);
 
-                    m.data = r.data;
-                    m.due = r.due;
+                    m.state = r.state;
                     m.version++;
 
                     if(r.save) {
@@ -80,8 +79,10 @@ export default (config: Config, spec: Spec, store: Store) => {
                     }
 
                     //below: specify hook as well as due
-                    return r.due < run.timeout
-                        ? r.due
+                    //would be best to select the emitter here
+                    //based on state
+                    return m.state.due < run.timeout
+                        ? m.state.due
                         : false;
                 }
             }));
@@ -99,13 +100,13 @@ export default (config: Config, spec: Spec, store: Store) => {
     const dispatch = (m: Machine): Promise<Result<string>> => {
         log('dispatching')
 
-        const action = spec.bindAction(m.phase);
-        if(!action) throw Error(`no action found for '${m.phase}'`);
+        const action = spec.bindAction(m.state.phase);
+        if(!action) throw Error(`no action found for '${m.state.phase}'`);
 
         const context = { 
             id: m.id, 
             version: m.version, 
-            data: clone(m.data) 
+            data: clone(m.state.data) 
         };
 
         return action(context)
