@@ -71,8 +71,7 @@ export default (config: Config, spec: Spec, store: Store) => {
                     const r = await dispatch(m)
                         .catch(saveRethrow);
 
-                    m.state = r.state;
-                    m.version++;
+                    m.setState(r.state);
 
                     if(r.save) {
                         saver.save(machines);
@@ -81,9 +80,8 @@ export default (config: Config, spec: Spec, store: Store) => {
                     //below: specify hook as well as due
                     //would be best to select the emitter here
                     //based on state
-                    return m.state.due < run.timeout
-                        ? m.state.due
-                        : false;
+                    const { due } = m.state;
+                    return due < run.timeout && due;
                 }
             }));
 

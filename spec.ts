@@ -16,10 +16,6 @@ export type Binder<P> = {
 
 export type Result<P> = Readonly<{
     state: MachineState, //somehow constrain phase here
-    // phase: P,
-    // due: number,
-    // watch?: readonly [string[], string],
-    // data: any,
     save?: boolean
 }>
 

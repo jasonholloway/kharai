@@ -5,14 +5,24 @@ import { AttributeMap } from "aws-sdk/clients/dynamodb";
 // what'll it do?
 // it will load states for you, which you can update, and commit new versions of
 // that supports the existing behaviour
+
+// but - as well as saving and loading, 
+// should keep track of all entities loaded and saved
+// then 
+
+//currently, the version gets updated every time a phase gets dispatched - but this is right!
+//every time the state is updated, the version should be incremented
 //
 
-export type Storable<S> = {
+type InnerStorable<S> = {
     id: string,
     version: number,
     db: { version: number },
-    state: S
+    state: S,
+    setState(s: S): void
 }
+
+export type Storable<S> = Omit<Readonly<InnerStorable<S>>, 'db'>
 
 export type DbMap<S> = {
     load(x: AttributeMap): S,
@@ -39,17 +49,24 @@ const createStore = (config: Config, dynamo: DynamoDB) => {
                             ? parseInt(x.version.N || '0') 
                             : 0;
 
-                    return { 
+                    const storable: InnerStorable<S> = { 
                         id, 
                         version, 
                         db: { version },
-                        state: map.load(x)
+                        state: map.load(x),
+                        setState(s) {
+                            storable.state = s;
+                            storable.version++;
+                        }
                     };
+
+                    return storable;
                 }),
 
             async save(storables: Storable<S>[]): Promise<void> {
-                const pendings = storables
-                    .filter(s => s.version > s.db.version);
+                const pendings = 
+                    (<InnerStorable<S>[]>storables)
+                        .filter(s => s.version > s.db.version);
 
                 if(pendings.length === 0) return;
                 else {
