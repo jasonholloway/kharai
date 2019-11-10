@@ -1,59 +1,34 @@
-import { Scheduler } from './scheduler'
+
+export type Resume = Promise<boolean>
 
 export type Threadable = {
     name: string,
-    due: number,
-    do(): Promise<number|false>
+    resume: Resume,
+    do: () => Resume
 }
 
-const createThreader = (scheduler: Scheduler) => {
+const log = (...args: any[]) => console.debug('threader:', ...args)
 
-    const log = (...args: any[]) => console.debug('threader:', ...args)
-
+const createThreader = () => {
     const threads = [] as Promise<void>[];
     let go = true;
 
-    const schedule = (job: Threadable, onComplete: () => void, onError: (e: any) => void) => 
-        scheduler.add({
-            due: job.due,
-            do() {
-                try {
-                    job.do().then(result => {
-                        if(result === false) {
-                            onComplete();
-                        }
-                        else {
-                            job.due = result;
-                            schedule(job, onComplete, onError);
-                        }
-
-                        //other possibility: set hook for resumption in state manager
-
-                        //when waiting for all threads to finish,
-                        //some threads will be stuck waiting for their hooks to fire
-                        //the state manager itself must be closed down
-                        //and it will tell us that it is complete: then the thread is released
-
-                        //
-                        //
-                        //
-                    })
-                    .catch(onError)
+    const thread = (job: Threadable): Promise<void> =>
+        job.resume
+            .then(cont => {
+                if(go && cont) {
+                    const resume = job.do();
+                    return thread({ ...job, resume });
                 }
-                catch(err) {
-                    onError(err)
-                }
-            } 
-        }) || onComplete();
+            })
 
     return {
         add(job: Threadable) {
             if(go) {
                 threads.push(
-                    new Promise((resolve, reject) => {
-                        schedule(job, resolve, reject) 
-                    })
-                    .then(() => log('done', job)))
+                    thread(job) 
+                        .then(() => log('end', job.name))
+                    )
             }
         },
 

@@ -29,11 +29,53 @@ export type DbMap<S> = {
     save(state: S): AttributeMap
 }
 
+type HookFn<S> = (s: Storable<S>) => void;
+type Hook<S> = {
+    readonly fn: HookFn<S>
+    remove(): void
+}
+
+//as soon as a hook is placed, it should be checked
+//and perhaps fired
+//
 
 const createStore = (config: Config, dynamo: DynamoDB) => {
+    const loaded: { [id: string]: Storable<any> } = {};
+    const hooks: { [id: string]: Hook<any>[] } = {};
 
-    const createClient = <S>(map: DbMap<S>) =>
-        ({
+    function watch<S>(id: string, fn: HookFn<S>) {
+        const r = hooks[id] || (hooks[id] = []);
+
+        const hook = { 
+            fn,
+            remove() {
+                r.splice(r.indexOf(hook), 1)
+            }
+        }
+
+        r.push(hook);
+
+        //this is the one way of reading state,
+        //and so it should return current state, as soon as it was loaded (and this marks a need for it)
+
+        //but such a hook could fire a fair few times...
+        //the setter of the hook would filter out the states that weren't sufficient for it
+        //and unregister itself after the first hit
+        //then we here would just be in the business of *streaming* updates for states out
+
+        //so the runner sets watches with its conditions and *unhooks* on first pass
+        //
+
+        //hook is set: do we now need to fire for it?
+        //the hook will emit events
+        //watching is the main means of reading another's state...
+
+        return hook;
+    }
+
+    const createRepo = <S>(map: DbMap<S>) => {
+
+        return {
             load: (id: string): Promise<Storable<S>> =>
                 dynamo.getItem({
                     TableName: config.tableName,
@@ -59,6 +101,8 @@ const createStore = (config: Config, dynamo: DynamoDB) => {
                             storable.version++;
                         }
                     };
+
+                    loaded[id] = storable;
 
                     return storable;
                 }),
@@ -92,10 +136,13 @@ const createStore = (config: Config, dynamo: DynamoDB) => {
                     pendings.forEach(s => s.db.version = s.version)
                 }
             }
-        })
+
+        }
+    }
 
     return {
-        createClient
+        createRepo,
+        watch
     }
 }
 

@@ -2,8 +2,8 @@ import createRunner, { RunContext } from './runner'
 import config from './config'
 import createSpec from './spec'
 import AWS from 'aws-sdk'
-import createScheduler from './scheduler';
 import createStore from './store';
+import createTimer from './timer';
 
 AWS.config.update({
     apiVersion: '2012-08-10',
@@ -18,29 +18,28 @@ const s3 = new AWS.S3();
 
 const spec = createSpec(config, s3);
 const store = createStore(config, dynamo)
-const runner = createRunner(config, spec, store);
+const timer = createTimer();
+
+const runner = createRunner(config, spec, store, timer);
 
 const sink = (err: any) => {
     console.error(err)
-    scheduler.close()
+    timer.complete();
+    //store.complete();
 }
-
-const scheduler = createScheduler(sink);
 
 const run: RunContext = {
     timeout: Date.now() + (1000 * 10),
-    scheduler,
     sink
 }
 
-scheduler.add({
-    due: run.timeout,
-    do() {
-        console.debug('timeout!')
-        scheduler.close();
-    }
-})
+setTimeout(() => {
+    console.debug('timeout!')
+    timer.complete();
+    //store.complete();
+}, run.timeout);
 
 runner.execute(run)(['memberDownloader2'])
     .then(() => console.log('DONE'))
+    .then(timer.complete)
     .catch(sink)

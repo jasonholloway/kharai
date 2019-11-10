@@ -275,57 +275,25 @@ and will continue as a machine
                         //this is sufficient to model anything, but is more complicated in its implementation requirements
                         //there's no need for persistence with our machines
 
-                        //
-                        //
-                        //
-                        //
+----------------------------------------------------------------------------------------------------
 
+the runner will, if we have a certain delay to wait, create a timer instance that the threader will use to restart itself
+similarly, if we require a hook, it will create a hook and feed that to the threader instead
 
+closing the repo will remove hooks
+closing the timer will remove timers
+then the threader itself can be closed
 
+but the repo should only be closed when all the thread phases have stopped
+and we want thread phases to be able to complete if already in flight, as they might have done precious work
+so we can't violently stop them from setting their states
 
+maybe the thing to do then is to close the threader first of all, which will stop resumptions
+and with this, will stop timers and hooks having any effect
 
+when the threader has stopped all threads at insterstitial points, then a further save should be queued, and we should wait on the saver completing
+after the threader has completed, then we can complete the timer and repository
+and finally we wait on the saver to complete
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-		
-		
-		
-
-
-
-
-
-
-
-
-
-
+so - complete the threader first!
 

@@ -14,7 +14,7 @@ const createSaver = (store: Store) => {
             .on('error', reject)
     })
 
-    const client = store.createClient(machineDb);
+    const repo = store.createRepo(machineDb);
 
     return {
         save(machines: Machine[]): void {
@@ -24,7 +24,7 @@ const createSaver = (store: Store) => {
 
             active++;
             saving = saving
-                .then(() => client.save(captured))
+                .then(() => repo.save(captured))
                 .catch(err => {
                     go = false;
                     events.emit('error', err)

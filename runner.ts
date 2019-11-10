@@ -2,14 +2,15 @@ import { AttributeMap } from 'aws-sdk/clients/dynamodb'
 import { clone } from './util'
 import { Config } from './config';
 import { Spec, Result } from './spec';
-import { Scheduler } from'./scheduler'
 import createThreader from './threader';
 import createSaver from './saver';
 import { DbMap, Storable, Store } from './store';
+import { Timer } from './timer';
 
 export type MachineState = {
     phase?: string, 
     due: number, 
+    watch?: readonly [string[], string],
     data: any 
 }
 
@@ -39,35 +40,43 @@ export const machineDb: DbMap<MachineState> = {
 
 export type RunContext = {
     readonly timeout: number
-    readonly scheduler: Scheduler
     sink(error: Error): void
 }
 
-export default (config: Config, spec: Spec, store: Store) => {
+export default (config: Config, spec: Spec, store: Store, timer: Timer) => {
 
     const log = (...args: any[]) => console.debug('runner:', ...args)
 
-    const machineStore = store.createClient(machineDb)
+    const repo = store.createRepo(machineDb)
 
     const execute = (run: RunContext) => (ids: string[]) =>
         loadMachines(ids)
             .then(runMachines(run))
 
     const loadMachines = (ids: string[]): Promise<Machine[]> =>
-        Promise.all(ids.map(machineStore.load));  //should load all at once - think we need transactionality here...
+        Promise.all(ids.map(repo.load));  //should load all at once - think we need transactionality here...
 
     const runMachines = (run: RunContext) => (machines: Machine[]) => {
-        const threader = createThreader(run.scheduler);
+        const threader = createThreader();
         const saver = createSaver(store);
 
         log('running', machines)
 
+        const resume = async (m: Machine): Promise<boolean> => {
+            if(m.state.watch) {
+                throw Error('unimpl')
+            }
+            else {
+                const due = Math.max(0, m.state.due || 0);
+                return due < run.timeout && timer.when(due);
+            }
+        }
+
         machines.forEach(m => 
             threader.add({
                 name: m.id,
-                due: m.state.due,
+                resume: resume(m),
                 async do() {
-                    log('thread do')
                     const r = await dispatch(m)
                         .catch(saveRethrow);
 
@@ -77,11 +86,7 @@ export default (config: Config, spec: Spec, store: Store) => {
                         saver.save(machines);
                     }
 
-                    //below: specify hook as well as due
-                    //would be best to select the emitter here
-                    //based on state
-                    const { due } = m.state;
-                    return due < run.timeout && due;
+                    return resume(m);
                 }
             }));
 
@@ -91,7 +96,7 @@ export default (config: Config, spec: Spec, store: Store) => {
         }
 
         return threader.complete()
-            .finally(() => saver.save(machines))
+            .finally(() => saver.save(machines)) //but closed down store would stop saving?!?!?
             .then(saver.complete)
     }
 
