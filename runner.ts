@@ -68,7 +68,10 @@ export default (config: Config, spec: Spec, store: Store, timer: Timer) => {
             }
             else {
                 const due = Math.max(0, m.state.due || 0);
-                return due < run.timeout && timer.when(due);
+                const result = due < run.timeout && timer.when(due);
+
+                log('resume result')
+                return result;
             }
         }
 

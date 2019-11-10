@@ -15,8 +15,9 @@ const createThreader = () => {
 
     const thread = (job: Threadable): Promise<void> =>
         job.resume
-            .then(cont => {
-                if(go && cont) {
+            .then(cont => { //once a thread is going, only it itself will quit itself
+                log('resume', job.name, cont)
+                if(cont) {
                     const resume = job.do();
                     return thread({ ...job, resume });
                 }

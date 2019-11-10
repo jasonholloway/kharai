@@ -66,6 +66,10 @@ function specify<S extends { [key: string]: Behaviour<keyof S> }>(s: S) : Binder
 const createSpec = (config: Config, s3: S3) => 
     specify({
 
+        start() {
+            return next('downloadMembers')
+        },
+
         async downloadMembers(x) {
             const meetup = createMeetup(config, s3)
 

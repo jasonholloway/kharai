@@ -37,7 +37,7 @@ setTimeout(() => {
     console.debug('timeout!')
     timer.complete();
     //store.complete();
-}, run.timeout);
+}, run.timeout - Date.now());
 
 runner.execute(run)(['memberDownloader2'])
     .then(() => console.log('DONE'))
