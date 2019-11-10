@@ -19,65 +19,45 @@ type InnerStorable<S> = {
     version: number,
     db: { version: number },
     state: S,
-    setState(s: S): void
+    setState(s: S): void,
+    hooks: Hook<S>[]
 }
 
-export type Storable<S> = Omit<Readonly<InnerStorable<S>>, 'db'>
+export interface Storable<S> extends Omit<Readonly<InnerStorable<S>>, 'db'>
+{}
 
 export type DbMap<S> = {
     load(x: AttributeMap): S,
     save(state: S): AttributeMap
 }
 
-type HookFn<S> = (s: Storable<S>) => void;
+type HookFn<S> = (this: Hook<S>, x: Storable<S>) => void;
 type Hook<S> = {
     readonly fn: HookFn<S>
-    remove(): void
+    complete(result: boolean): void
 }
 
 //as soon as a hook is placed, it should be checked
 //and perhaps fired
 //
+//question now is of triggering hooks
+//setting a watch should implicitly load the state - but this canbe done later
+//we should certainly fire as soon as set if state is in good nick
+//
+//so, when the hook is set we must test what's already loaded,
+//and every time the loaded changes
+//
 
 const createStore = (config: Config, dynamo: DynamoDB) => {
+    let go = true;
     const loaded: { [id: string]: Storable<any> } = {};
-    const hooks: { [id: string]: Hook<any>[] } = {};
-
-    function watch<S>(id: string, fn: HookFn<S>) {
-        const r = hooks[id] || (hooks[id] = []);
-
-        const hook = { 
-            fn,
-            remove() {
-                r.splice(r.indexOf(hook), 1)
-            }
-        }
-
-        r.push(hook);
-
-        //this is the one way of reading state,
-        //and so it should return current state, as soon as it was loaded (and this marks a need for it)
-
-        //but such a hook could fire a fair few times...
-        //the setter of the hook would filter out the states that weren't sufficient for it
-        //and unregister itself after the first hit
-        //then we here would just be in the business of *streaming* updates for states out
-
-        //so the runner sets watches with its conditions and *unhooks* on first pass
-        //
-
-        //hook is set: do we now need to fire for it?
-        //the hook will emit events
-        //watching is the main means of reading another's state...
-
-        return hook;
-    }
 
     const createRepo = <S>(map: DbMap<S>) => {
-
         return {
-            load: (id: string): Promise<Storable<S>> =>
-                dynamo.getItem({
+            load: (id: string): Promise<Storable<S>> => {
+                if(!go) throw Error('store closed');
+
+                return dynamo.getItem({
                     TableName: config.tableName,
                     Key: {
                         part: { S: id }
@@ -99,13 +79,16 @@ const createStore = (config: Config, dynamo: DynamoDB) => {
                         setState(s) {
                             storable.state = s;
                             storable.version++;
-                        }
+                            storable.hooks.forEach(h => h.fn(storable));
+                        },
+                        hooks: []
                     };
 
                     loaded[id] = storable;
 
                     return storable;
-                }),
+                })
+            },
 
             async save(storables: Storable<S>[]): Promise<void> {
                 const pendings = 
@@ -135,14 +118,46 @@ const createStore = (config: Config, dynamo: DynamoDB) => {
 
                     pendings.forEach(s => s.db.version = s.version)
                 }
-            }
+            },
 
+            watch: (id: string, fn: HookFn<S>) =>
+                new Promise<boolean>((resolve) => {
+                    if(go) {
+                        const s = loaded[id];
+                        const hook: Hook<S> = { 
+                            fn,
+                            complete(result) {
+                                s.hooks.splice(s.hooks.indexOf(hook), 1);
+                                resolve(result);
+                            }
+                        }
+                        s.hooks.push(hook);
+                        hook.fn(s);
+
+                        //****
+                        //very much reliant on target already being loaded
+                        //****
+                    }
+                    else {
+                        resolve(false);
+                    }
+                })
         }
+    }
+
+    const endAllWatches = () => {
+        go = false;
+        Object.entries(loaded)
+            .forEach(([_, s]) => {
+                s.hooks.forEach(h => {
+                    h.complete(false);
+                })
+            })
     }
 
     return {
         createRepo,
-        watch
+        endAllWatches
     }
 }
 

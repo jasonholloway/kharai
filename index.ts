@@ -22,10 +22,15 @@ const timer = createTimer();
 
 const runner = createRunner(config, spec, store, timer);
 
+const end = () => {
+    clearTimeout(h);
+    timer.complete();
+    store.endAllWatches();
+}
+
 const sink = (err: any) => {
     console.error(err)
-    timer.complete();
-    //store.complete();
+    end();
 }
 
 const run: RunContext = {
@@ -33,13 +38,12 @@ const run: RunContext = {
     sink
 }
 
-setTimeout(() => {
+const h = setTimeout(() => {
     console.debug('timeout!')
-    timer.complete();
-    //store.complete();
+    end();
 }, run.timeout - Date.now());
 
 runner.execute(run)(['memberDownloader2'])
     .then(() => console.log('DONE'))
-    .then(timer.complete)
+    .then(end)
     .catch(sink)

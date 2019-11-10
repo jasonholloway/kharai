@@ -64,14 +64,22 @@ export default (config: Config, spec: Spec, store: Store, timer: Timer) => {
 
         const resume = async (m: Machine): Promise<boolean> => {
             if(m.state.watch) {
-                throw Error('unimpl')
+                const [targetIds, condition] = m.state.watch;
+                const targetId = targetIds[0];
+
+                const fn = <(m: Machine) => boolean>new Function('m', condition);
+
+                return repo.watch(
+                    targetId,
+                    function(target) {
+                        log('HOOKED', target)
+                        if(fn(target)) this.complete(true);
+                    }
+                )
             }
             else {
                 const due = Math.max(0, m.state.due || 0);
-                const result = due < run.timeout && timer.when(due);
-
-                log('resume result')
-                return result;
+                return due < run.timeout && timer.when(due);
             }
         }
 
