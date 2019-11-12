@@ -14,6 +14,8 @@ import { AttributeMap } from "aws-sdk/clients/dynamodb";
 //every time the state is updated, the version should be incremented
 //
 
+const log = (...args: any[]) => console.log('store:', ...args);
+
 type InnerStorable<S> = {
     id: string,
     version: number,
@@ -57,7 +59,7 @@ const createStore = (config: Config, dynamo: DynamoDB) => {
     const createRepo = <S>(map: DbMap<S>) => {
         return {
             load: (id: string): Promise<Storable<S>> => {
-                console.log('loading', id)
+                log('loading', id)
 
 
                 if(!go) throw Error('store closed');
@@ -94,7 +96,7 @@ const createStore = (config: Config, dynamo: DynamoDB) => {
                         }
                     };
 
-                    console.log('loaded', storable)
+                    log('loaded', storable)
                     loaded[id] = storable;
 
                     return storable;
@@ -131,26 +133,30 @@ const createStore = (config: Config, dynamo: DynamoDB) => {
                 }
             },
 
-            watch: (id: string, fn: HookFn<S>) =>
+            watch: (id: string, hookFn: HookFn<S>) =>
                 new Promise<boolean>((resolve) => {
                     const s = loaded[id];
-
-                    if(go && !s.frozen) {
-                        console.log('watching', id)
+                    if(go && s) {
+                        log('watching', id)
+                        let active = true;
                         const hook: Hook<S> = { 
-                            fn,
+                            fn(ss) { 
+                                hookFn.bind(this)(ss) 
+                                if(s.frozen) {
+                                    this.complete(false);
+                                }
+                            },
                             complete(result) {
-                                console.log('hook complete', id);
-                                s.hooks.splice(s.hooks.indexOf(hook), 1);
-                                resolve(result);
+                                if(active) {
+                                    active = false;
+                                    log('hook complete', id);
+                                    s.hooks.splice(s.hooks.indexOf(hook), 1);
+                                    resolve(result);
+                                }
                             }
                         }
                         s.hooks.push(hook);
                         hook.fn(s);
-
-                        //****
-                        //very much reliant on target already being loaded
-                        //****
                     }
                     else {
                         resolve(false);

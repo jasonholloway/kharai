@@ -72,15 +72,15 @@ export default (config: Config, spec: Spec, store: Store, timer: Timer) => {
             if(m.state.watch) {
                 const [targetIds, condition] = m.state.watch;
                 const targetId = targetIds[0];
-
-                const fn = <(m: Machine) => boolean>new Function('m', condition);
+                const fn = <(m: Machine) => boolean>new Function('m', `return ${condition}`);
 
                 log(m.id, 'resume watch', m.state.watch)
                 return repo.watch(
                     targetId,
                     function(target) {
-                        log('hook triggered', target.id)
-                        if(fn(target)) this.complete(true);
+                        const met = fn(target)
+                        log(`hook triggered ${target.id}>${m.id}`, met)
+                        if(met) this.complete(true);
                     }
                 )
             }
@@ -97,6 +97,7 @@ export default (config: Config, spec: Spec, store: Store, timer: Timer) => {
                 return false;
             }
         }
+
 
         //*****
         //shouldn't start before resume...

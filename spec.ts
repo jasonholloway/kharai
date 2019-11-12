@@ -101,7 +101,7 @@ const createSpec = (config: Config, s3: S3) =>
         },
 
         watchStuff(x) {
-            return watch(['memberDownloader'], 'true', 'aha')
+            return watch(['memberDownloader2'], 'true', 'aha')
         },
 
         aha(x) {
