@@ -94,23 +94,23 @@ const createSpec = (config: Config, s3: S3) =>
             return next('downloadMembers', true)
         },
 
+
         ////////////////////////////////////////////////////////////////
 
+
         start() {
-            return next('watchStuff')
+            return next('waitForNewMembers')
         },
 
-        watchStuff(x) {
-            return watch(['memberDownloader2'], 'true', 'aha')
+        waitForNewMembers(x) {
+            return watch(['memberFetcher'], `m.state.data.blobId > ${x.data.cursor}`, 'processNewMembers');
         },
 
-        aha(x) {
-            //should be able to read other's data here, as captured
-            console.log('TOOT')
+        processNewMembers(x) {
+            console.log('*** HELLO JASON ***');
             x.data.cursor++;
-            return next('watchStuff');
-        },
-
+            return next('waitForNewMembers')
+        }
     });
 
     //
