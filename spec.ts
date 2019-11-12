@@ -77,21 +77,32 @@ const createSpec = (config: Config, s3: S3) =>
 
             x.data.blobId++; //this should match what's actually been saved
 
+            //blobs should be saved by monotonic id, with metadata indicating date
+            //then the simple cursor value can be used to collect them all
+
+            //the blob client should have a cache such that in the best case, we don't need to re-read
+            //and the diffing can be done quickly
+            //this means we do need to store the data in memory - but this isn't much really
+
             return delay(1000 * 60 * 60, 'downloadMembers', true)
         },
 
         async refreshCookie(x) {
-            //should guard against doing this too often here
-            //when was last cookie sought?
+            const { lastLoginAttempt } = x.data; 
 
-            const meetup = createMeetup(config, s3)
-            
-            const cookie = await meetup.getCookie(); //and failure???
-            console.log('cookie', cookie);
+            if(lastLoginAttempt && Date.now() < (lastLoginAttempt + (1000 * 60 * 60))) {
+                return delay(Date.now() + (1000 * 60 * 60), 'refreshCookie');
+            }
+            else {
+                const meetup = createMeetup(config, s3)
+                
+                const cookie = await meetup.getCookie(); //and failure???
+                console.log('cookie', cookie);
 
-            x.data.memberCookie = cookie;
+                x.data.memberCookie = cookie;
 
-            return next('downloadMembers', true)
+                return next('downloadMembers', true)
+            }
         },
 
 
@@ -108,33 +119,11 @@ const createSpec = (config: Config, s3: S3) =>
 
         processNewMembers(x) {
             console.log('*** HELLO JASON ***');
+
             x.data.cursor++;
             return next('waitForNewMembers')
         }
     });
-
-    //
-    // on error, we should try to save what we have
-    // which differentiates errors into two kinds: drastic and behavioural
-    //
-
-    // Run:
-    //   LoadState |>
-    //     | Cookie ->
-    //         DownloadCsv |> 
-    //           | Success -> UploadCsv; Run
-    //           | Fail -> ClearCookie; Run
-    //     | None -> 
-    //         Login |>
-    //           | Success -> SaveCookie; Run
-    //           | Fail -> Run
-    //
-    // a loop of four paths, one common root, branching according to loaded state
-    // this is all so neat, except for the problem of controlling our delay
-    // we need a way to self-schedule our resumptions
-    // if the program were endlessly active obviously this would be easy
-    //
-    //
 
 export default createSpec
 export type Spec = ReturnType<typeof createSpec>
