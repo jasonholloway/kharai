@@ -43,7 +43,7 @@ const h = setTimeout(() => {
     end();
 }, run.timeout - Date.now());
 
-runner.execute(run)(['memberDownloader2'])
+runner.execute(run)(['memberDownloader', 'watcher'])
     .then(() => console.log('DONE'))
     .then(end)
     .catch(sink)

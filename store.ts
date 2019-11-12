@@ -19,8 +19,10 @@ type InnerStorable<S> = {
     version: number,
     db: { version: number },
     state: S,
+    hooks: Hook<S>[],
     setState(s: S): void,
-    hooks: Hook<S>[]
+    freeze(): void,
+    frozen: boolean
 }
 
 export interface Storable<S> extends Omit<Readonly<InnerStorable<S>>, 'db'>
@@ -55,6 +57,9 @@ const createStore = (config: Config, dynamo: DynamoDB) => {
     const createRepo = <S>(map: DbMap<S>) => {
         return {
             load: (id: string): Promise<Storable<S>> => {
+                console.log('loading', id)
+
+
                 if(!go) throw Error('store closed');
 
                 return dynamo.getItem({
@@ -76,14 +81,20 @@ const createStore = (config: Config, dynamo: DynamoDB) => {
                         version, 
                         db: { version },
                         state: map.load(x),
+                        hooks: [],
+                        frozen: false,
                         setState(s) {
                             storable.state = s;
                             storable.version++;
                             storable.hooks.forEach(h => h.fn(storable));
                         },
-                        hooks: []
+                        freeze() {
+                            this.frozen = true;
+                            this.hooks.forEach(h => h.complete(false));
+                        }
                     };
 
+                    console.log('loaded', storable)
                     loaded[id] = storable;
 
                     return storable;
@@ -122,11 +133,14 @@ const createStore = (config: Config, dynamo: DynamoDB) => {
 
             watch: (id: string, fn: HookFn<S>) =>
                 new Promise<boolean>((resolve) => {
-                    if(go) {
-                        const s = loaded[id];
+                    const s = loaded[id];
+
+                    if(go && !s.frozen) {
+                        console.log('watching', id)
                         const hook: Hook<S> = { 
                             fn,
                             complete(result) {
+                                console.log('hook complete', id);
                                 s.hooks.splice(s.hooks.indexOf(hook), 1);
                                 resolve(result);
                             }
@@ -147,12 +161,8 @@ const createStore = (config: Config, dynamo: DynamoDB) => {
 
     const endAllWatches = () => {
         go = false;
-        Object.entries(loaded)
-            .forEach(([_, s]) => {
-                s.hooks.forEach(h => {
-                    h.complete(false);
-                })
-            })
+        Object.values(loaded)
+            .forEach(r => r.freeze());
     }
 
     return {

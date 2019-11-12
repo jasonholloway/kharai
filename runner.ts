@@ -27,14 +27,20 @@ export const machineDb: DbMap<MachineState> = {
                 : {},
             due: item && item.due 
                 ? parseInt(item.due.N || '0') 
-                : 0
+                : 0,
+            ...(item.watch && item.watch.S
+                ? { watch: JSON.parse(item.watch.S) }
+                : {})
         }),
 
     save: (m: MachineState): AttributeMap =>
         ({
             phase: { S: m.phase },
             data: { S: JSON.stringify(m.data) },
-            due: { N: m.due.toString() }
+            due: { N: m.due.toString() },
+            ...(m.watch 
+                ? { watch: { S: JSON.stringify(m.watch) } } 
+                : {})
         })
 }
 
@@ -60,7 +66,7 @@ export default (config: Config, spec: Spec, store: Store, timer: Timer) => {
         const threader = createThreader();
         const saver = createSaver(store);
 
-        log('running', machines)
+        log('running', machines.map(m => m.id));
 
         const resume = async (m: Machine): Promise<boolean> => {
             if(m.state.watch) {
@@ -69,19 +75,31 @@ export default (config: Config, spec: Spec, store: Store, timer: Timer) => {
 
                 const fn = <(m: Machine) => boolean>new Function('m', condition);
 
+                log(m.id, 'resume watch', m.state.watch)
                 return repo.watch(
                     targetId,
                     function(target) {
-                        log('HOOKED', target)
+                        log('hook triggered', target.id)
                         if(fn(target)) this.complete(true);
                     }
                 )
             }
+
+            const due = Math.max(0, m.state.due || 0);
+
+            if(due < run.timeout) {
+                log(m.id, 'resume delay', due, run.timeout);
+                return timer.when(due);
+            }
             else {
-                const due = Math.max(0, m.state.due || 0);
-                return due < run.timeout && timer.when(due);
+                log(m.id, 'not resumable')
+                m.freeze();
+                return false;
             }
         }
+
+        //*****
+        //shouldn't start before resume...
 
         machines.forEach(m => 
             threader.add({
@@ -107,12 +125,12 @@ export default (config: Config, spec: Spec, store: Store, timer: Timer) => {
         }
 
         return threader.complete()
-            .finally(() => saver.save(machines)) //but closed down store would stop saving?!?!?
+            .finally(() => saver.save(machines))
             .then(saver.complete)
     }
 
     const dispatch = (m: Machine): Promise<Result<string>> => {
-        log('dispatching')
+        log('dispatching', m.id)
 
         const action = spec.bindAction(m.state.phase);
         if(!action) throw Error(`no action found for '${m.state.phase}'`);

@@ -66,10 +66,6 @@ function specify<S extends { [key: string]: Behaviour<keyof S> }>(s: S) : Binder
 const createSpec = (config: Config, s3: S3) => 
     specify({
 
-        start() {
-            return next('downloadMembers')
-        },
-
         async downloadMembers(x) {
             const meetup = createMeetup(config, s3)
 
@@ -100,16 +96,19 @@ const createSpec = (config: Config, s3: S3) =>
 
         ////////////////////////////////////////////////////////////////
 
+        start() {
+            return next('watchStuff')
+        },
 
-        watchForDownload(x) {
-            return watch(['meetupDownloader'], 'y.version > x.data.cursor', 'aha')
+        watchStuff(x) {
+            return watch(['memberDownloader'], 'true', 'aha')
         },
 
         aha(x) {
             //should be able to read other's data here, as captured
-            x.data.cursor++;
             console.log('TOOT')
-            return next('watchForDownload');
+            x.data.cursor++;
+            return next('watchStuff');
         },
 
     });
