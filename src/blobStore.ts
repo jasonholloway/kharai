@@ -15,6 +15,9 @@ const createBlobStore = (config: Config, s3: S3) => {
 
     return {
         load(key: string): Readable {
+
+            log('loading', key)
+
             if(cache[key]) return toReadableStream(cache[key]);
 
             const sink = new PassThrough();
