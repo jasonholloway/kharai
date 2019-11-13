@@ -3,6 +3,7 @@ import { Config } from './config'
 import { S3 } from 'aws-sdk'
 import { promisify, isString } from './util';
 import { MachineState } from './runner';
+import { BlobStore } from './blobStore';
 
 export type Context = { 
     readonly id: string, 
@@ -63,19 +64,21 @@ function specify<S extends { [key: string]: Behaviour<keyof S> }>(s: S) : Binder
      };
 }
 
-const createSpec = (config: Config, s3: S3) => 
+const createSpec = (config: Config, blobs: BlobStore) => 
     specify({
 
         async downloadMembers(x) {
-            const meetup = createMeetup(config, s3)
+            const meetup = createMeetup(config, blobs)
 
             if(!isString(x.data.memberCookie)) {
                 return next('refreshCookie')
             }
 
-            await meetup.getMembers(x.data.memberCookie); //should return code if cookie bad
+            x.data.lastBlob = x.data.lastBlob || 0;
 
-            x.data.blobId++; //this should match what's actually been saved
+            await meetup.getMembers(
+                x.data.memberCookie, 
+                ++x.data.lastBlob); //should return code if cookie bad
 
             //blobs should be saved by monotonic id, with metadata indicating date
             //then the simple cursor value can be used to collect them all
@@ -94,7 +97,7 @@ const createSpec = (config: Config, s3: S3) =>
                 return delay(Date.now() + (1000 * 60 * 60), 'refreshCookie');
             }
             else {
-                const meetup = createMeetup(config, s3)
+                const meetup = createMeetup(config, blobs)
                 
                 const cookie = await meetup.getCookie(); //and failure???
                 console.log('cookie', cookie);
@@ -114,13 +117,14 @@ const createSpec = (config: Config, s3: S3) =>
         },
 
         waitForNewMembers(x) {
-            return watch(['memberFetcher'], `m.state.data.blobId > ${x.data.cursor}`, 'processNewMembers');
+            return watch(['memberFetcher'], `m.state.data.lastBlob > ${x.data.cursor}`, 'processNewMembers');
         },
 
-        processNewMembers(x) {
+        async processNewMembers(x) {
             console.log('*** HELLO JASON ***');
-
             x.data.cursor++;
+
+            console.log('PROCESSOR CURSOR NOW = ' + x.data.cursor);
             return next('waitForNewMembers')
         }
     });

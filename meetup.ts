@@ -1,19 +1,16 @@
 import superagent, { Response } from 'superagent'
 import cheerio from 'cheerio'
-import createUpload from './upload'
 import { Stream, Writable } from 'stream';
 import zlib from 'zlib'
 import { Config } from './config';
-import { CookieAccessInfo, Cookie } from 'cookiejar';
-import { S3 } from 'aws-sdk'
+import { CookieAccessInfo } from 'cookiejar';
+import { BlobStore } from './blobStore';
 
 const superagentProxy = require('superagent-proxy')
 superagentProxy(superagent);
 
 
-export default (config: Config, s3: S3) => {
-
-    const { upload } = createUpload(config, s3);
+export default (config: Config, blobs: BlobStore) => {
 
     const createAgent = (setup?: superagent.Plugin) => superagent
         .agent()
@@ -43,7 +40,7 @@ export default (config: Config, s3: S3) => {
             .then(() => agent.jar.getCookie('MEETUP_MEMBER', new CookieAccessInfo('.meetup.com', '/', true, false)).value)
     }
 
-    const getMembers = (memberCookie: string) => {
+    const getMembers = (memberCookie: string, nextId: number) => {
         const agent = createAgent(req => 
             req.set('Cookie', [
                 `MEETUP_MEMBER=${memberCookie}; Domain=.meetup.com; Path=/; Secure; HttpOnly`
@@ -53,7 +50,7 @@ export default (config: Config, s3: S3) => {
         const dataStr = new Stream.PassThrough();
 
         return Promise.all([
-            upload(`M:${new Date().toISOString()}`, dataStr), ///.pipe(gz)),
+            blobs.save(`dnn/members/${nextId.toString().padStart(6, '0')}`, dataStr), ///.pipe(gz)),
             downloadMembers(agent)(dataStr)
         ]);
     }

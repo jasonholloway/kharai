@@ -45,6 +45,7 @@ export const machineDb: DbMap<MachineState> = {
 }
 
 export type RunContext = {
+    readonly started: number,
     readonly timeout: number
     sink(error: Error): void
 }
