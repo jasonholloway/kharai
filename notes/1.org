@@ -297,3 +297,69 @@ and finally we wait on the saver to complete
 
 so - complete the threader first!
 
+---------------------------------------------------------------------
+
+an efficient stream between two machines would be an hoc coupling of their states
+
+without persistent storage linking the two, one would pass data directly to the other - though the watch mechanism could be forced to do this
+the source machine would load a buffer, and then would course through it, updating its own pointer, and its own local buffer, which would be observable
+by the sink. It doesn't make sense for all sharable data to be serialized however: a buffer can be refilled, determined by the value of a persistent cursor
+
+what would be the point here however? decoupling of machines, interestingness
+
+but there is a problem in the lossiness of observation: unless the source really were to store a buffer, then observers aren't guaranteed to see all possible data
+
+----------------------------------------------------------
+
+so, diffing our csvs, then...
+
+we want to extract all differences from the csv, and list them in a central log
+
+then aggregators can work their way through them
+collecting, projecting whatever they like
+
+also, triggering what they like
+
+--------------------
+
+so, given two files, we need to chug our way through them in batches
+
+ie there's lots of diffing that can be done, but we don't have to do it all at once
+in fact, we're limited by how many items we can save at once
+25 items at a time...
+which is 24 plus a cursor
+or well, the cursor belongs to the machine which is a separate saving step
+
+the rows will be saved separately as immutable, idempotently-put resources
+
+our diffing needs to result in a deterministic outputs therefore
+
+both sets need to be firstly ordered, then we can work through them till we have accumulated enough differences to save - then we save the differences
+and update the cursor(s) in the machine
+
+then begin again, hopefully finding the buffers still in memory
+
+-------------------------
+
+so: load our buffers, 
+sort them 
+work through them with dual cursors, accumulating changes
+when we have 25 events
+save them
+save the machine
+
+---------------------------
+
+it'd be nice to be able to stash resources too:
+we don't need to persist everything
+
+
+
+
+
+
+
+
+
+
+

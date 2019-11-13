@@ -11,15 +11,21 @@
   "dependencies": {
     "aws-sdk": "^2.562.0",
     "cheerio": "^1.0.0-rc.3",
+    "csv-parse": "^4.6.5",
     "fast-stream-to-buffer": "^1.0.0",
     "fastpriorityqueue": "^0.6.3",
+    "fs-write-stream-atomic": "^1.0.10",
+    "get-stream": "^5.1.0",
     "pify": "^4.0.1",
     "readable-stream-clone": "0.0.4",
     "superagent": "^5.1.0",
-    "superagent-proxy": "^2.0.0"
+    "superagent-proxy": "^2.0.0",
+    "to-readable-stream": "^2.1.0"
   },
   "devDependencies": {
     "@types/cheerio": "^0.22.13",
+    "@types/csv-parse": "^1.2.2",
+    "@types/get-stream": "^3.0.2",
     "@types/node": "^12.12.5",
     "@types/pify": "^3.0.2",
     "@types/superagent": "^4.1.4",

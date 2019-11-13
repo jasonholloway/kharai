@@ -121,10 +121,22 @@ const createSpec = (config: Config, blobs: BlobStore) =>
         },
 
         async processNewMembers(x) {
-            console.log('*** HELLO JASON ***');
-            x.data.cursor++;
+            if(x.data.cursor) {
+                const [prevBlob, nextBlob] = await Promise.all([
+                    blobs.load(`dnn/members/${x.data.cursor}`),
+                    blobs.load(`dnn/members/${++x.data.cursor}`)
+                ]);
 
-            console.log('PROCESSOR CURSOR NOW = ' + x.data.cursor);
+                //now to do the diffing here...
+                //would be nice to get hashes of both buffers
+                //if they're exactly same, no work needs doing
+
+                console.log('loaded both blobs!')
+            }
+            else {
+                x.data.cursor = 1;
+            }
+
             return next('waitForNewMembers')
         }
     });

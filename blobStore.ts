@@ -1,23 +1,48 @@
 import S3 = require("aws-sdk/clients/s3");
 import { Config } from "./config";
-import { Readable } from "stream";
+import { Readable, PassThrough } from "stream";
 import pify from 'pify';
+import toReadableStream from 'to-readable-stream'
+import fs from 'fs'
+const WriteStreamAtomic = require('fs-write-stream-atomic');
 const streamToBuffer = require('fast-stream-to-buffer');
 const ReadableClone = require('readable-stream-clone');
+
+const log = (...args: any[]) => console.log('blobs', ...args); 
 
 const createBlobStore = (config: Config, s3: S3) => {
     const cache: { [key: string]: Buffer } = {};
 
     return {
-        async load(key: string): Promise<Buffer> {
-            if(cache[key]) return cache[key];
+        load(key: string): Readable {
+            if(cache[key]) return toReadableStream(cache[key]);
 
-            const readable = s3.getObject({
-                Bucket: config.s3Bucket,
-                Key: key,
-            }).createReadStream();
+            const sink = new PassThrough();
+            const fileName = key.replace(/\//g, '_')
 
-            return cache[key] = await pify(streamToBuffer)(readable);
+            fs.exists(`/tmp/blobs/${fileName}`, found => {
+                if(found) {
+                    log('createReadStream')
+                    fs.createReadStream(`/tmp/blobs/${fileName}`).pipe(sink);
+                }
+                else {
+                    fs.mkdir('/tmp/blobs', { recursive: true }, (err) => {
+                        new ReadableClone(sink)
+                            .pipe(new WriteStreamAtomic(`/tmp/blobs/${fileName}`))
+
+                        s3.getObject({
+                            Bucket: config.s3Bucket,
+                            Key: key,
+                        }).createReadStream().pipe(sink);
+                    })
+                }
+            });
+
+            streamToBuffer(new ReadableClone(sink), (err: any, buffer: Buffer) => {
+                cache[key] = buffer;
+            })
+
+            return new ReadableClone(sink);
         },
         async save(key: string, body: Readable): Promise<Buffer> {
             const [_, buffer] = await Promise.all([
