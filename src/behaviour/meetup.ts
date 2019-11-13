@@ -2,9 +2,9 @@ import superagent, { Response } from 'superagent'
 import cheerio from 'cheerio'
 import { Stream, Writable } from 'stream';
 import zlib from 'zlib'
-import { Config } from './config';
+import { Config } from '../config';
 import { CookieAccessInfo } from 'cookiejar';
-import { BlobStore } from './blobStore';
+import { BlobStore } from '../blobStore';
 
 const superagentProxy = require('superagent-proxy')
 superagentProxy(superagent);

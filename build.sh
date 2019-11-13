@@ -1,2 +1,2 @@
 #!/bin/sh
-node_modules/.bin/tsc --outDir out
+node_modules/.bin/tsc

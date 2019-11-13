@@ -1,9 +1,9 @@
-import createMeetup from './meetup'
+import createMeetup from './behaviour/meetup'
 import { Config } from './config'
-import { S3 } from 'aws-sdk'
 import { promisify, isString } from './util';
 import { MachineState } from './runner';
 import { BlobStore } from './blobStore';
+import { diffMembers } from './behaviour/members'
 
 export type Context = { 
     readonly id: string, 
@@ -122,16 +122,17 @@ const createSpec = (config: Config, blobs: BlobStore) =>
 
         async processNewMembers(x) {
             if(x.data.cursor) {
-                const [prevBlob, nextBlob] = await Promise.all([
-                    blobs.load(`dnn/members/${x.data.cursor}`),
-                    blobs.load(`dnn/members/${++x.data.cursor}`)
-                ]);
+                const toKey = (n: number) => `dnn/members/${n.toString().padStart(6, '0')}`;
 
-                //now to do the diffing here...
-                //would be nice to get hashes of both buffers
-                //if they're exactly same, no work needs doing
+                const updates = await diffMembers(
+                    blobs.load(toKey(x.data.cursor)),
+                    blobs.load(toKey(++x.data.cursor))
+                );
 
-                console.log('loaded both blobs!')
+                //and log the updates to dynamo?
+                //need to only take 25 max
+
+                console.log('UPDATES!', updates);
             }
             else {
                 x.data.cursor = 1;

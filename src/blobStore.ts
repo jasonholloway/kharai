@@ -22,7 +22,6 @@ const createBlobStore = (config: Config, s3: S3) => {
 
             fs.exists(`/tmp/blobs/${fileName}`, found => {
                 if(found) {
-                    log('createReadStream')
                     fs.createReadStream(`/tmp/blobs/${fileName}`).pipe(sink);
                 }
                 else {
