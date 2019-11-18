@@ -2,9 +2,10 @@ import createRunner, { RunContext } from './runner'
 import config from './config'
 import createSpec from './spec'
 import AWS from 'aws-sdk'
-import createStore from './store';
 import createTimer from './timer';
 import createBlobStore from './blobStore';
+import MachineStore from './MachineStore';
+import Store from './Store';
 
 AWS.config.update({
     apiVersion: '2012-08-10',
@@ -18,17 +19,19 @@ const dynamo = new AWS.DynamoDB();
 const s3 = new AWS.S3();
 
 const blobs = createBlobStore(config, s3);
-const store = createStore(config, dynamo)
+const store = new Store(config, dynamo);
+const machineStore = new MachineStore(store);
 
 const spec = createSpec(config, blobs);
 const timer = createTimer();
 
-const runner = createRunner(config, spec, store, timer);
+const runner = createRunner(spec, store, machineStore, timer);
 
 const end = () => {
     clearTimeout(h);
     timer.complete();
-    store.endAllWatches();
+    machineStore.complete();
+    store.complete();
 }
 
 const sink = (err: any) => {

@@ -353,13 +353,373 @@ save the machine
 it'd be nice to be able to stash resources too:
 we don't need to persist everything
 
+--------------------------
 
+each member could have their own machine
+actively updating their details
+only when a new member has their photo filled out will they be announcable
 
+so, 2000 machines, each a row in Dynamo: sounds fine to me
 
+but how to run them? a scheduler needs to intervene
+and that scheduler needs a list of sub-machines
+which it can run as it likes
 
+the node would know which machines were to run next
+say that each user were updated each day
+with 2000, that's still 100 an hour: a large amount
 
+and few of these repollings would be worthwhile at all
+polling should be as sparse as possible
 
+each polling machine would be given a small number of jobs by a JobAccumulator machine, whose state could be peeked at by the Poller
+but polling isn't needed yet...
 
+---------------------------------
+
+for now, all is deterministic
+when a member is noticed, then that member has a state, which should switch to one indicating a photo has been stored for them 
+what drives this state? while a centralised log would be simplest, with a single machine parping through it
+
+this single machine's state must fatten out to be unmanageable
+
+unless each member were not to be a machine, but were to be a state
+the single machine would dispatch these members' behaviours
+
+problematically, however, an index would have to be maintained of not insignificant size
+this is true if the states were to be active after all, and not just sinks of data, plugholes
+
+running machines and checking if conditions are momentarily true is itself a kind of polling
+assigning of watches: that is, their embedding in a local data structure that can be immediately parsed
+is however not - at least if it is the same, it is a vanishing similarity 
+
+the dispatcher as a whole could be thought of as a machine, whose state could be persisted and loaded efficiently, so that individual machines needn't be
+speculatively loaded (that is, /polled/)
+its network of continuations would therefore be in place, ready for immediate, deterministic resumption
+
+------
+
+a single machine would work through log step by step:
+an event would be waited for and read, then the machine would dispatch whatever behaviour
+but to do this, each members state would have to be consulted to see how the central event interacted
+
+the cursor on the log is watched, as it is itself a machine, depositing these immutable records into memory (and such immutable records are cacheable)
+
+-------
+
+so, each member's state is a maintainable thing, a thing to be worked individually
+similarly the set of members must have behaviours proper to it: eg a notification when we have 100 members
+but even beyond this there is a wider domain of states, with proper behaviours here too
+one level shouldn't have access to all the states of all others however
+
+it's up to individuals to emit condensable events
+
+but its up to the centralised monolithic log to spawn child machines better scaled to fidelous maintenance of all states
+
+an individual's responsiblity to emit events, is it set by itself? doubtful. the wider world says what it expects
+injects the individual with its expectations
+
+how can all this be efficiently dispatched?
+
+--------
+
+each member would belong to a group, a small selection of members
+these groups would track the next due time for each member, order them, and then, through their progress,
+dispatch these individual member machines one by one
+
+one of these orchestrator nodes would go through its own phases 
+
+i'm imagining buckets of machine references, with times of next dispatch
+(or conditionsof next dispatch???)
+
+then the dispatching machine will, repeatedly, see if it has anything to do
+and dispatchers will themselves have dispatchers...
+
+a dispatcher, by reading its table, knows what machines to load in order to run them
+but how can it load them if it does not own their state?
+
+a dispatcher must own its children, not as immutable records, but as substates, that it itself can load, run subprograms on,
+and optimistically persist
+
+there is inevitably this question of ownership, and the answer is pretty clear: some machines must own other machines
+though it's also possible that other machines might own the same sub-machines, and this is where optimistic locking decides
+
+the simplest case is that a machine owns itself, and at the highest level of dispatch, this must be the case
+
+a machine can load other machines, then, in the mutable mode, much as it can load blob resources
+but how can a machine load itself, but by magic?
+ie there has to be a bootstrapper
+
+maybe a machine can, by magic, find itself executing, with some parsable arguments available to it
+and its first act is to load itself and run the common dispatch program on its state
+
+then subsidiary dispatchers can be fired by this first one
+
+-----------------
+
+each member would then be its own machine, with its own log of events, and in its journey would publish back to a central log
+from which holistic projections could be made
+
+now and again the child machines would be run to poll as they liked
+though polling a single site for different pages should be a centralised activity
+almost like there should be one meetup polling machine,
+but with an organised buffer of intended targets
+
+such a machine could store its targets in multiple rows, as in a circular buffer,
+
+but in this setup there'd be so much churn at the top of the tree
+each intermediate node would always be due to execute another
+and so would always be active, always saving and loading its updated state.
+
+and above this, the register of intermediate nodes would be even more volatile
+and each update of the top would have to be persisted too
+
+or - executions could be made idempotent by marking each visited node with an increasing cursor value
+then, if the same execution came in again, the execution could be skipped, protecting state below
+
+but such state would have to be persisted by each party as it was assigned to it, in that moment
+
+a call came in from above, as either a timer had fired or monitored condition been met, and the known cursor is repeatedly updated
+on this model each dispatch has its number, which can be stored to protect against costly operations being replayed
+
+the incoming cursor and the outgoing cursor would always be recorded
+and an incoming cursor below our persisted input value will always be ignored; or rather, will always result in a successful but empty dispatch
+
+this though relies on deterministic execution of not just one machine, but many
+or rather, a well-ordered execution
+not all executions have to be so tightly protected, allowing in select cases parallelism
+
+-----------------
+
+the topmost machine will know the number of invocation as it comes in, will increment it itself as an otherwise unprotected machine
+and then child machines as they're loaded and dispatched will receive this cursor value as part of their dispatch: these machines,
+more protected by an intermediary layer, will only reexecute if this cursor has not been seen before
+but as machines are not dispatched in sequence (or rather, as the sausages of their executions are not set end-to-end)
+nah - they still can be protected from repeated execution
+
+if they persist themselves, they will store the last successful invocation, whose effects they don't want to repeat
+
+but if one of these machines itself wishes to dispatch further machines, returning the condition of its most pertinent child
+these children ought similarly to be protected by persisted markers
+
+why do they even need this protection? double execution is not the worst if all is idempotent. But in external effects, nothing
+is idempotent
+
+in this centralised approach, all dispatches below the very top level have numbers
+and are hereby protected against double execution
+
+this allows us to persist locally, and not totally, until the last possible moment
+a single machine can persist itself, while the nodes above it keep on firing
+as long as the route to execution is deterministic
+
+but imagine we are complicated by user input, or the particular response of a volatile web page
+user input could determine the delay before the next phase of a machine
+and so the order of execution will not be determinate
+
+in which case the cursor approach becomes unworkable
+
+---------------------
+
+and so maybe we can't protect like this
+and have to accept the possibility of repeating work
+which we can cope with; although it always seems a shame to give up ground
+every retreat backs us further into the corner
+
+---------
+
+So the forcible self-persistence of a leaf node: does it also necessitate the persistence of the parent? 
+I think it does. The condition of the child changes, and the intermediate index /must/ represent this.
+
+time of next invocation is orderable; but conditional watches? surely not
+indexes would have to maintain a list of watches that were placed and communicated upwards (as the parent parent would also need such a list, but this time an aggregaed one)
+
+times can be represented as ranges, arbitrary watches are arbitrary and can only be placed together in their maintained multiplicity
+
+the watch in this case would have to be appended to the target machine, so itself could detect its own changes, and enliven the listener on change
+this then becomes message passing
+
+insteadof this, the single dispatcher can be kept, but the data of whole stored in buckets, each one of which stores so many 'rows' of a single type
+these rows are then selectively dispatched by the bucket as a small sphere of execution
+
+as long as we have conditions, these conditions must be loaded, and so the machine setting themmust be loaded
+
+in fact we want the opposite of this - to be able to load only a small subset each time, according to pertinence
+
+----------
+
+like sea-anemones, machines should attach themselves to an encompassing index of resumables, according to the kind of resumption they require
+they flit from one contact to the other, always connected to root via their resumption
+when in flight they need no grounding
+
+a resumer by time is simple enough: each individual machine stores not its full state, but merely its name and due time
+then the resumer, itself a state machine, waits till its next hhokis due, then dispatches via some means its waiting registrant
+
+but now we must think of waiting by condition
+most fruitfully, let's think of our case with the per-member aggregators, each a machine accumulating its particular state, and each waiting for a particular member's event to appear in their
+global log.
+
+there have to be listeners to the global log: they have to themselves be aggregating some state by which we can discern which other machines to activate
+
+image a single index, with each machine encountered registered to it
+when each new event pertaining to a machine is encountered, that machine is resumed
+and when that machine successfully completes, it overwrites its registration with the index
+
+but how then would a machine flit between indexes, if it has to overwrite the same registration in order to make its progress?
+it would transactionally save across two indices, that's how
+
+as always, all execution happens in one space
+the only ay to parallelise is to have dependent machines polling their superiors
+(imagine the central log dispatched as one process, and per-member aggregators, with their group resumers, another: a central log is a good cut point)
+
+-----------------
+
+but if this is a vision of the future, we now need to confront the present
+we have a small complex of machines that download and diff member lists
+
+this information needs to be centrally logged; never mind about what can be built from this log
+
+each log line will be an immutable, very cacheable record
+we need a /logger:/ this is exactly the word for what we want
+the logger can have its own cache for reads across computations
+but, the logger must also be idempotent
+that is, the /loggee/ must log with an address
+
+this address could be a locally persisted cursor: for each event found, we know exactly our address as we tot it up by one on each action
+but if the code for the differ were to change, and collect events in a different order than before,
+it may deduce different addresses for those events
+
+all would be great if everything could be persisted all at once, of course
+though, internally, such transactional saving must be much slower; there must ultimately be a locking mechanism
+
+----------------------
+
+the differ has to be the one that maintains its cursor
+but then this means it must repeatably and reliably order its output events
+
+if the order of diff deduction differs, then we risk repeat events being logged, or even worse ignored
+
+how else could it be done? the differ would save its last diff in its own state, that can be watched by another
+though what would this really get us? a second layer of processing that the differ could do itself
+
+the source data has a unique, monotonic id; each difference needs the same
+we can determine an order for diffs: and its needed
+
+-----------------------
+
+an order for diffing: memberId, then event type (event type will always be PUT/DELETE???)
+and we need to record the last time of update
+
+nah, there will be other event types
+VISITED, ATTENDED
+and for these we need to note the time of previous update
+
+-----------------------
+
+so, given two docs, we need to get some well ordered events out: so far, we have ADDED/REMOVED: now we need VISITED/ATTENDED 
+
+then, once we have these, we can add them to a log
+
+but... we don't need these additional events at all, not now
+
+we have all the event types we currently need: what we lack is a log
+
+and the differ will do the logging itself, via transactionl save
+
+-----------------------
+
+so, we just need a way to /save/ arbitrary rows
+and everything else will follow
+
+but how will we batch saves?
+multiple ones will be created: possibly very many, given a beginning csv of a thousand rows
+
+the saver should save as many as it can, then go again, and again...
+ie batches must be small enough to save
+
+savables need to be totted up, and when we reach the limit, we must communicate back to the driving machine
+that we can save no more
+
+----------------------
+
+each loaded machine, even if not changed, must be savable
+each further row to save must be batched, and only processed at the end of a phase
+
+the differ will keep an index of how far it's got through a particular csv diff
+
+but, once we've saved our buffered states, then the counter is reset
+
+...
+
+do we need to include as-yet unchanged machines when we try to save? yes - because we can't be sure they won't change and need to be saved
+
+an underlying buffer of savables will exist below the machine repo
+
+though - the buffer needs to know from the repo how many places are reserved for machines
+
+almost like, in creating the machine, a handle should be obtained reserving a potential space
+
+-------------------
+
+how would a machine register itself with an index? it would have to wait to cooperate with it 
+it would wait for the machine to be in a receptive state
+and then its state/message would be flowed to the target in lockstep
+
+but the current method of stating your resumption condition as a returned value
+would then be more an offering of a time or condition to another machine to schedule for us;
+just as currently the time/condition is offered to the runner directly
+
+maybe due and watch should never be on the actual machine, but always registered with another
+if so, we need our method of lockstep registration
+
+the index node will itself have some timer on it
+but before the timer fires, it is also open to interruption
+and it will be able to handle an incoming communication
+
+----------------------------
+
+updating a machine involves speculatively, optimistically taking a view of its state, trying to
+process it, and then finally yielding your overall result back to the machine to either dispatch
+fully or ignore if gazumped
+
+the phase behaviours are however till now mutating
+
+it'd be nice if we queued up things to save, and then only if we hadn't been gazumped would the machine
+dispatch all we'd returned to it in the form of simple functions
+
+but this goes against our nice idea of receiving feedback on every attempted save
+then the behaviour would be in charge of handling failures, and would have chance to persist
+whatever state to remember what it had successfully processed and persisted
+
+the phase should return a monadic list of things to save to the machine
+which the machine would then attempt to save only on successful update
+
+but then the results of this automated dispatch would be yielded back to the phase
+so that the phase itself could persist whatever state
+
+*but* by this time transactional persistence covering the intra-phase state and phase state itself
+would be impossible, as the former would have already been dispatched
+
+no - this second callback would not be done after persistence itself, but immediately
+before it
+
+the choice here is between getting the machine dispatch mechanism to do the saving of our buffer
+versus mutably sticking things in the store then returning to the dispatch mechanism to finish things off
+
+but we can't expect our two communications to the store to be covered by the same transaction locally, unless we were
+persisting to per-phase buffer
+
+but how can we expect all persistences to be transactional? there's a distinciton between machine state
+and 'external' data rows that are accumulated as we go along, like piles of whatever
+
+s3 items aren't saved transactionally; maybe we shouldn't be even imagining that it is possible to save such data transactionally
+
+machines are different: don't treat data like machines
+
+therefore, maybe we should just have different stores (or rather, repos)
+so that savings of log rows is done directly by the phase, and isn't magically managed for them
+by opaque and complicated movements of the dispatcher
+
+each phase would try to save as many as possible until the rowStore batch was full
 
 
 

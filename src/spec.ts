@@ -1,9 +1,9 @@
 import createMeetup from './behaviour/meetup'
 import { Config } from './config'
 import { promisify, isString } from './util';
-import { MachineState } from './runner';
 import { BlobStore } from './blobStore';
 import { diffMembers } from './behaviour/members'
+import { MachineState } from './MachineStore';
 
 export type Context = { 
     readonly id: string, 
@@ -15,12 +15,12 @@ export type Binder<P> = {
     bindAction: (phase?: string) => Action<P> 
 }
 
-export type Result<P> = Readonly<{
+export type Result = Readonly<{
     state: MachineState, //somehow constrain phase here
     save?: boolean
 }>
 
-export type Next<P> = (x: Context) => Result<P>
+export type Next<P> = (x: Context) => Result
 
 const next = <P extends string>(then: P, save?: boolean): Next<P> =>
     x => ({ 

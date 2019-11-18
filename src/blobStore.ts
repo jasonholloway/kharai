@@ -29,6 +29,8 @@ const createBlobStore = (config: Config, s3: S3) => {
                 }
                 else {
                     fs.mkdir('/tmp/blobs', { recursive: true }, (err) => {
+                        if(err) throw err;
+
                         new ReadableClone(sink)
                             .pipe(new WriteStreamAtomic(`/tmp/blobs/${fileName}`))
 
