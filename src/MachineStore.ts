@@ -33,9 +33,10 @@ class Hook {
     }
 
     async complete(success: boolean): Promise<void> {
+        log('completing hook', this.m.id)
         if(this.active) {
             this.active = false;
-            log('hook complete', this.m.storable.id)
+            log('hook complete', this.m.id)
             this.m.hooks.splice(this.m.hooks.indexOf(this), 1)
             this.resolve(success);
             await Promise.resolve(); //what exactly is a completing hook waiting for? 
@@ -131,6 +132,7 @@ class _Machine implements Machine {
     }
 
     async complete() {
+        log('Machine', this.id, 'complete')
         this.isFrozen = true;
         await Promise.all(this.hooks.map(h => h.complete(false)))
     }

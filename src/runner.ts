@@ -28,19 +28,20 @@ export default (spec: Spec, store: Store, repo: MachineStore, timer: Timer) => {
 
         log('running', machines.map(m => m.id));
 
-        const getResumption = async (s: MachineState): Promise<boolean> => {
+        const getResumption = (m: Machine): Promise<boolean>|false => {
+            const s = m.getState();
 
             if(s.watch) {
                 const [targetIds, condition] = s.watch;
                 const targetId = targetIds[0];
                 const fn = <(m: Storable<MachineState>) => boolean>new Function('m', `return ${condition}`);
 
-                // log(m.id, 'resume watch', s.watch)
+                log(m.id, 'resume watch', s.watch)
                 return repo.watch(
                     targetId,
                     function(target) {
                         const met = fn(target)
-                        // log(`hook triggered ${target.id}>${m.id}`, met)
+                        log(`hook triggered ${target.id}>${m.id}`, met)
                         if(met) this.complete(true);
                     }
                 )
@@ -49,43 +50,51 @@ export default (spec: Spec, store: Store, repo: MachineStore, timer: Timer) => {
             const due = Math.max(0, s.due || 0);
 
             if(due < run.timeout) {
-                // log(m.id, 'resume delay', due, run.timeout);
+                log(m.id, 'resume delay', due, run.timeout);
                 return timer.when(due);
             }
             else {
-                // log(m.id, 'not resumable')
+                log(m.id, 'not resumable this run')
                 return false;
             }
         }
 
-        machines.forEach(m => 
-            threader.add({
-                name: m.id,
-                resume: getResumption(m.getState()),
-                async do() {
-                    const result = await m.update(async i => {
-                        const r = await dispatch(i);
-                        return [r.state, r];
-                    })
-                    .catch(saveRethrow) //final saving should be done _above_ here
+        machines.forEach(m => {
+            const resume = getResumption(m);
+            if(resume) {
+                threader.add({
+                    name: m.id,
+                    resume,
+                    async do() {
+                        const result = await m.update(async i => {
+                            const r = await dispatch(i);
+                            return [r.state, r];
+                        })
+                        .catch(saveRethrow) //final saving should be done _above_ here
 
-                    if(result) {
-                        if(result.save) store.saveAll(); //should sink errors
+                        if(result) {
+                            if(result.save) store.saveAll(); //should sink errors
 
-                        const resume = await getResumption(result.state)
-
-                        if(!resume) {
-                            m.complete();
+                            const resume = getResumption(m) //sheeeeeet... this is never returning cos its a nested promise bah
+                            if(resume) {
+                                return await resume;
+                            }
+                            else {
+                                m.complete();
+                                return false;
+                            }
                         }
-
-                        return resume;
+                        else {
+                            //update unsuccessful: presumably gazumped
+                            return false;
+                        }
                     }
-                    else {
-                        //update unsuccessful: presumably gazumped
-                        return false;
-                    }
-                }
-            }));
+                })
+            }
+            else {
+                m.complete();
+            }
+        })
 
         const saveRethrow = (err: any) => {
             store.saveAll()
@@ -93,6 +102,7 @@ export default (spec: Spec, store: Store, repo: MachineStore, timer: Timer) => {
         }
 
         return threader.complete()
+            .then(() => repo.complete())
             .finally(() => store.saveAll())
             .then(() => store.complete())
     }
