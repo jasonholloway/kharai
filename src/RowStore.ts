@@ -25,7 +25,7 @@ export type DbMap<S> = {
 //closing a store should do what?
 //no resumptions are being managed...
 
-export default class Store {
+export default class RowStore {
     private config: Config;
     private dynamo: DynamoDB;
     private go = true;
@@ -71,45 +71,6 @@ export default class Store {
             return storable;
         })())
     }
-
-    //should just save all in cache here - if it's loaded and changed, then we have to save it
-    //but in this, we also have to communicate back that we can't save any more in one transaction,
-    //via a return value from setState
-
-    //the store must track how many storables need saving
-    //as soon as there are 25, we can't save
-    //
-    //but saves may be queued up, and as yet unexecuted...
-    //in which case, it would be possible to just wait when setting state
-    //if we have too many changes queued up
-    //then we could just insist on flushing, ie saveAlling, when we set state
-
-    //the problem with this is that, in trying to be transparent, it lets the machines
-    //continue as if there were no problem to solve, as it is solved for them, and what
-    //they could themselves do to improve the situation is thereby excluded
-    //ie. it'd be best if machines persisted themselves when the buffer was full, so they
-    //could resume reliably via timely persistence
-
-    //so, setState should say that it can or cannot set a state, because a save must first be performed
-    //fair enough - but machines are privileged in that must always have space to be saved(?)
-
-    //if machines themselves aren't privileged like this, there's nothing that can be done when we are told
-    //the buffer is full; so each loaded machine reserves its savability
-
-    //----------------------------------------------
-
-    //there was a problem with all this that i've now forgotten
-    //maybe the problem was that I need to focus and to simplify
-    //there was something that didn't add up with the delay before saving
-    //
-    //no, again it seems fine: when we have emplaced too many things to save,
-    //then something must saveAll before we can continue; setState is the threshold point
-    //it is this point that commits us to saving
-    //
-    //the problem came with concurrent nature of the background saving; but this is ok -
-    //
-    //the store needs 
-
 
     private activeSaves = 0;
     private saving: Promise<any> = Promise.resolve();

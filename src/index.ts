@@ -5,7 +5,7 @@ import AWS from 'aws-sdk'
 import createTimer from './timer';
 import createBlobStore from './blobStore';
 import MachineStore from './MachineStore';
-import Store from './Store';
+import RowStore from './RowStore';
 
 AWS.config.update({
     apiVersion: '2012-08-10',
@@ -19,19 +19,19 @@ const dynamo = new AWS.DynamoDB();
 const s3 = new AWS.S3();
 
 const blobs = createBlobStore(config, s3);
-const store = new Store(config, dynamo);
-const machineStore = new MachineStore(store);
+const rows = new RowStore(config, dynamo);
+const machineStore = new MachineStore(rows);
 
 const spec = createSpec(config, blobs);
 const timer = createTimer();
 
-const runner = createRunner(spec, store, machineStore, timer);
+const runner = createRunner(spec, rows, machineStore, timer);
 
 const end = () => {
     clearTimeout(h);
     timer.complete();
     machineStore.complete();
-    store.complete();
+    rows.complete();
 }
 
 const sink = (err: any) => {

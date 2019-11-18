@@ -1,10 +1,9 @@
 import { clone } from './util'
-import { Config } from './config';
 import { Spec, Result } from './spec';
 import createThreader from './threader';
 import { Timer } from './timer';
 import MachineStore, { Machine, MachineState, InnerMachine } from './MachineStore';
-import Store, { Storable } from './Store';
+import RowStore, { Storable } from './RowStore';
 
 export type RunContext = {
     readonly started: number,
@@ -12,7 +11,7 @@ export type RunContext = {
     sink(error: Error): void
 }
 
-export default (spec: Spec, store: Store, repo: MachineStore, timer: Timer) => {
+export default (spec: Spec, store: RowStore, repo: MachineStore, timer: Timer) => {
 
     const log = (...args: any[]) => console.debug('runner:', ...args)
 
