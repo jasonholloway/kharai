@@ -22,7 +22,7 @@ const blobs = createBlobStore(config, s3);
 const rows = new RowStore(config, dynamo);
 const machineStore = new MachineStore(rows);
 
-const spec = createSpec(config, blobs);
+const spec = createSpec(config, blobs, dynamo);
 const timer = createTimer();
 
 const runner = createRunner(spec, rows, machineStore, timer);

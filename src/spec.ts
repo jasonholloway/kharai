@@ -4,6 +4,8 @@ import { promisify, isString } from './util';
 import { BlobStore } from './blobStore';
 import { diffMembers } from './behaviour/members'
 import { MachineState } from './MachineStore';
+import RowStore from './RowStore';
+import { DynamoDB } from 'aws-sdk';
 
 export type Context = { 
     readonly id: string, 
@@ -64,7 +66,7 @@ function specify<S extends { [key: string]: Behaviour<keyof S> }>(s: S) : Binder
      };
 }
 
-const createSpec = (config: Config, blobs: BlobStore) => 
+const createSpec = (config: Config, blobs: BlobStore, dynamo: DynamoDB) => 
     specify({
 
         async downloadMembers(x) {
@@ -113,32 +115,55 @@ const createSpec = (config: Config, blobs: BlobStore) =>
 
 
         start() {
-            return next('waitForNewMembers')
+            return next('awaitFiles')
         },
 
-        waitForNewMembers(x) {
-            return watch(['memberFetcher'], `m.state.data.lastBlob > ${x.data.cursor}`, 'processNewMembers');
+        watchFiles(x) {
+            return watch(['memberFetcher'], `m.state.data.lastBlob > ${x.data.fileCursor || 0}`, 'diffFiles');
         },
 
-        async processNewMembers(x) {
-            if(x.data.cursor) {
-                const toKey = (n: number) => `dnn/members/${n.toString().padStart(6, '0')}`;
+        async diffFiles(x) {
+            x.data.fileCursor = x.data.fileCursor || 0;
+            x.data.updateCursor = x.data.updateCursor || 0;
 
-                const updates = await diffMembers(
-                    blobs.load(toKey(x.data.cursor)),
-                    blobs.load(toKey(++x.data.cursor))
-                );
+            const toKey = (n: number) => `dnn/members/${n.toString().padStart(6, '0')}`;
 
-                //and log the updates to dynamo?
-                //need to only take 25 max
+            const updates = await diffMembers(
+                blobs.load(toKey(x.data.fileCursor)),
+                blobs.load(toKey(x.data.fileCursor + 1))
+            );
 
-                console.log('UPDATES!', updates);
+            if(updates.length) {
+                const toSave = updates.slice(x.data.updateCursor, 25);
+                console.log('toSave', toSave.length);
+
+                const res = await dynamo.batchWriteItem({ 
+                    RequestItems: {
+                        [config.tableName]: toSave.map((u, i) => ({
+                            PutRequest: {
+                                Item: {
+                                    part: { S: `event-${i}` },
+                                    type: { S: u.type },
+                                    data: { S: JSON.stringify(u) }
+                                }
+                            }
+                        }))
+                    } 
+                }).promise();
+
+                const savedCount = toSave.length - Object.entries((res.UnprocessedItems || {})[config.tableName] || {}).length;
+                x.data.updateCursor += savedCount;
+
+                if(x.data.updateCursor >= updates.length) {
+                    x.data.fileCursor++;
+                    x.data.updateCursor = 0;
+                }
             }
             else {
-                x.data.cursor = 1;
+                x.data.fileCursor++;
             }
 
-            return next('waitForNewMembers')
+            return next('watchFiles', true);
         }
     });
 
