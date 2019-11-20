@@ -1,5 +1,14 @@
-import Store, { Storable, DbMap } from "./Store";
+import RowStore, { Storable, DbMap } from "./RowStore";
 import { AttributeMap } from "aws-sdk/clients/dynamodb";
+
+//**************************************************************************************** */
+//so, watches aren't being checked if the target is already frozen...
+//
+//
+//
+
+
+
 
 const log = (...args: any) => console.log('MachineStore', ...args);
 
@@ -141,11 +150,11 @@ class _Machine implements Machine {
 
 
 export default class MachineStore {
-    private store: Store
+    private store: RowStore
     private loaded: { [id: string]: _Machine } = {};
     private go = true;
 
-    constructor(store: Store) {
+    constructor(store: RowStore) {
         this.store = store;
     }
 
@@ -163,11 +172,12 @@ export default class MachineStore {
     watch(id: string, fn: HookFn) {
         return new Promise<boolean>((resolve, reject) => {
             const m = this.loaded[id];
-            if(this.go && m && !m.isFrozen) {
+            if(this.go && m) {
                 log('watching', id)
                 const hook = new Hook(m, fn, resolve, reject);
                 m.hooks.push(hook);
                 hook.fire(m.storable);
+                if(m.isFrozen) resolve(false);
             }
             else {
                 resolve(false);

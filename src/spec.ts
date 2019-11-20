@@ -4,7 +4,6 @@ import { promisify, isString } from './util';
 import { BlobStore } from './blobStore';
 import { diffMembers } from './behaviour/members'
 import { MachineState } from './MachineStore';
-import RowStore from './RowStore';
 import { DynamoDB } from 'aws-sdk';
 
 export type Context = { 
@@ -115,7 +114,7 @@ const createSpec = (config: Config, blobs: BlobStore, dynamo: DynamoDB) =>
 
 
         start() {
-            return next('awaitFiles')
+            return next('watchFiles')
         },
 
         watchFiles(x) {
@@ -125,6 +124,7 @@ const createSpec = (config: Config, blobs: BlobStore, dynamo: DynamoDB) =>
         async diffFiles(x) {
             x.data.fileCursor = x.data.fileCursor || 0;
             x.data.updateCursor = x.data.updateCursor || 0;
+            x.data.logCursor = x.data.logCursor || 0;
 
             const toKey = (n: number) => `dnn/members/${n.toString().padStart(6, '0')}`;
 
@@ -132,6 +132,8 @@ const createSpec = (config: Config, blobs: BlobStore, dynamo: DynamoDB) =>
                 blobs.load(toKey(x.data.fileCursor)),
                 blobs.load(toKey(x.data.fileCursor + 1))
             );
+
+            console.log('UPDATES:', updates);
 
             if(updates.length) {
                 const toSave = updates.slice(x.data.updateCursor, 25);
@@ -142,7 +144,7 @@ const createSpec = (config: Config, blobs: BlobStore, dynamo: DynamoDB) =>
                         [config.tableName]: toSave.map((u, i) => ({
                             PutRequest: {
                                 Item: {
-                                    part: { S: `event-${i}` },
+                                    part: { S: `event-${x.data.logCursor + i}` },
                                     type: { S: u.type },
                                     data: { S: JSON.stringify(u) }
                                 }
@@ -153,6 +155,7 @@ const createSpec = (config: Config, blobs: BlobStore, dynamo: DynamoDB) =>
 
                 const savedCount = toSave.length - Object.entries((res.UnprocessedItems || {})[config.tableName] || {}).length;
                 x.data.updateCursor += savedCount;
+                x.data.logCursor += savedCount;
 
                 if(x.data.updateCursor >= updates.length) {
                     x.data.fileCursor++;

@@ -85,24 +85,28 @@ export default class RowStore {
     async saveAll(): Promise<void> {
         this.activeSaves++;
 
-        const storables = await Promise.all(Object.values(this.cache)) 
-        const pendings = storables.filter(s => s.version > s.db.version);
+        log(`saveAll (active=${this.activeSaves})`)
 
-        if(pendings.length == 0) {
-            this.activeSaves--;
-            this.events.emit('tick')
-        }
-        else {
-            const items = pendings
-                .map(s => ({
-                    ...s.dbMap.mapToDb(s.state),
-                    part: { S: s.id },
-                    version: { N: s.version.toString() }
-                }))
+        const storables = await Promise.all(Object.values(this.cache))
 
-            await this.saving;
+        await (this.saving = this.saving
+            .then(async () => {
+                const pendings = storables.filter(s => s.version > s.db.version);
 
-            await (this.saving = (async () => {
+                if(pendings.length == 0) {
+                    this.activeSaves--;
+                    this.events.emit('tick')
+                }
+                else {
+                    log('saving', pendings.map(p => [p.version, p.db.version]))
+
+                    const items = pendings
+                        .map(s => ({
+                            ...s.dbMap.mapToDb(s.state),
+                            part: { S: s.id },
+                            version: { N: s.version.toString() }
+                        }))
+
                     await this.dynamo.transactWriteItems({
                         TransactItems: items.map(item => ({
                             Put: {
@@ -112,18 +116,19 @@ export default class RowStore {
                                 ExpressionAttributeValues: { ':version': item.version }
                             }
                         }))
-                    }).promise() 
+                    }).promise(); 
 
                     pendings.forEach(s => s.db.version = s.version)
 
                     this.activeSaves--;
                     this.events.emit('tick')
-                })()
-                .catch(er => {
-                    this.events.emit('error', er);
-                    throw er;
-                }));
-        }
+                }
+            })
+            .catch(er => {
+                this.events.emit('error', er);
+                throw er;
+            })
+            .finally(() => log('save done')))
     }
 
     complete(): Promise<any> {
