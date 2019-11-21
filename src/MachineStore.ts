@@ -162,7 +162,7 @@ export default class MachineStore {
         log('loading', id)
         if(this.go) {
             return this.loaded[id] = new _Machine(
-                await this.store.load<MachineState>(id, machineDb));
+                await this.store.load<MachineState>('machine', id, machineDb));
         }
         else {
             throw Error('MachineStore closed')

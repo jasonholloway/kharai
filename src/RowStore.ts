@@ -6,6 +6,7 @@ import { EventEmitter } from "events";
 const log = (...args: any[]) => console.log('Store:', ...args);
 
 type InnerStorable<S> = {
+    type: string,
     id: string,
     version: number,
     db: { version: number },
@@ -36,14 +37,15 @@ export default class RowStore {
         this.dynamo = dynamo;
     }
 
-    load<S>(id: string, dbMap: DbMap<S>): Promise<Storable<S>> {  //should load many at once
+    load<S>(type: string, id: string, dbMap: DbMap<S>): Promise<Storable<S>> {  //should load many at once
         if(!this.go) throw Error('store closed');
 
         return this.cache[id] || (this.cache[id] = (async () => {
             const { Item: x } = await this.dynamo.getItem({
                 TableName: this.config.tableName,
                 Key: {
-                    part: { S: id }
+                    part: { S: type },
+                    sort: { S: id }
                 }
             })
             .promise();
@@ -55,6 +57,7 @@ export default class RowStore {
                     : 0;
 
             const storable: InnerStorable<S> = { 
+                type,
                 id, 
                 version, 
                 db: { version },
@@ -103,7 +106,8 @@ export default class RowStore {
                     const items = pendings
                         .map(s => ({
                             ...s.dbMap.mapToDb(s.state),
-                            part: { S: s.id },
+                            part: { S: s.type },
+                            sort: { S: s.id },
                             version: { N: s.version.toString() }
                         }))
 

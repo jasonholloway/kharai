@@ -1,8 +1,8 @@
-import csv from 'csv-parse'
-import config from './config'
 import AWS from 'aws-sdk'
-import createBlobStore from './blobStore';
-import getStream from 'get-stream'
+import createBlobStore from '../src//blobStore';
+import config from '../src/config'
+import { diffMembers } from '../src/behaviour/members'
+import toReadableStream from 'to-readable-stream'
 
 AWS.config.update({
     apiVersion: '2012-08-10',
@@ -17,50 +17,16 @@ const blobs = createBlobStore(config, s3);
 
 const log = (...args: any[]) => console.log(...args)
 
-const parse = () => csv({ delimiter: '\t', columns: true, skip_empty_lines: true });
+const s0 = toReadableStream(new Buffer(0)); // blobs.load('dnn/members/000000');
+const s1 = blobs.load('dnn/members/000000');
 
-Promise.all([
-    getStream.array(blobs.load('dnn/members/000000').pipe(parse())),
-    getStream.array(blobs.load('dnn/members/000233').pipe(parse()))
-])
-.then(([r1, r2]) => {
-    const newMembers = [], lostMembers = [];
+diffMembers(s0, s1)
+    .then(updates => {        
 
-    const before = sortById(r1);
-    const after = sortById(r2);
+        const r = Array.from(updates)
 
-    let iA = 0, iB = 0;
-    while(true) {
-        const a = before[iA], b = after[iB];
+        for(let u of updates) log(u); 
 
-        if(!a && !b) {
-            break;
-        }
+        log('length', r.length);
 
-        if((!a && b) || (b.id < a.id)) {
-            newMembers.push(b);
-            iB++;
-            continue;
-        }
-
-        if((a && !b) || (a.id < b.id)) {
-            lostMembers.push(a);
-            iA++;
-            continue;
-        }
-
-        iA++; iB++;
-    }
-    
-    function sortById(r: any[]) {
-        return r.map((i: any) => ({ ...i, id: parseInt(i['Member ID']) }))
-            .sort((a, b) => a.id - b.id) 
-    }
-})
-
-
-
-// blobs.load('dnn/members/000000')
-//     .pipe(csv({ delimiter: '\t', columns:true, skip_empty_lines: true }))
-//     .on('data', row => log(row))
-//     .on('end', () => log('END!'))
+    })

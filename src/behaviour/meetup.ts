@@ -50,7 +50,7 @@ export default (config: Config, blobs: BlobStore) => {
         const dataStr = new Stream.PassThrough();
 
         return Promise.all([
-            blobs.save(`dnn/members/${nextId.toString().padStart(6, '0')}`, dataStr), ///.pipe(gz)),
+            blobs.save(`members/${nextId.toString().padStart(6, '0')}`, dataStr), ///.pipe(gz)),
             downloadMembers(agent)(dataStr)
         ]);
     }

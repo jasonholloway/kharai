@@ -12,6 +12,7 @@
     "aws-sdk": "^2.562.0",
     "cheerio": "^1.0.0-rc.3",
     "csv-parse": "^4.6.5",
+    "date-fns": "^2.8.0",
     "fast-stream-to-buffer": "^1.0.0",
     "fastpriorityqueue": "^0.6.3",
     "fs-write-stream-atomic": "^1.0.10",
@@ -26,6 +27,7 @@
   "devDependencies": {
     "@types/cheerio": "^0.22.13",
     "@types/csv-parse": "^1.2.2",
+    "@types/date-fns": "^2.6.0",
     "@types/get-stream": "^3.0.2",
     "@types/highland": "^2.12.4",
     "@types/node": "^12.12.5",

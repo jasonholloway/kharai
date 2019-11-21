@@ -1,6 +1,6 @@
 
 const config = {
-    tableName: 'dotnetnorth-state',
+    tableName: 'dnn',
     groupName: <string>process.env.MEETUP_GROUP,
     email: <string>process.env.MEETUP_EMAIL,
     password: <string>process.env.MEETUP_PASSWORD,

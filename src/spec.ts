@@ -5,6 +5,8 @@ import { BlobStore } from './blobStore';
 import { diffMembers } from './behaviour/members'
 import { MachineState } from './MachineStore';
 import { DynamoDB } from 'aws-sdk';
+import { Readable } from 'stream';
+import toReadableStream = require('to-readable-stream');
 
 export type Context = { 
     readonly id: string, 
@@ -75,18 +77,11 @@ const createSpec = (config: Config, blobs: BlobStore, dynamo: DynamoDB) =>
                 return next('refreshCookie')
             }
 
-            x.data.lastBlob = x.data.lastBlob || 0;
-
             await meetup.getMembers(
                 x.data.memberCookie, 
-                ++x.data.lastBlob); //should return code if cookie bad
+                x.data.fileCursor); //should return code if cookie bad
 
-            //blobs should be saved by monotonic id, with metadata indicating date
-            //then the simple cursor value can be used to collect them all
-
-            //the blob client should have a cache such that in the best case, we don't need to re-read
-            //and the diffing can be done quickly
-            //this means we do need to store the data in memory - but this isn't much really
+            x.data.fileCursor++;
 
             return delay(1000 * 60 * 60, 'downloadMembers', true)
         },
@@ -118,34 +113,36 @@ const createSpec = (config: Config, blobs: BlobStore, dynamo: DynamoDB) =>
         },
 
         watchFiles(x) {
-            return watch(['memberFetcher'], `m.state.data.lastBlob > ${x.data.fileCursor || 0}`, 'diffFiles');
+            return watch(['membersFetcher'], `m.state.data.fileCursor > ${x.data.fileCursor || 0}`, 'diffFiles');
         },
 
-        async diffFiles(x) {
-            x.data.fileCursor = x.data.fileCursor || 0;
-            x.data.updateCursor = x.data.updateCursor || 0;
-            x.data.logCursor = x.data.logCursor || 0;
+        async diffFiles({ data: d }) {
+            d.fileCursor = d.fileCursor || 0;
+            d.updateCursor = d.updateCursor || 0;
+            d.logCursor = d.logCursor || 0;
 
-            const toKey = (n: number) => `dnn/members/${n.toString().padStart(6, '0')}`;
+            const toKey = (n: number) => `members/${n.toString().padStart(6, '0')}`;
 
-            const updates = await diffMembers(
-                blobs.load(toKey(x.data.fileCursor)),
-                blobs.load(toKey(x.data.fileCursor + 1))
-            );
+            const updates = Array.from(
+                await diffMembers(
+                    d.fileCursor > 0 ? blobs.load(toKey(d.fileCursor - 1)) : emptyStream(),
+                    blobs.load(toKey(d.fileCursor))
+                ))
+                .map(u => [<number>d.fileCursor, ...u] as const);
 
-            console.log('UPDATES:', updates);
+            console.log('diffFiles: updateCursor:', d.updateCursor);
 
-            if(updates.length) {
-                const toSave = updates.slice(x.data.updateCursor, 25);
-                console.log('toSave', toSave.length);
+            const toSave = updates.slice(d.updateCursor, d.updateCursor + 25)
+            console.log('diffFiles: toSave', toSave);
 
+            if(toSave.length) {
                 const res = await dynamo.batchWriteItem({ 
                     RequestItems: {
                         [config.tableName]: toSave.map((u, i) => ({
                             PutRequest: {
                                 Item: {
-                                    part: { S: `event-${x.data.logCursor + i}` },
-                                    type: { S: u.type },
+                                    part: { S: `membersLog` },
+                                    sort: { S: (<number>d.logCursor + i).toString(16).padStart(6, '0') },
                                     data: { S: JSON.stringify(u) }
                                 }
                             }
@@ -154,21 +151,28 @@ const createSpec = (config: Config, blobs: BlobStore, dynamo: DynamoDB) =>
                 }).promise();
 
                 const savedCount = toSave.length - Object.entries((res.UnprocessedItems || {})[config.tableName] || {}).length;
-                x.data.updateCursor += savedCount;
-                x.data.logCursor += savedCount;
+                console.log('diffFiles: saved', savedCount);
 
-                if(x.data.updateCursor >= updates.length) {
-                    x.data.fileCursor++;
-                    x.data.updateCursor = 0;
+                d.updateCursor += savedCount;
+                d.logCursor += savedCount;
+
+                if(d.updateCursor >= updates.length) {
+                    d.fileCursor++;
+                    d.updateCursor = 0;
                 }
             }
             else {
-                x.data.fileCursor++;
+                d.fileCursor++;
+                d.updateCursor = 0;
             }
 
-            return next('watchFiles', true);
+            return next('watchFiles');
         }
     });
+
+function emptyStream(): Readable {
+    return toReadableStream(new Buffer(0)); 
+}
 
 export default createSpec
 export type Spec = ReturnType<typeof createSpec>

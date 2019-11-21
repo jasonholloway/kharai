@@ -52,7 +52,7 @@ const h = setTimeout(() => {
     end();
 }, run.timeout - Date.now());
 
-runner.execute(run)(['memberFetcher', 'memberListDiffer'])
+runner.execute(run)(['membersFetcher', 'membersDiffer'])
     .then(() => console.log(`DONE in ${(Date.now() - started) / 1000}s`))
     .then(end)
     .catch(sink)
