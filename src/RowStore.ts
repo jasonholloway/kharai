@@ -2,6 +2,7 @@ import { DynamoDB } from "aws-sdk";
 import { Config } from "./config";
 import { AttributeMap } from "aws-sdk/clients/dynamodb";
 import { EventEmitter } from "events";
+import Atom from "./Atom";
 
 const log = (...args: any[]) => console.log('Store:', ...args);
 
@@ -12,7 +13,7 @@ type InnerStorable<S> = {
     db: { version: number },
     dbMap: DbMap<S>,
     state: S,
-    setState(s: S): void,
+    setState(s: S): Atom,
 }
 
 export interface Storable<S> extends Omit<Readonly<InnerStorable<S>>, 'db' | 'dbMap'>
@@ -66,6 +67,7 @@ export default class RowStore {
                 setState(s) {
                     storable.state = s;
                     storable.version++;
+                    return new Atom(null, []);
                 },
             };
 

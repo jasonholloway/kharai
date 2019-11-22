@@ -1,9 +1,10 @@
 import { clone } from './util'
 import { Spec, Result } from './spec';
-import createThreader from './threader';
+import createThreader, { Resumption } from './threader';
 import { Timer } from './timer';
 import MachineStore, { Machine, MachineState, InnerMachine } from './MachineStore';
 import RowStore, { Storable } from './RowStore';
+import Atom from './Atom';
 
 export type RunContext = {
     readonly started: number,
@@ -27,7 +28,7 @@ export default (spec: Spec, store: RowStore, repo: MachineStore, timer: Timer) =
 
         log('running', machines.map(m => m.id));
 
-        const getResumption = (m: Machine): Promise<boolean>|false => {
+        const getResumption = (m: Machine): Promise<Resumption|false>|false => {
             const s = m.getState();
 
             if(s.watch) {
@@ -41,7 +42,7 @@ export default (spec: Spec, store: RowStore, repo: MachineStore, timer: Timer) =
                     function(target) {
                         const met = fn(target)
                         log(`hook triggered ${target.id}>${m.id}`, met)
-                        if(met) this.complete(true);
+                        if(met) this.complete({ upstream: new Atom(null, []) });
                     }
                 )
             }
@@ -65,14 +66,16 @@ export default (spec: Spec, store: RowStore, repo: MachineStore, timer: Timer) =
                     name: m.id,
                     resume,
                     async do() {
-                        const result = await m.update(async i => {
+                        const result = await m.update(async i => { //this right here creates the new atom
                             const r = await dispatch(i);
                             return [r.state, r];
                         })
                         .catch(saveRethrow) //final saving should be done _above_ here
 
                         if(result) {
-                            if(result.save) store.saveAll(); //should sink errors
+                            const [atom, { save }] = result;
+                            
+                            if(save) store.saveAll(); //should sink errors
 
                             const resume = getResumption(m) //sheeeeeet... this is never returning cos its a nested promise bah
                             if(resume) {

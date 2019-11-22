@@ -1,5 +1,7 @@
 import RowStore, { Storable, DbMap } from "./RowStore";
 import { AttributeMap } from "aws-sdk/clients/dynamodb";
+import { Resumption } from "./threader";
+import Atom from "./Atom";
 
 //**************************************************************************************** */
 //so, watches aren't being checked if the target is already frozen...
@@ -17,11 +19,11 @@ type HookFn = (this: Hook, x: Storable<MachineState>) => void;
 class Hook {
     private m: _Machine;
     private fn: HookFn;
-    private resolve: (success: boolean) => void;
+    private resolve: (success: Resumption|false) => void;
     private reject: (err: any) => void;
     private active = true;
 
-    constructor(m: _Machine, fn: HookFn, resolve: (success: boolean) => void, reject: (err: any) => void) {
+    constructor(m: _Machine, fn: HookFn, resolve: (success: Resumption|false) => void, reject: (err: any) => void) {
         this.m = m;
         this.fn = fn;
         this.resolve = resolve;
@@ -41,7 +43,7 @@ class Hook {
         }
     }
 
-    async complete(success: boolean): Promise<void> {
+    async complete(success: Resumption|false): Promise<void> {
         log('completing hook', this.m.id)
         if(this.active) {
             this.active = false;
@@ -91,7 +93,7 @@ export const machineDb: DbMap<MachineState> = {
 
 export interface Machine {
     readonly id: string
-    update<R>(fn: (m: InnerMachine) => Promise<[MachineState, R]|false>): Promise<R|false>
+    update<R>(fn: (m: InnerMachine) => Promise<[MachineState, R]|false>): Promise<[Atom, R]|false>
     getState(): MachineState
     complete(): Promise<void>
 }
@@ -114,7 +116,7 @@ class _Machine implements Machine {
         this.hooks = [];
     }
 
-    async update<R>(fn: (m: InnerMachine) => Promise<[MachineState, R]|false>): Promise<R|false> {
+    async update<R>(fn: (m: InnerMachine) => Promise<[MachineState, R]|false>): Promise<[Atom, R]|false> {
         //should check version hasn't changed in meantime: local optimistic locking
         //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         const s = this.storable;
@@ -127,9 +129,9 @@ class _Machine implements Machine {
 
         if(result) {
             const [nextState, innerResult] = result;
-            s.setState(nextState);
+            const atom = s.setState(nextState);
             this.hooks.forEach(h => h.fire(s))
-            return innerResult;
+            return [atom, innerResult];
         }
         else {
             return false;
@@ -170,7 +172,7 @@ export default class MachineStore {
     }
 
     watch(id: string, fn: HookFn) {
-        return new Promise<boolean>((resolve, reject) => {
+        return new Promise<Resumption|false>((resolve, reject) => {
             const m = this.loaded[id];
             if(this.go && m) {
                 log('watching', id)

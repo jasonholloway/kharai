@@ -1,9 +1,11 @@
 import { setTimeout, clearTimeout } from "timers";
+import { Resumption } from "./threader";
+import Atom from "./Atom";
 
 type Entry = {
-    promise: Promise<boolean>,
+    promise: Promise<Resumption|false>,
     timeout: NodeJS.Timeout,
-    resolve: (r: boolean) => void
+    resolve: (r: Resumption|false) => void
 }
 
 const createTimer = () => {
@@ -11,14 +13,14 @@ const createTimer = () => {
     const entries: Entry[] = [];
 
     return {
-        when(due: number): Promise<boolean> {
-            const promise = new Promise<boolean>((resolve) => {
+        when(due: number): Promise<Resumption|false> {
+            const promise = new Promise<Resumption|false>((resolve) => {
                 if(!go) resolve(false);
                 else {
                     entries.push({
                         promise,
                         timeout: setTimeout(
-                            () => go && resolve(true), 
+                            () => go && resolve({ upstream: new Atom(null,[]) }), 
                             Math.max(0, due || 0) - Date.now()),
                         resolve
                     });

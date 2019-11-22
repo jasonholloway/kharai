@@ -1,5 +1,10 @@
+import Atom from "./Atom"
 
-export type Resume = Promise<boolean>
+export type Resumption = {
+    upstream: Atom
+}
+
+export type Resume = Promise<Resumption|false>
 
 export type Threadable = {
     name: string,

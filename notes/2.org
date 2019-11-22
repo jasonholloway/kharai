@@ -1,0 +1,144 @@
+
+
+the cursor through the central log needs to emit its data
+to a specialised receiver, to a per-member machine
+
+but this blocking operation - it would stall the progress of the central emitter if the recipient were otherwise engaged
+
+i'm imagining a possible mediator in the process, a keeper of buffers
+as long as the point of execution is passed 
+then there is a travelling thing of importance
+
+the emitter needs to know that the recipient will eventually receive its emission
+its own state can then be marked, and it can move on
+
+the recipient needs to receive the /problem/ and communicate back that all is received.
+the two parties then need to persist together, in one transaction
+
+each machine normally has one zone of consistency - a ConsistencyZone
+
+--------
+
+no, wait... these zones are bigger than i was hoping, because of follow-on effects
+
+if an upstream observed is not saved, while a downstream watcher of its state is, 
+then there's a consistency lost right there
+
+in the replaying, things may unfold differently, and the path persisted downstream will jar with the newer upstream truth
+
+in a watching, the consistency zone covers both
+in an invocation, the consistency zone covers both
+
+--------
+
+no, in the former case, the ConsistencyZone isn't simply shared,
+but rather a relationship is created: the upstream zone must be before or shared with the downstream zone
+
+if the upstream zone fails to save, then saves below must also fail
+which is similar to what we already have in the unithreaded saver
+
+---------
+
+so each machine has its zone... its *Atom*
+
+then, when a machine decides it needs to save its state for certain - ie when something important and valuable needs safekeeping
+then we know that all the parent atoms need persisting either before or with it
+
+but progress of machines shouldn't be stalled by this request: it just means we should start saving at this point: further saves can be done after
+
+the Saver would then walk the tree of atoms
+or rather, would climb it
+till it found a completed or completing atom
+a completing atom would have to be waited for before we start our own save
+each Save then takes Atoms
+
+---------
+
+an Atom is created for a machine, is attached to a machine. Each machine is attached to an Atom
+when that machine changes its state, its own Atom covers its changed state
+
+but then it enters into a transaction with another
+each already has an individual atom, with its own relations etc
+it seems that Atoms are monoidal, and in being combined the resulting atom takes on all parents and, possibly, all children
+
+strictly, a new change on top of an old change needn't be folded into the same Atom
+instead each change is its own Atom
+but can be combined from there
+
+each Save tries to take on as many Atoms as possible
+
+---------
+
+obvs circularity is an issue here
+if each action creates a new atom, then in the original graph there can be no circularity
+
+but in efficiently combining the Atoms, there's the chance of going in circles
+every small step of combining must be costed - maybe it is too expensive, if we would have to save two more, it might take us over the edge
+
+-----------
+
+every state change is therefore tracked as an atom
+but the atom isn't necessarily a single state change - it could be composed of many
+
+on setState the machine creates an atom that is its change 
+on a transaction, the atoms of each action can be combined after the initial creation
+
+-----------
+
+we need an ambient context
+which we barely have in javascript
+though we're in charge of dispatching, so can do what we like
+
+when invoking, need to trace our progress according to upstream tree of atoms
+
+-----------
+
+how about at the level of the Threader???
+the Threader does resumptions; perhaps the threader can track paths of execution too? after all, there should be no activity outside of and undispatched by the Threader
+
+how can dependencies run through the resumptions of the threader?
+a resumption on a change in state in another is plainly dependent on whatever atom marks the changed state observed
+
+threads don't interact except for in their resumptions, through which we have hope of mediating /everything/
+
+in the case of a watch, the atomof the watched would be returned by the resumption then the next could be added to it
+was about to say to myself that setState could ... something
+
+resumptions would return a context with their continuation flag
+
+in the case of a watch, the last atom of the watched would be part of the upstream context
+in the case of a delayed continuation, the previous state of the same machine is our upstream
+
+but even in the case of a watch, our own previous state is our upstream
+just for the simplest of continuations of the very same machine, the machine's past self is one of its explict upstreams
+the special thing with watches is that they add another
+
+then with direct communications, the caller is the upstream, but in the yielding, the caller and called are joined
+
+resumptions from the db have no atom to be saved; they may as well start from scratch
+just as with watches on unchanged machines
+
+--------------
+
+what of polling? then something outside of our sphere is noticed - it is already persisted, it doesn't matter so much
+
+--------------
+
+not just atoms passed about, but pending states should be stored into them
+each atom can have multiple storables in it (by enclosing other atoms) and has a flag indicate its persistence
+
+so each bit of state is a moment of state, a small atom only caring about its own consistency
+
+atoms are either dependent, updates, or combinations
+
+hooks are vectors of context
+
+*all context needs to pass through resumptions*
+
+so even a machine's own simple state needs to pass through the resumption
+
+
+
+
+
+
