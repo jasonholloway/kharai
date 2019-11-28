@@ -87,6 +87,15 @@ export default class RowStore {
             .on('error', reject)
     })
 
+    //so states are added to the atom graph
+    //and when saveAll is called, then the atoms need crawling, gathering, dispatching
+    //but the save should be against the atom
+    //and we should save as soon as we can
+
+    //actual saves should, again, be done in sequence if there are dependencies between them
+    //so a downstream saving actually requires all upstream atoms to have completed their saving
+
+
     async saveAll(): Promise<void> {
         this.activeSaves++;
 

@@ -20,9 +20,9 @@ const createTimer = () => {
                     entries.push({
                         promise,
                         timeout: setTimeout(
-                            () => go && resolve({ upstream: new Atom(null,[]) }), 
+                            () => go && resolve({ upstream: new Atom([], []) }), 
                             Math.max(0, due || 0) - Date.now()),
-                        resolve
+                        resolve,
                     });
                 }
             });
