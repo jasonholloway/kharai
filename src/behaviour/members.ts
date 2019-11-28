@@ -75,13 +75,13 @@ function *diffAll(r1: any[], r2: any[])
             break;
         }
 
-        if((!a && b) || (b.id < a.id)) {
+        if((!a && b) || (b && (b.id < a.id))) {
             yield added(b);
             iB++;
             continue;
         }
 
-        if((a && !b) || (a.id < b.id)) {
+        if((a && !b) || (a && (a.id < b.id))) {
             yield left(a);
             iA++;
             continue;
