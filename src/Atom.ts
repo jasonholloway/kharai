@@ -1,19 +1,30 @@
 import flatMap from 'lodash/flatMap'
+import flatten from 'lodash/flatten'
 
-type AtomState = 'pending' | 'saving' | 'done'
+type AtomState = 'ready' | 'claimed' | 'done'
 
-const maxRowsPerAtom = 25;
+export class AtomSaver {
 
-class Saver {
-    private go = true
-    private queue: Atom[] = []
-
-    enqueueSave(atom: Atom) {
-        this.queue.push(atom)
+    private store: Store;
+    
+    constructor(store: Store) {
+        this.store = store;
     }
 
-    run() {
-        const atom = this.queue.pop();
+    async save(tip: Atom): Promise<void> {
+        const claimed = await tip.claim();
+
+        //claim our subtree
+        //then try to save it
+        //on success, empty out the atoms
+
+        //atom and claim are siblings with separate interfaces
+        //
+        //
+
+        
+
+        
     }
 }
 
@@ -25,52 +36,86 @@ export type Row = {
     [k: string]: any
 }
 
+//the claimed atom is our way of changing atoms
+//it is basically the atom tree in its nudity
+//this means that the previously used Atom isn't the real atom at all:
+//it's just a facade, and its debatable whether we even need to expose it
+//what we do need to expose is the Tip, or rather the MachineContext that keeps track of the tip
+//this then, behind the scenes, tries to claim portions of the tree and then pass these mutable fragments to the caller
+
+export interface Claimed {
+    readonly upstreams: Claimed[]
+    rows: Row[]
+    release(): void
+}
+
+export interface Claimable {
+    claim(): Promise<Claimed[]>
+}
+
+
 export default class Atom {
 
     private upstreams: Atom[];
-    private children: Atom[];
     private rows: any[];
 
-    private state: AtomState = 'pending'
+    private state: AtomState = 'ready'
 
     constructor(upstreams: Atom[], rows: Row[]) {
         this.upstreams = upstreams;
-        this.children = [];
         this.rows = rows;
-
-        this.upstreams.forEach(a => a.children.push(this)); //not certain we need children here - what happens if we change our mind? should be up to us
     }
 
-    async save(store: Store) {
-        const roots = this.findUpstreams()
-        
-        await Atom.waitTillDone(roots);
-
-        //now need to gather atoms forwards, by combining them
-
-        //saves should continue till graph done
-
-        if(roots.some(r => r.state != 'done')) {
-            await Promise.all(roots.map(r => r.waitTillSaved()));
-            await this.save(store);
-        }
-        else {
-            const saveable = store.createSaveable();
-
-            let result = saveable.tryCombine(this);
-            if(result) {
-                await result.save();
-            }
-        }
-
+    private setState(state: AtomState) {
+        this.state = state;
     }
 
-    private findUpstreams(): Atom[] {
+    async claim(): Promise<Claimed[]> {
         switch(this.state) {
-            case 'pending':
-                return flatMap(this.upstreams, atom => atom.findUpstreams());
+            case 'ready':
+                const ups = flatten(await Promise.all(
+                    this.upstreams.map(a => a.claim())));
+                
+                //at this point i've claimed all upstream that i can
+                //now to try claiming myself: if i can't claim myself, all the parent claimeds need to be released
+
+                switch(this.state) {
+                    case 'ready':
+                        const atom = this;
+                        this.setState('claimed');
+                        return [{
+                            // atom,
+                            upstreams: ups,
+                            rows: [],
+                            // complete() {
+                            //     ups.forEach(c => c.complete());
+                            //     atom.setState('done');
+                            // },
+                            release() {
+                                ups.forEach(c => c.release());
+                                atom.setState('ready');
+                            }
+                        }];
+                }
+
+                
+                
+                throw Error('yo');
+
+            case 'claimed':
+                
+
+            case 'done':
+                return [];
+        }
+    }
+
+    private findRoots(): Atom[] {
+        switch(this.state) {
+            case 'ready':
+                return flatMap(this.upstreams, atom => atom.findRoots());
             
-            case 'saving':
+            case 'claimed':
             case 'done':
                 return [this];
         }
@@ -85,28 +130,10 @@ export default class Atom {
     }
 }
 
-
-//the Save is created and queued
-//
-export class Save {
-
-    private atoms: Atom[];
-
-    constructor(atoms: Atom[]) {
-        this.atoms = atoms;
-    }
-
-    //atoms need to know their last 
-    //
-    //
-
-}
-
 export interface Saveable {
     save(): Promise<void>
-    tryCombine(atom: Atom): Saveable|false
 }
 
 export interface Store {
-    createSaveable(): Saveable
+    tryCreateSaveable(atom: Atom): Saveable|false
 }

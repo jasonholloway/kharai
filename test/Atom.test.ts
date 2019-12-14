@@ -1,11 +1,13 @@
-import Atom, { Row, Saveable, Store } from '../src/Atom'
+import Atom, { Row, Saveable, Store, AtomSaver } from '../src/Atom'
 
 describe('hello', () => {
 
     let store: FakeStore
+    let saver: AtomSaver
 
     beforeEach(() => {
         store = new FakeStore();
+        saver = new AtomSaver(store);
     })
 
     it('forms saveable from atoms', async () => {
@@ -13,19 +15,24 @@ describe('hello', () => {
         const atom21 = new Atom([atom1], []);
         const atom22 = new Atom([atom1], []);
 
-        await atom22.save(store);
+        await saver.save(atom22);
 
         expect(store.saveables).toHaveLength(1);
-        expect(store.saveables[0]).toEqual({
-            atoms: [ atom1, atom22 ]
-        });
+        expect(store.saveables[0].atoms).toEqual(
+            [ atom1, atom22 ]
+        );
     })
+
 
 })
 
 class FakeStore implements Store {
 
-    readonly saveables: Saveable[] = []
+    tryCreateSaveable(atom: Atom): false | Saveable {
+        throw new Error("Method not implemented.");
+    }
+
+    readonly saveables: FakeSaveable[] = []
 
     createSaveable(): Saveable {
         const saveable = new FakeSaveable(this);
@@ -36,6 +43,8 @@ class FakeStore implements Store {
 
 class FakeSaveable implements Saveable {
     private store: FakeStore;
+
+    readonly atoms: any[] = []
 
     constructor(store: FakeStore) {
         this.store = store;
@@ -48,11 +57,4 @@ class FakeSaveable implements Saveable {
     save(): Promise<void> {
         throw new Error("Method not implemented.");
     }
-}
-
-
-class DynamoStore implements Store {
-    createSaveable(): Saveable {
-        throw new Error("Method not implemented.");
-    }    
 }

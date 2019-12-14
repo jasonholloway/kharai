@@ -1,0 +1,286 @@
+        //but what about claiming forward too?
+        //don't worry about it for now
+
+        //but maybe I should
+        //crawling forwards seems kinda mad
+        //unless we were to do it upfront
+
+        //extending it forwards should be done by the atom itself, so claiming an atomin the past also returns its children
+        //hmm... nope
+        //that sounds really terrible stuff
+
+        //as a secondary thing, AtomSaver should scan to see if there are any other going atoms that need saving
+        //but how? by another index? yes - if there's a live head somewhere that includes what we want to save, and we can get a store to save it
+        //in one go, then we should save that
+        //that is, the tip should be the latest findable
+        
+        //though our interface is but the claim method - we claim and we lock an entire subtree
+        //after finishing our claim (which might actually take a while if other saves are in progress)
+        //we should find the latest tip that contains our tip, and try to save that
+
+        //that is, we should attempt to expand our claim to include downstream atoms also
+        //but here is potential for deadlocks, if a downstream attempt at saving has begun
+        //this expanding of the claim should then have some means of claiming, of gazumping the in-progress downstream save
+        //
+        //we can be sure that upstream always happens before downstream, which allows us to do this with assurance
+        //but the gazumping mechanism will need to be worked out
+        //
+        //the atom tree should itself be changed atomically, and not on an atom-by-atom basis, which raises the prospect of deadlocks like this
+        //but we want the possibility of concurrency in separate branches still
+        //
+        //in saving a branch, all upstreams must be claimed first, even before we /begin/ to claim something downstream
+        //this means that if we hold an upstream claim, then nothing downstream can even start goig - we hold up the entire thing
+        //this also means we can extend forwards if we like
+        //
+        //also means ***there has to be an empty root atom***
+        //not sure now having typed that
+        //
+        //an atom representing a dead but persisted state is magicked up out of the depths when loading a machine
+        //we can't have two things trying to overwrite this state at once
+        //
+        //so an atom becomes very much like a single slice of machine state
+        //but the difference is, that atoms are not just scoped to single machines, but in transactional interactions, can span multiple machines
+        //to ensure atomicity of transactions
+        //
+        //but - each machine loaded needs to yield an atom to claim and to save
+        //this atom won't itself contain any rows to save
+        //and even though it's 'done', it can be claimed
+        //in fact its state is more structured then - more structured than a flat set of possible values
+        //
+        //it has a flag of completeness, which interacts with a lock flag
+        //and the indicator of completeness could just be the list of saveable rows inside it
+        //which means the list of rows is mutable: but atoms are mutable, that's kind of their point
+        //think of them as a structured buffer of savables
+        //
+        //so atoms will just have their lock flag then
+        //but, if this is so, doesn't this mean we'd have to lock the /entire/ tree each time? 
+        //if there were a kind of grabage collection in place that got rid of unneeded upstreams maybe this would be solved
+        //otherwise we'd need a way to distinguish between completed and incomplete - but we have this with the empty row list
+        //
+        //so, introducing garbage collection of the graph simplifies our job of programming it, which is a good thing at this point
+        //
+        //---------------------------------------------------
+        //
+        //which brings us back to... simplifying the atoms as we go
+        //atoms pertaining to the same machine can be merged in one swoop
+        //this would be best done eagerly, as in as soon as possible, saving unnecessary restatements of overwritable states
+        //
+        //what we're doing is recreating mutable objects, in a weird but tractable mirror world
+        //
+        //an update comes in, as a fresh frame of state that should be persisted
+        //if the atom is immediately dependent on another of the same machine, then we can say that atoms can be merged into one
+        //atoms then don't store a flat list of rows to persist, they store a keyed map of rows, that allow these rows to be overwritten/merged
+        //
+        //so here we're falling back on the idea of atoms being nicely merged together according to some simple rules
+        //but our approach to here has the atoms only lazily merged via recursive crawling of the complete lattice, which keeps information
+        //at its maximimum, but is not what we're after here: what we actively want here is contraction, compaction, compression
+        //needless distinctions should be thrown away
+        //
+        //in which case, we can't just have a stable tree like this: no, we need to rewrite the tree
+        //what will do the rewriting? whatever it is that appends the fresh atom in the first place
+        //
+        //again, rewriting requires local locking
+        //rewriting is the same as persisting: it's a mutation of the tree
+        //and, inverted on its head, we can say that persisting, our previous limited concern, is just a kind of rewriting requiring locking
+        //
+        //which leads us to the thought that, instead of an arbitrary garbage collection happening now and again, on each actual save, we can do the tree compression then
+        //keeping the house clean, reducing atoms to just an empty root atom each time
+        //a folding in of the concertina
+        //
+        //sometimes an atom will cover two machines, which will somehow the folding in
+        //
+
+so after each update, each self-appended atom, we'll try to lock the tree (the entire subtree??) and rewrite to something smaller
+
+right, the problem here: trees start off separate, as the original atom is summoned via loading of the original state of a machine
+but then, through some kind of transactional interaction, they become joined
+
+the transactional update will be self-appended to both upstreams, and an attempt to rewrite will be queued, that will try to simplify both upstreams as well as the transactional joining atom
+and how can it simplify them? the transaction is better than both individual upstreams: it superannuates both, simplifying our roots into one
+
+after this point, the next updates of each individual machine should serve to decompose the shared root - two individual empty atoms are simpler than one conjoined one, unless the shared one has something inside it, which it won't after saving
+
+----
+
+so, every update, as well as tacking itself onto the structure inobtrusively, will try to obtrusively reform the shared structure
+
+should this really be done each time? seems wasteful but at least it covers us
+an alternative scheme would just do the rewriting after so many updates, plus deterministically before each actual save
+this'd be much better
+
+-----
+
+we claim our branch of the Atom lattice from the RunContext
+then, when we've got it, we get to mutate it
+
+but - mutating it in place is problematic as downstream references must be updated
+this reference problem is however no problem at all if we rewrite with the grain,
+if we rewrite from the very tip of the context each time - then it's just a case of visiting the tree
+
+so, in claiming, we get given a full subtree to play with - the only reference to be atomically updated at the end is then the one from the RunContext to the tree
+
+however... can we update these RunContexts singly? I think we can - the tree is always consistent, so if other bits outside of the tree fail, then... well, the tree
+itself will suffer, but it will be with the grain of the tree
+
+-------
+
+HOWEVER! there is only one tree, and all machines must use the one tree for tracking their progress
+there is a central registry linking machines to tree tips: this registry is singular, and is updated itself atomically 
+
+as such, in a rewrite situation, multiple tips will be moved at once, whereas normally, only one head - i mean tip! - will be moved at once
+
+-------
+
+when a machine claims its atom subtree, it locks the root rather than the entire tree: this allows it to rewrite with wild abandon, and simply plop the new subtree into place
+
+the problem here is with shared subtrees: if an atom somewhere effects two trees, say, and one of the machines wishes to claim and rewrite the tree, it might affect not just its own pointer,
+but that of another: but if it claims a common upstream, it has the responsibility for everything downstream of that point
+
+in any rewrite, the table of heads has to be updated to refer to the new tip
+
+this table is central, shared, and must be atomically updated
+
+when a machine wants to append a new atom, it creates the atom, then updates the table to point to it
+
+when it wants to save what it can,
+it tries to lock whatever upstreams there are
+which might take some time as another save attempt might be being made, partially covering the same area
+
+so, we want to lock the upstream, and lock the head table
+
+we could even rewrite trees as we liked and only synchronise on the head table, but this optimistic locking would duplicate /some/ work
+though it would simplify some things
+
+but - it would make possible duplicate saves, I think, which we definitely don't want
+
+-------
+
+we have a context, with a reference to an atom tip via indirection
+
+when we want to save via that context, we look up the tip, and find the nearest completed upstreams, which we then try to lock
+after getting the lock, we should refind the tip, as it may in fact have changed in the meantime
+
+this means contention is limited to certain upstreams
+and nothing grasps tightly the downstream atoms: there's only a loose, silently changable, reference to /a/ tip
+
+in saving, full atoms are replaced with empty ones
+or even, we could say, with a single one, or - with none, leaving the common root in place
+
+in this case, the head returns to the root from which it sprang
+we always begin by chaining atoms from a simple root atom; through saving, the head returns to the root, like a buffer made of a linked list
+
+------
+
+though it's not a linked list exactly: it's a linked lattice
+
+all machines start as distinct individuals, emerging singly from the mist
+but at some point through a transaction they may meet, and their paths become intertwined
+
+in which case, two separate roots, with two separate stalks, rise up, and meet in one shared atom
+
+then this shared atom is saved
+which requires all pertinent roots to be found and locked
+the whole lot can be saved in one go, but where do the heads go then?
+
+we need to discern between upstream paths, to reset the heads separately
+though, what if our root is singular, and is a shared atom? then each machine must lock this upstream, even though everything else about the machines is now separate, except for this one chance past meeting
+
+a shared atom is however decomposable into two if empty; rewriting should take care of this
+
+-------
+
+I like the idea of the loose grasp; the tip referenced via indirection, transparently rewritten
+
+------
+
+is it safe to only rewrite on the nearest complete upstream root?
+
+completeness we were measuring via fullness/emptiness of held rows
+so we would seek out the nearest upstream empty atom to lock - not convinced with this, like we're attaching too much meaning to the empty list
+
+if we were wanting to synchronise then, maybe the thing to do would be to lock /the root/ - this is unambiguous as it is the atom without a parent
+each machine would have its own designated root then?
+
+------
+
+but locking just the root - what would happen if two machines, two heads, derive from the same root? then we'd have contention here
+but then this is as it is: a common upstream is a common upstream
+
+but on rewriting, we traverse from tip to root, along only a certain branch; if we then lock the root, we have claimed the entire subtree,
+but are only aware of our branch; how can we rewrite the other branches then?
+
+it seems that consistent rewriting of a tree would require parent nodes to know of their children: a doubly-linked lattice
+
+in this case rewrites would only happen from the root; we would then need links from the tree tips back to the heads, to make them discoverable
+the head table then becomes part of the actual tree again? there'd be reified links between the machines and its current tip node
+
+----
+
+the only other way of doing it would be for the rewriting to re-find and rebase all other branches as it went, using a long involved process of lookup
+which is naff
+
+and so, we need a rich tree, studded with references to children and machines
+
+this makes sense in that, once something has been put in the tree, it is a solid saveable fact
+
+the protocol of adding an atom becomes more involved, in that the Head has to move between atoms, has to keep the atoms updated: it has to add itself to one atom,
+and to remove itself from the other; it /owns/ this action
+
+similarly, adding a child atom involves mutating the parent now
+
+-----
+
+even without the rewriting, just to save requires the same - to successfully save is to rewrite the tree so that no atoms with rows remain
+
+this means that heads will find themselves suddenly relocated
+but to a place with effectively the same state
+
+-------
+
+problem with not maintaining children links
+is that we'd have no idea about subbranches
+but maybe that'd be alright if compressed atoms, having sloughed off their old skins, redirected to their new embodiments
+
+though the mutation here is problematic too, as isn't the placement of a redirection itself a rewriting?
+yes: but as long as the redirection is done before the lock is released, it's all ok
+
+so rewriting doesn't just happen to the upstream subroot, but to downstream nodes too
+
+-----------------------
+
+rewriting from head to root puts the child in charge of refactoring the parent
+
+but how can the child know about other branches? it can't but it can redirect from old to new, which other branches will pick up
+
+-----
+
+how will overcompression affect our freedom to save as much as possible?
+
+i'm not convinced it will any more: a compression is always a minimizing of what has to be saved
+
+collecting together things to save is an interesting one, though...
+a single machine will say 'save', and this will implicate all states up stream of it
+
+beyond this one machine, though, we should try to save as much as possible, as many other machines as possible
+but the original caller must have priority
+there should be a priority list of saveables, which machines can themselves rocket to the top ofif they request it
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

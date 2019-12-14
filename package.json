@@ -17,28 +17,30 @@
     "fastpriorityqueue": "^0.6.3",
     "fs-write-stream-atomic": "^1.0.10",
     "get-stream": "^5.1.0",
-    "highland": "^2.13.5",
+    "immutable": "^4.0.0-rc.12",
     "lodash": "^4.17.15",
     "pify": "^4.0.1",
     "readable-stream-clone": "0.0.4",
     "superagent": "^5.1.0",
     "superagent-proxy": "^2.0.0",
-    "to-readable-stream": "^2.1.0"
+    "to-readable-stream": "^2.1.0",
+    "underscore": "^1.9.1"
   },
   "devDependencies": {
     "@types/cheerio": "^0.22.13",
     "@types/csv-parse": "^1.2.2",
     "@types/date-fns": "^2.6.0",
     "@types/get-stream": "^3.0.2",
-    "@types/highland": "^2.12.4",
+    "@types/immutable": "^3.8.7",
     "@types/jest": "^24.0.23",
     "@types/lodash": "^4.14.149",
     "@types/node": "^12.12.5",
     "@types/pify": "^3.0.2",
     "@types/superagent": "^4.1.4",
+    "@types/underscore": "^1.9.4",
     "jest": "^24.9.0",
     "ts-jest": "^24.2.0",
     "ts-node": "^8.4.1",
-    "typescript": "^3.6.4"
+    "typescript": "^3.7.3"
   }
 }
