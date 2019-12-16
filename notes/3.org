@@ -265,22 +265,88 @@ beyond this one machine, though, we should try to save as much as possible, as m
 but the original caller must have priority
 there should be a priority list of saveables, which machines can themselves rocket to the top ofif they request it
 
+------------------------
+------------------------
 
+we're expecting rewriting to always splodge together atoms, to reduce them
 
+but there's a case in which, it seems, we'd multiply out atoms:
+machines sprouting machines
+we'd begin with a single atom containing two rows
 
+this would never be separable itself, as it spans an atomic transaction
 
+but as we rewrite it in saving it, we have to update heads: in this case a new head will be sprouted
+and this head will be grafted on to our collection of heads
 
+in fact, this head will be more than just a head: it will be a RunContext, a Machine, to be executed
 
+well, the rewrite won't create the head (will it?)
+rather there will be multiple heads all referencing the same multirow atom
 
+when we come to rewriting this, we always do it /from/ the perspective of a particular head
+and other heads are carried along via redirects
 
+this is true even in saving: we save a head
+the idea was to go through the heads, gathering them up using a shared lock via some opaque mechanism
 
+------
 
+so the rewriting might yield many atoms in place of the one source atom
+this output can be flatMapped together by a downstream rewriting
+but how to relate this to a head?
 
+some heads should certainly be relocated
 
+------
 
+when a multirow atom, conjoining two paths, is saved, then not just the original saving head gets redirected to a root,
+but the other dependent head is also redirected to the /same root/ 
 
+this then means locking one head locks the other, as the root from thenon is the same
 
+whereas, once the conjunction is saved, the heads should be left pointing at completely different atoms
+so, roots shouldn't eat downwards, parents shouldn't subsume children, as then everything becomes conjoined by common heritage
 
+rather, children should do the eating: gobbling upwards till there's nothing of the past left
+
+in saving a conjunction, the patch should take in the original multirow atom, 
+and, currently, it can only yield a single shared, presumably empty, replacement
+which the first head will associate with directly
+
+but then the second head would /still/ be redirected to the new shared replacement root
+
+something would have to be aware of actual heads to make this work
+
+-----
+
+how about if each head has an empty atom created and ready to go - then the conjoined atom could just be replaced with /nothing/
+i like this fidelous idea - replacing it with precisely nothing is exactly right
+replacing it with a terminus, which can't be locked
+
+if other atoms then redirected to this, there'd be nothing to dredge out of it: no rows, no parents, no locakables
+so, the subtree locking would just be of the highest non-terminal atom
+and the best terminus is of course /null/ - both shared and incomparably unique
+
+-----
+
+then redirects will have a null case
+
+a head that is referencing a newly-saved atom will always have the possibility of actually referencing nothing
+so the head etc needs to always be cogent of this possibility
+
+but we don't want it to be dealing with this everywhere
+
+there are AtomRefs that /always/ need to be resolved to an Atom: this makes resolution explicit and handleable
+the null case is always a thing
+
+Heads have AtomRefs
+these AtomRefs might actually be redirected to other things
+
+--------
+
+we lock AtomDatas, and on successful lock, we should always check we have the latest root resolution: if not, we need to try locking the root again
+as the world may have moved without us by time the lock becomes free
 
 
 
