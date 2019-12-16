@@ -93,6 +93,36 @@ describe('atoms and stuff', () => {
 		console.log('after2', inspect(after2, { depth: 5 }));
 	})
 
+	it('locking', async () => {
+		const root = new AtomRef<string>();
+
+		const head1 = root.spawnHead();
+		head1.commit('1:1');
+
+		const head2 = head1.spawnHead();
+		head2.commit('2:1');
+
+		head1.commit('1:2');
+
+		const [lock, path] = await head1.lockPath();
+
+		let locked2 = false;
+		head2.lockPath().then(() => locked2 = true);
+
+		await delay(100);
+		expect(locked2).toBeFalsy();
+
+		lock.release();
+		await delay(0);
+		expect(locked2).toBeTruthy();
+	})
+
+	function delay(ms: number): Promise<void> {
+		return new Promise<void>(resolve => {
+			setTimeout(resolve, ms);
+		})
+	}
+
 	xit('saving', async () => {
 		const head = new AtomRef<string>().spawnHead();
 
@@ -243,11 +273,11 @@ class Head<V> {
 
 	private static findRoots<V>(ref: AtomRef<V>): Set<Atom<V>> {
 		const atom = ref.resolve();
-		return atom
-			? (atom.parents.isEmpty()
-					? Set([atom])
-					: atom.parents.flatMap(Head.findRoots))
-			: Set();
+		if(!atom) return Set();
+		else {
+			const above = atom.parents.flatMap(Head.findRoots);
+			return above.isEmpty() ? Set([atom]) : above;
+		}
 	}
 }
 
@@ -295,11 +325,19 @@ class Atom<V> {
 		this.val = val;
 	}
 
+	private _waits = Promise.resolve()
+
 	async lock(): Promise<Lock> {
+		return new Promise<Lock>(resolve1 => {
+			this._waits = this._waits
+				.then(() => new Promise(resolve2 => {
+					resolve1({
+						release: () => resolve2()
+					});
+				}))
+		})
+
 		//after locking we should always check that resolution is up to date: it may have been re-referred elsewhere 
-		return {
-			release() {}
-		}
 	}
 }
 
