@@ -5,107 +5,121 @@ describe('atoms and stuff', () => {
 
 	it('pristine head has no atom', () => {
 		const head = new Head(new AtomRef());
-
 		const atom = head.ref.resolve();
 		expect(atom).toBeUndefined();
 	})
 
 	it('committing creates atom', () => {
-		const head = new Head(new AtomRef());
-		head.commit({ id: 1 });
+		const root = new AtomRef<number>();
+		
+		const head = root.spawnHead()
+		head.commit(1);
 		
 		const atom = head.ref.resolve();
 		expect(atom).not.toBeUndefined();
-		expect(atom?.rows.get('id')).toBe(1);
+		expect(atom?.val).toBe(1);
 		expect(atom?.parents.size).toBe(1);
 		expect(atom?.parents.first(undefined)?.resolve()).toBeUndefined();
 	})
 
 	it('committing several times appends many atoms', async () => {
-		const head = new Head(new AtomRef());
-		head.commit({ id: 1 });
-		head.commit({ id: 2 });
-		head.commit({ id: 3 });
+		const root = new AtomRef();
+		const head = root.spawnHead();
+		head.commit(1);
+		head.commit(2);
+		head.commit(3);
 
 		const atom3 = head.ref.resolve();
-		expect(atom3?.rows.get('id')).toBe(3);
+		expect(atom3?.val).toBe(3);
 
 		const atom2 = atom3?.parents.first(undefined)?.resolve();
-		expect(atom2?.rows.get('id')).toBe(2);
+		expect(atom2?.val).toBe(2);
 		
 		const atom1 = atom2?.parents.first(undefined)?.resolve();
-		expect(atom1?.rows.get('id')).toBe(1);
+		expect(atom1?.val).toBe(1);
 
 		expect(atom1?.parents.size).toBe(1);
 		expect(atom1?.parents.first(undefined)?.resolve()).toBeUndefined();
 	})
 
 	it('like-for-like rewrite', async () => {
-		const head = new Head(new AtomRef());
-		head.commit({ id: 1 });
-		head.commit({ id: 2 });
-		head.commit({ id: 3 });
+		const head = new AtomRef<number>().spawnHead();
+		head.commit(1);
+		head.commit(2);
+		head.commit(3);
 
 		const [, path] = await head.lockPath();
 		expect(path.maxDepth()).toBe(3)
 
 		const before = path.path().render()
 
-		const patch = path.rewrite(fn => ref => {
-			const atom = ref.resolve();
-			if(!atom) return [Map(), ref]
-			else {
-				const newParents = atom.parents.map(fn)
-				const newAtom = new Atom(newParents)
-				const newRef = new AtomRef(newAtom);
-
-				return [Map([[ref, newRef]]), newRef]
-			}
-		});
-
-		patch.write();
+		path.rewrite(fn => atom => {
+			const newParents = atom.parents.map(fn)
+			return [Set(), new Atom(newParents, atom.val)]
+		}).write();
 
 		const after = path.path().render()
 		expect(after).toEqual(before)
 	})
 
-	type Bag = Map<string, any>
+	it('two heads rewrite', async () => {
+		const root = new AtomRef<string>();
+		const head1 = root.spawnHead();
+		
+		head1.commit('1:1');
 
-	const gather = (head: Head): [Lock, Bag] => {
-			throw ''
-	}
+		const head2 = head1.ref.spawnHead();
+		
+		head1.commit('1:2');
+		head2.commit('2:1');
+
+		const [, path1] = await head1.lockPath();
+		expect(path1.maxDepth()).toBe(2)
+
+		const before = path1.path().render()
+
+		path1.rewrite(fn => atom => {
+			const newParents = atom.parents.map(fn)
+			return [Set(), new Atom(newParents, atom.val)]
+		}).write();
+
+		const after1 = path1.path().render()
+		expect(after1).toEqual(before)
+
+		const [,path2] = await head2.lockPath();
+		const after2 = path2.path().render();
+
+		console.log('after1', inspect(after1, { depth: 5 }));
+		console.log('after2', inspect(after2, { depth: 5 }));
+	})
 
 	xit('saving', async () => {
-		const head = new Head(new AtomRef());
+		const head = new AtomRef<string>().spawnHead();
 
-		head.commit({ 1: 1 });
-		head.commit({ 1: 2 });
-		head.commit({ 1: 3 });
+		head.commit('1:1');
+		head.commit('1:2');
+		head.commit('1:3');
 
 		const [, path] = await head.lockPath()
 		console.log(inspect(path, { depth: 5 }))
 
 		expect(path.maxDepth()).toBe(3)
 
-		let bag = Map<string, any>();
+		let bag = Set<string>()
 		const maxBagSize = 2;
 		let full = false
 
-		const patch = path.rewrite(visit => ref => {
-			const atom = ref.resolve(); //prob should resolve outside as part of dispatch
-			if(!atom) return [Map(), ref];
-
+		const patch = path.rewrite(visit => atom => {
 			const parents = atom.parents.map(visit);
 
 			if (!full) { //but even if bag is full, we might be able to still collect forwards
 					//we always have to see if we can merge
 
-				const newBag = bag.mergeWith((r0, _r1) => r0, atom.rows) //prefer downstream
+				const newBag = bag.add(atom.val)
 
 				if (newBag.size <= maxBagSize) {
 					bag = newBag;
-					const newRef = new AtomRef();
-					return [Map([[ref, newRef]]), newRef];
+					return [Set(), null]
 				}
 			}
 
@@ -113,8 +127,7 @@ describe('atoms and stuff', () => {
 				//ALWAYS TRY TO ADD TO BAG unless: we're just idly skipping forwards; the crawl has two modes
 			}
 
-			const newRef = new AtomRef(new Atom(parents, atom.rows))
-			return [Map([[ref, newRef]]), newRef];
+			return [Set(), new Atom(parents, atom.val)];
 		});
 
 		patch.write();
@@ -128,21 +141,21 @@ describe('atoms and stuff', () => {
 })
 
 
-type AtomVisitor = (atom: AtomRef) => [Map<AtomRef, AtomRef>, AtomRef]
+type AtomVisitor<V> = (atom: Atom<V>) => readonly [Set<AtomRef<V>>, Atom<V>|null]
 
 type AtomPatch = { write(): void }
 
-class AtomPath {
-	roots: Set<Atom>
-	head: Head
+class AtomPath<V> {
+	roots: Set<Atom<V>>
+	head: Head<V>
 
-	constructor(roots: Set<Atom>, head: Head) {
+	constructor(roots: Set<Atom<V>>, head: Head<V>) {
 			this.roots = roots;
 			this.head = head;
 	}
 
 	maxDepth(): number {
-		const plumbDepth = (ref: AtomRef, d: number): number => {
+		const plumbDepth = (ref: AtomRef<V>, d: number): number => {
 			const atom = ref.resolve();
 			return atom
 				? (atom.parents
@@ -154,17 +167,29 @@ class AtomPath {
 		return plumbDepth(this.head.ref, 0);
 	}
 
-	rewrite(fn: (self: (a: AtomRef) => AtomRef) => AtomVisitor): AtomPatch {
-			let redirects = Map<AtomRef, AtomRef>();
+	rewrite(fn: (self: (a: AtomRef<V>) => AtomRef<V>) => AtomVisitor<V>): AtomPatch {
+		let redirects = Map<AtomRef<V>, AtomRef<V>>();
 
-			const visitor: AtomVisitor = fn(ref => {
-					const [newRedirects, newRef] = visitor(ref);
-					redirects = redirects.merge(newRedirects);
-					return newRef;
-			});
+		const visitor: AtomVisitor<V> = fn(ref => {
+			const atom = ref.resolve();
+			if(!atom) return ref;
+			else {
+				const [otherSources, newAtom] = visitor(atom);
+				const newRef = new AtomRef(newAtom);
 
-			const [newRedirects, newRef] = visitor(this.head.ref);
-			redirects = redirects.merge(newRedirects);
+				redirects = redirects.merge(otherSources.add(ref).map(r => [r, newRef]));
+
+				return newRef;
+			}
+		});
+
+		const atom = this.head.ref.resolve();
+		if(!atom) return { write() {} };
+		else {
+			const [otherSources, newAtom] = visitor(atom);
+			const newRef = new AtomRef(newAtom);
+
+			redirects = redirects.merge(otherSources.add(this.head.ref).map(r => [r, newRef]));
 
 			return {
 					write: () => {
@@ -175,15 +200,16 @@ class AtomPath {
 							this.head.ref = newRef;
 					}
 			}
+		}
 	}
 
-	path(): Path<Map<string, any>> {
-		const _map = (ref: AtomRef): Set<PathNode<Map<string, any>>> => {
+	path(): Path<V> {
+		const _map = (ref: AtomRef<V>): Set<PathNode<V>> => {
 			const atom = ref.resolve()
 			if(!atom) return Set();
 
 			const parents = atom?.parents.flatMap(_map)
-			return Set([new PathNode(parents, atom.rows)])
+			return Set([new PathNode(parents, atom.val)])
 		}
 		
 		return new Path(_map(this.head.ref))
@@ -191,34 +217,38 @@ class AtomPath {
 }
 
 
-class Head {
-    ref: AtomRef
+class Head<V> {
+	ref: AtomRef<V>
 
-    constructor(ref: AtomRef) {
-        this.ref = ref;
-    }
+	constructor(ref: AtomRef<V>) {
+		this.ref = ref;
+	}
 
-    commit(rows: { [id: string]: any }) {
-			this.ref = new AtomRef(new Atom(Set([this.ref]), Map(rows)))
-    }
+	commit(val: V): AtomRef<V> {
+		return this.ref = new AtomRef(new Atom(Set([this.ref]), val))
+	}
 
-    async lockPath(): Promise<[Lock, AtomPath]> {
-        const roots = Head.findRoots(this.ref);
-        const locks = await Promise.all(roots.map(a => a.lock()))
-        return [
-            { release: () => locks.forEach(l => l.release()) },
-            new AtomPath(roots, this)
-        ];
-    }
+	spawnHead(): Head<V> {
+		return new Head(this.ref);
+	}
 
-    private static findRoots(ref: AtomRef): Set<Atom> {
-			const atom = ref.resolve();
-			return atom
-				? (atom.parents.isEmpty()
-					 ? Set([atom])
-					 : atom.parents.flatMap(Head.findRoots))
-			  : Set();
-    }
+	async lockPath(): Promise<[Lock, AtomPath<V>]> {
+			const roots = Head.findRoots(this.ref);
+			const locks = await Promise.all(roots.map(a => a.lock()))
+			return [
+					{ release: () => locks.forEach(l => l.release()) },
+					new AtomPath(roots, this)
+			];
+	}
+
+	private static findRoots<V>(ref: AtomRef<V>): Set<Atom<V>> {
+		const atom = ref.resolve();
+		return atom
+			? (atom.parents.isEmpty()
+					? Set([atom])
+					: atom.parents.flatMap(Head.findRoots))
+			: Set();
+	}
 }
 
 
@@ -226,21 +256,25 @@ type Lock = { release(): void }
 
 
 
-type AtomTarget = Atom | AtomRef | undefined;
+type AtomTarget<V> = Atom<V> | AtomRef<V> | null;
 
-class AtomRef {
+class AtomRef<V> {
 	readonly _type = 'AtomRef'
-  private _target: AtomTarget
+  private _target: AtomTarget<V>
 
-	constructor(target?: AtomTarget) {
-		this._target = target;
+	constructor(target?: AtomTarget<V>) {
+		this._target = target || null;
 	}
 
-	redirect(target: AtomTarget) {
+	spawnHead(): Head<V> {
+		return new Head(this);
+	}
+
+	redirect(target: AtomTarget<V>) {
 		this._target = target;
 	} 
 	
-	resolve(): Atom|undefined {
+	resolve(): Atom<V>|undefined {
 		const t = this._target;
 		if(t) {
 			switch(t._type) {
@@ -251,14 +285,14 @@ class AtomRef {
 	}
 }
 
-class Atom {
+class Atom<V> {
 	readonly _type = 'Atom'
-	readonly parents: Set<AtomRef>
-	readonly rows: Map<string, any>
+	readonly parents: Set<AtomRef<V>>
+	readonly val: V
 
-	constructor(parents?: Set<AtomRef>, rows?: Map<string, any>) {
-		this.parents = parents || Set();
-		this.rows = rows || Map();
+	constructor(parents: Set<AtomRef<V>>, val: V) {
+		this.parents = parents;
+		this.val = val;
 	}
 
 	async lock(): Promise<Lock> {
