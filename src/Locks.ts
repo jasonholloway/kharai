@@ -9,9 +9,33 @@ export default class LockRegistry {
 	private _entries = new WeakMap<object, Entry>();
 
 	readonly lock = (...items: object[]) => new Promise<Lock>(resolve => {
-		const _items = Set(items);
 		const token = new Object();
-		const tryLock = (i: object) => this.summonEntry(i).tryLock(token);
+		const _items = Set(items);
+
+		const tryLock =
+			(item: object) => this.summonEntry(item).tryLock(token);
+
+		const tryAdopt: ((item: object) => Waiter) =
+			(item) => () => {
+				const answers = _items.subtract([item]).map(i => [i, tryLock(i)] as const);
+
+				if(answers.every(([,[m]]) => m === 'canLock')) {
+					const locked = answers.map(([,[,fn]]) => (<DoTheLock>fn)());
+					return lock => {
+						resolve(() => locked.add(lock).forEach(l => l()));
+					}
+				}
+				else {
+					answers.forEach(([i, ans]) => {
+						if(ans[0] == 'mustWait') {
+							const waitForLock = ans[1];
+							waitForLock(tryAdopt(i));
+						}
+					})
+
+					return false;
+				}
+			}
 
 		const answers = _items.map(i => [i, tryLock(i)] as const);
 
@@ -20,22 +44,11 @@ export default class LockRegistry {
 			resolve(() => locked.forEach(l => l()));
 		}
 		else {
-			answers
-				.filter(([,[m]]) => m === 'mustWait')
-				.forEach(([item, [,waitForLock]]) => {
-					waitForLock(() => {
-						const answers2 = _items.subtract([item]).map(tryLock);
-
-						if(answers2.every(([m,]) => m === 'canLock')) {
-							const locked = answers2.map(([,fn]) => (<DoTheLock>fn)());
-							return lock => {
-								resolve(() => locked.add(lock).forEach(l => l()));
-							}
-						}
-						else {
-							return false;
-						}
-					})
+			answers.forEach(([i, ans]) => {
+				if(ans[0] == 'mustWait') {
+					const waitForLock = ans[1];
+					waitForLock(tryAdopt(i));
+				}
 			})
 		}
 	})
@@ -54,6 +67,11 @@ class Entry {
 	private _isLocked = false
 	private _waits = OrderedMap<Token, Waiter>()
 
+	//if entry had reference to item, would item ever be cleared up?
+	//the entry itself would be kept in circulation as long as the item exists
+	//but then the entry itself references the item, keeping it, and itself, in circulation
+	//so... the entry can't reference the object
+
 	tryLock(k: Token): ['canLock',()=>Lock] | ['mustWait',(cb:Waiter)=>void] {
 		return !this._isLocked
 		  ? ['canLock', () => {
@@ -69,9 +87,9 @@ class Entry {
 
 	private unlock() {
 		for(const [k,waiter] of this._waits) {
+			this.removeWait(k); //wait removed on firing; waits on others will be registered by the waiter to carry the flame
 			const willAdopt = waiter();
 			if(willAdopt) {
-				this.removeWait(k);
 				willAdopt(() => this.unlock());
 				return;
 			}

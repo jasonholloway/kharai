@@ -1,0 +1,19 @@
+
+PROBLEM REVEALED:
+
+things aren't entirely synchronous at all...
+there's a promise wait in the middle of the conversation... 
+
+to make it all tight and deterministic we therefore need to complicate the calling protocol
+instead of just 'wait for promise', we need to make the caller play a part in the locking...
+
+or rather, no we don't
+
+in fact this doesn't make sense again on second thought
+
+
+
+
+
+
+
