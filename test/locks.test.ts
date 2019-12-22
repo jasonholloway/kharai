@@ -1,7 +1,6 @@
 import Locks from '../src/Locks'
 import {delay} from './helpers'
-import {inspect} from 'util'
-import { Chooser, many, seedChooser, gen, pick, natural, integer} from '../src/genau'
+import { Chooser, many, seedChooser, gen, pick, integer} from '../src/genau'
 import { List } from 'immutable'
 
 describe('locks', () => {

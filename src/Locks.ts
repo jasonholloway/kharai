@@ -12,12 +12,24 @@ export default class LockRegistry {
 		const token = new Object();
 		const _items = Set(items);
 
-		const tryLock =
+		const answers = _items.map(i => [i, lockOne(i)] as const);
+
+		if(answers.every(([,[m]]) => m === 'canLock')) {
+			const locked = answers.map(([,[,fn]]) => (<DoTheLock>fn)()); 
+			resolve(() => locked.forEach(l => l()));
+		}
+		else {
+			answers.forEach(([i, ans]) => {
+				if(ans[0] == 'mustWait') ans[1](adoptLockRest(i));
+			})
+		}
+
+		const lockOne =
 			(item: object) => this.summonEntry(item).tryLock(token);
 
-		const tryAdopt: ((item: object) => Waiter) =
+		const adoptLockRest: ((item: object) => Waiter) =
 			(item) => () => {
-				const answers = _items.subtract([item]).map(i => [i, tryLock(i)] as const);
+				const answers = _items.subtract([item]).map(i => [i, lockOne(i)] as const);
 
 				if(answers.every(([,[m]]) => m === 'canLock')) {
 					const locked = answers.map(([,[,fn]]) => (<DoTheLock>fn)());
@@ -27,30 +39,12 @@ export default class LockRegistry {
 				}
 				else {
 					answers.forEach(([i, ans]) => {
-						if(ans[0] == 'mustWait') {
-							const waitForLock = ans[1];
-							waitForLock(tryAdopt(i));
-						}
+						if(ans[0] == 'mustWait') ans[1](adoptLockRest(i));
 					})
 
 					return false;
 				}
 			}
-
-		const answers = _items.map(i => [i, tryLock(i)] as const);
-
-		if(answers.every(([,[m]]) => m === 'canLock')) {
-			const locked = answers.map(([,[,fn]]) => (<DoTheLock>fn)()); 
-			resolve(() => locked.forEach(l => l()));
-		}
-		else {
-			answers.forEach(([i, ans]) => {
-				if(ans[0] == 'mustWait') {
-					const waitForLock = ans[1];
-					waitForLock(tryAdopt(i));
-				}
-			})
-		}
 	})
 
 	private summonEntry(i: object): Entry {
