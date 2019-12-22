@@ -12,22 +12,25 @@ export default class LockRegistry {
 		const token = new Object();
 		const _items = Set(items);
 
-		const answers = _items.map(i => [i, lockOne(i)] as const);
+		const lockAll =
+			() => {
+				const answers = items.map(i => [i, lockOne(i)] as const);
 
-		if(answers.every(([,[m]]) => m === 'canLock')) {
-			const locked = answers.map(([,[,fn]]) => (<DoTheLock>fn)()); 
-			resolve(() => locked.forEach(l => l()));
-		}
-		else {
-			answers.forEach(([i, ans]) => {
-				if(ans[0] == 'mustWait') ans[1](adoptLockRest(i));
-			})
-		}
+				if(answers.every(([,[m]]) => m === 'canLock')) {
+					const locked = answers.map(([,[,fn]]) => (<DoTheLock>fn)()); 
+					resolve(() => locked.forEach(l => l()));
+				}
+				else {
+					answers.forEach(([i, ans]) => {
+						if(ans[0] == 'mustWait') ans[1](adoptOneLockAll(i));
+					})
+				}
+			};
 
 		const lockOne =
 			(item: object) => this.summonEntry(item).tryLock(token);
 
-		const adoptLockRest: ((item: object) => Waiter) =
+		const adoptOneLockAll: ((item: object) => Waiter) =
 			(item) => () => {
 				const answers = _items.subtract([item]).map(i => [i, lockOne(i)] as const);
 
@@ -39,12 +42,14 @@ export default class LockRegistry {
 				}
 				else {
 					answers.forEach(([i, ans]) => {
-						if(ans[0] == 'mustWait') ans[1](adoptLockRest(i));
+						if(ans[0] == 'mustWait') ans[1](adoptOneLockAll(i));
 					})
 
 					return false;
 				}
 			}
+
+		lockAll();
 	})
 
 	private summonEntry(i: object): Entry {
@@ -61,11 +66,6 @@ class Entry {
 	private _isLocked = false
 	private _waits = OrderedMap<Token, Waiter>()
 
-	//if entry had reference to item, would item ever be cleared up?
-	//the entry itself would be kept in circulation as long as the item exists
-	//but then the entry itself references the item, keeping it, and itself, in circulation
-	//so... the entry can't reference the object
-
 	tryLock(k: Token): ['canLock',()=>Lock] | ['mustWait',(cb:Waiter)=>void] {
 		return !this._isLocked
 		  ? ['canLock', () => {
@@ -81,7 +81,7 @@ class Entry {
 
 	private unlock() {
 		for(const [k,waiter] of this._waits) {
-			this.removeWait(k); //wait removed on firing; waits on others will be registered by the waiter to carry the flame
+			this.removeWait(k);
 			const willAdopt = waiter();
 			if(willAdopt) {
 				willAdopt(() => this.unlock());
