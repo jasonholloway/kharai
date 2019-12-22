@@ -1,43 +1,47 @@
 import { inspect } from 'util'
 import { Map, Set } from 'immutable'
 import { delay } from './helpers'
+import Locks from '../src/Locks'
 
 describe('atoms and stuff', () => {
 
+	let space: AtomSpace<string>
+
+	beforeEach(() => {
+		space = new AtomSpace();
+	})
+
 	it('pristine head has no atom', () => {
-		const head = new Head(new AtomRef());
-		const atom = head.ref.resolve();
+		const head = space.spawnHead();
+		const atom = head.ref().resolve();
 		expect(atom).toBeUndefined();
 	})
 
 	it('committing creates atom', () => {
-		const root = new AtomRef<number>();
+		const head = space.spawnHead()
+		head.commit('1');
 		
-		const head = root.spawnHead()
-		head.commit(1);
-		
-		const atom = head.ref.resolve();
+		const atom = head.ref().resolve();
 		expect(atom).not.toBeUndefined();
-		expect(atom?.val).toBe(1);
+		expect(atom?.val).toBe('1');
 		expect(atom?.parents.size).toBe(1);
 		expect(atom?.parents.first(undefined)?.resolve()).toBeUndefined();
 	})
 
 	it('committing several times appends many atoms', async () => {
-		const root = new AtomRef();
-		const head = root.spawnHead();
-		head.commit(1);
-		head.commit(2);
-		head.commit(3);
+		const head = space.spawnHead();
+		head.commit('1');
+		head.commit('2');
+		head.commit('3');
 
-		const atom3 = head.ref.resolve();
-		expect(atom3?.val).toBe(3);
+		const atom3 = head.ref().resolve();
+		expect(atom3?.val).toBe('3');
 
 		const atom2 = atom3?.parents.first(undefined)?.resolve();
-		expect(atom2?.val).toBe(2);
+		expect(atom2?.val).toBe('2');
 		
 		const atom1 = atom2?.parents.first(undefined)?.resolve();
-		expect(atom1?.val).toBe(1);
+		expect(atom1?.val).toBe('1');
 
 		expect(atom1?.parents.size).toBe(1);
 		expect(atom1?.parents.first(undefined)?.resolve()).toBeUndefined();
@@ -48,10 +52,10 @@ describe('atoms and stuff', () => {
 	
 
 	it('like-for-like rewrite', async () => {
-		const head = new AtomRef<number>().spawnHead();
-		head.commit(1);
-		head.commit(2);
-		head.commit(3);
+		const head = space.spawnHead();
+		head.commit('1');
+		head.commit('2');
+		head.commit('3');
 
 		const path = await head.lockPath();
 		expect(path.maxDepth()).toBe(3)
@@ -68,12 +72,11 @@ describe('atoms and stuff', () => {
 	})
 
 	it('two heads rewrite', async () => {
-		const root = new AtomRef<string>();
-		const head1 = root.spawnHead();
+		const head1 = space.spawnHead();
 		
 		head1.commit('1:1');
 
-		const head2 = head1.ref.spawnHead();
+		const head2 = head1.spawnHead();
 		
 		head1.commit('1:2');
 		head2.commit('2:1');
@@ -99,9 +102,7 @@ describe('atoms and stuff', () => {
 	})
 
 	it('locking', async () => {
-		const root = new AtomRef<string>();
-
-		const head1 = root.spawnHead();
+		const head1 = space.spawnHead();
 		head1.commit('1:1');
 
 		const head2 = head1.spawnHead();
@@ -123,9 +124,7 @@ describe('atoms and stuff', () => {
 	})
 
 	it('path -> patch -> path lock', async () => {
-		const root = new AtomRef<string>();
-
-		const head1 = root.spawnHead();
+		const head1 = space.spawnHead();
 		head1.commit('1:1');
 
 		const head2 = head1.spawnHead();
@@ -178,9 +177,7 @@ describe('atoms and stuff', () => {
 	})
 
 	xit('saving', async () => {
-		const root = new AtomRef<string>();
-		
-		const head = root.spawnHead();
+		const head = space.spawnHead();
 		head.commit('1:1');
 		head.commit('1:2');
 		head.commit('1:3');
@@ -273,17 +270,32 @@ type AtomVisitor<V> = (atom: Atom<V>) => readonly [Set<AtomRef<V>>, Atom<V>|null
 
 type AtomPatch<V> = { write(): Promise<AtomPath<V>> }
 
-class AtomPath<V> {
-	private readonly _head: Head<V>
-	private readonly _locks: Set<Lock>
+class AtomSpace<V> {
+	private _locks: Locks = new Locks();
 
-	constructor(head: Head<V>, locks: Set<Lock>) {
+	lock<V>(atoms: Set<Atom<V>>): Promise<Lock> {
+		return this._locks.lock(...atoms)
+			.then(release => ({release}));
+	}
+
+	spawnHead(): Head<V> {
+		return new Head(this, new AtomRef());
+	}
+}
+
+class AtomPath<V> {
+	private readonly _space: AtomSpace<V>
+	private readonly _head: Head<V>
+	private readonly _lock: Lock
+
+	constructor(space: AtomSpace<V>, head: Head<V>, lock: Lock) {
+		this._space = space;
 		this._head = head;
-		this._locks = locks;
+		this._lock = lock;
 	}
 
 	release() {
-		this._locks.forEach(l => l.release());
+		this._lock.release();
 	}
 
 	maxDepth(): number {
@@ -296,7 +308,7 @@ class AtomPath<V> {
 				: d;
 		}
 
-		return plumbDepth(this._head.ref, 0);
+		return plumbDepth(this._head.ref(), 0);
 	}
 
 	rewrite(fn: (self: (a: AtomRef<V>) => AtomRef<V>) => AtomVisitor<V>): AtomPatch<V> {
@@ -315,13 +327,13 @@ class AtomPath<V> {
 			}
 		});
 
-		const atom = this._head.ref.resolve();
+		const atom = this._head.ref().resolve();
 		if(!atom) return { write: () => Promise.resolve(this) };
 		else {
 			const [otherSources, newAtom] = visitor(atom);
 			const newRef = new AtomRef(newAtom);
 
-			redirects = redirects.merge(otherSources.add(this._head.ref).map(r => [r, newRef]));
+			redirects = redirects.merge(otherSources.add(this._head.ref()).map(r => [r, newRef]));
 
 			return {
 					write: async () => {
@@ -329,14 +341,27 @@ class AtomPath<V> {
 								from.redirect(to);
 						}
 
-						const newRoots = AtomPath.findRoots(newRef)
-						const newLocks = Set(await Promise.all(newRoots.map(a => a.lock())))
+						const newRoots = AtomPath.findRoots(newRef);
+						const newLock = await this._space.lock(newRoots); //but - will this gain a lock before the below release is called? doubtful
+						//need some mechanism for coopting previous lock again, for merging in previous locks
+						//presuming this will now deadlock
+						//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-						this._head.ref = newRef;
+						//but just merging in - adding items to an existing lock, extending an existing lock: lock.extend rather than lock.release
+						//raises the threat of deadlock too
+						//imagine two locks trying to extend onto each other's existing locked bases: neither would ever relinquish
+						//not sure how to deal with this other than saying it's impossible
+
+						//or rather, limiting extension to new items that can only be immediately locked
+						//ie no chance of contention, as we have full ownership of them in the calling scope
+						//this is it: no Promise, no waiting, just a simple 'extend' that either works immediately or doesn't
+						//in fact, should throw exception
+
+						this._head.move(newRef);
 
 						this.release();
 
-						return new AtomPath(this._head, newLocks)
+						return new AtomPath(this._space, this._head, newLock)
 					}
 			}
 		}
@@ -351,7 +376,7 @@ class AtomPath<V> {
 			return Set([new PathNode(parents, atom.val)])
 		}
 		
-		return new Path(_map(this._head.ref))
+		return new Path(_map(this._head.ref()))
 	}
 
 	static findRoots<V>(ref: AtomRef<V>): Set<Atom<V>> {
@@ -366,24 +391,34 @@ class AtomPath<V> {
 
 
 class Head<V> {
-	ref: AtomRef<V>
+	private _space: AtomSpace<V>
+	private _ref: AtomRef<V>
 
-	constructor(ref: AtomRef<V>) {
-		this.ref = ref;
+	constructor(space: AtomSpace<V>, ref: AtomRef<V>) {
+		this._space = space;
+		this._ref = ref;
 	}
 
 	commit(val: V): AtomRef<V> {
-		return this.ref = new AtomRef(new Atom(Set([this.ref]), val))
+		return this._ref = new AtomRef(new Atom(Set([this._ref]), val))
 	}
 
 	spawnHead(): Head<V> {
-		return new Head(this.ref);
+		return new Head(this._space, this._ref);
+	}
+
+	ref() {
+		return this._ref;
+	}
+
+	move(newRef: AtomRef<V>) {
+		this._ref = newRef;
 	}
 
 	async lockPath(): Promise<AtomPath<V>> {
-		const roots = AtomPath.findRoots(this.ref);
-		const locks = await Promise.all(roots.map(a => a.lock()))
-		return new AtomPath(this, Set(locks));
+		const roots = AtomPath.findRoots(this._ref);
+		const lock = await this._space.lock(roots);
+		return new AtomPath(this._space, this, lock);
 	}
 }
 
@@ -400,10 +435,6 @@ class AtomRef<V> {
 
 	constructor(target?: AtomTarget<V>) {
 		this._target = target || null;
-	}
-
-	spawnHead(): Head<V> {
-		return new Head(this);
 	}
 
 	redirect(target: AtomTarget<V>) {

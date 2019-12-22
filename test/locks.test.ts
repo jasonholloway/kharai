@@ -77,6 +77,15 @@ describe('locks', () => {
 				unlock();
 			}));
 	})
+
+	it('extending existing lock to include new and non-contentious', async () => {
+		const lock = await locks.lock(_1, _2);
+		lock.extend(_3);
+		expect(locks.tryLock(_3)).toBeFalsy();
+
+		lock.release();
+		expect(locks.tryLock(_3)).toBeTruthy();
+	})
 })
 
 
