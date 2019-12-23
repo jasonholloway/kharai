@@ -7,61 +7,77 @@ type DoTheLock = () => Releasable;
 
 export type Lock = {
 	release(): void
-	extend(...items: object[]): void
+	extend(extras: Set<object>): void
 }
 
 export default class LockRegistry {
 	private _entries = new WeakMap<object, Entry>();
 
-	readonly lock = (...items: object[]) => new Promise<Lock>(resolve => {
-		const token = new Object();
-		const _items = Set(items);
+	readonly lock: (...items: object[]) => Promise<Lock> =
+		(...items) => new Promise<Lock>(resolve => {
+			const token = new Object();
 
-		const lockAll =
-			() => {
-				const answers = items.map(i => [i, lockOne(i)] as const);
-
-				if(answers.every(([,[m]]) => m === 'canLock')) {
-					const locked = answers.map(([,[,fn]]) => (<DoTheLock>fn)()); 
-					resolve({
-						release() { locked.forEach(l => l()) },
-						extend() {}
-					});
-				}
-				else {
-					answers.forEach(([i, ans]) => {
-						if(ans[0] == 'mustWait') ans[1](adoptOneLockAll(i));
-					})
-				}
-			};
-
-		const lockOne =
-			(item: object) => this.summonEntry(item).tryLock(token);
-
-		const adoptOneLockAll: ((item: object) => Waiter) =
-			(item) => () => {
-				const answers = _items.subtract([item]).map(i => [i, lockOne(i)] as const);
-
-				if(answers.every(([,[m]]) => m === 'canLock')) {
-					const locked = answers.map(([,[,fn]]) => (<DoTheLock>fn)());
-					return lock => {
-						resolve({
-							release() { locked.add(lock).forEach(l => l()) },
-							extend() {}
+			const lockAll: (items: Set<object>) => void =
+				(items) => {
+					const allLocked = tryLockAllNow(items);
+					if(allLocked) {
+						resolve(createLock(items, allLocked));
+					}
+					else {
+						const answers = items.map(i => [i, tryLockItem(i)] as const);
+						answers.forEach(([i, ans]) => {
+							if(ans[0] == 'mustWait') ans[1](adoptOneLockAll(i, items));
 						});
 					}
-				}
-				else {
-					answers.forEach(([i, ans]) => {
-						if(ans[0] == 'mustWait') ans[1](adoptOneLockAll(i));
-					})
+				};
 
-					return false;
-				}
-			}
+			const tryLockAllNow: (items: Set<object>) => Set<Releasable>|false =
+				(items) => {
+					const answers = items.map(tryLockItem);
+					if(answers.every(([m]) => m == 'canLock')) {
+						return answers.map(([,fn]) => (<DoTheLock>fn)());
+					}
+					else {
+						return false;
+					}
+				};
 
-		lockAll();
-	})
+			const adoptOneLockAll: ((item: object, allItems: Set<object>) => Waiter) =
+				(item, allItems) => () => {
+					const answers = allItems.subtract([item]).map(i => [i, tryLockItem(i)] as const);
+
+					if(answers.every(([,[m]]) => m === 'canLock')) {
+						let locked = answers.map(([,[,fn]]) => (<DoTheLock>fn)());
+						return lock =>
+							resolve(createLock(allItems, locked.add(lock)));
+					}
+					else {
+						answers.forEach(([i, ans]) => {
+							if(ans[0] == 'mustWait') ans[1](adoptOneLockAll(i, allItems));
+						})
+
+						return false;
+					}
+				}
+
+			const tryLockItem =
+				(item: object) => this.summonEntry(item).tryLock(token);
+
+			const createLock: (items: Set<object>, locked: Set<Releasable>) => Lock =
+				(items, locked) => ({
+					release() { locked.forEach(release => release()); },
+					extend(extras) {
+						const locked2 = tryLockAllNow(extras.subtract(items));
+						if(locked2) {
+							locked = locked.union(locked2);
+							items = items.union(extras);
+						}
+						else throw 'can\'t extend onto locked items!';
+					}
+				});
+
+			lockAll(Set(items));
+		})
 
 	private summonEntry(i: object): Entry {
 		return this._entries.get(i)

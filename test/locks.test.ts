@@ -1,7 +1,7 @@
 import Locks from '../src/Locks'
 import {delay} from './helpers'
 import { Chooser, many, seedChooser, gen, pick, integer} from '../src/genau'
-import { List } from 'immutable'
+import { List, Set } from 'immutable'
 
 describe('locks', () => {
 	let run: Chooser;
@@ -80,7 +80,7 @@ describe('locks', () => {
 
 	it('extending existing lock to include new and non-contentious', async () => {
 		const lock = await locks.lock(_1, _2);
-		lock.extend(_3);
+		lock.extend(Set([_3]));
 		expect(locks.test(_3)).toBeFalsy();
 
 		lock.release();
