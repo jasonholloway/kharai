@@ -17,14 +17,14 @@ describe('locks', () => {
 	})
 
 	it('can simply lock and release', async () => {
-		const unlock = await locks.lock(_1);
-		unlock();
+		const lock = await locks.lock(_1);
+		lock.release();
 	})
 
 	it('contention on one object', async () => {
 		let locked2 = false;
 		
-		const unlock = await locks.lock(_1);
+		const lock = await locks.lock(_1);
 
 		locks.lock(_1)
 			.then(() => locked2 = true)
@@ -32,7 +32,7 @@ describe('locks', () => {
 		await delay(10);
 		expect(locked2).toBeFalsy();
 
-		unlock();
+		lock.release();
 		await delay(0);
 		expect(locked2).toBeTruthy();
 	})
@@ -40,7 +40,7 @@ describe('locks', () => {
 	it('many objects, partial contention', async () => {
 		let locked2 = false;
 		
-		const unlock = await locks.lock(_1, _2)
+		const lock = await locks.lock(_1, _2)
 
 		locks.lock(_2, _3)
 			.then(() => locked2 = true);
@@ -48,16 +48,16 @@ describe('locks', () => {
 		await delay(50);
 		expect(locked2).toBeFalsy();
 
-		unlock();
+		lock.release();
 		await delay(0);
 		expect(locked2).toBeTruthy();
 	})
 	
 	it('contending on two objects', () =>
 		Promise.all([
-			locks.lock(_1).then(unlock => delay(100).then(() => unlock())),
-			locks.lock(_1, _2).then(unlock => delay(100).then(() => unlock())),
-			locks.lock(_2).then(unlock => delay(100).then(() => unlock()))
+			locks.lock(_1).then(lock => delay(100).then(() => lock.release())),
+			locks.lock(_1, _2).then(lock => delay(100).then(() => lock.release())),
+			locks.lock(_2).then(lock => delay(100).then(() => lock.release()))
 		]))
 
 	it('loads of knotty contentions', async () => {
@@ -72,19 +72,19 @@ describe('locks', () => {
 
 		await Promise.all(
 			threads.map(async ({ duration, toLock }) => {
-				const unlock = await locks.lock(...toLock)
+				const lock = await locks.lock(...toLock)
 				await delay(duration);
-				unlock();
+				lock.release();
 			}));
 	})
 
 	it('extending existing lock to include new and non-contentious', async () => {
 		const lock = await locks.lock(_1, _2);
 		lock.extend(_3);
-		expect(locks.tryLock(_3)).toBeFalsy();
+		expect(locks.test(_3)).toBeFalsy();
 
 		lock.release();
-		expect(locks.tryLock(_3)).toBeTruthy();
+		expect(locks.test(_3)).toBeTruthy();
 	})
 })
 

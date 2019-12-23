@@ -1,9 +1,14 @@
 import {Set, OrderedMap} from 'immutable'
 
 type Token = object
-type Lock = () => void
-type Waiter = () => (((l:Lock)=>void) | false);
-type DoTheLock = () => Lock;
+type Releasable = () => void;
+type Waiter = () => (((l:Releasable)=>void) | false);
+type DoTheLock = () => Releasable;
+
+export type Lock = {
+	release(): void
+	extend(...items: object[]): void
+}
 
 export default class LockRegistry {
 	private _entries = new WeakMap<object, Entry>();
@@ -18,7 +23,10 @@ export default class LockRegistry {
 
 				if(answers.every(([,[m]]) => m === 'canLock')) {
 					const locked = answers.map(([,[,fn]]) => (<DoTheLock>fn)()); 
-					resolve(() => locked.forEach(l => l()));
+					resolve({
+						release() { locked.forEach(l => l()) },
+						extend() {}
+					});
 				}
 				else {
 					answers.forEach(([i, ans]) => {
@@ -37,7 +45,10 @@ export default class LockRegistry {
 				if(answers.every(([,[m]]) => m === 'canLock')) {
 					const locked = answers.map(([,[,fn]]) => (<DoTheLock>fn)());
 					return lock => {
-						resolve(() => locked.add(lock).forEach(l => l()));
+						resolve({
+							release() { locked.add(lock).forEach(l => l()) },
+							extend() {}
+						});
 					}
 				}
 				else {
@@ -60,13 +71,18 @@ export default class LockRegistry {
 				return created;
 			})()
 	}
+
+	test(item: object): boolean {
+		const response = this.summonEntry(item).tryLock(new Object());
+		return response[0] == 'canLock';
+	}
 }
 
 class Entry {
 	private _isLocked = false
 	private _waits = OrderedMap<Token, Waiter>()
 
-	tryLock(k: Token): ['canLock',()=>Lock] | ['mustWait',(cb:Waiter)=>void] {
+	tryLock(k: Token): ['canLock',()=>Releasable] | ['mustWait',(cb:Waiter)=>void] {
 		return !this._isLocked
 		  ? ['canLock', () => {
 					this._isLocked = true;

@@ -1,7 +1,7 @@
 import { inspect } from 'util'
 import { Map, Set } from 'immutable'
 import { delay } from './helpers'
-import Locks from '../src/Locks'
+import Locks, { Lock } from '../src/Locks'
 
 describe('atoms and stuff', () => {
 
@@ -274,8 +274,7 @@ class AtomSpace<V> {
 	private _locks: Locks = new Locks();
 
 	lock<V>(atoms: Set<Atom<V>>): Promise<Lock> {
-		return this._locks.lock(...atoms)
-			.then(release => ({release}));
+		return this._locks.lock(...atoms);
 	}
 
 	spawnHead(): Head<V> {
@@ -423,9 +422,6 @@ class Head<V> {
 }
 
 
-type Lock = { release(): void }
-
-
 
 type AtomTarget<V> = Atom<V> | AtomRef<V> | null;
 
@@ -460,21 +456,6 @@ class Atom<V> {
 	constructor(parents: Set<AtomRef<V>>, val: V) {
 		this.parents = parents;
 		this.val = val;
-	}
-
-	private _waits = Promise.resolve()
-
-	async lock(): Promise<Lock> {
-		return new Promise<Lock>(resolve1 => {
-			this._waits = this._waits
-				.then(() => new Promise(resolve2 => {
-					resolve1({
-						release: () => resolve2()
-					});
-				}))
-		})
-
-		//after locking we should always check that resolution is up to date: it may have been re-referred elsewhere 
 	}
 }
 
