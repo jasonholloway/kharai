@@ -65,7 +65,7 @@ describe('atoms and stuff', () => {
 		path.rewrite(fn => atom => {
 			const newParents = atom.parents.map(fn)
 			return [Set(), new Atom(newParents, atom.val)]
-		}).write();
+		}).complete();
 
 		const after = path.path().render()
 		expect(after).toEqual(before)
@@ -86,10 +86,12 @@ describe('atoms and stuff', () => {
 
 		const before = path1.path().render()
 
-		await path1.rewrite(fn => atom => {
+		path1.rewrite(fn => atom => {
 			const newParents = atom.parents.map(fn)
 			return [Set(), new Atom(newParents, atom.val)]
-		}).write().then(p => p.release());
+		}).complete();
+
+		path1.release();
 
 		const after1 = path1.path().render()
 		expect(after1).toEqual(before)
@@ -140,10 +142,10 @@ describe('atoms and stuff', () => {
 		await delay(50);
 		expect(head2Activated).toBeFalsy();
 
-		await path.rewrite(visit => atom => {
+		path.rewrite(visit => atom => {
 			const parents = atom.parents.map(visit)
 			return [Set(), new Atom(parents, atom.val)]
-		}).write(); 
+		}).complete(); 
 
 		await delay(50);
 		expect(head2Activated).toBeFalsy();
@@ -153,7 +155,7 @@ describe('atoms and stuff', () => {
 		expect(head2Activated).toBeTruthy();
 	})
 
-	xit('saving', async () => {
+	it('saving', async () => {
 		const head = space.spawnHead();
 		head.commit('1:1');
 		head.commit('1:2');
@@ -208,8 +210,6 @@ describe('atoms and stuff', () => {
 			//by this point, we should have worked to the roots, and collected gubbins into our set
 
 
-
-
 			const newBag = bag.add(atom.val)
 			if(newBag.size)
 
@@ -232,20 +232,19 @@ describe('atoms and stuff', () => {
 			return [Set(), new Atom(parents, atom.val)];
 		});
 
-		patch.write(); //before we write, we want to lock the new roots: 
+		patch.complete(); //before we write, we want to lock the new roots: 
 
 		console.log(inspect(path.path().render(), { depth: 5 }))
 
 		expect(bag.size).toBe(1);
 		expect(path.maxDepth()).toBe(1);
 	})
-
 })
 
 
 type AtomVisitor<V> = (atom: Atom<V>) => readonly [Set<AtomRef<V>>, Atom<V>|null]
 
-type AtomPatch<V> = { write(): Promise<AtomPath<V>> }
+type AtomPatch = { complete(): void }
 
 class AtomSpace<V> {
 	private _locks: Locks = new Locks();
@@ -260,12 +259,10 @@ class AtomSpace<V> {
 }
 
 class AtomPath<V> {
-	private readonly _space: AtomSpace<V>
 	private readonly _head: Head<V>
 	private readonly _lock: Lock
 
-	constructor(space: AtomSpace<V>, head: Head<V>, lock: Lock) {
-		this._space = space;
+	constructor(head: Head<V>, lock: Lock) {
 		this._head = head;
 		this._lock = lock;
 	}
@@ -287,7 +284,7 @@ class AtomPath<V> {
 		return plumbDepth(this._head.ref(), 0);
 	}
 
-	rewrite(fn: (self: (a: AtomRef<V>) => AtomRef<V>) => AtomVisitor<V>): AtomPatch<V> {
+	rewrite(fn: (self: (a: AtomRef<V>) => AtomRef<V>) => AtomVisitor<V>): AtomPatch {
 		let redirects = Map<AtomRef<V>, AtomRef<V>>();
 
 		const visitor: AtomVisitor<V> = fn(ref => {
@@ -304,7 +301,7 @@ class AtomPath<V> {
 		});
 
 		const atom = this._head.ref().resolve();
-		if(!atom) return { write: () => Promise.resolve(this) };
+		if(!atom) return { complete() {} };
 		else {
 			const [otherSources, newAtom] = visitor(atom);
 			const newRef = new AtomRef(newAtom);
@@ -312,7 +309,7 @@ class AtomPath<V> {
 			redirects = redirects.merge(otherSources.add(this._head.ref()).map(r => [r, newRef]));
 
 			return {
-					write: async () => {
+					complete: () => {
 						for (let [from, to] of redirects) {
 								from.redirect(to);
 						}
@@ -321,8 +318,6 @@ class AtomPath<V> {
 						this._lock.extend(newRoots);
 
 						this._head.move(newRef);
-
-						return this;
 					}
 			}
 		}
@@ -379,7 +374,7 @@ class Head<V> {
 	async lockPath(): Promise<AtomPath<V>> {
 		const roots = AtomPath.findRoots(this._ref);
 		const lock = await this._space.lock(roots);
-		return new AtomPath(this._space, this, lock);
+		return new AtomPath(this, lock);
 	}
 }
 
