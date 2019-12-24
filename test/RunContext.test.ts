@@ -132,7 +132,7 @@ describe('atoms and stuff', () => {
 
 		head1.commit('1:2');
 
-		const path1_1 = await head1.lockPath();
+		const path = await head1.lockPath();
 
 		let head2Activated = false;
 		head2.lockPath().then(() => head2Activated = true);
@@ -140,39 +140,16 @@ describe('atoms and stuff', () => {
 		await delay(50);
 		expect(head2Activated).toBeFalsy();
 
-		const path1_2 = await path1_1.rewrite(visit => atom => {
+		await path.rewrite(visit => atom => {
 			const parents = atom.parents.map(visit)
 			return [Set(), new Atom(parents, atom.val)]
 		}).write(); 
 
-		path1_1.release(); //should do nothing as already released
-
 		await delay(50);
 		expect(head2Activated).toBeFalsy();
 
-		//to fix this...
-		//AtomPath when it gains the lock, needs to refind its roots
-		//if the roots are the same as when it locked: hurrah
-		//
-		//otherwise, it needs to lock the new roots it finds
-		//
-		//but what if in gaining, relocking it loses its place in the queue of locks?
-		//it should hold the locks it has till it can have all the locks it wants
-		//
-		//but in holding some locks but not others, is it possible to beget deadlock?
-		//if two parties are trying to lock the same combination of roots, and are getting one ahead of the other symetrically
-		//deadlock could occur; but this is always the case
-		//because our locking is kind of stupid: when one lock is got, its held till the net one is gained
-		//
-		//what should happen: every lock as it's released should make itself available to *every* waiter
-		//but should only be gained if a waiter can gain *all* the roots its waiting on
-		//
-		//in short, waiting and locking should be mediated by a single locking service, otherwise deadlocks are inevitable
-		//WE NEED A CENTRAL LOCKING SERVICE!!!
-
-		path1_2.release();
-
-		await delay(0);
+		path.release();
+		await delay(50);
 		expect(head2Activated).toBeTruthy();
 	})
 
@@ -341,26 +318,11 @@ class AtomPath<V> {
 						}
 
 						const newRoots = AtomPath.findRoots(newRef);
-						const newLock = await this._space.lock(newRoots); //but - will this gain a lock before the below release is called? doubtful
-						//need some mechanism for coopting previous lock again, for merging in previous locks
-						//presuming this will now deadlock
-						//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-						//but just merging in - adding items to an existing lock, extending an existing lock: lock.extend rather than lock.release
-						//raises the threat of deadlock too
-						//imagine two locks trying to extend onto each other's existing locked bases: neither would ever relinquish
-						//not sure how to deal with this other than saying it's impossible
-
-						//or rather, limiting extension to new items that can only be immediately locked
-						//ie no chance of contention, as we have full ownership of them in the calling scope
-						//this is it: no Promise, no waiting, just a simple 'extend' that either works immediately or doesn't
-						//in fact, should throw exception
+						this._lock.extend(newRoots);
 
 						this._head.move(newRef);
 
-						this.release();
-
-						return new AtomPath(this._space, this._head, newLock)
+						return this;
 					}
 			}
 		}
