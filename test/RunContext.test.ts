@@ -1,4 +1,3 @@
-import { inspect } from 'util'
 import { Map, Set } from 'immutable'
 import { delay } from './helpers'
 import Locks, { Lock } from '../src/Locks'
@@ -602,23 +601,6 @@ class MonoidString implements _Monoid<string> {
 		return a + b;
   }
 }
-
-class MonoidArray<V> implements _Monoid<V[]> {
-	zero = []
-	add(a: V[], b: V[]) {
-		return [...a, ...b];
-	}
-}
-
-type AtomValue<V> = Atom<V> | undefined
-
-class MonoidAtomValue<V> implements _Monoid<AtomValue<V>> {
-	zero: undefined
-	add(a: AtomValue<V>, b: AtomValue<V>) {
-		return a;
-	}
-}
-
 
 //---------------------------------
 
