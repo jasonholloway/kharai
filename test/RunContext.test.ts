@@ -1,9 +1,11 @@
 import { inspect } from 'util'
-import { Map, Set, List } from 'immutable'
+import { Map, Set } from 'immutable'
 import { delay } from './helpers'
 import Locks, { Lock } from '../src/Locks'
 import _Monoid from '../src/_Monoid'
 import Store from '../src/Store'
+
+const lift = <V>(v: V|undefined) => (v ? [v] : []);
 
 describe('atoms and stuff', () => {
 
@@ -59,7 +61,7 @@ describe('atoms and stuff', () => {
 		head.commit('2');
 		head.commit('3');
 
-		const path = await space.lockPath(head.ref());
+		const path = await space.lockTips([head.ref()]);
 		expect(path.maxDepth()).toBe(3)
 
 		const before = path.path().render()
@@ -83,7 +85,7 @@ describe('atoms and stuff', () => {
 		head1.commit('1:2');
 		head2.commit('2:1');
 
-		const path1 = await space.lockPath(head1.ref());
+		const path1 = await space.lockTips([head1.ref()]);
 		expect(path1.maxDepth()).toBe(2)
 
 		const before = path1.path().render()
@@ -98,11 +100,8 @@ describe('atoms and stuff', () => {
 		const after1 = path1.path().render()
 		expect(after1).toEqual(before)
 
-		const path2 = await space.lockPath(head2.ref());
+		const path2 = await space.lockTips([head2.ref()]);
 		const after2 = path2.path().render();
-
-		console.log('after1', inspect(after1, { depth: 5 }));
-		console.log('after2', inspect(after2, { depth: 5 }));
 	})
 
 	it('upstream joins visited once only', async () => {
@@ -111,7 +110,7 @@ describe('atoms and stuff', () => {
 		const ref3 = new AtomRef(new Atom(Set([ref1]), 'B2'));
 		const ref4 = new AtomRef(new Atom(Set([ref2, ref3]), 'c3'));
 
-		const path = await space.lockPath(ref4);
+		const path = await space.lockTips([ref4]);
 		const before = path.path().render();
 
 		let i = 0;
@@ -130,10 +129,31 @@ describe('atoms and stuff', () => {
 		const ref2 = new AtomRef(new Atom(Set([ref1]), 'b1'));
 		const ref3 = new AtomRef(new Atom(Set([ref1]), 'c2'));
 
-		const path = await space.lockPath(ref2, ref3);
-		
-		//TODO
-		throw 'TODO!!!!!'
+		const path = await space.lockTips([ref2, ref3]);
+
+		let i = 0;
+		path.rewrite(fn => (ref, atom) => {
+			const ups = atom.parents.map(fn);
+			return [[ref], new Atom(ups, atom.val.slice(0, 1).toUpperCase() + (i++))];
+		}).complete();
+		path.release();
+
+		const after = path.path().render();
+
+		expect(after).toEqual([
+			[
+				[
+					[ [], 'A0' ]
+				],
+				'B1'
+			],
+			[
+				[
+					[ [], 'A0' ]
+				],
+				'C2'
+			]
+		]);
 	})
 
 	it('locking', async () => {
@@ -145,10 +165,10 @@ describe('atoms and stuff', () => {
 
 		head1.commit('1:2');
 
-		const path1 = await space.lockPath(head1.ref());
+		const path1 = await space.lockTips([head1.ref()]);
 
 		let locked2 = false;
-		space.lockPath(head2.ref()).then(() => locked2 = true);
+		space.lockTips([head2.ref()]).then(() => locked2 = true);
 
 		await delay(100);
 		expect(locked2).toBeFalsy();
@@ -167,10 +187,10 @@ describe('atoms and stuff', () => {
 
 		head1.commit('1:2');
 
-		const path = await space.lockPath(head1.ref());
+		const path = await space.lockTips([head1.ref()]);
 
 		let head2Activated = false;
-		space.lockPath(head2.ref()).then(() => head2Activated = true);
+		space.lockTips([head2.ref()]).then(() => head2Activated = true);
 
 		await delay(50);
 		expect(head2Activated).toBeFalsy();
@@ -207,6 +227,8 @@ describe('atoms and stuff', () => {
 		head.commit('4');
 
 		await saver.save(store, Set([head]));
+
+		throw 'TODO!'
 
 		expect(store.saved).toEqual(['123', '4']);
 	});
@@ -276,7 +298,7 @@ class AtomSaver<V> {
 			//
 			
 			
-			const path = await this._space.lockPath(headRef);
+			const path = await this._space.lockTips([headRef]);
 			try {
 				let mode: 'gather'|'copy' = 'gather';
 				const patch = path.rewrite(fn => (ref, atom) => {
@@ -343,19 +365,19 @@ class AtomSpace<V> {
 		return head;
 	}
 
-	async lockPath(tip: AtomRef<V>): Promise<AtomPath<V>> {
-		const roots = AtomPath.findRoots(tip);
+	async lockTips(tips: AtomRef<V>[]): Promise<AtomPath<V>> {
+		const roots = Set(tips).flatMap(AtomPath.findRoots);
 		const lock = await this.lock(roots);
-		return new AtomPath(tip, lock);
+		return new AtomPath(tips, lock);
 	}
 }
 
 class AtomPath<V> {
-	private readonly _tip: AtomRef<V>
+	private readonly _tips: Set<AtomRef<V>>
 	private readonly _lock: Lock
 
-	constructor(tip: AtomRef<V>, lock: Lock) {
-		this._tip = tip;
+	constructor(tips: AtomRef<V>[], lock: Lock) {
+		this._tips = Set(tips);
 		this._lock = lock;
 	}
 
@@ -364,16 +386,13 @@ class AtomPath<V> {
 	}
 
 	maxDepth(): number {
-		const plumbDepth = (ref: AtomRef<V>, d: number): number => {
-			const atom = ref.resolve();
-			return atom
-				? (atom.parents
-						.map(p => plumbDepth(p, d + 1))
-						.max() || (d + 1))
-				: d;
-		}
+		const plumbDepth = (refs: Set<AtomRef<V>>, d: number): Set<number> =>
+			refs
+				.flatMap(r => lift(r.resolve()))
+				.flatMap(a => plumbDepth(a.parents, d + 1))
+				.concat([d]);
 
-		return plumbDepth(this._tip, 0);
+		return plumbDepth(this._tips, 0).max() || 0;
 	}
 
 	rewrite(fn: (self: (a: AtomRef<V>) => AtomRef<V>) => AtomVisitor<V>): AtomPatch {
@@ -394,25 +413,31 @@ class AtomPath<V> {
 			})();
 		});
 
-		const atom = this._tip.resolve();
-		if(!atom) return { complete() {} };
-		else {
-			const [sources, newAtom] = visitor(this._tip, atom);
-			const newRef = new AtomRef(newAtom);
+		const newRefs = this._tips.flatMap(ref => {
+			const atom = ref.resolve();
+			if(atom) {
+				const [sources, newAtom] = visitor(ref, atom);
+				const newRef = new AtomRef(newAtom);
 
-			redirects = redirects.merge(Set(sources).map(r => [r, newRef]));
+				redirects = redirects.merge(Set(sources).map(r => [r, newRef]));
 
-			return {
-					complete: () => {
-						for (let [from, to] of redirects) {
-								from.redirect(to);
-						}
-
-						const newRoots = AtomPath.findRoots(newRef);
-						this._lock.extend(newRoots);
-					}
+				return [newRef];
 			}
-		}
+			else {
+				return [];
+			}
+		})
+
+		return {
+			complete: () => {
+				for (const [from, to] of redirects) {
+						from.redirect(to);
+				}
+
+				const newRoots = newRefs.flatMap(AtomPath.findRoots);
+				this._lock.extend(newRoots);
+			}
+		};
 	}
 
 	path(): Path<V> {
@@ -424,7 +449,7 @@ class AtomPath<V> {
 			return Set([new PathNode(parents, atom.val)])
 		}
 		
-		return new Path(_map(this._tip));
+		return new Path(this._tips.flatMap(_map));
 	}
 
 	static findRoots<V>(ref: AtomRef<V>): Set<Atom<V>> {
