@@ -1,14 +1,20 @@
 import { inspect } from 'util'
-import { Map, Set } from 'immutable'
+import { Map, Set, List } from 'immutable'
 import { delay } from './helpers'
 import Locks, { Lock } from '../src/Locks'
+import _Monoid from '../src/_Monoid'
+import Store from '../src/Store'
 
 describe('atoms and stuff', () => {
 
+	let store: FakeStore
 	let space: AtomSpace<string>
+	let saver: AtomSaver<string>
 
 	beforeEach(() => {
+		store = new FakeStore(new MonoidString(), 3);
 		space = new AtomSpace();
+		saver = new AtomSaver(new MonoidString(), space);
 	})
 
 	it('pristine head has no atom', () => {
@@ -47,24 +53,20 @@ describe('atoms and stuff', () => {
 		expect(atom1?.parents.first(undefined)?.resolve()).toBeUndefined();
 	})
 
-  
-
-	
-
 	it('like-for-like rewrite', async () => {
 		const head = space.spawnHead();
 		head.commit('1');
 		head.commit('2');
 		head.commit('3');
 
-		const path = await head.lockPath();
+		const path = await space.lockPath(head.ref());
 		expect(path.maxDepth()).toBe(3)
 
 		const before = path.path().render()
 
-		path.rewrite(fn => atom => {
+		path.rewrite(fn => (ref, atom) => {
 			const newParents = atom.parents.map(fn)
-			return [Set(), new Atom(newParents, atom.val)]
+			return [[ref], new Atom(newParents, atom.val)]
 		}).complete();
 
 		const after = path.path().render()
@@ -81,14 +83,14 @@ describe('atoms and stuff', () => {
 		head1.commit('1:2');
 		head2.commit('2:1');
 
-		const path1 = await head1.lockPath();
+		const path1 = await space.lockPath(head1.ref());
 		expect(path1.maxDepth()).toBe(2)
 
 		const before = path1.path().render()
 
-		path1.rewrite(fn => atom => {
+		path1.rewrite(fn => (ref, atom) => {
 			const newParents = atom.parents.map(fn)
-			return [Set(), new Atom(newParents, atom.val)]
+			return [[ref], new Atom(newParents, atom.val)]
 		}).complete();
 
 		path1.release();
@@ -96,11 +98,42 @@ describe('atoms and stuff', () => {
 		const after1 = path1.path().render()
 		expect(after1).toEqual(before)
 
-		const path2 = await head2.lockPath();
+		const path2 = await space.lockPath(head2.ref());
 		const after2 = path2.path().render();
 
 		console.log('after1', inspect(after1, { depth: 5 }));
 		console.log('after2', inspect(after2, { depth: 5 }));
+	})
+
+	it('upstream joins visited once only', async () => {
+		const ref1 = new AtomRef(new Atom(Set(), 'a0'));
+		const ref2 = new AtomRef(new Atom(Set([ref1]), 'b1'));
+		const ref3 = new AtomRef(new Atom(Set([ref1]), 'B2'));
+		const ref4 = new AtomRef(new Atom(Set([ref2, ref3]), 'c3'));
+
+		const path = await space.lockPath(ref4);
+		const before = path.path().render();
+
+		let i = 0;
+		path.rewrite(fn => (ref, atom) => {
+			const upstreams = atom.parents.map(fn);
+			return [[ref], new Atom(upstreams, atom.val.slice(0, 1) + (i++))];
+		}).complete();
+		path.release();
+		const after = path.path().render();
+
+		expect(after).toEqual(before);
+	})
+
+	it('paths can have multiple tips', async () => {
+		const ref1 = new AtomRef(new Atom(Set(), 'a0'));
+		const ref2 = new AtomRef(new Atom(Set([ref1]), 'b1'));
+		const ref3 = new AtomRef(new Atom(Set([ref1]), 'c2'));
+
+		const path = await space.lockPath(ref2, ref3);
+		
+		//TODO
+		throw 'TODO!!!!!'
 	})
 
 	it('locking', async () => {
@@ -112,10 +145,10 @@ describe('atoms and stuff', () => {
 
 		head1.commit('1:2');
 
-		const path1 = await head1.lockPath();
+		const path1 = await space.lockPath(head1.ref());
 
 		let locked2 = false;
-		head2.lockPath().then(() => locked2 = true);
+		space.lockPath(head2.ref()).then(() => locked2 = true);
 
 		await delay(100);
 		expect(locked2).toBeFalsy();
@@ -134,17 +167,17 @@ describe('atoms and stuff', () => {
 
 		head1.commit('1:2');
 
-		const path = await head1.lockPath();
+		const path = await space.lockPath(head1.ref());
 
 		let head2Activated = false;
-		head2.lockPath().then(() => head2Activated = true);
+		space.lockPath(head2.ref()).then(() => head2Activated = true);
 
 		await delay(50);
 		expect(head2Activated).toBeFalsy();
 
-		path.rewrite(visit => atom => {
+		path.rewrite(visit => (ref, atom) => {
 			const parents = atom.parents.map(visit)
-			return [Set(), new Atom(parents, atom.val)]
+			return [[ref], new Atom(parents, atom.val)]
 		}).complete(); 
 
 		await delay(50);
@@ -155,115 +188,174 @@ describe('atoms and stuff', () => {
 		expect(head2Activated).toBeTruthy();
 	})
 
-	it('saving', async () => {
+	it('saving simple combination', async () => {
 		const head = space.spawnHead();
-		head.commit('1:1');
-		head.commit('1:2');
-		head.commit('1:3');
+		head.commit('1');
+		head.commit('2');
+		head.commit('3');
 
-		const path = await head.lockPath()
-		console.log(inspect(path.path().render(), { depth: 5 }))
+		await saver.save(store, Set([head]));
 
-		expect(path.maxDepth()).toBe(3)
+		expect(store.saved).toEqual(['123']);
+	});
 
-		let bag = Set<string>()
-		const maxBagSize = 2;
-		let full = false
+	it('saving in multiple transactions', async () => {
+		const head = space.spawnHead();
+		head.commit('1');
+		head.commit('2');
+		head.commit('3');
+		head.commit('4');
 
-		const patch = path.rewrite(visit => atom => {
-			const parents = atom.parents.map(visit);
+		await saver.save(store, Set([head]));
 
-			//if there are no parents, then we should add to the bag with wild abandon
-			//its really two kinds of rewrites: one that gathers till it can't save any more
-			//then a like-for-like remap
-			//
-			//it's not that the bag is necessarily full: it's that it's been extended to its full extent
-			//so, you could call it 'full'
-
-			//but the fullness isn't a property of the bag, but of the branched traverse
-			//we can say we want to repeatedly save till we've covered the full tree anyway: so the like-for-like near-at-hand mapping
-			//may not actually be a thing
-			//
-			//but even in this case, we want a width-first saving
-			//not width first! most important thing is persisting vertically, so we cover the precise data we've decided is momentarily most valuable
-			//we want to save the first head to it's full extent hopefully
-			//this involves repthing after each partial save till we've saved to the head
-			//if there's any capacity after this in the transaction, we should work down the list of heads till all are sufficiently saved
-
-			//so, we do want to like-for-like map before second save? nope - cos this would raise the spectre of relocking, and requires a mechanism
-			//of direct lock delegation, which complication I'd prefer to avoid
-
-			//but oh no, yes we do!
-			//we want to keep the lock, but repeatedly rewrite the same path
-			//so we do want to rewrite with two apparent modes
-			//
-			//the bottom part of a semilattice is a semilattice: there's nothing special about the top by the roots: thinkof it as less a tree, and more a rectangular cake
-			//having rewritten the top, the surplus part is the same shape again: we should be able to start again happily
-
-			//---
-			//a problem here is that as soon as the patch is written, 
-			//we have a new set of roots; and so other heads now have a chance to get in our way
-			//we want to sneakily lock the new tree as we patch...
-
-			//this lets us have a second go at the saving if we wish
-
-			//by this point, we should have worked to the roots, and collected gubbins into our set
+		expect(store.saved).toEqual(['123', '4']);
+	});
+});
 
 
-			const newBag = bag.add(atom.val)
-			if(newBag.size)
-
-
-			if (!full) { //but even if bag is full, we might be able to still collect forwards
-					//we always have to see if we can merge
-
-				const newBag = bag.add(atom.val)
-
-				if (newBag.size <= maxBagSize) {
-					bag = newBag;
-					return [Set(), null]
-				}
-			}
-
-			if (bag.size <= maxBagSize) {
-				//ALWAYS TRY TO ADD TO BAG unless: we're just idly skipping forwards; the crawl has two modes
-			}
-
-			return [Set(), new Atom(parents, atom.val)];
-		});
-
-		patch.complete(); //before we write, we want to lock the new roots: 
-
-		console.log(inspect(path.path().render(), { depth: 5 }))
-
-		expect(bag.size).toBe(1);
-		expect(path.maxDepth()).toBe(1);
-	})
-})
-
-
-type AtomVisitor<V> = (atom: Atom<V>) => readonly [Set<AtomRef<V>>, Atom<V>|null]
+type AtomVisitor<V> = (ref: AtomRef<V>, atom: Atom<V>) => readonly [AtomRef<V>[], Atom<V>|null]
 
 type AtomPatch = { complete(): void }
 
+class AtomSaver<V> {
+	private _monoidV: _Monoid<V>;
+	private _space: AtomSpace<V>;
+	
+	constructor(monoidV: _Monoid<V>, space: AtomSpace<V>) {
+		this._monoidV = monoidV;
+		this._space = space;
+	}
+
+	async save(store: Store<V>, heads: Set<Head<V>>): Promise<void> {
+		const M = this._monoidV;
+		const headRefs = heads.map(h => h.ref());
+
+		let bagged = M.zero;
+		let save = () => Promise.resolve();
+
+		// while(headRefs.some(r => !!r.resolve())) {
+			//now gather forwards - but if we were to save multiple heads at once, we'd need to secure multiple paths concurrently
+			//lockPath would take multiple tips, would rewrite multiple paths
+
+			//a problem with the current lockPath impl is that if two paths of rewriting were to reference a single root (part-root)
+			//the separate rewritings would have no way to see each other
+			//because the initial 'touch' of that ref wouldn't actually be carried through till the whole rewriting was done
+			//we need some kind of facade AtomRef
+
+			//this is absolutely true though: if we want to save multiple heads into one (as we will certainly want to do in saving /everything/ at the end)
+			//there needs to be some way of rewriting multiple paths as one, in some jquery-like implicit acceptance of multiplicity
+			//the existing appraoch can be neatly adapted but we need this updating of partially rewritten refs
+
+			//an idea: refs are updated eagerly, with handles for rollback on the ref level
+			//but between rewriting and asynchronous saving, these eager changes will appear elsewhere to
+			//root locks should prevent other changes to them, but we expect them to be readable whenever
+
+			//refs could always be resolved in some context
+			//or rather, resolution has an optional remapping that can be passed in
+			//or better, resolution could be done /via/ something: whatever it is doing the resolving of references should always resolve via a remapping context
+			//...
+		// }
+		
+
+		for(const headRef of headRefs) {
+
+
+			
+
+			// while(headRef.resolve()) {
+			// 	//BUT! head is mutable here
+			// 	//to do this, head must be an immutable value
+			// }
+
+			//but whatever it is doing the gathering here wants to /take/ what it can
+			//we keep on taking reductions of the headRefs till 
+			//all headRefs point to null
+
+			//two separable concerns
+			//we gather forwards, across heads
+			//
+			
+			
+			const path = await this._space.lockPath(headRef);
+			try {
+				let mode: 'gather'|'copy' = 'gather';
+				const patch = path.rewrite(fn => (ref, atom) => {
+					const parents = atom.parents.map(fn);
+					switch(mode) {
+						case 'gather':
+							const upstreamCombo = M.add(
+								bagged,
+								parents
+									.map(ref => ref.resolve()?.val || M.zero)
+									.reduce(M.add, M.zero)
+							);
+							const canSave1 = store.prepare(upstreamCombo);
+							if(canSave1) {
+								bagged = upstreamCombo;
+								save = () => canSave1.save();
+							}
+							else {
+								mode = 'copy'
+								return [[ref], new Atom(parents, atom.val)];
+							}
+
+							const combo = M.add(bagged, atom.val);
+							const canSave2 = store.prepare(combo);
+							if(canSave2) {
+								bagged = combo;
+								save = () => canSave2.save();
+								return [[...parents, ref], null];
+							}
+							else {
+								mode = 'copy'
+								return [[...parents, ref], new Atom(Set(), atom.val)];
+							}
+
+						case 'copy':
+							return [[ref], new Atom(parents, atom.val)];
+					}
+				});
+
+				await save();
+
+				patch.complete();
+			}
+			finally {
+				path.release();
+			}
+			//more to do here around retries
+			//eg what if we don't get to end of head in one save?
+		}
+	}
+}
+
 class AtomSpace<V> {
 	private _locks: Locks = new Locks();
+	private _heads: Set<Head<V>> = Set();
 
 	lock<V>(atoms: Set<Atom<V>>): Promise<Lock> {
 		return this._locks.lock(...atoms);
 	}
 
-	spawnHead(): Head<V> {
-		return new Head(this, new AtomRef());
+	spawnHead(ref?: AtomRef<V>): Head<V> {
+		const head = new Head(this, ref || new AtomRef());
+		this._heads = this._heads.add(head);
+		return head;
+	}
+
+	async lockPath(tip: AtomRef<V>): Promise<AtomPath<V>> {
+		const roots = AtomPath.findRoots(tip);
+		const lock = await this.lock(roots);
+		return new AtomPath(tip, lock);
 	}
 }
 
 class AtomPath<V> {
-	private readonly _head: Head<V>
+	private readonly _tip: AtomRef<V>
 	private readonly _lock: Lock
 
-	constructor(head: Head<V>, lock: Lock) {
-		this._head = head;
+	constructor(tip: AtomRef<V>, lock: Lock) {
+		this._tip = tip;
 		this._lock = lock;
 	}
 
@@ -281,32 +373,34 @@ class AtomPath<V> {
 				: d;
 		}
 
-		return plumbDepth(this._head.ref(), 0);
+		return plumbDepth(this._tip, 0);
 	}
 
 	rewrite(fn: (self: (a: AtomRef<V>) => AtomRef<V>) => AtomVisitor<V>): AtomPatch {
 		let redirects = Map<AtomRef<V>, AtomRef<V>>();
 
 		const visitor: AtomVisitor<V> = fn(ref => {
-			const atom = ref.resolve();
-			if(!atom) return ref;
-			else {
-				const [otherSources, newAtom] = visitor(atom);
-				const newRef = new AtomRef(newAtom);
+			return redirects.get(ref) || (() => {
+				const atom = ref.resolve();
+				if(!atom) return ref;
+				else {
+					const [sources, newAtom] = visitor(ref, atom);
+					const newRef = new AtomRef(newAtom);
 
-				redirects = redirects.merge(otherSources.add(ref).map(r => [r, newRef]));
+					redirects = redirects.merge(Set(sources).map(r => [r, newRef]));
 
-				return newRef;
-			}
+					return newRef;
+				}
+			})();
 		});
 
-		const atom = this._head.ref().resolve();
+		const atom = this._tip.resolve();
 		if(!atom) return { complete() {} };
 		else {
-			const [otherSources, newAtom] = visitor(atom);
+			const [sources, newAtom] = visitor(this._tip, atom);
 			const newRef = new AtomRef(newAtom);
 
-			redirects = redirects.merge(otherSources.add(this._head.ref()).map(r => [r, newRef]));
+			redirects = redirects.merge(Set(sources).map(r => [r, newRef]));
 
 			return {
 					complete: () => {
@@ -316,8 +410,6 @@ class AtomPath<V> {
 
 						const newRoots = AtomPath.findRoots(newRef);
 						this._lock.extend(newRoots);
-
-						this._head.move(newRef);
 					}
 			}
 		}
@@ -332,7 +424,7 @@ class AtomPath<V> {
 			return Set([new PathNode(parents, atom.val)])
 		}
 		
-		return new Path(_map(this._head.ref()))
+		return new Path(_map(this._tip));
 	}
 
 	static findRoots<V>(ref: AtomRef<V>): Set<Atom<V>> {
@@ -355,26 +447,16 @@ class Head<V> {
 		this._ref = ref;
 	}
 
-	commit(val: V): AtomRef<V> {
-		return this._ref = new AtomRef(new Atom(Set([this._ref]), val))
+	commit(val: V) {
+		this._ref = new AtomRef(new Atom(Set([this._ref]), val));
 	}
 
 	spawnHead(): Head<V> {
-		return new Head(this._space, this._ref);
+		return this._space.spawnHead(this._ref);
 	}
 
 	ref() {
 		return this._ref;
-	}
-
-	move(newRef: AtomRef<V>) {
-		this._ref = newRef;
-	}
-
-	async lockPath(): Promise<AtomPath<V>> {
-		const roots = AtomPath.findRoots(this._ref);
-		const lock = await this._space.lock(roots);
-		return new AtomPath(this, lock);
 	}
 }
 
@@ -454,64 +536,50 @@ class PathNode<V> {
 }
 
 
-	
+//---------------------------------
+
+type Table<V> = Map<string, V>
+
+class MonoidTable<V> implements _Monoid<Table<V>> {
+  zero: Table<V> = Map()
+	add(a: Table<V>, b: Table<V>): Table<V> {
+		return a.merge(b);
+  }
+}
+
+class MonoidString implements _Monoid<string> {
+  zero: string = ''
+	add(a: string, b: string): string {
+		return a + b;
+  }
+}
+
+class MonoidArray<V> implements _Monoid<V[]> {
+	zero = []
+	add(a: V[], b: V[]) {
+		return [...a, ...b];
+	}
+}
 
 
-	
+//---------------------------------
 
+class FakeStore extends Store<string> {
+	saved: string[] = []
+	private _maxBatch: number;
 
-	
+	constructor(monoid: _Monoid<string>, batchSize: number) {
+		super(monoid);
+		this._maxBatch = batchSize;
+	}
 
-
-	
-
-
-//what about locking? 
-//presumably we lock AtomData as it's concrete and ultimately shared
-//
-//but if one locker locks it, and it then gets replaced
-//then there'll be would be waiters suddenly with an obsolete, forgotten AtomData in their hands
-//
-//synchronising on the AtomRef feels unintuitive - not that it's necessarily wrong, just that I have to convince myself
-//
-//if we lock the AtomRef that is the root reference of our path, and is presumably an AtomRef to nothing
-//nah, shouldn't be to nothing...
-
-
-
-
-// class Atom {
-//     private _parents: Set<Atom>
-//     private _rows: Map<string, any> = Map<string, any>()
-// 		private _target: Atom = this;
-
-//     constructor(parents?: Set<Atom>, rows?: { [id: string]: any }) {
-//         this._parents = Set(parents || []);
-//         this._rows = Map(rows || {});
-//     }
-
-//     parents(): Set<Atom> {
-//       return this.resolve()?._parents || Set();
-//     }
-
-//     rows(): RowMap {
-//       return this.resolve()?._rows || Map();
-//     }
-
-//     redirect(target: Atom) {
-// 			console.assert(this._target === this);
-// 			this._target = target;
-//     }
-
-//     private resolve(): Atom|undefined {
-// 			return this._target &&
-// 				(this._target === this ? this : this._target.resolve())
-//     }
-
-//     async lock(): Promise<Lock> {
-//         return {
-//             release() { }
-//         }
-//     }
-// }
-
+	prepare(v: string): {save():Promise<void>}|false {
+		return v.length <= this._maxBatch
+			&& {
+				save: () => {
+					this.saved.push(v);
+					return Promise.resolve();
+				}
+			};
+	}
+}
