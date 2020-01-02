@@ -61,7 +61,7 @@ describe('atoms and stuff', () => {
 		head.commit('2');
 		head.commit('3');
 
-		const path = await space.lockTips([head.ref()]);
+		const path = await space.lockTips(head.ref());
 		expect(path.maxDepth()).toBe(3)
 
 		const before = path.path().render()
@@ -85,7 +85,7 @@ describe('atoms and stuff', () => {
 		head1.commit('1:2');
 		head2.commit('2:1');
 
-		const path1 = await space.lockTips([head1.ref()]);
+		const path1 = await space.lockTips(head1.ref());
 		expect(path1.maxDepth()).toBe(2)
 
 		const before = path1.path().render()
@@ -100,7 +100,7 @@ describe('atoms and stuff', () => {
 		const after1 = path1.path().render()
 		expect(after1).toEqual(before)
 
-		const path2 = await space.lockTips([head2.ref()]);
+		const path2 = await space.lockTips(head2.ref());
 		const after2 = path2.path().render();
 	})
 
@@ -110,7 +110,7 @@ describe('atoms and stuff', () => {
 		const ref3 = new AtomRef(new Atom(Set([ref1]), 'B2'));
 		const ref4 = new AtomRef(new Atom(Set([ref2, ref3]), 'c3'));
 
-		const path = await space.lockTips([ref4]);
+		const path = await space.lockTips(ref4);
 		const before = path.path().render();
 
 		let i = 0;
@@ -129,7 +129,7 @@ describe('atoms and stuff', () => {
 		const ref2 = new AtomRef(new Atom(Set([ref1]), 'b1'));
 		const ref3 = new AtomRef(new Atom(Set([ref1]), 'c2'));
 
-		const path = await space.lockTips([ref2, ref3]);
+		const path = await space.lockTips(ref2, ref3);
 
 		let i = 0;
 		path.rewrite(fn => (ref, atom) => {
@@ -165,10 +165,10 @@ describe('atoms and stuff', () => {
 
 		head1.commit('1:2');
 
-		const path1 = await space.lockTips([head1.ref()]);
+		const path1 = await space.lockTips(head1.ref());
 
 		let locked2 = false;
-		space.lockTips([head2.ref()]).then(() => locked2 = true);
+		space.lockTips(head2.ref()).then(() => locked2 = true);
 
 		await delay(100);
 		expect(locked2).toBeFalsy();
@@ -187,10 +187,10 @@ describe('atoms and stuff', () => {
 
 		head1.commit('1:2');
 
-		const path = await space.lockTips([head1.ref()]);
+		const path = await space.lockTips(head1.ref());
 
 		let head2Activated = false;
-		space.lockTips([head2.ref()]).then(() => head2Activated = true);
+		space.lockTips(head2.ref()).then(() => head2Activated = true);
 
 		await delay(50);
 		expect(head2Activated).toBeFalsy();
@@ -225,12 +225,11 @@ describe('atoms and stuff', () => {
 		head.commit('2');
 		head.commit('3');
 		head.commit('4');
+		head.commit('5');
 
 		await saver.save(store, Set([head]));
 
-		throw 'TODO!'
-
-		expect(store.saved).toEqual(['123', '4']);
+		expect(store.saved).toEqual(['123', '45']);
 	});
 });
 
@@ -250,57 +249,17 @@ class AtomSaver<V> {
 
 	async save(store: Store<V>, heads: Set<Head<V>>): Promise<void> {
 		const M = this._monoidV;
-		const headRefs = heads.map(h => h.ref());
 
-		let bagged = M.zero;
-		let save = () => Promise.resolve();
+		const path = await this._space.lockTips(...heads.map(h => h.ref()));
+		//after getting the lock, we should ensure the roots are still the roots...
+		//should this be done as part of lockTips?
 
-		// while(headRefs.some(r => !!r.resolve())) {
-			//now gather forwards - but if we were to save multiple heads at once, we'd need to secure multiple paths concurrently
-			//lockPath would take multiple tips, would rewrite multiple paths
-
-			//a problem with the current lockPath impl is that if two paths of rewriting were to reference a single root (part-root)
-			//the separate rewritings would have no way to see each other
-			//because the initial 'touch' of that ref wouldn't actually be carried through till the whole rewriting was done
-			//we need some kind of facade AtomRef
-
-			//this is absolutely true though: if we want to save multiple heads into one (as we will certainly want to do in saving /everything/ at the end)
-			//there needs to be some way of rewriting multiple paths as one, in some jquery-like implicit acceptance of multiplicity
-			//the existing appraoch can be neatly adapted but we need this updating of partially rewritten refs
-
-			//an idea: refs are updated eagerly, with handles for rollback on the ref level
-			//but between rewriting and asynchronous saving, these eager changes will appear elsewhere to
-			//root locks should prevent other changes to them, but we expect them to be readable whenever
-
-			//refs could always be resolved in some context
-			//or rather, resolution has an optional remapping that can be passed in
-			//or better, resolution could be done /via/ something: whatever it is doing the resolving of references should always resolve via a remapping context
-			//...
-		// }
-		
-
-		for(const headRef of headRefs) {
-
-
-			
-
-			// while(headRef.resolve()) {
-			// 	//BUT! head is mutable here
-			// 	//to do this, head must be an immutable value
-			// }
-
-			//but whatever it is doing the gathering here wants to /take/ what it can
-			//we keep on taking reductions of the headRefs till 
-			//all headRefs point to null
-
-			//two separable concerns
-			//we gather forwards, across heads
-			//
-			
-			
-			const path = await this._space.lockTips([headRef]);
-			try {
+		try {
+			while(path.hasAtoms()) {
 				let mode: 'gather'|'copy' = 'gather';
+				let bagged = M.zero;
+				let save = () => Promise.resolve();
+
 				const patch = path.rewrite(fn => (ref, atom) => {
 					const parents = atom.parents.map(fn);
 					switch(mode) {
@@ -342,12 +301,14 @@ class AtomSaver<V> {
 
 				patch.complete();
 			}
-			finally {
-				path.release();
-			}
-			//more to do here around retries
-			//eg what if we don't get to end of head in one save?
 		}
+		finally {
+			path.release();
+		}
+
+		//plus we could 'top up' our current transaction till full here
+		//by taking latest refs from head
+		//...
 	}
 }
 
@@ -365,12 +326,14 @@ class AtomSpace<V> {
 		return head;
 	}
 
-	async lockTips(tips: AtomRef<V>[]): Promise<AtomPath<V>> {
+	async lockTips(...tips: AtomRef<V>[]): Promise<AtomPath<V>> {
 		const roots = Set(tips).flatMap(AtomPath.findRoots);
 		const lock = await this.lock(roots);
 		return new AtomPath(tips, lock);
 	}
 }
+
+
 
 class AtomPath<V> {
 	private readonly _tips: Set<AtomRef<V>>
@@ -394,6 +357,10 @@ class AtomPath<V> {
 
 		return plumbDepth(this._tips, 0).max() || 0;
 	}
+
+	hasAtoms(): boolean {
+		return this._tips.some(r => !!r.resolve());
+	}	
 
 	rewrite(fn: (self: (a: AtomRef<V>) => AtomRef<V>) => AtomVisitor<V>): AtomPatch {
 		let redirects = Map<AtomRef<V>, AtomRef<V>>();
@@ -433,6 +400,18 @@ class AtomPath<V> {
 				for (const [from, to] of redirects) {
 						from.redirect(to);
 				}
+
+				//but in saving, don't we remove all atoms, leaving nothing to be locked?
+				//it does indeed seem like we need something to lock...
+				//
+				//******
+				//in rewriting, we need to leave a single empty atom rooting every head
+
+				//otherwise other rewrites can be done
+				//a saved head is unlocked; can quickly add a new atom and save it
+				//but if there isn't a root there, there's nothing to worry about: no contention because no data
+				//any other atoms still to be saved will be necessarily rooted still
+				//******
 
 				const newRoots = newRefs.flatMap(AtomPath.findRoots);
 				this._lock.extend(newRoots);
@@ -608,3 +587,4 @@ class FakeStore extends Store<string> {
 			};
 	}
 }
+
