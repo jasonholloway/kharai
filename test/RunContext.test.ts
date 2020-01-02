@@ -231,6 +231,39 @@ describe('atoms and stuff', () => {
 
 		expect(store.saved).toEqual(['123', '45']);
 	});
+
+	it('locking tips gets latest roots', async () => {
+		const head = space.spawnHead();
+		head.commit('0');
+		const ref = head.ref();
+
+		const locking1 = space.lockTips(ref);
+		const locking2 = space.lockTips(ref);
+
+		const path1 = await locking1;
+
+		path1.rewrite(_ => (ref, _) => {
+			return [[ref], new Atom(Set(), '1')];
+		}).complete();
+		
+		path1.release();
+
+		await delay(50);
+
+		let locked3 = false;
+		const locking3 = space.lockTips(ref);
+		locking3.then(() => locked3 = true);
+
+		await delay(50);
+		expect(locked3).toBeFalsy();
+
+		const path2 = await locking2;
+		path2.release();
+
+		await delay(50);
+
+		expect(locked3).toBeTruthy();
+	});
 });
 
 
@@ -327,9 +360,21 @@ class AtomSpace<V> {
 	}
 
 	async lockTips(...tips: AtomRef<V>[]): Promise<AtomPath<V>> {
-		const roots = Set(tips).flatMap(AtomPath.findRoots);
-		const lock = await this.lock(roots);
-		return new AtomPath(tips, lock);
+		const _tips = Set(tips);
+		let roots1 = _tips.flatMap(AtomPath.findRoots);
+
+		while(true) {
+			const lock = await this.lock(roots1);
+			const roots2 = _tips.flatMap(AtomPath.findRoots);
+
+			if(roots2.equals(roots1)) {
+				return new AtomPath([..._tips], lock);
+			}
+			else {
+				roots1 = roots2;
+				lock.release();
+			}
+		}
 	}
 }
 
@@ -562,6 +607,15 @@ class MonoidArray<V> implements _Monoid<V[]> {
 	zero = []
 	add(a: V[], b: V[]) {
 		return [...a, ...b];
+	}
+}
+
+type AtomValue<V> = Atom<V> | undefined
+
+class MonoidAtomValue<V> implements _Monoid<AtomValue<V>> {
+	zero: undefined
+	add(a: AtomValue<V>, b: AtomValue<V>) {
+		return a;
 	}
 }
 
