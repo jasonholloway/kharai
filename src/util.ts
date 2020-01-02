@@ -21,3 +21,5 @@ export const clone = <X>(x: X): X =>
 
 export const isTuple2 = <A, B>(v: any): v is readonly [A, B] =>
     isArray(v) && v.length == 2;
+
+export const lift = <V>(v: V|undefined) => (v ? [v] : []);
