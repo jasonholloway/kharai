@@ -21,10 +21,13 @@ export class AtomSaver {
         //atom and claim are siblings with separate interfaces
         //
         //
+      const saveable = this.store.prepareSave(new Atom([], []));
+      if(saveable) {
+        await saveable.save();
+        return;
+      }
 
-        
-
-        
+      throw 'eurgh'
     }
 }
 
@@ -131,9 +134,9 @@ export default class Atom {
 }
 
 export interface Saveable {
-    save(): Promise<void>
+  save(): Promise<void>
 }
 
 export interface Store {
-    tryCreateSaveable(atom: Atom): Saveable|false
+  prepareSave(atom: Atom): Saveable|false
 }

@@ -17,8 +17,8 @@ describe('hello', () => {
 
         await saver.save(atom22);
 
-        expect(store.saveables).toHaveLength(1);
-        expect(store.saveables[0].atoms).toEqual(
+        expect(store.saved).toHaveLength(1);
+        expect(store.saved[0]).toEqual(
             [ atom1, atom22 ]
         );
     })
@@ -28,33 +28,16 @@ describe('hello', () => {
 
 class FakeStore implements Store {
 
-    tryCreateSaveable(atom: Atom): false | Saveable {
-        throw new Error("Method not implemented.");
-    }
+  saved: Atom[] = []
 
-    readonly saveables: FakeSaveable[] = []
-
-    createSaveable(): Saveable {
-        const saveable = new FakeSaveable(this);
-        this.saveables.push(saveable);
-        return saveable;
-    }    
-}
-
-class FakeSaveable implements Saveable {
-    private store: FakeStore;
-
-    readonly atoms: any[] = []
-
-    constructor(store: FakeStore) {
-        this.store = store;
-    }
-
-    tryCombine(atom: Atom): false | Saveable {
-        return false;
-    }
+  prepareSave(atom: Atom): false | Saveable {
+    //check size here
+    //...
     
-    save(): Promise<void> {
-        throw new Error("Method not implemented.");
-    }
+    return {
+      save: async () => {
+        this.saved.push(atom);
+      }
+    };
+  }
 }
