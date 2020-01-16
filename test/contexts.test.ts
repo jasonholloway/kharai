@@ -1,52 +1,103 @@
 import { Map, Set } from 'immutable'
-import { delay } from './helpers'
 import _Monoid from '../src/_Monoid'
 import Store from '../src/Store'
-import { Atom, AtomRef } from '../src/atoms'
-import AtomSpace from '../src/AtomSpace'
+import AtomSpace, { Head } from '../src/AtomSpace'
 import AtomSaver from '../src/AtomSaver'
 
 describe('contexts and stuff', () => {
 	let store: FakeStore
-	let space: AtomSpace<string>
-	let saver: AtomSaver<string>
+	let atomSpace: AtomSpace<Data>
+	let space: MachineSpace
+	let saver: AtomSaver<Data>
 
 	beforeEach(() => {
-		store = new FakeStore(new MonoidString(), 3);
-		space = new AtomSpace();
-		saver = new AtomSaver(new MonoidString(), space);
+		store = new FakeStore(new MonoidData(), 3);
+		atomSpace = new AtomSpace();
+		space = new MachineSpace(store);
+		saver = new AtomSaver(new MonoidData(), atomSpace);
 	})
 
-	it('context', async () => {
-		const head = space.spawnHead();
-
-		head.commit('123');
+	it('machine run', async () => {
+		const machine = space.create(['dummy', '123']);
+		const [resumption, saving] = await machine.run();
 		
-		//blah
+		//...
 	})
 })
 
 type Resumption = {
 }
 
+type Data = Map<MachineId, any>
+
+type MachineType = string;
+type MachineId = [MachineType, string];
+
+type MachineState = {}
+
 class Machine {
-	run(): Promise<Resumption> {
-		throw 123;
+	private state: MachineState
+	private head: MachineHead
+
+	constructor(state: MachineState, head: MachineHead) {
+		this.state = state;
+		this.head = head;
+	}
+	
+	async run(): Promise<[Resumption, Promise<void>]> {
+		//perform...
+		const saving = this.head.save();
+		return [{}, saving];
+	}
+}
+
+class MachineHead {
+	private head: Head<Data>
+	private store: Store<Data>
+	private saver: AtomSaver<Data>
+
+	constructor(head: Head<Data>, store: Store<Data>, saver: AtomSaver<Data>) {
+		this.head = head;
+		this.store = store;
+		this.saver = saver;
+	}
+
+	commit(val: Data): void {
+		this.head.commit(val);
+	}
+
+	save(): Promise<void> {
+		return this.saver.save(this.store, Set([this.head]));
 	}
 }
 
 class MachineSpace {
+	private readonly store: Store<Data>
+	private readonly atoms: AtomSpace<Data>
+	private readonly saver: AtomSaver<Data>
+	private cache: Map<MachineId, Machine>
 
-	private store: Store<string>
-	private atoms: AtomSpace<string>
-
-	constructor(store: Store<string>) {
+	constructor(store: Store<Data>) {
 		this.store = store;
 		this.atoms = new AtomSpace();
+		this.saver = new AtomSaver(new MonoidData(), this.atoms);
+		this.cache = Map();
 	}
 
-	load(): Machine {
-		return new Machine();
+	create(id: MachineId): Machine {
+		const state = {};
+		const head = new MachineHead(this.atoms.spawnHead(), this.store, this.saver);
+		return new Machine(state, head);
+	}
+
+	async summon(ids: Set<MachineId>): Promise<Set<Machine>> {
+		//load states here... (from db or cache)
+		const states = Set([{}, {}]);
+
+		return states.map(state => {
+			const head = new MachineHead(this.atoms.spawnHead(), this.store, this.saver);
+			return new Machine(state, head);
+		});
 	}
 
 	//get a machine, run it, returning a resumption
@@ -59,35 +110,24 @@ class MachineSpace {
 
 //---------------------------------
 
-type Table<V> = Map<string, V>
-
-class MonoidTable<V> implements _Monoid<Table<V>> {
-  zero: Table<V> = Map()
-	add(a: Table<V>, b: Table<V>): Table<V> {
+class MonoidData implements _Monoid<Data> {
+  zero: Data = Map()
+	add(a: Data, b: Data): Data {
 		return a.merge(b);
   }
 }
 
-class MonoidString implements _Monoid<string> {
-  zero: string = ''
-	add(a: string, b: string): string {
-		return a + b;
-  }
-}
-
-//---------------------------------
-
-class FakeStore extends Store<string> {
-	saved: string[] = []
+class FakeStore extends Store<Data> {
+	saved: Data[] = []
 	private _maxBatch: number;
 
-	constructor(monoid: _Monoid<string>, batchSize: number) {
+	constructor(monoid: _Monoid<Data>, batchSize: number) {
 		super(monoid);
 		this._maxBatch = batchSize;
 	}
 
-	prepare(v: string): {save():Promise<void>}|false {
-		return v.length <= this._maxBatch
+	prepare(v: Data): {save():Promise<void>}|false {
+		return v.count() <= this._maxBatch
 			&& {
 				save: () => {
 					this.saved.push(v);
