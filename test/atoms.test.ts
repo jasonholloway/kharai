@@ -266,7 +266,6 @@ describe('atoms and stuff', () => {
 });
 
 
-
 //---------------------------------
 
 type Table<V> = Map<string, V>
