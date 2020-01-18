@@ -5,41 +5,69 @@ import AtomSpace, { Head } from '../src/AtomSpace'
 import AtomSaver from '../src/AtomSaver'
 
 describe('contexts and stuff', () => {
+	const spec = new TestSpec();
+
 	let store: FakeStore
 	let atomSpace: AtomSpace<Data>
-	let space: MachineSpace
+	let space: MachineSpace<TestSpec>
 	let saver: AtomSaver<Data>
 
 	beforeEach(() => {
 		store = new FakeStore(new MonoidData(), 3);
 		atomSpace = new AtomSpace();
-		space = new MachineSpace(store);
+		space = new MachineSpace(spec, store);
 		saver = new AtomSaver(new MonoidData(), atomSpace);
 	})
-
+	
 	it('machine run', async () => {
 		const machine = space.create(['dummy', '123']);
 		const [resumption, saving] = await machine.run();
-		
+
+		//interpret resumption here
 		//...
+
 	})
 })
+
+//Resumptions should parameterise Machines
+
+class TestSpec implements MachineSpec<TestSpec, TestResumptions> {
+	dummy = 'dummy' as const
+}
+
+class TestResumptions implements ResumptionSpec {
+}
+
+
+type MachineSpec<M extends MachineSpec<M, R>, R extends ResumptionSpec = any> = {
+	[type: string]: any // MachineSpec<M>
+}
+
+type ResumptionSpec = {
+	[type: string]: any
+}
+
+
+type Type<M extends MachineSpec<M>> = keyof M;
+type Id<M extends MachineSpec<M>> = [Type<M>, string];
+
+type MachineDef<M extends MachineSpec<M, R>, R extends ResumptionSpec> = Type<M>
+type ResumptionDef = (...args: any[]) => void
+
+
 
 type Resumption = {
 }
 
-type Data = Map<MachineId, any>
-
-type MachineType = string;
-type MachineId = [MachineType, string];
+type Data = Map<string, any>
 
 type MachineState = {}
 
-class Machine {
+class Machine<S extends MachineSpec<S>> {
 	private state: MachineState
-	private head: MachineHead
+	private head: MachineHead<S>
 
-	constructor(state: MachineState, head: MachineHead) {
+	constructor(state: MachineState, head: MachineHead<S>) {
 		this.state = state;
 		this.head = head;
 	}
@@ -51,7 +79,7 @@ class Machine {
 	}
 }
 
-class MachineHead {
+class MachineHead<S extends MachineSpec<S>> {
 	private head: Head<Data>
 	private store: Store<Data>
 	private saver: AtomSaver<Data>
@@ -71,26 +99,28 @@ class MachineHead {
 	}
 }
 
-class MachineSpace {
+class MachineSpace<M extends MachineSpec<M>> {
+	private readonly spec: M
 	private readonly store: Store<Data>
 	private readonly atoms: AtomSpace<Data>
 	private readonly saver: AtomSaver<Data>
-	private cache: Map<MachineId, Machine>
+	private cache: Map<Id<M>, Machine<M>>
 
-	constructor(store: Store<Data>) {
+	constructor(spec: M, store: Store<Data>) {
+		this.spec = spec;
 		this.store = store;
 		this.atoms = new AtomSpace();
 		this.saver = new AtomSaver(new MonoidData(), this.atoms);
 		this.cache = Map();
 	}
 
-	create(id: MachineId): Machine {
+	create(id: Id<M>): Machine<M> {
 		const state = {};
 		const head = new MachineHead(this.atoms.spawnHead(), this.store, this.saver);
 		return new Machine(state, head);
 	}
 
-	async summon(ids: Set<MachineId>): Promise<Set<Machine>> {
+	async summon(ids: Set<Id<M>>): Promise<Set<Machine<M>>> {
 		//load states here... (from db or cache)
 		const states = Set([{}, {}]);
 
