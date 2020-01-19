@@ -1,0 +1,26 @@
+
+resumption terms are saved as part of the machine's normal state, into atoms that overwrite each other
+
+but every time such a state is plopped into an atom, some middleware is in place to listen... every saved machine at rest has some resumption
+unless it is literally finished; but even then we can say it's got 'none' or similar. Or we can say it's at rest, waiting for another to poke it into action.
+
+so the machine saves its state, but only via yielding it: when a machine is run, it should then return its state. Or, the resumption is decanted byt the machine wrapper,
+ready for some external process to handle
+
+But what happens if the machine is at rest, how is it resuscitated? Well, the overall program is parameterised by a list of instigator machines,
+that are kicked into action; but only via their resumptions: so if they're waiting to be ripe, to be due, then this means they're resumptions are begun again
+
+so the machines themselves aren't kick-started; it's their resumptions. Delays know what to do in such circumstances. But what about hooks? They just register themselves and wait.
+
+------------
+
+but to know what to resume, we need the machine's state
+
+
+
+
+
+
+
+
+
