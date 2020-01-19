@@ -5,23 +5,21 @@ import AtomSpace, { Head } from '../src/AtomSpace'
 import AtomSaver from '../src/AtomSaver'
 
 describe('contexts and stuff', () => {
-	const spec = new TestSpec();
-
 	let store: FakeStore
 	let atomSpace: AtomSpace<Data>
-	let space: MachineSpace<TestSpec>
+	let space: MachineSpace<TestMachines>
 	let saver: AtomSaver<Data>
 
 	beforeEach(() => {
 		store = new FakeStore(new MonoidData(), 3);
 		atomSpace = new AtomSpace();
-		space = new MachineSpace(spec, store);
+		space = new MachineSpace(testMachines, store);
 		saver = new AtomSaver(new MonoidData(), atomSpace);
 	})
 	
 	it('machine run', async () => {
 		const machine = space.create(['dummy', '123']);
-		const [resumption, saving] = await machine.run();
+		const [resume, saving] = await machine.run();
 
 		//interpret resumption here
 		//...
@@ -29,57 +27,148 @@ describe('contexts and stuff', () => {
 	})
 })
 
-//Resumptions should parameterise Machines
 
-class TestSpec implements MachineSpec<TestSpec, TestResumptions> {
-	dummy = 'dummy' as const
+type TestResumes = SpecResumes<{
+	delay: {},
+	end: {}
+}>
+
+type TestMachines = SpecMachines<{
+	dummy: {
+		phases: {
+			start: {
+				input: number
+			},
+			finish: {
+				input: any
+			}
+		}
+	}
+}>
+
+
+
+const testResumes = makeResumes<TestResumes>({
+	end: {},
+	delay: {}
+})
+
+const testMachines = makeMachines<TestMachines, TestResumes>({
+	dummy: {
+		phases: {
+			start: {
+				guard(x): x is number { return true; },
+				async run(_) { return 'end'; }
+			},
+			finish: {
+				guard(x): x is any { return true; },
+				async run(_) { return 'delay' }
+			}
+		}
+	}
+})
+
+
+
+type SpecResumes<R extends ResumeTypes> = R;
+type SpecMachines<M extends MachineTypes> = M;
+
+
+
+function makeResumes<R extends ResumeTypes>(r: ResumeDefs<R>) {
+	return r;
 }
 
-class TestResumptions implements ResumptionSpec {
+function makeMachines<M extends MachineTypes, R extends ResumeTypes>(m: MachineDefs<M, R>) {
+	return m;
 }
 
 
-type MachineSpec<M extends MachineSpec<M, R>, R extends ResumptionSpec = any> = {
-	[type: string]: any // MachineSpec<M>
+
+type MachineDefs<M extends MachineTypes, R extends ResumeTypes = any> = {
+	[T in keyof M]: MachineDef<M[T], R>
 }
 
-type ResumptionSpec = {
+type ResumeDefs<R extends ResumeTypes> = {
+	[T in keyof R]: ResumeDef<R[T]>
+}
+
+
+
+type ResumeDef<R extends ResumeType> = {
+}
+
+type MachineDef<M extends MachineType, R extends ResumeTypes> = {
+	phases: {
+		[P in keyof M['phases']]: PhaseDef<M['phases'][P], R>
+	}
+}
+
+type PhaseDef<T extends PhaseType, R extends ResumeTypes> = {
+	guard(data: any): data is T['input'] 
+	run(data: T['input']): Promise<keyof R>
+}
+
+
+
+type ResumeType = {
+}
+
+type MachineType = {
+	phases: PhaseTypes
+}
+
+type PhaseType = {
+	input: any
+}
+
+
+
+type ResumeTypes = {
 	[type: string]: any
 }
 
+type MachineTypes = {
+	[type: string]: MachineType
+}
 
-type Type<M extends MachineSpec<M>> = keyof M;
-type Id<M extends MachineSpec<M>> = [Type<M>, string];
-
-type MachineDef<M extends MachineSpec<M, R>, R extends ResumptionSpec> = Type<M>
-type ResumptionDef = (...args: any[]) => void
+type PhaseTypes = {
+	[type: string]: PhaseType
+}
 
 
 
-type Resumption = {
+
+type Type<M extends MachineTypes> = keyof M;
+type Id<M extends MachineTypes> = [Type<M>, string];
+
+
+
+
+type Resume = {
 }
 
 type Data = Map<string, any>
 
 type MachineState = {}
 
-class Machine<S extends MachineSpec<S>> {
+class Machine {
 	private state: MachineState
-	private head: MachineHead<S>
+	private head: MachineHead
 
-	constructor(state: MachineState, head: MachineHead<S>) {
+	constructor(state: MachineState, head: MachineHead) {
 		this.state = state;
 		this.head = head;
 	}
 	
-	async run(): Promise<[Resumption, Promise<void>]> {
+	async run(): Promise<[Resume, Promise<void>]> {
 		//perform...
 		const saving = this.head.save();
 		return [{}, saving];
 	}
 }
 
-class MachineHead<S extends MachineSpec<S>> {
+class MachineHead {
 	private head: Head<Data>
 	private store: Store<Data>
 	private saver: AtomSaver<Data>
@@ -99,14 +188,14 @@ class MachineHead<S extends MachineSpec<S>> {
 	}
 }
 
-class MachineSpace<M extends MachineSpec<M>> {
-	private readonly spec: M
+class MachineSpace<M extends MachineTypes> {
+	private readonly spec: MachineDefs<M>
 	private readonly store: Store<Data>
 	private readonly atoms: AtomSpace<Data>
 	private readonly saver: AtomSaver<Data>
-	private cache: Map<Id<M>, Machine<M>>
+	private cache: Map<Id<M>, Machine>
 
-	constructor(spec: M, store: Store<Data>) {
+	constructor(spec: MachineDefs<M>, store: Store<Data>) {
 		this.spec = spec;
 		this.store = store;
 		this.atoms = new AtomSpace();
@@ -114,13 +203,13 @@ class MachineSpace<M extends MachineSpec<M>> {
 		this.cache = Map();
 	}
 
-	create(id: Id<M>): Machine<M> {
+	create(id: Id<M>): Machine { //should infer machine type here? or maybe not
 		const state = {};
 		const head = new MachineHead(this.atoms.spawnHead(), this.store, this.saver);
 		return new Machine(state, head);
 	}
 
-	async summon(ids: Set<Id<M>>): Promise<Set<Machine<M>>> {
+	async summon(ids: Set<Id<M>>): Promise<Set<Machine>> {
 		//load states here... (from db or cache)
 		const states = Set([{}, {}]);
 
