@@ -9,17 +9,31 @@ describe('contexts and stuff', () => {
 	let atomSpace: AtomSpace<Data>
 	let space: MachineSpace<TestMachines>
 	let saver: AtomSaver<Data>
+	let resumer: Resumer<TestResumes>
 
 	beforeEach(() => {
 		store = new FakeStore(new MonoidData(), 3);
 		atomSpace = new AtomSpace();
 		space = new MachineSpace(testMachines, store);
 		saver = new AtomSaver(new MonoidData(), atomSpace);
+		resumer = new Resumer(testResumes);
 	})
 	
 	it('machine run', async () => {
 		const machine = space.create(['dummy', '123']);
-		await machine.resume();
+
+		const [resume1, next1, saving1] = machine.yield();
+		await saving1;
+
+		await resumer.handle(resume1);
+		const [resume2, next2, saving2] = await next1({});
+		await saving2;
+
+		await resumer.handle(resume2);
+		const [resume3, next3, saving3] = await next2({});
+		await saving3;
+
+		//...
 	})
 })
 
@@ -36,6 +50,10 @@ describe('contexts and stuff', () => {
 //and tracked and saved the same as everything else in the state
 //the difference is...
 //
+
+
+type RunContext = {}
+
 
 type TestResumes = SpecResumes<{
 	delay: {},
@@ -57,12 +75,12 @@ type TestMachines = SpecMachines<{
 
 
 
-const testResumes = makeResumes<TestResumes>({
+const testResumes = makeResumes<RunContext, TestResumes>({
 	end: {},
 	delay: {}
 })
 
-const testMachines = makeMachines<TestMachines, TestResumes>({
+const testMachines = makeMachines<RunContext, TestMachines, TestResumes>({
 	dummy: {
 		zero: {},
 		phases: {
@@ -85,11 +103,11 @@ type SpecMachines<M extends MachineTypes> = M;
 
 
 
-function makeResumes<R extends ResumeTypes>(r: ResumeDefs<R>) {
+function makeResumes<X extends RunContext, R extends ResumeTypes>(r: ResumeDefs<R>) {
 	return r;
 }
 
-function makeMachines<M extends MachineTypes, R extends ResumeTypes>(m: MachineDefs<M, R>) {
+function makeMachines<X extends RunContext, M extends MachineTypes, R extends ResumeTypes>(m: MachineDefs<M, R>) {
 	return m;
 }
 
@@ -154,8 +172,17 @@ type Type<M extends MachineTypes> = keyof M;
 type Id<M extends MachineTypes> = [Type<M>, string];
 
 
-interface Resumer {
-	handle(resume: Resume): void
+class Resumer<R extends ResumeTypes> {
+	private readonly defs: ResumeDefs<R>
+
+	constructor(defs: ResumeDefs<R>) {
+		this.defs = defs;
+	}
+	
+	handle(resume: keyof R): void {
+		const def = this.defs[resume];
+		//...
+	}
 }
 
 
@@ -170,6 +197,10 @@ type MachineState = {
 	resume: Resume
 }
 
+
+
+type MachineYield = [Resume, (x: RunContext) => Promise<MachineYield>, Promise<void>?]
+
 class Machine {
 	private def: MachineDef
 	private state: MachineState
@@ -181,15 +212,11 @@ class Machine {
 		this.head = head;
 	}
 
-	resume(resumer: Resumer) {
-		resumer.handle(this.state.resume);
-		//say we've just loaded the state, and called resume
-		//then we should be calling the resumption handler
-		//and when we register ourselves with the handler, we should
-		//
+	yield(): MachineYield {
+		return [this.state.resume, x => this.run(x)];
 	}
 	
-	private async run(): Promise<[Resume, Promise<void>]> {
+	private async run(x: RunContext): Promise<MachineYield> {
 		const phase = this.def.phases[this.state.phase];
 		const data = this.state.data;
 
@@ -207,7 +234,7 @@ class Machine {
 		//get the behaviour from the spec
 				
 		const saving = this.head.save();
-		return [{}, saving];
+		return [{}, x => this.run(x), saving];
 	}
 }
 

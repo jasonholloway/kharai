@@ -14,7 +14,15 @@ so the machines themselves aren't kick-started; it's their resumptions. Delays k
 
 ------------
 
-but to know what to resume, we need the machine's state
+A ResumeDef - what could be in it?
+
+obviously a handler; something that receives a resume and then tries to carry it through. Different resumes need different resources. 
+
+but then, machines themselves also need resources... 
+everything should be accessible through the run context
+
+
+
 
 
 
