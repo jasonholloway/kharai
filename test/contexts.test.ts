@@ -76,8 +76,14 @@ type TestMachines = SpecMachines<{
 
 
 const testResumes = makeResumes<RunContext, TestResumes>({
-	end: {},
-	delay: {}
+	delay: {
+		guard(body): body is {} { return true },
+		run(x, body) { return Promise.resolve(true) }
+	},
+	end: {
+		guard(body): body is {} { return true },
+		run(x, body) { return Promise.resolve(false) }
+	},
 })
 
 const testMachines = makeMachines<RunContext, TestMachines, TestResumes>({
@@ -98,42 +104,44 @@ const testMachines = makeMachines<RunContext, TestMachines, TestResumes>({
 
 
 
-type SpecResumes<R extends ResumeTypes> = R;
-type SpecMachines<M extends MachineTypes> = M;
+type SpecResumes<R extends ResumeSpec> = R;
+type SpecMachines<M extends MachineSpec> = M;
 
 
 
-function makeResumes<X extends RunContext, R extends ResumeTypes>(r: ResumeDefs<R>) {
+function makeResumes<X extends RunContext, R extends ResumeSpec>(r: ResumeDefs<R>) {
 	return r;
 }
 
-function makeMachines<X extends RunContext, M extends MachineTypes, R extends ResumeTypes>(m: MachineDefs<M, R>) {
+function makeMachines<X extends RunContext, M extends MachineSpec, R extends ResumeSpec>(m: MachineDefs<M, R>) {
 	return m;
 }
 
 
 
-type MachineDefs<M extends MachineTypes, R extends ResumeTypes = any> = {
-	[T in keyof M]: MachineDef<M[T], R>
+type MachineDefs<M extends MachineSpec, R extends ResumeSpec = any> = {
+	[K in keyof M]: MachineDef<M[K], R>
 }
 
-type ResumeDefs<R extends ResumeTypes> = {
-	[T in keyof R]: ResumeDef<R[T]>
+type ResumeDefs<R extends ResumeSpec> = {
+	[K in keyof R]: ResumeDef<R[K]>
 }
 
 
 
-type ResumeDef<R extends ResumeType> = {
+type ResumeDef<T extends ResumeType> = {
+	guard(body: any): body is T
+	run(x: RunContext, body: T): Promise<boolean>
 }
 
-type MachineDef<M extends MachineType = MachineType, R extends ResumeTypes = {}> = {
+type MachineDef<M extends MachineType = MachineType, R extends ResumeSpec = {}> = {
 	zero: any,
 	phases: {
 		[P in keyof M['phases']]: PhaseDef<M['phases'][P], R>
 	}
 }
 
-type PhaseDef<T extends PhaseType, R extends ResumeTypes> = {
+type PhaseDef<T extends PhaseType, R extends ResumeSpec> = {
 	guard(data: any): data is T['input'] 
 	run(data: T['input']): Promise<keyof R>
 }
@@ -144,7 +152,7 @@ type ResumeType = {
 }
 
 type MachineType = {
-	phases: PhaseTypes
+	phases: PhaseSpec
 }
 
 type PhaseType = {
@@ -153,35 +161,42 @@ type PhaseType = {
 
 
 
-type ResumeTypes = {
+type ResumeSpec = {
 	[type: string]: any
 }
 
-type MachineTypes = {
+type MachineSpec = {
 	[type: string]: MachineType
 }
 
-type PhaseTypes = {
+type PhaseSpec = {
 	[type: string]: PhaseType
 }
 
 
+type ResumeTypes<R extends ResumeSpec> = { [K in keyof R]: [K, R[K]] }[keyof R]
 
 
-type Type<M extends MachineTypes> = keyof M;
-type Id<M extends MachineTypes> = [Type<M>, string];
+
+type Type<M extends MachineSpec> = keyof M;
+type Id<M extends MachineSpec> = [Type<M>, string];
 
 
-class Resumer<R extends ResumeTypes> {
+class Resumer<R extends ResumeSpec> {
 	private readonly defs: ResumeDefs<R>
 
 	constructor(defs: ResumeDefs<R>) {
 		this.defs = defs;
 	}
 	
-	handle(resume: keyof R): void {
-		const def = this.defs[resume];
-		//...
+	handle([key, body]: ResumeTypes<R>): void {
+		const def = this.defs[key];
+
+		(async () => {
+			const proceed = await def.run({}, body);
+			//such waiting on promise should accumulate somewhere
+			//individual resumes should get a cancel token via the run context
+		})();
 	}
 }
 
@@ -194,7 +209,7 @@ type Data = Map<string, any>
 type MachineState = {
 	data: {}
 	phase: string
-	resume: Resume
+	resume: any
 }
 
 
@@ -258,7 +273,7 @@ class MachineHead {
 	}
 }
 
-class MachineSpace<M extends MachineTypes> {
+class MachineSpace<M extends MachineSpec> {
 	private readonly defs: MachineDefs<M>
 	private readonly store: Store<Data>
 	private readonly atoms: AtomSpace<Data>
