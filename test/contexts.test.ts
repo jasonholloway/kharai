@@ -27,22 +27,21 @@ describe('contexts and stuff', () => {
 
 		console.log(resume1);
 
-		await resumer.handle(resume1);
+		if(!await resumer.run(resume1)) return;
 		const [resume2, next2, saving2] = await next1({});
 		await saving2;
 
 		console.log(resume2);
 
-		await resumer.handle(resume2);
+		if(!await resumer.run(resume2)) return;
 		const [resume3, next3, saving3] = await next2({});
 		await saving3;
 
-		//...
+		console.log(resume3);
 	})
 })
 
 
-type RunContext = {}
 
 
 type TestResumes = SpecResumes<{
@@ -62,7 +61,7 @@ type TestMachines = SpecMachines<{
 	}
 }>
 
-
+type RunContext = {}
 
 const testResumes = makeResumes<RunContext, TestResumes>({
 	delay: {
@@ -92,95 +91,84 @@ const testMachines = makeMachines<RunContext, TestMachines, TestResumes>({
 
 
 
-type SpecResumes<R extends ResumeSpec> = R;
-type SpecMachines<M extends MachineSpec> = M;
 
 
 
-function makeResumes<X extends RunContext, R extends ResumeSpec>(r: ResumeDefs<R>) {
-	return r;
+
+
+
+
+type Keyed<T> = { [key: string]: T }
+type Keys<O> = keyof O & string;
+
+type ResumeSpecs = Keyed<any>
+type MachineSpecs = Keyed<MachineSpec>
+type PhaseSpecs = Keyed<PhaseSpec>
+
+type Id<M extends MachineSpecs> = [Keys<M>, string];
+type Resume<R extends ResumeSpecs = any> = ({ [K in keyof R]: [K, R[K]] }[keyof R]) | ['go'] | ['end'] 
+
+type MachineSpec = {
+	phases: PhaseSpecs
 }
 
-function makeMachines<X extends RunContext, M extends MachineSpec, R extends ResumeSpec>(m: MachineDefs<M, R>) {
-	return m;
+type PhaseSpec = {
+	input: any
 }
 
 
-
-type MachineDefs<M extends MachineSpec, R extends ResumeSpec> = {
-	[K in keyof M & string]: MachineDef<M[K], R>
+type MachineDefs<M extends MachineSpecs, R extends ResumeSpecs> = {
+	[K in Keys<M>]: MachineDef<M[K], R>
 }
 
-type ResumeDefs<R extends ResumeSpec> = {
-	[K in keyof R & string]: ResumeDef<R[K]>
+type ResumeDefs<R extends ResumeSpecs> = {
+	[K in Keys<R>]: ResumeDef<R[K]>
 }
 
-
-
-type ResumeDef<T extends ResumeType> = {
+type ResumeDef<T> = {
 	guard(body: any): body is T
 	run(x: RunContext, body: T): Promise<boolean>
 }
 
-type MachineDef<M extends MachineType = MachineType, R extends ResumeSpec = ResumeSpec> = {
+type MachineDef<M extends MachineSpec = MachineSpec, R extends ResumeSpecs = ResumeSpecs> = {
 	zero: Omit<MachineState<M, R>, 'resume'>,
 	phases: {
-		[P in keyof M['phases'] & string]: PhaseDef<M['phases'][P], R>
+		[P in Keys<M['phases']>]: PhaseDef<M['phases'][P], R>
 	}
 }
 
-type PhaseDef<T extends PhaseType, R extends ResumeSpec> = {
+type PhaseDef<T extends PhaseSpec, R extends ResumeSpecs> = {
 	guard(data: any): data is T['input'] 
 	run(data: T['input']): Promise<Resume<R>>
 }
 
 
+type SpecResumes<R extends ResumeSpecs> = R;
+type SpecMachines<M extends MachineSpecs> = M;
 
-type ResumeType = {
+
+function makeResumes<X extends RunContext, R extends ResumeSpecs>(r: ResumeDefs<R>) {
+	return r;
 }
 
-type MachineType = {
-	phases: PhaseSpec
-}
-
-type PhaseType = {
-	input: any
-}
-
-
-
-type ResumeSpec = {
-	[type: string]: any
-}
-
-type MachineSpec = {
-	[type: string]: MachineType
-}
-
-type PhaseSpec = {
-	[type: string]: PhaseType
+function makeMachines<X extends RunContext, M extends MachineSpecs, R extends ResumeSpecs>(m: MachineDefs<M, R>) {
+	return m;
 }
 
 
-type Resume<R extends ResumeSpec = any> = ({ [K in keyof R]: [K, R[K]] }[keyof R]) | ['end']
-
-type Type<M extends MachineSpec> = keyof M;
-type Id<M extends MachineSpec> = [Type<M>, string];
 
 
-class Resumer<R extends ResumeSpec> {
+class Resumer<R extends ResumeSpecs> {
 	private readonly defs: ResumeDefs<R>
 
 	constructor(defs: ResumeDefs<R>) {
 		this.defs = defs;
 	}
 	
-	handle([key, body]: Resume): void {
+	async run([key, body]: Resume): Promise<boolean> {
 		switch(key) {
-			case 'end':
-				//...
-				return;
-
+			case 'go': return true;
+			case 'end': return false;
 			default:
 				const def = this.defs[key];
 				if(!def) {
@@ -188,11 +176,7 @@ class Resumer<R extends ResumeSpec> {
 				}
 
 				if(def.guard(body)) {
-					(async () => {
-						const proceed = await def.run({}, body);
-						//such waiting on promise should accumulate somewhere
-						//individual resumes should get a cancel token via the run context
-					})();
+					return await def.run({}, body);
 				}
 				else {
 					throw Error('bad resume body!');
@@ -204,9 +188,9 @@ class Resumer<R extends ResumeSpec> {
 
 type Data = Map<string, any>
 
-type MachineState<M extends MachineType = MachineType, R extends ResumeSpec = any> = {
+type MachineState<M extends MachineSpec = MachineSpec, R extends ResumeSpecs = any> = {
 	data: any
-	phase: keyof M['phases']
+	phase: Keys<M['phases']>
 	resume: Resume<R>
 }
 
@@ -214,12 +198,12 @@ type MachineState<M extends MachineType = MachineType, R extends ResumeSpec = an
 
 type MachineYield = readonly [Resume, (x: RunContext) => Promise<MachineYield>, Promise<void>?]
 
-class Machine<R extends ResumeSpec> {
-	private def: MachineDef<MachineType, R>
+class Machine<R extends ResumeSpecs> {
+	private def: MachineDef<MachineSpec, R>
 	private state: MachineState
 	private head: MachineHead
 
-	constructor(def: MachineDef<MachineType, R>, state: MachineState, head: MachineHead) {
+	constructor(def: MachineDef<MachineSpec, R>, state: MachineState, head: MachineHead) {
 		this.def = def;
 		this.state = state;
 		this.head = head;
@@ -271,7 +255,7 @@ class MachineHead {
 	}
 }
 
-class MachineSpace<M extends MachineSpec, R extends ResumeSpec> {
+class MachineSpace<M extends MachineSpecs, R extends ResumeSpecs> {
 	private readonly defs: MachineDefs<M, R>
 	private readonly store: Store<Data>
 	private readonly atoms: AtomSpace<Data>
@@ -289,14 +273,14 @@ class MachineSpace<M extends MachineSpec, R extends ResumeSpec> {
 	create([type, id]: Id<M>): Machine<R> { //should infer machine type here? or maybe not
 		const head = new MachineHead(this.atoms.spawnHead(), this.store, this.saver);
 		const def = this.defs[type];
-		return new Machine(def, def.zero, head);
+		return new Machine(def, { ...def.zero, resume: ['go'] }, head);
 	}
 
 	async summon(ids: Set<Id<M>>): Promise<Set<Machine<R>>> {
 		return ids.map(([type, id]) => {
 			const head = new MachineHead(this.atoms.spawnHead(), this.store, this.saver);
 			const def = this.defs[type];
-			return new Machine(def, def.zero, head);
+			return new Machine(def, { ...def.zero, resume: ['go'] }, head);
 		});
 	}
 }
