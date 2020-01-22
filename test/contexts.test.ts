@@ -3,6 +3,7 @@ import _Monoid from '../src/_Monoid'
 import Store from '../src/Store'
 import AtomSpace, { Head } from '../src/AtomSpace'
 import AtomSaver from '../src/AtomSaver'
+import { isString } from 'util'
 
 describe('contexts and stuff', () => {
 	let store: FakeStore
@@ -22,26 +23,33 @@ describe('contexts and stuff', () => {
 	it('machine run', async () => {
 		const machine = space.create(['dummy', '123']);
 
-		const [resume1, next1, saving1] = machine.yield();
-		await saving1;
-
-		console.log(resume1);
-
-		if(!await resumer.run(resume1)) return;
-		const [resume2, next2, saving2] = await next1({});
-		await saving2;
-
-		console.log(resume2);
-
-		if(!await resumer.run(resume2)) return;
-		const [resume3, next3, saving3] = await next2({});
-		await saving3;
-
-		console.log(resume3);
+		for await (let log of runMachine({}, machine)) {
+			console.log(log);
+		}
 	})
+
+	async function *runMachine(x: RunContext, machine: Machine<MachineSpec, TestResumes>) {
+		let [resume, run, saving] = machine.yield();
+		if(saving) yield ['save', saving] as const;
+		
+		while(true) {
+			const phase = await resumer.run(x, resume);
+			if(!phase) return;
+
+			yield ['phase', phase] as const;
+
+			[resume, run, saving] = await run(x, phase);
+			if(saving) yield ['save', saving] as const;
+		}
+	}
+	
 })
 
 
+
+
+type RunContext = {
+}
 
 
 type TestResumes = SpecResumes<{
@@ -53,7 +61,10 @@ type TestMachines = SpecMachines<{
 		phases: {
 			start: {
 				input: number
-			},
+			}
+			middle: {
+				input: any
+			}
 			finish: {
 				input: any
 			}
@@ -61,7 +72,12 @@ type TestMachines = SpecMachines<{
 	}
 }>
 
-type RunContext = {}
+type TestWorld = {
+	context: RunContext
+	resumes: TestResumes,
+	machines: TestMachines
+}
+
 
 const testResumes = makeResumes<RunContext, TestResumes>({
 	delay: {
@@ -73,22 +89,36 @@ const testResumes = makeResumes<RunContext, TestResumes>({
 const testMachines = makeMachines<RunContext, TestMachines, TestResumes>({
 	dummy: {
 		zero: {
-			phase: 'finish',
 			data: {},
+			resume: 'start'
 		},
 		phases: {
 			start: {
-				guard(x): x is number { return true; },
-				async run(_) { return ['end']; }
+				guard(d): d is number { return true; },
+				async run(x, _) {
+					return 'middle';
+				}
+			},
+			middle: {
+				guard(x): x is any { return true },
+				async run(_) {
+					return [['delay', {}], 'finish']
+				}
 			},
 			finish: {
 				guard(x): x is any { return true; },
-				async run(_) { return ['delay', {}] }
+				async run(_) { return false }
 			}
 		}
 	}
 })
 
+
+
+const testWorld = makeWorld<TestWorld>({
+	resumes: testResumes,
+	machines: testMachines
+})
 
 
 
@@ -100,13 +130,21 @@ const testMachines = makeMachines<RunContext, TestMachines, TestResumes>({
 
 type Keyed<T> = { [key: string]: T }
 type Keys<O> = keyof O & string;
+type PhaseKeys<M extends MachineSpec> = Keys<M['phases']>
 
 type ResumeSpecs = Keyed<any>
 type MachineSpecs = Keyed<MachineSpec>
 type PhaseSpecs = Keyed<PhaseSpec>
 
-type Id<M extends MachineSpecs> = [Keys<M>, string];
-type Resume<R extends ResumeSpecs = any> = ({ [K in keyof R]: [K, R[K]] }[keyof R]) | ['go'] | ['end'] 
+type Id<MM extends MachineSpecs> = [Keys<MM>, string];
+
+type Resume<M extends MachineSpec = MachineSpec, R extends ResumeSpecs = any> =
+	  false
+	| PhaseKeys<M>
+	| [
+			({ [K in keyof R]: K extends string ? [K, R[K]] : never }[keyof R]),
+			PhaseKeys<M>
+		]
 
 type MachineSpec = {
 	phases: PhaseSpecs
@@ -117,12 +155,12 @@ type PhaseSpec = {
 }
 
 
-type MachineDefs<M extends MachineSpecs, R extends ResumeSpecs> = {
-	[K in Keys<M>]: MachineDef<M[K], R>
+type MachineDefs<MM extends MachineSpecs, R extends ResumeSpecs> = {
+	[K in keyof MM]: MachineDef<MM[K], R>
 }
 
 type ResumeDefs<R extends ResumeSpecs> = {
-	[K in Keys<R>]: ResumeDef<R[K]>
+	[K in keyof R]: ResumeDef<R[K]>
 }
 
 type ResumeDef<T> = {
@@ -131,21 +169,38 @@ type ResumeDef<T> = {
 }
 
 type MachineDef<M extends MachineSpec = MachineSpec, R extends ResumeSpecs = ResumeSpecs> = {
-	zero: Omit<MachineState<M, R>, 'resume'>,
+	zero: MachineState<M, R>,
 	phases: {
-		[P in Keys<M['phases']>]: PhaseDef<M['phases'][P], R>
+		[P in PhaseKeys<M>]: PhaseDef<M, M['phases'][P], R>
 	}
 }
 
-type PhaseDef<T extends PhaseSpec, R extends ResumeSpecs> = {
-	guard(data: any): data is T['input'] 
-	run(data: T['input']): Promise<Resume<R>>
+type PhaseDef<M extends MachineSpec, P extends PhaseSpec, R extends ResumeSpecs> = {
+	guard(d: any): d is P['input'] 
+	run(x: RunContext, d: P['input']): Promise<Resume<M, R>>
 }
 
 
 type SpecResumes<R extends ResumeSpecs> = R;
 type SpecMachines<M extends MachineSpecs> = M;
 
+
+
+type Spec = {
+	context: RunContext
+	resumes: ResumeSpecs
+	machines: MachineSpecs
+}
+
+type Def<S extends Spec> = {
+	resumes: ResumeDefs<S['resumes']>
+	machines: MachineDefs<S['machines'], S['resumes']>
+}
+
+
+function makeWorld<S extends Spec>(def: Def<S>) {
+	return def;
+}
 
 function makeResumes<X extends RunContext, R extends ResumeSpecs>(r: ResumeDefs<R>) {
 	return r;
@@ -155,9 +210,6 @@ function makeMachines<X extends RunContext, M extends MachineSpecs, R extends Re
 	return m;
 }
 
-
-
-
 class Resumer<R extends ResumeSpecs> {
 	private readonly defs: ResumeDefs<R>
 
@@ -165,23 +217,23 @@ class Resumer<R extends ResumeSpecs> {
 		this.defs = defs;
 	}
 	
-	async run([key, body]: Resume): Promise<boolean> {
-		switch(key) {
-			case 'go': return true;
-			case 'end': return false;
-			default:
-				const def = this.defs[key];
-				if(!def) {
-					throw Error('bad resume key!');
-				}
-
-				if(def.guard(body)) {
-					return await def.run({}, body);
-				}
-				else {
-					throw Error('bad resume body!');
-				}
+	async run<M extends MachineSpec>(x: RunContext, resume: Resume): Promise<string|false> {
+		if(!resume) return false;
+		if(isString(resume)) {
+			return resume;
 		}
+
+		const [[key, body], phase] = resume;
+
+		const def = this.defs[key];
+		if(!def) throw Error('bad resume key!');
+		if(!def.guard(body)) throw Error('bad resume body!');
+
+		if(!await def.run(x, body)) {
+			return false;
+		}
+
+		return phase;
 	}
 }
 
@@ -190,38 +242,37 @@ type Data = Map<string, any>
 
 type MachineState<M extends MachineSpec = MachineSpec, R extends ResumeSpecs = any> = {
 	data: any
-	phase: Keys<M['phases']>
-	resume: Resume<R>
+	resume: Resume<M, R>
 }
 
 
 
-type MachineYield = readonly [Resume, (x: RunContext) => Promise<MachineYield>, Promise<void>?]
+type MachineYield = readonly [Resume, (x: RunContext, p: string) => Promise<MachineYield>, Promise<void>?]
 
-class Machine<R extends ResumeSpecs> {
-	private def: MachineDef<MachineSpec, R>
+class Machine<M extends MachineSpec, R extends ResumeSpecs> {
+	private def: MachineDef<M, R>
 	private state: MachineState
 	private head: MachineHead
 
-	constructor(def: MachineDef<MachineSpec, R>, state: MachineState, head: MachineHead) {
+	constructor(def: MachineDef<M, R>, state: Readonly<MachineState>, head: MachineHead) {
 		this.def = def;
 		this.state = state;
 		this.head = head;
 	}
 
 	yield(): MachineYield {
-		return [this.state.resume, x => this.run(x)];
+		return [this.state.resume, this.run.bind(this)];
 	}
 	
-	private async run(x: RunContext): Promise<MachineYield> {
-		const phase = this.def.phases[this.state.phase];
+	private async run(x: RunContext, phaseKey: PhaseKeys<M>): Promise<MachineYield> {
+		const phase = this.def.phases[phaseKey];
 		const data = this.state.data;
 
 		if(!phase.guard(data)) {
 			throw Error('guard failed');
 		}
 		else {
-			const result = await phase.run(data);
+			const result = await phase.run(x, data);
 
 			//now give the resume to the handler
 			//GIVE TO RESUMER NOw
@@ -231,7 +282,7 @@ class Machine<R extends ResumeSpecs> {
 		//get the behaviour from the spec
 				
 		const saving = this.head.save();
-		return [['end'], x => this.run(x), saving];
+		return [false, this.run.bind(this), saving];
 	}
 }
 
@@ -255,14 +306,14 @@ class MachineHead {
 	}
 }
 
-class MachineSpace<M extends MachineSpecs, R extends ResumeSpecs> {
-	private readonly defs: MachineDefs<M, R>
+class MachineSpace<MM extends MachineSpecs, R extends ResumeSpecs> {
+	private readonly defs: MachineDefs<MM, R>
 	private readonly store: Store<Data>
 	private readonly atoms: AtomSpace<Data>
 	private readonly saver: AtomSaver<Data>
-	private cache: Map<Id<M>, Machine<R>>
+	private cache: Map<Id<MM>, Machine<MachineSpec, R>>
 
-	constructor(defs: MachineDefs<M, R>, store: Store<Data>) {
+	constructor(defs: MachineDefs<MM, R>, store: Store<Data>) {
 		this.defs = defs;
 		this.store = store;
 		this.atoms = new AtomSpace();
@@ -270,17 +321,17 @@ class MachineSpace<M extends MachineSpecs, R extends ResumeSpecs> {
 		this.cache = Map();
 	}
 
-	create([type, id]: Id<M>): Machine<R> { //should infer machine type here? or maybe not
+	create([type, id]: Id<any>): Machine<MM[string], R> { //should infer machine type here? or maybe not
 		const head = new MachineHead(this.atoms.spawnHead(), this.store, this.saver);
 		const def = this.defs[type];
-		return new Machine(def, { ...def.zero, resume: ['go'] }, head);
+		return new Machine(def, def.zero, head);
 	}
 
-	async summon(ids: Set<Id<M>>): Promise<Set<Machine<R>>> {
+	async summon(ids: Set<Id<MM>>): Promise<Set<Machine<MM[string], R>>> {
 		return ids.map(([type, id]) => {
 			const head = new MachineHead(this.atoms.spawnHead(), this.store, this.saver);
 			const def = this.defs[type];
-			return new Machine(def, { ...def.zero, resume: ['go'] }, head);
+			return new Machine(def, def.zero, head);
 		});
 	}
 }
