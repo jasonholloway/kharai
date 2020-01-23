@@ -22,12 +22,62 @@ describe('contexts and stuff', () => {
 	
 	it('machine run', async () => {
 		const machine = space.create(['dummy', '123']);
-
 		const phases = await collectPhases(runMachine({}, machine))
 
-		expect(phases).toEqual(List(['blah', 'blah']));
+		expect(phases).toEqual(List(['start', 'middle', 'end']));
 	})
 
+
+	interface TestWorld extends SpecWorld<{
+		context: {}
+		resumes: {
+			delay: {}
+		}
+		machines: {
+			dummy: {
+				phases: {
+					start: { input: number }
+					middle: { input: any }
+					end: { input: any }
+				}
+			}
+		}
+	}> {}
+
+	const testWorld = makeWorld<TestWorld>({
+		resumes: {
+			delay: {
+				guard(body): body is {} { return true },
+				run(x, body) { return Promise.resolve(true) }
+			}
+		},
+		machines: {
+			dummy: {
+				zero: {
+					data: {},
+					resume: 'start'
+				},
+				phases: {
+					start: {
+						guard(d): d is number { return true; },
+						async run(x, _) {
+							return 'middle';
+						}
+					},
+					middle: {
+						guard(x): x is any { return true },
+						async run() {
+							return 'end';
+						}
+					},
+					end: {
+						guard(x): x is any { return true; },
+						async run(_) { return false }
+					}
+				}
+			}
+		}
+	})
 
 
 	type RunYield = readonly ['phase', string] | readonly ['save', any]
@@ -64,57 +114,6 @@ describe('contexts and stuff', () => {
 
 
 
-type TestWorld = SpecWorld<{
-	context: {}
-	resumes: {
-		delay: {}
-	}
-	machines: {
-		dummy: {
-			phases: {
-				start: { input: number }
-				middle: { input: any }
-				finish: { input: any }
-			}
-		}
-	}
-}>
-
-
-const testWorld = makeWorld<TestWorld>({
-	resumes: {
-		delay: {
-			guard(body): body is {} { return true },
-			run(x, body) { return Promise.resolve(true) }
-		}
-	},
-	machines: {
-		dummy: {
-			zero: {
-				data: {},
-				resume: 'start'
-			},
-			phases: {
-				start: {
-					guard(d): d is number { return true; },
-					async run(x, _) {
-						return 'middle';
-					}
-				},
-				middle: {
-					guard(x): x is any { return true },
-					async run() {
-						return [['delay', {}], 'finish']
-					}
-				},
-				finish: {
-					guard(x): x is any { return true; },
-					async run(_) { return false }
-				}
-			}
-		}
-	}
-})
 
 
 
@@ -257,17 +256,12 @@ class MachineHost<W extends World, M extends Machine<W> = Machine<W>> {
 			throw Error('guard failed');
 		}
 		else {
-			const result = await phase.run(x, data);
+			const resume = await phase.run(x, data);
 
-			//now give the resume to the handler
-			//GIVE TO RESUMER NOw
+			const saving = this.head.save();
+
+			return [resume, this.run.bind(this), saving]; //shouldn't be saving quite like this
 		}
-
-		//perform...
-		//get the behaviour from the spec
-				
-		const saving = this.head.save();
-		return [false, this.run.bind(this), saving];
 	}
 }
 
