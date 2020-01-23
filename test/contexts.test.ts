@@ -1,4 +1,4 @@
-import { Map, Set } from 'immutable'
+import { Map, Set, List } from 'immutable'
 import _Monoid from '../src/_Monoid'
 import Store from '../src/Store'
 import AtomSpace, { Head } from '../src/AtomSpace'
@@ -23,10 +23,16 @@ describe('contexts and stuff', () => {
 	it('machine run', async () => {
 		const machine = space.create(['dummy', '123']);
 
-		for await (let log of runMachine({}, machine)) {
-			console.log(log);
-		}
+		const logs = (await collect(runMachine({}, machine))).map(([l]) => l)
+
+		expect(logs).toEqual(List(['blah', 'blah']));
 	})
+
+	async function collect<V>(gen: AsyncIterable<V>): Promise<List<V>> {
+		const collected: V[] = [];
+		for await (let val of gen) collected.push(val);
+		return List(collected)
+	}
 
 	async function *runMachine(x: RunContext, machine: Machine<MachineSpec, TestResumes>) {
 		let [resume, run, saving] = machine.yield();
