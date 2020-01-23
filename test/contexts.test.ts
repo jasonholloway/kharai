@@ -45,7 +45,7 @@ describe('contexts and stuff', () => {
 		return List(collected)
 	}
 
-	async function *runMachine(x: RunContext, machine: MachineHost<TestWorld>) : AsyncIterable<RunYield> {
+	async function *runMachine(x: Context<TestWorld>, machine: MachineHost<TestWorld>) : AsyncIterable<RunYield> {
 		let [resume, run, saving] = machine.yield();
 		if(saving) yield ['save', saving];
 		
@@ -64,11 +64,8 @@ describe('contexts and stuff', () => {
 
 
 
-type RunContext = {
-}
-
 type TestWorld = SpecWorld<{
-	context: RunContext
+	context: {}
 	resumes: {
 		delay: {}
 	}
@@ -161,7 +158,7 @@ type WorldImpl<W extends World> = {
 
 type ResumeImpl<W extends World, R extends Resume<W> = Resume<W>> = {
 	guard(r: R): r is R
-	run(x: RunContext, r: R): Promise<boolean>
+	run(x: Context<W>, r: R): Promise<boolean>
 }
 
 type MachineImpl<W extends World, M extends Machine<W> = Machine<W>> = {
@@ -173,7 +170,7 @@ type MachineImpl<W extends World, M extends Machine<W> = Machine<W>> = {
 
 type PhaseImpl<W extends World, M extends Machine<W>, P extends Phase<W, M>> = {
 	guard(d: any): d is P['input'] 
-	run(x: RunContext, d: P['input']): Promise<ResumeCommand<W, M>>
+	run(x: Context<W>, d: P['input']): Promise<ResumeCommand<W, M>>
 }
 
 
@@ -192,7 +189,7 @@ class Resumer<W extends World> {
 		this.world = world;
 	}
 	
-	async run<M extends Machine<W>>(x: RunContext, resume: ResumeCommand<W, M>): Promise<string|false> {
+	async run<M extends Machine<W>>(x: Context<W>, resume: ResumeCommand<W, M>): Promise<string|false> {
 		if(!resume) return false;
 		if(isString(resume)) {
 			return resume;
@@ -220,6 +217,7 @@ type MachineState<W extends World, M extends Machine<W> = Machine<W>> = {
 	resume: ResumeCommand<W, M>
 }
 
+type Context<W extends World> = W['context']
 type Resume<W extends World, K extends ResumeKeys<W> = ResumeKeys<W>> = W['resumes'][K]
 type Machine<W extends World, K extends MachineKeys<W> = MachineKeys<W>> = W['machines'][K]
 type Phase<W extends World, M extends Machine<W>, K extends PhaseKeys<M> = PhaseKeys<M>> = M['phases'][K]
@@ -234,7 +232,7 @@ type ResumeCommand<W extends World, M extends Machine<W>> =
 
 
 
-type MachineYield<W extends World, M extends Machine<W>> = readonly [ResumeCommand<W, M>, (x: RunContext, p: string) => Promise<MachineYield<W, M>>, Promise<void>?]
+type MachineYield<W extends World, M extends Machine<W>> = readonly [ResumeCommand<W, M>, (x: Context<W>, p: string) => Promise<MachineYield<W, M>>, Promise<void>?]
 
 class MachineHost<W extends World, M extends Machine<W> = Machine<W>> {
 	private def: MachineImpl<W, M>
@@ -251,7 +249,7 @@ class MachineHost<W extends World, M extends Machine<W> = Machine<W>> {
 		return [this.state.resume, this.run.bind(this)];
 	}
 	
-	private async run(x: RunContext, phaseKey: PhaseKeys<M>): Promise<MachineYield<W, M>> {
+	private async run(x: Context<W>, phaseKey: PhaseKeys<M>): Promise<MachineYield<W, M>> {
 		const phase = this.def.phases[phaseKey];
 		const data = this.state.data;
 
