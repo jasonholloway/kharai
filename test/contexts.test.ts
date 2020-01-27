@@ -29,10 +29,11 @@ describe('machines: running', () => {
 	
 	it('run through phases', async () => {
 		const [space, run] = prepare(world1);
+		const resumer = new Resumer(world1);
 
 		const machine = space.create(['dummy', '123']);
 
-		const phases = await collectPhases(run(await machine.start()))
+		const phases = await collectPhases(run(machine, resumer, machine.boot()))
 
 		expect(phases).toEqual(List(['start', 'middle', 'end']));
 	})
@@ -83,35 +84,37 @@ describe('machines: running', () => {
 	
 
 	function prepare<W extends World>(world: WorldImpl<W>) {
-		const resumer = new Resumer(world);
 		const space = new MachineSpace(world, () => Promise.resolve(Set()));
 		return [space, run] as const;
 
-		async function *run<M extends Machine<W>>(_in: Set<Out<W, M>>): AsyncIterable<Out<W, M>> {
+		async function *run<M extends Machine<W>>(machine: MachineHost<W, M>, resumer: Resumer<W>, boot: Out<W, M>): AsyncIterable<Out<W, M>> {
 			let machineRun: (x: Context<W>, p: PhaseKey<M>) => Yield<MachineOut<W, M>> = async () => Set()
 
-			while(!_in.isEmpty()) {
+			let _in = Set([boot]);
+
+			do {
 				let _out = Set();
 
 				for await(let y of _in) {  //should be done in parallel
-					yield y;
 					switch(y[0]) {
-						case 'resume': {
-							machineRun = y[2];
-							_out = _out.union(await resumer.run({}, y[1]));
+						case 'resume':
+							_out = _out.union(
+								await resumer.run({}, y[1])
+							);
 							break;
-						}
 
-						case 'phase': {
-							const [, phase] = y;
-							_out = _out.union(await machineRun({}, phase));
+						case 'phase':
+							_out = _out.union(
+								await machine.run({}, y[1])
+							);
 							break;
-						}
 					}
+
+					yield y;
 				}
 
 				_in = _out;
-			}
+			} while(!_in.isEmpty())
 		}
 	}
 
@@ -256,7 +259,7 @@ type ResumeCommand<W extends World, M extends Machine<W>> =
 		]
 
 type MachineOut<W extends World, M extends Machine<W> = Machine<W>> =
-		['resume', ResumeCommand<W, M>, (x: Context<W>, p: PhaseKey<M>) => Yield<MachineOut<W, M>>]
+		['resume', ResumeCommand<W, M>]
   | ['save', Head<Data>]
   | ['end']
 
@@ -271,11 +274,11 @@ class MachineHost<W extends World, M extends Machine<W> = Machine<W>> {
 		this.head = head;
 	}
 
-	async start(): Yield<MachineOut<W, M>> {
-		return Set([['resume', this.state.resume, this.run.bind(this)]])
+	boot(): MachineOut<W, M> {
+		return ['resume', this.state.resume];
 	}
 	
-	private async run(x: Context<W>, phaseKey: PhaseKey<M>): Yield<MachineOut<W, M>> {
+	async run(x: Context<W>, phaseKey: PhaseKey<M>): Yield<MachineOut<W, M>> {
 		const phase = this.def.phases[phaseKey];
 		const data = this.state.data;
 
@@ -288,7 +291,7 @@ class MachineHost<W extends World, M extends Machine<W> = Machine<W>> {
 
 			return Set([
 				['save', this.head],
-				['resume', resume, this.run.bind(this)]
+				['resume', resume]
 			]);
 		}
 	}
