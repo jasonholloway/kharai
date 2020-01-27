@@ -21,19 +21,14 @@ describe('machines: loading and saving', () => {
 
 
 describe('machines: running', () => {
-	let atomSpace: AtomSpace<Data>
-
-	beforeEach(() => {
-		atomSpace = new AtomSpace();
-	})
 	
 	it('run through phases', async () => {
-		const [space, run] = prepare(world1);
+		const space = new MachineSpace(world1, () => Promise.resolve(Set()));
 		const resumer = new Resumer(world1);
-
 		const machine = space.create(['dummy', '123']);
+		const runner = new MachineRunner(machine, resumer);
 
-		const phases = await collectPhases(run(machine, resumer, machine.boot()))
+		const phases = await collectPhases(runner.run(machine.boot()))
 
 		expect(phases).toEqual(List(['start', 'middle', 'end']));
 	})
@@ -78,46 +73,6 @@ describe('machines: running', () => {
 		}
 	})
 
-	type Out<W extends World, M extends Machine<W>> =
-			MachineOut<W, M>
-		| ResumeOut<W, M>
-	
-
-	function prepare<W extends World>(world: WorldImpl<W>) {
-		const space = new MachineSpace(world, () => Promise.resolve(Set()));
-		return [space, run] as const;
-
-		async function *run<M extends Machine<W>>(machine: MachineHost<W, M>, resumer: Resumer<W>, boot: Out<W, M>): AsyncIterable<Out<W, M>> {
-			let machineRun: (x: Context<W>, p: PhaseKey<M>) => Yield<MachineOut<W, M>> = async () => Set()
-
-			let _in = Set([boot]);
-
-			do {
-				let _out = Set();
-
-				for await(let y of _in) {  //should be done in parallel
-					switch(y[0]) {
-						case 'resume':
-							_out = _out.union(
-								await resumer.run({}, y[1])
-							);
-							break;
-
-						case 'phase':
-							_out = _out.union(
-								await machine.run({}, y[1])
-							);
-							break;
-					}
-
-					yield y;
-				}
-
-				_in = _out;
-			} while(!_in.isEmpty())
-		}
-	}
-
 	async function collectPhases<W extends World, M extends Machine<W>>(gen: AsyncIterable<Out<W, M>>) {
 		const yields = await collect(gen);
 		return yields
@@ -133,6 +88,9 @@ describe('machines: running', () => {
 })
 
 
+type Out<W extends World, M extends Machine<W>> =
+		MachineOut<W, M>
+	| ResumeOut<W, M>
 
 
 type Keyed<T> = { [key: string]: T }
@@ -294,6 +252,44 @@ class MachineHost<W extends World, M extends Machine<W> = Machine<W>> {
 				['resume', resume]
 			]);
 		}
+	}
+}
+
+class MachineRunner<W extends World, M extends Machine<W>> {
+	private readonly machine: MachineHost<W, M>
+	private readonly resumer: Resumer<W>
+
+	constructor(machine: MachineHost<W, M>, resumer: Resumer<W>) {
+		this.machine = machine;
+		this.resumer = resumer;
+	}
+
+	async *run(boot: Out<W, M>): AsyncIterable<Out<W, M>> {
+		let _in = Set([boot]);
+
+		do {
+			let _out = Set();
+
+			for await(let y of _in) {  //should be done in parallel
+				switch(y[0]) {
+					case 'resume':
+						_out = _out.union(
+							await this.resumer.run({}, y[1])
+						);
+						break;
+
+					case 'phase':
+						_out = _out.union(
+							await this.machine.run({}, y[1])
+						);
+						break;
+				}
+
+				yield y;
+			}
+
+			_in = _out;
+		} while(!_in.isEmpty())
 	}
 }
 
