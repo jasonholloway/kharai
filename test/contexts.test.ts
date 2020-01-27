@@ -3,24 +3,36 @@ import _Monoid from '../src/_Monoid'
 import Store from '../src/Store'
 import AtomSpace, { Head } from '../src/AtomSpace'
 import AtomSaver from '../src/AtomSaver'
-import { isString } from 'util'
+import { isString, isArray } from 'util'
 
-describe('machines', () => {
-	let store: FakeStore
+describe('machines: loading and saving', () => {
 	let atomSpace: AtomSpace<Data>
+	let store: FakeStore
 	let saver: AtomSaver<Data>
 
 	beforeEach(() => {
-		store = new FakeStore(new MonoidData(), 3);
 		atomSpace = new AtomSpace();
 		saver = new AtomSaver(new MonoidData(), atomSpace);
+		store = new FakeStore(new MonoidData(), 3);
+	})
+
+	//...
+})
+
+
+describe('machines: running', () => {
+	let atomSpace: AtomSpace<Data>
+
+	beforeEach(() => {
+		atomSpace = new AtomSpace();
 	})
 	
 	it('run through phases', async () => {
 		const [space, run] = prepare(world1);
 
 		const machine = space.create(['dummy', '123']);
-		const phases = await collectPhases(run({}, machine))
+
+		const phases = await collectPhases(run(await machine.start()))
 
 		expect(phases).toEqual(List(['start', 'middle', 'end']));
 	})
@@ -65,32 +77,45 @@ describe('machines', () => {
 		}
 	})
 
-
+	type Out<W extends World, M extends Machine<W>> =
+			MachineOut<W, M>
+		| ResumeOut<W, M>
+	
 
 	function prepare<W extends World>(world: WorldImpl<W>) {
 		const resumer = new Resumer(world);
-		const space = new MachineSpace(world, store);
-		return [space, runMachine] as const;
+		const space = new MachineSpace(world, () => Promise.resolve(Set()));
+		return [space, run] as const;
 
-		async function *runMachine(x: Context<W>, machine: MachineHost<W>) : AsyncIterable<RunYield> {
-			let [resume, run, head] = machine.start();
-			if(head) yield ['save', head];
+		async function *run<M extends Machine<W>>(_in: Set<Out<W, M>>): AsyncIterable<Out<W, M>> {
+			let machineRun: (x: Context<W>, p: PhaseKey<M>) => Yield<MachineOut<W, M>> = async () => Set()
 
-			while(true) {
-				const phase = await resumer.run(x, resume);
-				if(!phase) return;
+			while(!_in.isEmpty()) {
+				let _out = Set();
 
-				yield ['phase', phase];
+				for await(let y of _in) {  //should be done in parallel
+					yield y;
+					switch(y[0]) {
+						case 'resume': {
+							machineRun = y[2];
+							_out = _out.union(await resumer.run({}, y[1]));
+							break;
+						}
 
-				[resume, run, head] = await run(x, phase);
-				if(head) yield ['save', head];
+						case 'phase': {
+							const [, phase] = y;
+							_out = _out.union(await machineRun({}, phase));
+							break;
+						}
+					}
+				}
+
+				_in = _out;
 			}
 		}
 	}
 
-	type RunYield = readonly ['phase', string] | readonly ['save', any]
-
-	async function collectPhases(gen: AsyncIterable<RunYield>) {
+	async function collectPhases<W extends World, M extends Machine<W>>(gen: AsyncIterable<Out<W, M>>) {
 		const yields = await collect(gen);
 		return yields
 			.filter(([t]) => t == 'phase')
@@ -126,21 +151,21 @@ type World = {
 	machines: Keyed<MachineSpec>
 }
 
-type ResumeKeys<W extends World> = Keys<W['resumes']>
-type MachineKeys<W extends World> = Keys<W['machines']>
-type PhaseKeys<M extends MachineSpec> = Keys<M['phases']>
+type ResumeKey<W extends World> = Keys<W['resumes']>
+type MachineKey<W extends World> = Keys<W['machines']>
+type PhaseKey<M extends MachineSpec> = Keys<M['phases']>
 
 
-type Id<W extends World, K extends MachineKeys<W> = MachineKeys<W>> = [K, string];
+type Id<W extends World = World, K extends MachineKey<W> = MachineKey<W>> = [K, string];
 
 
 
 type WorldImpl<W extends World> = {
 	resumes: {
-		[K in ResumeKeys<W>]: ResumeImpl<W, Resume<W, K>>
+		[K in ResumeKey<W>]: ResumeImpl<W, Resume<W, K>>
 	}
 	machines: {
-		[K in MachineKeys<W>]: MachineImpl<W, Machine<W, K>>
+		[K in MachineKey<W>]: MachineImpl<W, Machine<W, K>>
 	}
 }
 
@@ -152,7 +177,7 @@ type ResumeImpl<W extends World, R extends Resume<W> = Resume<W>> = {
 type MachineImpl<W extends World, M extends Machine<W> = Machine<W>> = {
 	zero: MachineState<W, M>,
 	phases: {
-		[K in PhaseKeys<M>]: PhaseImpl<W, M, Phase<W, M, K>>
+		[K in PhaseKey<M>]: PhaseImpl<W, M, Phase<W, M, K>>
 	}
 }
 
@@ -168,7 +193,18 @@ function makeWorld<W extends World>(w: WorldImpl<W>) {
 	return w;
 }
 
+//so phase is expected to have a continuation with it
+//how can the resumer populate this?
+//it's kind of the point that it can't
+//the resumer speaks its own language, just as machines speak their own language
+//then the runner must fold them together, yielding a common language
 
+
+type ResumeOut<W extends World, M extends Machine<W>> =
+	  ['phase', PhaseKey<M>]
+  | ['end']
+
+type Yield<O> = Promise<Set<O>>
 
 class Resumer<W extends World> {
 	private readonly world: WorldImpl<W>
@@ -177,55 +213,52 @@ class Resumer<W extends World> {
 		this.world = world;
 	}
 	
-	async run<M extends Machine<W>>(x: Context<W>, resume: ResumeCommand<W, M>): Promise<string|false> {
-		if(!resume) return false;
-		if(isString(resume)) {
-			return resume;
+	async run<M extends Machine<W>>(x: Context<W>, resume: ResumeCommand<W, M>): Yield<ResumeOut<W, M>> {
+		if(!resume) return Set([['end']]);
+		else if(isString(resume)) {
+			return Set([['phase', resume]]);
 		}
+		else {
+			const [[key, body], phase] = resume;
 
-		const [[key, body], phase] = resume;
+			const def = this.world.resumes[key];
+			if(!def) throw Error('bad resume key!');
+			if(!def.guard(body)) throw Error('bad resume body!');
 
-		const def = this.world.resumes[key];
-		if(!def) throw Error('bad resume key!');
-		if(!def.guard(body)) throw Error('bad resume body!');
+			if(!await def.run(x, body)) {
+				return Set([['end']])
+			}
 
-		if(!await def.run(x, body)) {
-			return false;
+			return Set([['phase', phase]]);
 		}
-
-		return phase;
 	}
 }
 
 
 type Data = Map<string, any>
 
-type MachineState<W extends World, M extends Machine<W> = Machine<W>> = {
+type MachineState<W extends World = World, M extends Machine<W> = Machine<W>> = {
 	data: any
 	resume: ResumeCommand<W, M>
 }
 
 type Context<W extends World> = W['context']
-type Resume<W extends World, K extends ResumeKeys<W> = ResumeKeys<W>> = W['resumes'][K]
-type Machine<W extends World, K extends MachineKeys<W> = MachineKeys<W>> = W['machines'][K]
-type Phase<W extends World, M extends Machine<W>, K extends PhaseKeys<M> = PhaseKeys<M>> = M['phases'][K]
+type Resume<W extends World, K extends ResumeKey<W> = ResumeKey<W>> = W['resumes'][K]
+type Machine<W extends World, K extends MachineKey<W> = MachineKey<W>> = W['machines'][K]
+type Phase<W extends World, M extends Machine<W>, K extends PhaseKey<M> = PhaseKey<M>> = M['phases'][K]
 
 type ResumeCommand<W extends World, M extends Machine<W>> =
 	  false
-	| PhaseKeys<M>
+	| PhaseKey<M>
 	| [
-			({ [K in ResumeKeys<W>]: [K, Resume<W, K>] }[ResumeKeys<W>]),
-			PhaseKeys<M>
+			({ [K in ResumeKey<W>]: [K, Resume<W, K>] }[ResumeKey<W>]),
+			PhaseKey<M>
 		]
 
-
-
-type MachineYield<W extends World, M extends Machine<W>> =
-	readonly [
-		ResumeCommand<W, M>,
-		(x: Context<W>, p: string) => Promise<MachineYield<W, M>>,
-		Head<Data>?
-	]
+type MachineOut<W extends World, M extends Machine<W> = Machine<W>> =
+		['resume', ResumeCommand<W, M>, (x: Context<W>, p: PhaseKey<M>) => Yield<MachineOut<W, M>>]
+  | ['save', Head<Data>]
+  | ['end']
 
 class MachineHost<W extends World, M extends Machine<W> = Machine<W>> {
 	private def: MachineImpl<W, M>
@@ -238,11 +271,11 @@ class MachineHost<W extends World, M extends Machine<W> = Machine<W>> {
 		this.head = head;
 	}
 
-	start(): MachineYield<W, M> {
-		return [this.state.resume, this.run.bind(this)];
+	async start(): Yield<MachineOut<W, M>> {
+		return Set([['resume', this.state.resume, this.run.bind(this)]])
 	}
 	
-	private async run(x: Context<W>, phaseKey: PhaseKeys<M>): Promise<MachineYield<W, M>> {
+	private async run(x: Context<W>, phaseKey: PhaseKey<M>): Yield<MachineOut<W, M>> {
 		const phase = this.def.phases[phaseKey];
 		const data = this.state.data;
 
@@ -251,34 +284,38 @@ class MachineHost<W extends World, M extends Machine<W> = Machine<W>> {
 		}
 		else {
 			const resume = await phase.run(x, data);
+			//should update machine state here
 
-			return [resume, (x, p) => this.run(x, p), this.head]; //shouldn't be saving quite like this
+			return Set([
+				['save', this.head],
+				['resume', resume, this.run.bind(this)]
+			]);
 		}
 	}
 }
 
+type MachineLoader<W extends World> = (ids: Set<Id<W>>) => Promise<Set<[Id<W>, MachineState<W>]>>
+
 class MachineSpace<W extends World> {
 	private readonly world: WorldImpl<W>
-	private readonly store: Store<Data>
 	private readonly atoms: AtomSpace<Data>
-	private readonly saver: AtomSaver<Data>
+	private readonly loader: MachineLoader<W>
 	private cache: Map<Id<W>, MachineHost<W>>
 
-	constructor(world: WorldImpl<W>, store: Store<Data>) {
+	constructor(world: WorldImpl<W>, loader: MachineLoader<W>) {
 		this.world = world;
-		this.store = store;
 		this.atoms = new AtomSpace();
-		this.saver = new AtomSaver(new MonoidData(), this.atoms);
+		this.loader = loader;
 		this.cache = Map();
 	}
 
-	create<K extends MachineKeys<W>>([key, id]: Id<W, K>): MachineHost<W, Machine<W, K>> {
+	create<K extends MachineKey<W>>([key, id]: Id<W, K>): MachineHost<W, Machine<W, K>> {
 		const head = this.atoms.spawnHead();
 		const def = this.world.machines[key];
 		return new MachineHost(def, def.zero, head);
 	}
 
-	async summon<K extends MachineKeys<W>>(ids: Set<Id<W, K>>): Promise<Set<MachineHost<W, Machine<W, K>>>> {
+	async summon<K extends MachineKey<W>>(ids: Set<Id<W, K>>): Promise<Set<MachineHost<W, Machine<W, K>>>> {
 		return ids.map(([key, id]) => {
 			const head = this.atoms.spawnHead();
 			const def = this.world.machines[key];
