@@ -4,6 +4,8 @@ import Store from '../src/Store'
 import AtomSpace, { Head } from '../src/AtomSpace'
 import AtomSaver from '../src/AtomSaver'
 import { isString, isArray } from 'util'
+import { Id, Data, SpecWorld, makeWorld, World, Machine, PhaseKey, WorldImpl, Context, ResumeCommand, MachineImpl, MachineState, MachineKey } from '../src/lib'
+import { World1, world1 } from './worlds/World1'
 
 describe('machines: loading and saving', () => {
 	let atomSpace: AtomSpace<Data>
@@ -19,7 +21,6 @@ describe('machines: loading and saving', () => {
 	//...
 })
 
-
 describe('machines: running', () => {
 	
 	it('run through phases', async () => {
@@ -31,46 +32,6 @@ describe('machines: running', () => {
 		const phases = await collectPhases(runner.run(machine.boot()))
 
 		expect(phases).toEqual(List(['start', 'middle', 'end']));
-	})
-
-	interface World1 extends SpecWorld<{
-		context: {}
-		resumes: {}
-		machines: {
-			dummy: {
-				phases: {
-					start: { input: number }
-					middle: { input: any }
-					end: { input: any }
-				}
-			}
-		}
-	}> {}
-
-	const world1 = makeWorld<World1>({
-		resumes: {},
-		machines: {
-			dummy: {
-				zero: {
-					data: {},
-					resume: 'start'
-				},
-				phases: {
-					start: {
-						guard(d): d is number { return true; },
-						run: async () => 'middle'
-					},
-					middle: {
-						guard(d): d is any { return true },
-						run: async () => 'end'
-					},
-					end: {
-						guard(d): d is any { return true; },
-						run: async () => false
-					}
-				}
-			}
-		}
 	})
 
 	async function collectPhases<W extends World, M extends Machine<W>>(gen: AsyncIterable<Out<W, M>>) {
@@ -92,67 +53,6 @@ type Out<W extends World, M extends Machine<W>> =
 		MachineOut<W, M>
 	| ResumeOut<W, M>
 
-
-type Keyed<T> = { [key: string]: T }
-type Keys<O> = keyof O & string;
-
-
-type MachineSpec = {
-	phases: Keyed<PhaseSpec>
-}
-
-type PhaseSpec = {
-	input: any
-}
-
-
-type World = {
-	context: any
-	resumes: Keyed<any>
-	machines: Keyed<MachineSpec>
-}
-
-type ResumeKey<W extends World> = Keys<W['resumes']>
-type MachineKey<W extends World> = Keys<W['machines']>
-type PhaseKey<M extends MachineSpec> = Keys<M['phases']>
-
-
-type Id<W extends World = World, K extends MachineKey<W> = MachineKey<W>> = [K, string];
-
-
-
-type WorldImpl<W extends World> = {
-	resumes: {
-		[K in ResumeKey<W>]: ResumeImpl<W, Resume<W, K>>
-	}
-	machines: {
-		[K in MachineKey<W>]: MachineImpl<W, Machine<W, K>>
-	}
-}
-
-type ResumeImpl<W extends World, R extends Resume<W> = Resume<W>> = {
-	guard(r: R): r is R
-	run(x: Context<W>, r: R): Promise<boolean>
-}
-
-type MachineImpl<W extends World, M extends Machine<W> = Machine<W>> = {
-	zero: MachineState<W, M>,
-	phases: {
-		[K in PhaseKey<M>]: PhaseImpl<W, M, Phase<W, M, K>>
-	}
-}
-
-type PhaseImpl<W extends World, M extends Machine<W>, P extends Phase<W, M>> = {
-	guard(d: any): d is P['input'] 
-	run(x: Context<W>, d: P['input']): Promise<ResumeCommand<W, M>>
-}
-
-
-type SpecWorld<W extends World> = W;
-
-function makeWorld<W extends World>(w: WorldImpl<W>) {
-	return w;
-}
 
 //so phase is expected to have a continuation with it
 //how can the resumer populate this?
@@ -195,26 +95,6 @@ class Resumer<W extends World> {
 	}
 }
 
-
-type Data = Map<string, any>
-
-type MachineState<W extends World = World, M extends Machine<W> = Machine<W>> = {
-	data: any
-	resume: ResumeCommand<W, M>
-}
-
-type Context<W extends World> = W['context']
-type Resume<W extends World, K extends ResumeKey<W> = ResumeKey<W>> = W['resumes'][K]
-type Machine<W extends World, K extends MachineKey<W> = MachineKey<W>> = W['machines'][K]
-type Phase<W extends World, M extends Machine<W>, K extends PhaseKey<M> = PhaseKey<M>> = M['phases'][K]
-
-type ResumeCommand<W extends World, M extends Machine<W>> =
-	  false
-	| PhaseKey<M>
-	| [
-			({ [K in ResumeKey<W>]: [K, Resume<W, K>] }[ResumeKey<W>]),
-			PhaseKey<M>
-		]
 
 type MachineOut<W extends World, M extends Machine<W> = Machine<W>> =
 		['resume', ResumeCommand<W, M>]
