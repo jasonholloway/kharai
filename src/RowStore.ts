@@ -67,7 +67,7 @@ export default class RowStore {
                 setState(s) {
                     storable.state = s;
                     storable.version++;
-                    return new Atom(null, []);
+                    return new Atom([], []);
                 },
             };
 

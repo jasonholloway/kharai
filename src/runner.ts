@@ -42,7 +42,7 @@ export default (spec: Spec, store: RowStore, repo: MachineStore, timer: Timer) =
                     function(target) {
                         const met = fn(target)
                         log(`hook triggered ${target.id}>${m.id}`, met)
-                        if(met) this.complete({ upstream: new Atom(null, []) });
+                        if(met) this.complete({ upstream: new Atom([], []) });
                     }
                 )
             }

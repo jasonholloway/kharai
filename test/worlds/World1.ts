@@ -1,6 +1,6 @@
 import { SpecWorld, makeWorld } from '../../src/lib'
 
-export type World1 = SpecWorld<{
+export interface World1 extends SpecWorld<{
 	context: {}
 	resumes: {}
 	machines: {
@@ -12,7 +12,7 @@ export type World1 = SpecWorld<{
 			}
 		}
 	}
-}>
+}> {}
 
 export const world1 = makeWorld<World1>({
 	resumes: {},
