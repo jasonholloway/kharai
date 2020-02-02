@@ -51,7 +51,7 @@ export type PhaseSpec = {
 export type World = {
 	context: any
 	machines: Keyed<MachineSpec>
-	command: readonly [string, ...readonly any[]]
+	extraCommand: readonly [string, ...readonly any[]]
 }
 
 export type MachineKey<W extends World> = Keys<W['machines']>
@@ -96,3 +96,14 @@ export function tail<T extends readonly any[]>(t: T): Tail<T> {
 	return <Tail<T>>t.slice(1)
 }
 
+
+export type Only<T, U extends T = T> = U & Impossible<Exclude<keyof U, keyof T>>;
+
+export type Impossible<K extends keyof any> = {
+  [P in K]: never;
+};
+
+export type Prop<O> = O[keyof O]
+
+export type Productify<U> =
+	(U extends any ? (u: U) => void : never) extends ((p: infer P) => void) ? P : never
