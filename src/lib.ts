@@ -79,7 +79,7 @@ export type MachineImpl<W extends World, M extends Machine<W> = Machine<W>> = {
 
 export type PhaseImpl<W extends World, M extends Machine<W>, P extends Phase<W, M>> = {
 	guard(d: any): d is P['input'] 
-	run(x: Context<W>, d: P['input']): Yield<W, M>
+	run(x: Context<W>, d: P['input']): Yield<['phase', PhaseKey<M>]>
 }
 
 
@@ -91,4 +91,8 @@ export function makeWorld<W extends World>(w: Impl<W>) {
 
 export type Cons<H, T extends any[]> = ((h: H, ...t: T) => any) extends ((...l: infer L) => any) ? L : never;
 export type Tail<T extends readonly any[]> = ((...args: T) => void) extends ((head: any, ...tail: infer U) => void) ? U : never;
+
+export function tail<T extends readonly any[]>(t: T): Tail<T> {
+	return <Tail<T>>t.slice(1)
+}
 
