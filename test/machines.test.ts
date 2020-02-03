@@ -5,14 +5,15 @@ import AtomSpace, { Head } from '../src/AtomSpace'
 import AtomSaver from '../src/AtomSaver'
 import { Id, Data, SpecWorld, makeWorld, World, Machine, PhaseKey, WorldImpl, Yield, MachineImpl, MachineState, MachineKey, Command } from '../src/lib'
 import { createHandler, compileCoroutine } from '../src/handler'
+import { isString } from 'util'
 
 describe('machines: running', () => {
 	
 	it('run through phases', async () => {
 		const space = new MachineSpace(world1, () => Promise.resolve(Set()));
-		const machine = space.create(['dummy', '123']);
 
-		const out = await collect(machine.run(['hello']))
+		const [machine] = await space.summon(Set([['dummy', '123']]));
+		const out = await collectPhases(machine);
 
 		expect(out).toEqual(List(['start', 'middle', 'end']));
 	})
@@ -88,86 +89,9 @@ describe('machines: loading and saving', () => {
 })
 
 
-// class Resumer<W extends World> {
-// 	private readonly world: WorldImpl<W>
-
-// 	constructor(world: WorldImpl<W>) {
-// 		this.world = world;
-// 	}
-
-// 	handler<M extends Machine<W>>(): Coroutinable<ResumeIn<W, M>> {
-// 		const world = this.world;
-// 		return {
-// 			async resume([command]) {
-// 				const [[key, body], phase] = command;
-
-// 				const def = world.resumes[key];
-// 				if(!def) throw Error('bad resume key!');
-// 				if(!def.guard(body)) throw Error('bad resume body!');
-
-// 				if(!await def.run(x, body)) {
-// 					return Set([['end']])
-// 				}
-
-// 				return Set([['phase', phase]]);
-// 			}
-// 		}
-// 	}
-// }
-
-
-interface IMachineHost<C1 extends Command, C2 extends Command> {
-	boot(): C1
-	run(): Yield<C2>
-}
-
-
-function createMachineHost<C1 extends Command, C2 extends Command>(host: IMachineHost<C1, C2>): IMachineHost<C1, C2> {
-	return host;
-}
-
-
-const h = createMachineHost({
-	boot() {
-		return ['poo' as const] as const
-	},
-	async run() {
-		return Set([['ploop' as const] as const])
-	}
-})
-
-
-
-function createMachineHandler<W extends World, M extends Machine<W>>(def: MachineImpl<W, M>, state: Readonly<MachineState<W, M>>, head: Head<Data>) {
-	return createHandler({
-	});
-}
-
-//but a resumption requiring a 'poke' from outside
-//forms a coroutine outside of even its own puddle
-//as in, the ball will be in the mediator's court
-//the mediator will itself be just another listening handler
-//
-//the sending of messages from outside requires firstly a queue
-//which could itself be an intermediate machine
-//
-//but primordially there will be the idea of immediate passing of the baton
-//a queue canbe built on top of this
-//
-//via a tunnel, a machine can wait on the possiblity of an emittance to another
-//so the injection of commands from outside comes via a special handler
-//otherwise, we just boot with a single command
-
-//so, dunno what summoning is needed? the resumer injected in to the coroutine will be a receptor
-//will itself be the indexed part- and we don't need it now
-//
-//we will return only the iterator, then
-
-
 async function *runMachine<W extends World, M extends Machine<W>>(def: MachineImpl<W, M>, state: Readonly<MachineState<W, M>>, head: Head<Data>) {
-
 	const handler = createHandler({
-		async phase([key]) {
+		async phase(key: PhaseKey<M>) {
 			const phase = def.phases[key];
 			const data = state.data;
 
@@ -178,17 +102,27 @@ async function *runMachine<W extends World, M extends Machine<W>>(def: MachineIm
 				const resume = await phase.run({}, data);
 				//should update machine state here
 
-				return Set([
-					['save', head],
+				const r = resume.union(Set([
+					['save', head] as const
 					// ['resume', resume]
-				]);
+				]));
+				return r;
 			}
 		}
 	});
 
+
+	//dispatcher should take any command as input ********************
+	//typings are passed around as Handler parameters
 	const dispatch = compileCoroutine(handler);
 
-	return dispatch(state.resume);
+	const [r0, r1] = state.resume;
+	if(r0 === 'phase' && isString(r1)) {
+		yield* dispatch([r0, r1]);
+	}
+	else {
+		throw 'bad dispatch!';
+	}
 }
 
 
@@ -208,13 +142,16 @@ class MachineSpace<W extends World> {
 		this.activeIds = Set()
 	}
 
-	async summon(ids: Set<Id<W>>): Promise<Set<AsyncIterable<Command>>> {
-		return ids
+	async summon<K extends MachineKey<W>>(ids: Set<Id<W, K>>) {//: Promise<Set<AsyncIterable<Command>>> {
+		return (<Set<Id<W>>>ids)
 			.subtract(this.activeIds)
 			.map(([key, id]) => {
+				this.activeIds = this.activeIds.add([key, id]);
+				
 				const head = this.atoms.spawnHead();
 				const def = this.world.machines[key];
-				return new MachineRunner(def, def.zero, head);
+
+				return runMachine(def, def.zero, head); //should like load state here + boot with rsumption
 			});
 	}
 }

@@ -33,13 +33,14 @@ export type Out<H> =
 
 
 
-
-export function join<HR extends Handler[]>(handlers: HR) : Handler<In<HR[number]>, Out<HR[number]>> {
+export function join<HR extends Handler[]>(...handlers: HR) : Handler<In<HR[number]>, Out<HR[number]>> {
 	return <Handler<In<HR[number]>, Out<HR[number]>>>
 					handlers.reduce((ac, h) => [...ac, ...h], []);
 }
 
-export function compile<I extends Command, O extends Command>(handler: Handler<I, O>): (i: Command) => Yield<O> {
+
+
+export function compile<I extends Command, O extends Command>(handler: Handler<I, O>): (i: Readonly<I>) => Yield<O> {
 	const map = Map(handler)
 
 	return async (c: Command) => {
@@ -51,13 +52,13 @@ export function compile<I extends Command, O extends Command>(handler: Handler<I
 }
 
 export function compileCoroutine<I extends Command, O extends Command>(handler: Handler<I, O>): ((i: Readonly<I>) => AsyncIterable<I|O>) {
-	const dispatch = compile(handler);
+	const dispatch = compile(join(handler, ignore<I, O>()));
 
 	return async function *(boot) {
 		let _in: Set<I|O> = Set([boot]);
 		
 		do {
-			const _out = await Promise.all(_in.map(dispatch));
+			const _out = await Promise.all(_in.map(dispatch)); //so... here we need an explicit bypass! or rather, our above handler needs it
 
 			yield * _in;
 
@@ -65,4 +66,8 @@ export function compileCoroutine<I extends Command, O extends Command>(handler: 
 
 		} while(!_in.isEmpty())
 	}
+}
+
+export function ignore<C1 extends Command, C2 extends Command = never, C3 extends Command = never>() : Handler<C1|C2|C3, C1|C2|C3> {
+	return createHandler({})
 }
