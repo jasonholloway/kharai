@@ -17,7 +17,7 @@ export type Obj2In<W extends HandlerMap> =
 	Prop<{ [k in keyof W & string]: W[k] extends (...args: infer I) => any ? Cons<k, I> : never }>
 
 export type Obj2Out<W extends HandlerMap> =
-	(ReturnType<W[keyof W]> extends Promise<infer S> ? (S extends Set<infer O> ? O : never) : never)
+	W[keyof W] extends (() => Promise<Set<infer O>>) ? (O extends Command ? O : never) : never
 
 
 export type In<H> =
