@@ -32,7 +32,7 @@ export type Phase<W extends World, M extends Machine<W>, K extends PhaseKey<M> =
 
 
 export type Command<K extends string = string> = readonly [K, ...readonly any[]]
-export type Yield<O> = Promise<Set<O>>
+export type Yield<O> = Promise<readonly O[]>
 
 
 export type Keyed<T> = { [key: string]: T }

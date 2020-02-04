@@ -44,15 +44,15 @@ describe('machines: running', () => {
 				phases: {
 					start: {
 						guard(d): d is number { return true; },
-						run: async () => Set([['phase', 'middle']])
+						run: async () => [['phase', 'middle']]
 					},
 					middle: {
 						guard(d): d is any { return true },
-						run: async () => Set([['phase', 'end']])
+						run: async () => [['phase', 'end']]
 					},
 					end: {
 						guard(d): d is any { return true; },
-						run: async () => Set()
+						run: async () => [] 
 					}
 				}
 			}
@@ -102,11 +102,10 @@ async function *runMachine<W extends World, M extends Machine<W>>(def: MachineIm
 				const resume = await phase.run({}, data);
 				//should update machine state here
 
-				const r = resume.union(Set([
-					['save', head] as const
-					// ['resume', resume]
-				]));
-				return r;
+				return [
+					...resume,
+					['save', head]
+				];
 			}
 		}
 	});
