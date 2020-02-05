@@ -19,6 +19,7 @@
     "get-stream": "^5.1.0",
     "immutable": "^4.0.0-rc.12",
     "lodash": "^4.17.15",
+    "mergeiterator": "^1.4.1",
     "pify": "^4.0.1",
     "readable-stream-clone": "0.0.4",
     "superagent": "^5.1.0",

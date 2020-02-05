@@ -1,4 +1,5 @@
 import { isArray } from 'util'
+import { List } from 'immutable'
 
 export const peek = <V>(tag: string, lens?: (v: V) => any) => (v: V) => {
     console.log(tag, lens ? lens(v) : v)
@@ -23,3 +24,13 @@ export const isTuple2 = <A, B>(v: any): v is readonly [A, B] =>
     isArray(v) && v.length == 2;
 
 export const lift = <V>(v: V|undefined) => (v ? [v] : []);
+
+export async function collect<V>(gen: AsyncIterable<V>): Promise<List<V>> {
+	const collected: V[] = [];
+	for await (let val of gen) collected.push(val);
+	return List(collected)
+}
+
+export type RO<T> =
+	T extends undefined|null|boolean|string|number|Function ? T :
+	{ readonly [K in keyof T]: RO<T[K]> }

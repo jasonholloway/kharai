@@ -1,22 +1,23 @@
 import { Set, List } from 'immutable'
 import { createHandler, join, compile, compileCoroutine } from '../src/handler'
+import { collect } from '../src/util'
 
 describe('coroutines', () => {
 
 	it('joins', () => {
 		const h1 = createHandler({
 			async woof() {
-				return Set([['meeow']])
+				return [['meeow'] as const]
 			}
 		})
 
 		const h2 = createHandler({
 			async meeow() {
-				return Set([['woof']])
+				return [['woof'] as const]
 			}
 		})
 
-		const joined = join([h1, h2])
+		const joined = join(h1, h2)
 
 		expect(joined).toHaveLength(2)
 		expect(joined[0][0]).toBe('woof')
@@ -26,7 +27,7 @@ describe('coroutines', () => {
 	it('compiles & dispatches', async () => {
 		const h = createHandler({
 			async woof(n: number) {
-				return Set([['meeow', n]])
+				return [['meeow', n] as const]
 			}
 		})
 
@@ -41,17 +42,17 @@ describe('coroutines', () => {
 		
 		const h1 = createHandler({
 			async woof() {
-				return Set([['meeow']])
+				return [['meeow'] as const]
 			}
 		})
 
 		const h2 = createHandler({
 			async meeow() {
-				return count-- ? Set([['woof']]) : Set<never>()
+				return count-- ? [['woof'] as const] : []
 			}
 		})
 
-		const dispatch = compileCoroutine(join([h1, h2]))
+		const dispatch = compileCoroutine(join(h1, h2))
 
 		const out = await collect(dispatch(['woof']))
 
@@ -64,11 +65,5 @@ describe('coroutines', () => {
 	})
 	
 })
-
-async function collect<V>(gen: AsyncIterable<V>): Promise<List<V>> {
-	const collected: V[] = [];
-	for await (let val of gen) collected.push(val);
-	return List(collected)
-}
 
 

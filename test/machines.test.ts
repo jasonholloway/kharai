@@ -4,7 +4,7 @@ import Store from '../src/Store'
 import AtomSpace, { Head } from '../src/AtomSpace'
 import AtomSaver from '../src/AtomSaver'
 import { Id, Data, SpecWorld, makeWorld, World, Machine, PhaseKey, WorldImpl, Yield, MachineImpl, MachineState, MachineKey, Command } from '../src/lib'
-import { createHandler, compileCoroutine } from '../src/handler'
+import { createHandler, localize, compile } from '../src/handler'
 import { isString } from 'util'
 
 describe('machines: running', () => {
@@ -13,10 +13,29 @@ describe('machines: running', () => {
 		const space = new MachineSpace(world1, () => Promise.resolve(Set()));
 
 		const [machine] = await space.summon(Set([['dummy', '123']]));
-		const out = await collectPhases(machine);
+		const out = await collect(machine);
 
-		expect(out).toEqual(List(['start', 'middle', 'end']));
+		expect(out).toEqual(List([
+			['go', 'start'],
+			['go', 'middle'],
+			['go', 'end']
+		]));
 	})
+
+	it('resumes', async () => {
+		const space = new MachineSpace(world1, async () => Set());
+
+		const [machine] = await space.summon(Set([['fancy', '123']]));
+		const out = await collect(machine);
+
+		expect(out).toEqual(List([
+			['go', 'start'],
+			['resume', ['delay', 10, ['go', 'end']]],
+			['delay', 10, ['go', 'end']],
+			['go', 'end']
+		]))
+	})
+	
 
 	interface World1 extends SpecWorld<{
 		context: {}
@@ -28,6 +47,13 @@ describe('machines: running', () => {
 				phases: {
 					start: { input: number }
 					middle: { input: any }
+					end: { input: any }
+				}
+			}
+
+			fancy: {
+				phases: {
+					start: { input: any },
 					end: { input: any }
 				}
 			}
@@ -44,7 +70,7 @@ describe('machines: running', () => {
 				phases: {
 					start: {
 						guard(d): d is number { return true; },
-						run: async () => [['phase', 'middle']]
+						run: async () => [['phase', 'middle'] as const]
 					},
 					middle: {
 						guard(d): d is any { return true },
@@ -55,24 +81,27 @@ describe('machines: running', () => {
 						run: async () => [] 
 					}
 				}
+			},
+
+			fancy: {
+				zero: {
+					data: {},
+					resume: ['phase', 'start']
+				},
+				phases: {
+					start: {
+						guard(d): d is any { return true },
+						run: async () => [['phase', 'start'] as const]  // [['resume', ['delay', 10, ['go', 'end']]] as const]
+					},
+					end: {
+						guard(d): d is any { return true },
+						run: async () => []
+					}
+				}
 			}
 		}
 	})
-
-	async function collectPhases<C extends Command>(gen: AsyncIterable<C>) : Promise<List<C extends ['phase', infer P] ? P : never>> {
-		const yields = await collect(gen);
-		return yields
-			.filter(([t]) => t == 'phase')
-			.map(([,p]) => p);
-	}
-
-	async function collect<V>(gen: AsyncIterable<V>): Promise<List<V>> {
-		const collected: V[] = [];
-		for await (let val of gen) collected.push(val);
-		return List(collected)
-	}
 })
-
 
 describe('machines: loading and saving', () => {
 	let atomSpace: AtomSpace<Data>
@@ -99,20 +128,28 @@ async function *runMachine<W extends World, M extends Machine<W>>(def: MachineIm
 				throw Error('guard failed');
 			}
 			else {
-				const resume = await phase.run({}, data);
+				const cr = List(await phase.run({}, data));
+				
 				//should update machine state here
 
-				return [
-					...resume,
-					['save', head]
-				];
+				return [...cr];
 			}
 		}
 	});
 
+	//and what about iterables? they make for a much nicer interface in fact
+	//almost like all handlers should be able to do both
+	//
+
 
 	//dispatcher should take any command as input ********************
 	//typings are passed around as Handler parameters
+
+	const local = localize('bob', handler);
+	compile(local);
+
+
+	
 	const dispatch = compileCoroutine(handler);
 
 	const [r0, r1] = state.resume;
@@ -187,3 +224,8 @@ class FakeStore extends Store<Data> {
 }
 
 
+async function collect<V>(gen: AsyncIterable<V>): Promise<List<V>> {
+	const collected: V[] = [];
+	for await (let val of gen) collected.push(val);
+	return List(collected)
+}

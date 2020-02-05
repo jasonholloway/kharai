@@ -1,4 +1,5 @@
 import { Map, Set } from 'immutable'
+import { RO } from './util'
 
 
 export type Data = Map<string, any>
@@ -15,25 +16,8 @@ export type Machine<W extends World, K extends MachineKey<W> = MachineKey<W>> = 
 export type Phase<W extends World, M extends Machine<W>, K extends PhaseKey<M> = PhaseKey<M>> = M['phases'][K]
 
 
-// have fallen back into trap of thinking we can specify commands all up front
-// but we can't! because each machine-world has got its peculiar commands up its sleeve
-// that are onlymaterialized when all is wired up
-//
-// that's the first point we can say 'now there is no type such that...'
-// only when we put the handlers into the Coroutinizer will we know if all matches
-// each handler has to have its own specific deduced type, has to self-determine via itsown factory
-// otherwise types from outside will force it into a determinate shape
-//
-// self-determination fromeach handler; proven only when put in the crucible
-// the machine has its headers
-//
-// and each MachineHost is just a kind of handler with its own headers
-
-
-
-export type Command<K extends string = string> = readonly [K, ...readonly any[]]
-export type Yield<O> = Promise<readonly O[]>
-
+export type Command<K extends string = string> = RO<[K, ...any[]]>
+export type Yield<O> = Promise<RO<O[]>>
 
 export type Keyed<T> = { [key: string]: T }
 export type Keys<O> = keyof O & string;
@@ -51,14 +35,14 @@ export type PhaseSpec = {
 export type World = {
 	context: any
 	machines: Keyed<MachineSpec>
-	extraCommand: readonly [string, ...readonly any[]]
+	extraCommand: RO<[string, ...any[]]>
 }
 
 export type MachineKey<W extends World> = Keys<W['machines']>
 export type PhaseKey<M extends MachineSpec> = Keys<M['phases']>
 
 
-export type Id<W extends World = World, K extends MachineKey<W> = MachineKey<W>> = [K, string];
+export type Id<W extends World = World, K extends MachineKey<W> = MachineKey<W>> = RO<[K, string]>;
 
 
 
@@ -89,7 +73,7 @@ export function makeWorld<W extends World>(w: Impl<W>) {
 	return w;
 }
 
-export type Cons<H, T extends any[]> = ((h: H, ...t: T) => any) extends ((...l: infer L) => any) ? L : never;
+export type Cons<H, T extends any[]> = ((h: H, ...t: T) => any) extends ((...l: infer L) => any) ? (L extends ReadonlyArray<any> ? L : never) : never;
 export type Tail<T extends readonly any[]> = ((...args: T) => void) extends ((head: any, ...tail: infer U) => void) ? U : never;
 
 export function tail<T extends readonly any[]>(t: T): Tail<T> {
@@ -107,3 +91,5 @@ export type Prop<O> = O[keyof O]
 
 export type Productify<U> =
 	(U extends any ? (u: U) => void : never) extends ((p: infer P) => void) ? P : never
+
+
