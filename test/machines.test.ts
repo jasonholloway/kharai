@@ -3,9 +3,8 @@ import _Monoid from '../src/_Monoid'
 import Store from '../src/Store'
 import AtomSpace, { Head } from '../src/AtomSpace'
 import AtomSaver from '../src/AtomSaver'
-import { Id, Data, SpecWorld, makeWorld, World, Machine, PhaseKey, WorldImpl, Yield, MachineImpl, MachineState, MachineKey, Command } from '../src/lib'
+import { Id, Data, SpecWorld, makeWorld, World, Machine, PhaseKey, WorldImpl, MachineImpl, MachineState, MachineKey } from '../src/lib'
 import { createHandler, localize, compile } from '../src/handler'
-import { isString } from 'util'
 
 describe('machines: running', () => {
 	
@@ -121,44 +120,25 @@ describe('machines: loading and saving', () => {
 async function *runMachine<W extends World, M extends Machine<W>>(def: MachineImpl<W, M>, state: Readonly<MachineState<W, M>>, head: Head<Data>) {
 	const handler = createHandler({
 		async phase(key: PhaseKey<M>) {
-			const phase = def.phases[key];
+			const _phase = def.phases[key];
 			const data = state.data;
 
-			if(!phase.guard(data)) {
-				throw Error('guard failed');
+			if(!_phase.guard(data)) {
+				// throw Error('guard failed');
+				return [];
 			}
 			else {
-				const cr = List(await phase.run({}, data));
-				
+				const cr = List(await _phase.run({}, data));
 				//should update machine state here
-
 				return [...cr];
 			}
-		}
+		},
 	});
 
-	//and what about iterables? they make for a much nicer interface in fact
-	//almost like all handlers should be able to do both
-	//
-
-
-	//dispatcher should take any command as input ********************
-	//typings are passed around as Handler parameters
-
 	const local = localize('bob', handler);
-	compile(local);
+	const dispatch = compile(local);
+	dispatch
 
-
-	
-	const dispatch = compileCoroutine(handler);
-
-	const [r0, r1] = state.resume;
-	if(r0 === 'phase' && isString(r1)) {
-		yield* dispatch([r0, r1]);
-	}
-	else {
-		throw 'bad dispatch!';
-	}
 }
 
 

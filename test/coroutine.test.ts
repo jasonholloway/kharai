@@ -1,19 +1,19 @@
 import { Set, List } from 'immutable'
-import { createHandler, join, compile, compileCoroutine } from '../src/handler'
-import { collect } from '../src/util'
+import { createHandler, join, compile, localize } from '../src/handler'
+import { t } from '../src/lib'
 
 describe('coroutines', () => {
 
 	it('joins', () => {
 		const h1 = createHandler({
 			async woof() {
-				return [['meeow'] as const]
+				return [t('meeow')]
 			}
 		})
 
 		const h2 = createHandler({
 			async meeow() {
-				return [['woof'] as const]
+				return [t('woof')]
 			}
 		})
 
@@ -27,7 +27,7 @@ describe('coroutines', () => {
 	it('compiles & dispatches', async () => {
 		const h = createHandler({
 			async woof(n: number) {
-				return [['meeow', n] as const]
+				return [t('meeow', n)]
 			}
 		})
 
@@ -42,19 +42,27 @@ describe('coroutines', () => {
 		
 		const h1 = createHandler({
 			async woof() {
-				return [['meeow'] as const]
+				return [t('meeow')]
 			}
 		})
 
 		const h2 = createHandler({
 			async meeow() {
-				return count-- ? [['woof'] as const] : []
+				return count-- ? [t('@me', t('woof'))] : []
+				// return foooo;
 			}
 		})
 
-		const dispatch = compileCoroutine(join(h1, h2))
+		const hh = localize('gaz', join(h1, h2))
 
-		const out = await collect(dispatch(['woof']))
+		const dispatch = compile(hh)
+		
+		hh
+		dispatch
+
+		const out = await dispatch(['gaz', ['woof']])
+
+		//need to drive it here
 
 		expect(out).toEqual(List([
 			['woof'],
@@ -65,5 +73,4 @@ describe('coroutines', () => {
 	})
 	
 })
-
 

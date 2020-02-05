@@ -32,5 +32,5 @@ export async function collect<V>(gen: AsyncIterable<V>): Promise<List<V>> {
 }
 
 export type RO<T> =
-	T extends undefined|null|boolean|string|number|Function ? T :
+	T extends undefined|null|boolean|number|string|Function ? T :
 	{ readonly [K in keyof T]: RO<T[K]> }

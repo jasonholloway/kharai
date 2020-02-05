@@ -16,7 +16,7 @@ export type Machine<W extends World, K extends MachineKey<W> = MachineKey<W>> = 
 export type Phase<W extends World, M extends Machine<W>, K extends PhaseKey<M> = PhaseKey<M>> = M['phases'][K]
 
 
-export type Command<K extends string = string> = RO<[K, ...any[]]>
+export type Command<K extends string = string> = RO<[K, ...Lit[]]>
 export type Yield<O> = Promise<RO<O[]>>
 
 export type Keyed<T> = { [key: string]: T }
@@ -35,7 +35,7 @@ export type PhaseSpec = {
 export type World = {
 	context: any
 	machines: Keyed<MachineSpec>
-	extraCommand: RO<[string, ...any[]]>
+	extraCommand: RO<[string, ...Lit[]]>
 }
 
 export type MachineKey<W extends World> = Keys<W['machines']>
@@ -73,10 +73,10 @@ export function makeWorld<W extends World>(w: Impl<W>) {
 	return w;
 }
 
-export type Cons<H, T extends any[]> = ((h: H, ...t: T) => any) extends ((...l: infer L) => any) ? (L extends ReadonlyArray<any> ? L : never) : never;
-export type Tail<T extends readonly any[]> = ((...args: T) => void) extends ((head: any, ...tail: infer U) => void) ? U : never;
+export type Cons<H, T extends readonly Lit[]> = ((h: H, ...t: T) => any) extends ((...l: infer L) => any) ? (L extends ReadonlyArray<Lit> ? L : never) : never;
+export type Tail<T extends readonly Lit[]> = ((...args: T) => void) extends ((head: any, ...tail: infer U) => void) ? U : never;
 
-export function tail<T extends readonly any[]>(t: T): Tail<T> {
+export function tail<T extends readonly Lit[]>(t: T): Tail<T> {
 	return <Tail<T>>t.slice(1)
 }
 
@@ -92,4 +92,10 @@ export type Prop<O> = O[keyof O]
 export type Productify<U> =
 	(U extends any ? (u: U) => void : never) extends ((p: infer P) => void) ? P : never
 
+
+export type Lit = string | number | boolean | undefined | null | void | {};
+
+export function t<T extends readonly Lit[]>(...args: T) {
+	return args
+}
 

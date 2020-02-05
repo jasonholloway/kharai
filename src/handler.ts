@@ -1,6 +1,5 @@
-import { Command, Cons, Tail, Yield, tail, Prop, Only} from '../src/lib'
-import { Map, Set, List } from 'immutable'
-import { collect, RO } from './util'
+import { Command, Cons, Tail, Yield, tail, Prop, Only, Lit} from './lib'
+import { Map } from 'immutable'
 
 export type Handler<I extends Command = Command, O extends Command = Command> =
 	readonly [I[0], (...args: Tail<I>) => Yield<O>][]
@@ -10,11 +9,29 @@ export type HandlerMap<OK extends string = string, O extends Command<OK> = Comma
 }
 
 export function createHandler<OK extends string, O extends Command<OK>, H extends Only<HandlerMap<OK, O>>>(h: H): Handler<Obj2In<H>, Obj2Out<H>> {
-	return Object.entries<(...r: any[]) => Yield<Obj2Out<H>>>(h)
+	return <Handler<Obj2In<H>, Obj2Out<H>>><any>Object.entries(h) //<(...r: Tail<Obj2In<H>>) => Yield<Obj2Out<H>>>(h)
 }
 
+
+// type FZ = {
+// 	plops(n: number): Yield<['woo']>
+// 	plopsy(n: [number, number]): Yield<['wooze', number]>
+// }
+
+// type RZ = Obj2Out<FZ>
+
+// const zz = createHandler<'woo'|'wooze', ['woo']|['wooze',number], FZ>({
+// 	async plops(n: number) {
+// 		return [t('woo')]
+// 	},
+// 	async plopsy(n: [number, number]) {
+// 		return [t('wooze', 123)]
+// 	}
+// })
+
+
 export type Obj2In<W extends HandlerMap> =
-	Prop<{ [k in keyof W & string]: W[k] extends (...args: infer I) => any ? Cons<k, I> : never }>
+	Prop<{ [k in keyof W & string]: W[k] extends (...args: infer I) => any ? (I extends Lit[] ? Cons<k, I> : never) : never }>
 
 export type Obj2Out<W extends HandlerMap> =
 	W[keyof W] extends ((...args: any[]) => Yield<infer O>) ? (O extends Command ? O : never) : never
@@ -54,27 +71,25 @@ export function compile<I extends Command, O extends Command>(handler: Handler<I
 //BELOW NEEDS TO BE CONSTIFIED
 //
 
-const h = createHandler({
-	async ca() {
-		return [['cb'], ['@me', ['ca'] as const]]
-	}
-})
-
+// const h = createHandler({
+// 	async ca() {
+// 		return [t('cb'), t('@me', ['ca'] as const)]
+// 	}
+// })
 
 export function localize<
-	I extends RO<Command>,
-	OM extends RO<['@me', I]>,
-	OO extends RO<Command>,
+	I extends Command,
+	O extends Command,
 	Id extends string>
-	(id: Id, handler: Handler<I, OM|(OO extends RO<['@me']> ? never : OO)>)
-	: Handler<[Id,I], [Id,I]|OO> {
+	(id: Id, handler: Handler<I, ['@me',I]|O>): Handler<[Id,I], [Id,I]|O> {
+
 		// if a handler outputs @mes, then these aren't emitted
 		// in their place ['bazza', ['summat', 123]]
-		throw 123;
+		throw 'TODO localize etc';
 	}
 
-const lll = localize('id', h);
-lll
+// const lll = localize('id', h);
+// lll
 
 
 // export function compileCoroutine<I extends Command, O extends Command>(handler: Handler<I, O>): ((i: Readonly<I>) => Yield<I|O>) {
