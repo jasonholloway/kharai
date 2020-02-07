@@ -1,5 +1,6 @@
-import { Command, Cons, Tail, Yield, tail, Prop, Only, Lit} from './lib'
+import { t, Command, Cons, Tail, Yield, tail, Prop, Only, Lit} from './lib'
 import { Map } from 'immutable'
+import { RO } from './util'
 
 export type Handler<I extends Command = Command, O extends Command = Command> =
 	readonly [I[0], (...args: Tail<I>) => Yield<O>][]
@@ -8,33 +9,16 @@ export type HandlerMap<OK extends string = string, O extends Command<OK> = Comma
 	[k: string]: ((...args: any[]) => Yield<Command<OK>>)
 }
 
+
 export function createHandler<OK extends string, O extends Command<OK>, H extends Only<HandlerMap<OK, O>>>(h: H): Handler<Obj2In<H>, Obj2Out<H>> {
-	return <Handler<Obj2In<H>, Obj2Out<H>>><any>Object.entries(h) //<(...r: Tail<Obj2In<H>>) => Yield<Obj2Out<H>>>(h)
+	return <Handler<Obj2In<H>, Obj2Out<H>>><any>Object.entries(h)
 }
 
-
-// type FZ = {
-// 	plops(n: number): Yield<['woo']>
-// 	plopsy(n: [number, number]): Yield<['wooze', number]>
-// }
-
-// type RZ = Obj2Out<FZ>
-
-// const zz = createHandler<'woo'|'wooze', ['woo']|['wooze',number], FZ>({
-// 	async plops(n: number) {
-// 		return [t('woo')]
-// 	},
-// 	async plopsy(n: [number, number]) {
-// 		return [t('wooze', 123)]
-// 	}
-// })
-
-
 export type Obj2In<W extends HandlerMap> =
-	Prop<{ [k in keyof W & string]: W[k] extends (...args: infer I) => any ? (I extends Lit[] ? Cons<k, I> : never) : never }>
+	Prop<{ [k in keyof W & string]: W[k] extends (...args: infer I) => any ? (I extends Lit[] ? RO<Cons<k, I>> : never) : never }>
 
 export type Obj2Out<W extends HandlerMap> =
-	W[keyof W] extends ((...args: any[]) => Yield<infer O>) ? (O extends Command ? O : never) : never
+	W[keyof W] extends ((...args: any[]) => Yield<infer O>) ? (O extends Command ? RO<O> : never) : never
 
 
 export type In<H> =
@@ -58,6 +42,9 @@ export function join<HR extends Handler[]>(...handlers: HR) : Handler<In<HR[numb
 export function compile<I extends Command, O extends Command>(handler: Handler<I, O>): (i: I) => Yield<O> {
 	const map = Map(handler)
 	return async (c: I) => {
+
+		console.log('woooo', c)
+		
 		const found = map.get(c[0]);
 		return found
 		  ? found(...tail(c))
@@ -66,27 +53,23 @@ export function compile<I extends Command, O extends Command>(handler: Handler<I
 }
 
 
-//
-//
-//BELOW NEEDS TO BE CONSTIFIED
-//
 
-// const h = createHandler({
-// 	async ca() {
-// 		return [t('cb'), t('@me', ['ca'] as const)]
-// 	}
-// })
 
-export function localize<
-	I extends Command,
-	O extends Command,
-	Id extends string>
-	(id: Id, handler: Handler<I, ['@me',I]|O>): Handler<[Id,I], [Id,I]|O> {
+// 	const h1 = createHandler({
+// 		async woof() {
+// 			return [t('meeow')]
+// 		}
+// 	})
 
-		// if a handler outputs @mes, then these aren't emitted
-		// in their place ['bazza', ['summat', 123]]
-		throw 'TODO localize etc';
-	}
+// 	const h2 = createHandler({
+// 		async meeow() {
+// 			return [['@me', ['woof'] as const]]
+// 		}
+// 	})
+
+// const jj = join(h1, h2)
+
+// const hh = localize('gaz', jj)
 
 // const lll = localize('id', h);
 // lll

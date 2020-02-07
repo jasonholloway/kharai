@@ -1,5 +1,6 @@
 import { isArray } from 'util'
 import { List } from 'immutable'
+import { Lit } from './lib';
 
 export const peek = <V>(tag: string, lens?: (v: V) => any) => (v: V) => {
     console.log(tag, lens ? lens(v) : v)
@@ -32,5 +33,17 @@ export async function collect<V>(gen: AsyncIterable<V>): Promise<List<V>> {
 }
 
 export type RO<T> =
-	T extends undefined|null|boolean|number|string|Function ? T :
-	{ readonly [K in keyof T]: RO<T[K]> }
+  T extends any[] ? { readonly [K in keyof T]: RO<T[K]> } :
+  T 
+	
+
+// export type RO<T> =
+//     T extends any[] ? DeepReadonlyArray<T[number]> :
+//     T extends object ? DeepReadonlyObject<T> :
+//     T;
+
+// interface DeepReadonlyArray<T> extends ReadonlyArray<RO<T>> {}
+
+// type DeepReadonlyObject<T> = {
+//     readonly [P in keyof T]: RO<T[P]>;
+// };

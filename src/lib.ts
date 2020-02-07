@@ -16,7 +16,7 @@ export type Machine<W extends World, K extends MachineKey<W> = MachineKey<W>> = 
 export type Phase<W extends World, M extends Machine<W>, K extends PhaseKey<M> = PhaseKey<M>> = M['phases'][K]
 
 
-export type Command<K extends string = string> = RO<[K, ...Lit[]]>
+export type Command<K extends string = string> = RO<[K, ...any[]]>
 export type Yield<O> = Promise<RO<O[]>>
 
 export type Keyed<T> = { [key: string]: T }
@@ -94,6 +94,7 @@ export type Productify<U> =
 
 
 export type Lit = string | number | boolean | undefined | null | void | {};
+
 
 export function t<T extends readonly Lit[]>(...args: T) {
 	return args
