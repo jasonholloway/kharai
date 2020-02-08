@@ -1,7 +1,7 @@
 import { createHandler, join, compile, localize } from '../src/handler'
 import { Yield, Command } from '../src/lib'
 import { Observer, Subject } from 'rxjs'
-import { gather } from './helpers'
+import { gather, delay } from './helpers'
 
 
 describe('coroutines', () => {
@@ -40,7 +40,7 @@ describe('coroutines', () => {
 	})
 
 
-	it('coroutinizes', async () =>{
+	it('trampolines', async () =>{
 		const h1 = createHandler({
 			async woof(c: number) {
 				return [['@me', 'meow', c]]
@@ -49,39 +49,44 @@ describe('coroutines', () => {
 
 		const h2 = createHandler({
 			async meow(c: number) {
-				return c ? [['@me', 'woof', c-1]] : []
+				return c ? [['@me', 'woof', c-1], ['oink', 'wot']] : []
 			}
 		})
 
 		const hh = localize('gaz', join(h1, h2))
-		const dispatch = compile(hh)
+
+		const h3 = createHandler({
+			async oink(s: string) {
+				return [];
+			}
+		})
+		
+		const dispatch = compile(join(hh, h3))
 
 		const log$ = new Subject<Command>()
 		const gathering = gather(log$);
 
 		run(dispatch, log$, ['gaz', 'woof', 1]);
+
+		await delay(100);
+		log$.complete();
 		
 		expect(await gathering)
 			.toEqual([
 				['gaz', 'woof', 1],
 				['gaz', 'meow', 1],
 				['gaz', 'woof', 0],
+				['oink', 'wot'],
 				['gaz', 'meow', 0],
 			])
 	})
-	
 })
 
 
 function run(fn: (c: Command) => Yield, sink: Observer<Command>, c: Command) {
 	sink.next(c);
 	fn(c).then(out => {
-		if(out.length) {
-			out.forEach(o => run(fn, sink, o))
-		}
-		else {
-			sink.complete();
-		}
+		out.forEach(o => run(fn, sink, o))
 	})
 	.catch(sink.error);
 }
