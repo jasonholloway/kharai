@@ -1,20 +1,21 @@
-import { Set, List } from 'immutable'
-import { createHandler, join, compile, Handler, localize } from '../src/handler'
-import { t, Command, Tail } from '../src/lib'
-import { RO } from './util'
+import { createHandler, join, compile, localize } from '../src/handler'
+import { Yield, Command } from '../src/lib'
+import { Observer, Subject } from 'rxjs'
+import { gather } from './helpers'
+
 
 describe('coroutines', () => {
 
 	it('joins', () => {
 		const h1 = createHandler({
 			async woof() {
-				return [t('meeow')]
+				return [['meeow']]
 			}
 		})
 
 		const h2 = createHandler({
 			async meeow() {
-				return [t('woof')]
+				return [['woof']]
 			}
 		})
 
@@ -28,7 +29,7 @@ describe('coroutines', () => {
 	it('compiles & dispatches', async () => {
 		const h = createHandler({
 			async woof(n: number) {
-				return [t('meeow', n)]
+				return [['meeow', n]]
 			}
 		})
 
@@ -40,35 +41,48 @@ describe('coroutines', () => {
 
 
 	it('coroutinizes', async () =>{
-		let count = 1;
-
 		const h1 = createHandler({
-			async woof() {
-				console.log('HEY!')
-				return [t('@me', 'meeow')]
+			async woof(c: number) {
+				return [['@me', 'meow', c]]
 			}
 		})
 
 		const h2 = createHandler({
-			async meeow() {
-				return count-- ? [t('@me', 'woof')] : []
+			async meow(c: number) {
+				return c ? [['@me', 'woof', c-1]] : []
 			}
 		})
 
 		const hh = localize('gaz', join(h1, h2))
-
 		const dispatch = compile(hh)
 
-		const out = await dispatch(['gaz', 'woof'])
+		const log$ = new Subject<Command>()
+		const gathering = gather(log$);
 
-		//need to drive it here
-
-		expect(out).toEqual([
-			['gaz', 'meeow'],
-			['gaz', 'woof'],
-			['gaz', 'meeow'],
-		])
+		run(dispatch, log$, ['gaz', 'woof', 1]);
+		
+		expect(await gathering)
+			.toEqual([
+				['gaz', 'woof', 1],
+				['gaz', 'meow', 1],
+				['gaz', 'woof', 0],
+				['gaz', 'meow', 0],
+			])
 	})
 	
 })
+
+
+function run(fn: (c: Command) => Yield, sink: Observer<Command>, c: Command) {
+	sink.next(c);
+	fn(c).then(out => {
+		if(out.length) {
+			out.forEach(o => run(fn, sink, o))
+		}
+		else {
+			sink.complete();
+		}
+	})
+	.catch(sink.error);
+}
 

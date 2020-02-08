@@ -5,12 +5,12 @@ import { RO } from './util'
 export type Handler<I extends Command = Command, O extends Command = Command> =
 	readonly [I[0], (...args: Tail<I>) => Yield<O>][]
 
-export type HandlerMap<OK extends string = string, O extends Command<OK> = Command<OK>> = {
-	[k: string]: ((...args: any[]) => Yield<Command<OK>>)
+export type HandlerMap<OH extends string = string, OT extends any[] = any[], O extends Command<OH, OT> = Command<OH, OT>> = {
+	[k: string]: ((...args: any[]) => Yield<Command<OH, OT>>)
 }
 
 
-export function createHandler<OK extends string, O extends Command<OK>, H extends Only<HandlerMap<OK, O>>>(h: H): Handler<Obj2In<H>, Obj2Out<H>> {
+export function createHandler<OH extends string, OT extends any[], O extends Command<OH, OT>, H extends Only<HandlerMap<OH, OT, O>>>(h: H): Handler<Obj2In<H>, Obj2Out<H>> {
 	return <Handler<Obj2In<H>, Obj2Out<H>>><any>Object.entries(h)
 }
 
@@ -56,7 +56,7 @@ export function localize(id: string, handler: Handler): Handler {
 			const res = await dispatch(r);
 			return res.map(c => {
 				switch(c[0]) {
-					case '@me': return [id, tail(c)];
+					case '@me': return [id, ...tail(c)];
 					default: return c;
 				}
 			});
@@ -106,6 +106,6 @@ export function localize(id: string, handler: Handler): Handler {
 // 	}
 // }
 
-export function ignore<C1 extends Command, C2 extends Command = never, C3 extends Command = never>() : Handler<C1|C2|C3, C1|C2|C3> {
-	return createHandler({})
-}
+// export function ignore<C1 extends Command, C2 extends Command = never, C3 extends Command = never>() : Handler<C1|C2|C3, C1|C2|C3> {
+// 	return createHandler({})
+// }
