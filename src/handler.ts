@@ -38,13 +38,9 @@ export function join<HR extends Handler[]>(...handlers: HR) : Handler<In<HR[numb
 					handlers.reduce((ac, h) => [...ac, ...h], []);
 }
 
-
 export function compile<I extends Command, O extends Command>(handler: Handler<I, O>): (i: I) => Yield<O> {
 	const map = Map(handler)
 	return async (c: I) => {
-
-		console.log('woooo', c)
-		
 		const found = map.get(c[0]);
 		return found
 		  ? found(...tail(c))
@@ -52,7 +48,21 @@ export function compile<I extends Command, O extends Command>(handler: Handler<I
 	}
 }
 
-
+export function localize(id: string, handler: Handler): Handler {
+	const dispatch = compile(handler);
+	return [[
+		id,
+		async (...r: Command) => {
+			const res = await dispatch(r);
+			return res.map(c => {
+				switch(c[0]) {
+					case '@me': return [id, tail(c)];
+					default: return c;
+				}
+			});
+		}
+	]];
+}
 
 
 // 	const h1 = createHandler({
