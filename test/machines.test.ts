@@ -3,7 +3,7 @@ import _Monoid from '../src/_Monoid'
 import Store from '../src/Store'
 import AtomSpace, { Head } from '../src/AtomSpace'
 import AtomSaver from '../src/AtomSaver'
-import { Id, Data, SpecWorld, makeWorld, World, Machine, PhaseKey, WorldImpl, MachineImpl, MachineState, MachineKey } from '../src/lib'
+import { cmd, Id, Data, SpecWorld, makeWorld, World, Machine, PhaseKey, WorldImpl, MachineImpl, MachineState, MachineKey } from '../src/lib'
 import { createHandler, localize, compile } from '../src/handler'
 
 describe('machines: running', () => {
@@ -64,16 +64,16 @@ describe('machines: running', () => {
 			dummy: {
 				zero: {
 					data: {},
-					resume: ['phase', 'start']
+					cmd: cmd('phase', 'start')
 				},
 				phases: {
 					start: {
 						guard(d): d is number { return true; },
-						run: async () => [['phase', 'middle'] as const]
+						run: async () => [cmd('phase', 'middle')]
 					},
 					middle: {
 						guard(d): d is any { return true },
-						run: async () => [['phase', 'end']]
+						run: async () => [cmd('phase', 'end')]
 					},
 					end: {
 						guard(d): d is any { return true; },
@@ -85,12 +85,12 @@ describe('machines: running', () => {
 			fancy: {
 				zero: {
 					data: {},
-					resume: ['phase', 'start']
+					cmd: ['phase', 'start']
 				},
 				phases: {
 					start: {
 						guard(d): d is any { return true },
-						run: async () => [['phase', 'start'] as const]  // [['resume', ['delay', 10, ['go', 'end']]] as const]
+						run: async () => [cmd('phase', 'start')]
 					},
 					end: {
 						guard(d): d is any { return true },

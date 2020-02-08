@@ -1,20 +1,19 @@
-import { Set, List } from 'immutable'
-import { createHandler, join, compile, Handler } from '../src/handler'
-import { t, Command, Tail } from '../src/lib'
-import { RO } from './util'
+import { Map } from 'immutable'
+import { createHandler, compile, Handler, join } from '../src/handler'
+import { Id, cmd, Cmd, World, WorldImpl, Yield, Machine, PhaseKey, MachineState, MachineImpl, Keys } from '../src/lib'
 
 describe('coroutines', () => {
 
 	it('joins', () => {
 		const h1 = createHandler({
 			async woof() {
-				return [t('meeow')]
+				return [cmd('meeow', {})]
 			}
 		})
 
 		const h2 = createHandler({
 			async meeow() {
-				return [t('woof')]
+				return [cmd('woof', {})]
 			}
 		})
 
@@ -28,91 +27,178 @@ describe('coroutines', () => {
 	it('compiles & dispatches', async () => {
 		const h = createHandler({
 			async woof(n: number) {
-				return [t('meeow', n)]
+				return [cmd('meeow', n)]
 			}
 		})
 
 		const dispatch = compile(h)
-		const out = await dispatch(['woof', 7])
+		const out = await dispatch(cmd('woof', 7))
 
 		expect(out).toEqual([['meeow', 7]])
 	})
 
 
-function localize<
-	I extends Command,
-	O extends Command,
-	Id extends string>
-		(id: Id, handler: Handler<I, RO<['@me',I]>|(O[0] extends '@me' ? never : O)>): Handler<readonly [Id,I], readonly [Id,I]|O> {
 
-			//current thinking is, each localisation does need to compile
-			//but it won't compile a coroutine exactly: just inputs and outputs
-			//the trampoline will still be central: there will be one single driver
-			//redispatching everything that's emitted
+	it('localizes', async () => {
 
-			//['machine123', ['delay', 123, ['go', 'blah']]]
-			//anything emitted as '@me' is saved
-			//
-			//but - this makes it conceivable that communication can be made into a machine from below; which seems very wrong as it will then break the continuous state
-			//each machine is its own space, communicating via tunnels
-			//
-			//but also communicating outwardly to other shared services
-			//the thought of yielding to be driven from below is nice
-			//
-			//but there has to be some constraint on the driving if everything is sequential within the world of the machine (which it has to be)
-			//
-			//so, a machine will yield downwards, which will be redispatched to itself; in handling this, the machine will enqueue and on dispatch save the command (doubtful again)
-			//
-			//as a machine is loaded, its first command must be driven, logged to screen as normal
-			//so saving to state must happen before the dispatch
-			//
-			//unless state passed as part of the message... then there can only be one thread, as it passes with the message
-			//there is then a single string saved, with state as well as resumption - state as part of the resumption
-			//
-			//after the dispatch, a new command is output and saved. it will be saveable because of something distinguishable about its form
-			//
-			//and if it emits an attempt to save too, this saving will be picked up by another handler, that will save it to the proper head
-			//and so running machines can be kept very separate from saving them
-			//
-			//so... how does this add up? the localized dispatcher just plugs into the total set of handlers, is stateless
-			//any commands prefixed with '@' get readdressed to the machine in particular
-			//
-			//so some kind of compilation is needed before plugging into the driving trampoline
-			//
-
-
-		return <any>handler.map(([k, fn]) => [
-				[id, k],
-				async (...r: Tail<I>) => {
-					const res = await fn(...r)
-					return res.map(c => {
-						switch(c[0]) {
-							case '@me': return [id, c[1]];
-							default: return c;
-						}
-					});
-				}
-			]
+		const h = createHandler({
+			async krrumpt() {
+				return [
+					cmd('pah', {}),
+					cmd('@me', cmd('krrumpt', {}))
+				]
+			}
 		})
 
+		const localized = localize('fred', h);
+		const dispatch = compile(localized);
+
+		const out = await dispatch(cmd('fred', cmd('krrumpt', {})));
+
+		expect(out).toEqual([
+			['pah'],
+			['fred', ['krrumpt']]
+		]);
+	})
+})
+
+
+
+type Input<W extends World, M extends Machine<W>, P extends PhaseKey<M> = PhaseKey<M>> =
+	readonly [P, MachineState<W, M>]
+
+type Output<W extends World, M extends Machine<W>, P extends PhaseKey<M> = PhaseKey<M>> =
+	readonly [P, MachineState<W, M>]
+
+
+function localize<
+	K extends string,
+	I extends Cmd,
+	O extends Cmd
+>
+	(key: K, handler: Handler<I, O>) {
+		const dispatch = compile(handler);
+		return [
+			[key,
+				async (c: I) => {
+					const outs = await dispatch(c)
+
+					return outs.map(o => {
+						if(o.key == '@me') {
+              return cmd(key, <I>o.body)
+						}
+						else {
+							return o;
+						}
+					});
+				}] as const
+		]
 	}
 
-		// if a handler outputs @mes, then these aren't emitted
-		// in their place ['bazza', ['summat', 123]]
+
+describe('driver', () => {
+	
+
+	function compileMachine<W extends World, K extends Keys<W['machines']>, M extends Machine<W, K>>(k: K, m: MachineImpl<W, M>) { //: Handler<[K, Input<W, M>], Output<W, M>> {
+		const handler = Map(m.phases).toArray()
+			.map(([pk, p]) => [<Keys<M['phases']>>pk, (arg: any) => {
+				if(!p.guard(arg)) throw 'BAD STATE!!!';
+				else {
+					return p.run({}, arg)
+				}
+			}] as const)
+
+		//but should localize it here too
+		
+
+		const localized = localize(k, handler);
+
+		return localized;
+	}
+			// (id: K, handler: Handler<I, RO<['@me',I]>|O>): Handler<readonly [K,I], readonly [K,I]|O> {
 
 
-	it('coroutinizes', async () =>{
+	function compileWorld<W extends World>(w: WorldImpl<W>): (i: any) => Yield {
+
+		const zz = Map(w.machines).toArray()
+			.map(([mk, m]) => {
+				const handler = compileMachine(mk, m);
+				const local = localize(mk, handler);
+				return local;
+			});
+
+		//and then each other handler...
+		//when we boot, all these handlers should be available
+		//
+		
+
+		const disp = compile(join(...zz))
+
+
+		
+		return async () => []
+	}
+
+	
+	class Driver<W extends World> {
+
+		private defs: WorldImpl<W>
+
+		constructor(defs: WorldImpl<W>) {
+			this.defs = defs;
+
+			//should compile handlers here
+			//...
+		}
+
+		boot<C extends Cmd>(id: Id<W>, c: C) {
+			//...
+		}
+	}
+
+	it('boots', async () => {
+
+		const driver = new Driver({});
+
+		
+		const booter = createHandler({
+
+      async boot(k: [string, string], c: Cmd) {
+				//build handler
+				//then dispatch to handler
+				//this requires access to the driver itself
+
+				//so - this could be a special function of the driver itself?
+				//the driver needs to be able to populate its own handlers it seems
+				//
+				
+				return []
+			}
+
+		})
+
+		const dispatch = compile(booter)
+
+		const out = await dispatch(['boot', ['dummy', '123'], ['hello']]);
+
+		expect(out).toEqual([
+			['dummy:123', 'hello']
+		])
+	})
+
+
+	it('driver coroutinizes', async () =>{
 		let count = 1;
 
 		const h1 = createHandler({
 			async woof() {
-				return [t('meeow')]
+				return [cmd('meeow')]
 			}
 		})
 
 		const h2 = createHandler({
 			async meeow() {
-				return count-- ? [t('@me', ['woof'] as const)] : []
+				return count-- ? [cmd('@me', cmd('woof'))] : []
 			}
 		})
 
@@ -124,13 +210,36 @@ function localize<
 
 		//need to drive it here
 
-		expect(out).toEqual(List([
+		expect(out).toEqual([
 			['woof'],
 			['meeow'],
 			['woof'],
 			['meeow'],
-		]))
+		])
 	})
-	
+
 })
 
+
+// function localize<
+// 	I extends Command,
+// 	O extends Command,
+// 	K extends string>
+// 		(id: K, handler: Handler<I, RO<['@me',I]>|O>): Handler<readonly [K,I], readonly [K,I]|O> {
+// 			const dispatch = compile(handler);
+// 			return [
+// 				[id,
+// 				 async (c: I) => {
+// 					 const outs = await dispatch(c)
+
+// 					 return outs.map(o => {
+// 						 if(o[0] == '@me') {
+// 							 return [id, <I>o[1]]
+// 						 }
+// 						 else {
+// 							 return <O>o;
+// 						 }
+// 					 });
+// 				}]
+// 			]
+// 		}

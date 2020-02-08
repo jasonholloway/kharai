@@ -1,4 +1,4 @@
-import { Map, Set } from 'immutable'
+import { Map } from 'immutable'
 import { RO } from './util'
 
 
@@ -7,7 +7,7 @@ export type Data = Map<string, any>
 
 export type MachineState<W extends World = World, M extends Machine<W> = Machine<W>> = {
 	data: any
-	resume: Command
+	resume: Cmd
 }
 
 
@@ -16,8 +16,21 @@ export type Machine<W extends World, K extends MachineKey<W> = MachineKey<W>> = 
 export type Phase<W extends World, M extends Machine<W>, K extends PhaseKey<M> = PhaseKey<M>> = M['phases'][K]
 
 
-export type Command<K extends string = string> = RO<[K, ...any[]]>
-export type Yield<O> = Promise<RO<O[]>>
+
+export function cmd<R extends readonly any[]>(...r: RO<R>) : Cmd<R> {
+	return new Cmd(r);
+}
+
+export class Cmd<R extends readonly any[] = any[]> {
+	readonly parts: R
+
+	constructor(parts: R) {
+		this.parts = parts;
+	}
+}
+
+
+export type Yield<O extends Cmd = Cmd> = Promise<readonly O[]>
 
 export type Keyed<T> = { [key: string]: T }
 export type Keys<O> = keyof O & string;
@@ -63,7 +76,7 @@ export type MachineImpl<W extends World, M extends Machine<W> = Machine<W>> = {
 
 export type PhaseImpl<W extends World, M extends Machine<W>, P extends Phase<W, M>> = {
 	guard(d: any): d is P['input'] 
-	run(x: Context<W>, d: P['input']): Yield<['phase', PhaseKey<M>]>
+	run(x: Context<W>, d: P['input']): Yield<Cmd<'phase', PhaseKey<M>>>
 }
 
 
@@ -73,7 +86,7 @@ export function makeWorld<W extends World>(w: Impl<W>) {
 	return w;
 }
 
-export type Cons<H, T extends readonly Lit[]> = ((h: H, ...t: T) => any) extends ((...l: infer L) => any) ? (L extends ReadonlyArray<Lit> ? L : never) : never;
+export type Cons<H, T extends readonly any[]> = ((h: H, ...t: T) => any) extends ((...l: infer L) => any) ? (L extends ReadonlyArray<any> ? L : never) : never;
 export type Tail<T extends readonly Lit[]> = ((...args: T) => void) extends ((head: any, ...tail: infer U) => void) ? U : never;
 
 export function tail<T extends readonly Lit[]>(t: T): Tail<T> {
