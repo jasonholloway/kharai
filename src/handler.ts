@@ -1,6 +1,7 @@
 import { t, Command, Cons, Tail, Yield, tail, Prop, Only, Lit} from './lib'
 import { Map } from 'immutable'
 import { RO } from './util'
+import { Observer, Subject } from 'rxjs'
 
 export type Handler<I extends Command = Command, O extends Command = Command> =
 	readonly [I[0], (...args: Tail<I>) => Yield<O>][]
@@ -65,47 +66,50 @@ export function localize(id: string, handler: Handler): Handler {
 }
 
 
-// 	const h1 = createHandler({
-// 		async woof() {
-// 			return [t('meeow')]
-// 		}
-// 	})
+//we want the per-machine stream to be completed when there's nothing else to report
+//but if the RunContext forks (as it does) then how can the stream know when it's closed?
+//it's like each individual run needs a handle
+//
+//or rather - the context needs a refcount on it - when it goes down to zero, then
+//the stream can finish
+//
 
-// 	const h2 = createHandler({
-// 		async meeow() {
-// 			return [['@me', ['woof'] as const]]
-// 		}
-// 	})
+export class Sink<V> {
+	private v$: Subject<V>
+	private count: number
 
-// const jj = join(h1, h2)
-
-// const hh = localize('gaz', jj)
-
-// const lll = localize('id', h);
-// lll
-
-
-// export function compileCoroutine<I extends Command, O extends Command>(handler: Handler<I, O>): ((i: Readonly<I>) => Yield<I|O>) {
-// 	const dispatch = compile(join(handler, ignore<I, O>()));
+	constructor(v$: Subject<V>) {
+		this.v$ = v$;
+		this.count = 0;
+	}
 	
-// 	return async (boot) => {
-// 		let _in: List<I|O> = List([boot]);
-		
-// 		do {
-// 			const _out = await Promise.all(_in.map(dispatch));
+	hold() {
+		this.count++;
+	}
 
-// 			//
-// 			//but commands that are part of the same set must be done together
-// 			//
+	release() {
+		this.count--;
+		if(this.count <= 0) {
+			this.v$.complete();
+		}
+	}
 
-// 			yield * _in;
+	next(v: V) {
+		this.v$.next(v);
+	}
 
-// 			_in = List(_out).flatMap(r => r);
+	error(err: any) {
+		this.v$.error(err);
+	}
+}
 
-// 		} while(!_in.isEmpty())
-// 	}
-// }
+export function drive(fn: (c: Command) => Yield, sink: Sink<Command>, c: Command) {
+	sink.hold();
+	sink.next(c);
+	fn(c).then(out => {
+		out.forEach(o => drive(fn, sink, o))
+	})
+	.finally(() => sink.release())
+	.catch(sink.error.bind(sink));
+}
 
-// export function ignore<C1 extends Command, C2 extends Command = never, C3 extends Command = never>() : Handler<C1|C2|C3, C1|C2|C3> {
-// 	return createHandler({})
-// }

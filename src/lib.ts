@@ -63,7 +63,7 @@ export type MachineImpl<W extends World, M extends Machine<W> = Machine<W>> = {
 
 export type PhaseImpl<W extends World, M extends Machine<W>, P extends Phase<W, M>> = {
 	guard(d: any): d is P['input'] 
-	run(x: Context<W>, d: P['input']): Yield<['phase', PhaseKey<M>]>
+	run(x: Context<W>, d: P['input']): Yield<['@me', 'go', PhaseKey<M>]|['@me', 'delay', number, 'go', PhaseKey<M>]>
 }
 
 

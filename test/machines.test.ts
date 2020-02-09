@@ -3,35 +3,55 @@ import _Monoid from '../src/_Monoid'
 import Store from '../src/Store'
 import AtomSpace, { Head } from '../src/AtomSpace'
 import AtomSaver from '../src/AtomSaver'
-import { Id, Data, SpecWorld, makeWorld, World, Machine, PhaseKey, WorldImpl, MachineImpl, MachineState, MachineKey } from '../src/lib'
-import { createHandler, localize, compile } from '../src/handler'
+import { Id, Data, SpecWorld, makeWorld, World, Machine, PhaseKey, WorldImpl, MachineImpl, MachineState, MachineKey, Command, Yield } from '../src/lib'
+import { createHandler, localize, compile, drive, Sink } from '../src/handler'
+import { Observable } from 'rxjs/internal/Observable'
+import { Subject } from 'rxjs'
+import { RO } from './util'
+import { gather } from './helpers'
 
 describe('machines: running', () => {
-	
+
+	let dispatch: Dispatch
+
+	beforeEach(() => {
+		const h = createHandler({
+			async blah() {
+				return []
+			}
+		})
+		
+		dispatch = compile<Command, Command>(h)
+	})	
+
 	it('run through phases', async () => {
-		const space = new MachineSpace(world1, () => Promise.resolve(Set()));
+		const space = new MachineSpace(world1, async () => Set(), dispatch);
+		
+		const [run] = space.summon(['dummy', '123']);
 
-		const [machine] = await space.summon(Set([['dummy', '123']]));
-		const out = await collect(machine);
+		const out = await gather(run.log$);
 
-		expect(out).toEqual(List([
-			['go', 'start'],
-			['go', 'middle'],
-			['go', 'end']
-		]));
+		expect(out).toEqual([
+			['dummy', 'go', 'start'],
+			['dummy', 'go', 'middle'],
+			['dummy', 'go', 'end']
+		]);
 	})
 
 	it('resumes', async () => {
-		const space = new MachineSpace(world1, async () => Set());
+		const space = new MachineSpace(world1, async () => Set(), dispatch);
+		const gathering = gather(space.log$);
 
-		const [machine] = await space.summon(Set([['fancy', '123']]));
-		const out = await collect(machine);
+		const [run] = space.summon(['fancy', '123']); //but - you don't want to send a command to an already-running machine...
+		
+		//again, wait to complete here
 
+		const out = await gathering;
 		expect(out).toEqual(List([
-			['go', 'start'],
-			['resume', ['delay', 10, ['go', 'end']]],
-			['delay', 10, ['go', 'end']],
-			['go', 'end']
+			['fancy', 'go', 'start'],
+			['fancy', 'delay', 10, 'go', 'end'],
+			['fancy', 'delay', 10, 'go', 'end'],
+			['fancy', 'go', 'end']
 		]))
 	})
 	
@@ -61,22 +81,23 @@ describe('machines: running', () => {
 
 	const world1 = makeWorld<World1>({
 		machines: {
+
 			dummy: {
 				zero: {
 					data: {},
-					resume: ['phase', 'start']
+					resume: ['go', 'start']
 				},
 				phases: {
 					start: {
-						guard(d): d is number { return true; },
-						run: async () => [['phase', 'middle'] as const]
+						guard(d): d is number { return true },
+						run: async () => [['@me', 'go', 'middle']]
 					},
 					middle: {
 						guard(d): d is any { return true },
-						run: async () => [['phase', 'end']]
+						run: async () => [['@me', 'go', 'end']]
 					},
 					end: {
-						guard(d): d is any { return true; },
+						guard(d): d is any { return true },
 						run: async () => [] 
 					}
 				}
@@ -85,12 +106,12 @@ describe('machines: running', () => {
 			fancy: {
 				zero: {
 					data: {},
-					resume: ['phase', 'start']
+					resume: ['go', 'start']
 				},
 				phases: {
 					start: {
 						guard(d): d is any { return true },
-						run: async () => [['phase', 'start'] as const]  // [['resume', ['delay', 10, ['go', 'end']]] as const]
+						run: async () => [['@me', 'delay', 10, 'go', 'end']]
 					},
 					end: {
 						guard(d): d is any { return true },
@@ -117,60 +138,96 @@ describe('machines: loading and saving', () => {
 })
 
 
-async function *runMachine<W extends World, M extends Machine<W>>(def: MachineImpl<W, M>, state: Readonly<MachineState<W, M>>, head: Head<Data>) {
-	const handler = createHandler({
-		async phase(key: PhaseKey<M>) {
-			const _phase = def.phases[key];
-			const data = state.data;
+async function *runMachine<
+	W extends World,
+	K extends MachineKey<W>,
+	M extends Machine<W, K> = Machine<W, K>>
+	(machineKey: K, def: MachineImpl<W, M>, head: Head<Data>) {
 
-			if(!_phase.guard(data)) {
-				// throw Error('guard failed');
-				return [];
-			}
-			else {
+		const handler = createHandler({
+			async go(key: PhaseKey<M>, data: RO<MachineState<W, M>>) {
+				const _phase = def.phases[key];
+				if(!_phase) throw Error(`phase ${key} not found!`)
+				if(!_phase.guard(data)) throw Error('guard failed');
+
 				const cr = List(await _phase.run({}, data));
 				//should update machine state here
 				return [...cr];
-			}
-		},
-	});
+			},
+		});
 
-	const local = localize('bob', handler);
-	const dispatch = compile(local);
-	dispatch
-
-}
-
+		const local = localize('', handler);
+		const dispatch = compile(local);
+		dispatch
+	}
 
 
 type MachineLoader<W extends World> = (ids: Set<Id<W>>) => Promise<Set<[Id<W>, MachineState<W>]>>
+
+type Dispatch<I extends Command = Command, O extends Command = Command> = (c: I) => Yield<O>
 
 class MachineSpace<W extends World> {
 	private readonly world: WorldImpl<W>
 	private readonly atoms: AtomSpace<Data>
 	private readonly loader: MachineLoader<W>
-	private activeIds: Set<Id<W>>
+	private readonly dispatch: Dispatch
+	private runs: Map<Id<W>, Run<W>>
 
-	constructor(world: WorldImpl<W>, loader: MachineLoader<W>) {
+	private _log$: Subject<[Id, Observable<Command>]>
+	log$: Observable<[Id, Observable<Command>]>
+
+	constructor(world: WorldImpl<W>, loader: MachineLoader<W>, dispatch: Dispatch) {
 		this.world = world;
 		this.atoms = new AtomSpace();
 		this.loader = loader;
-		this.activeIds = Set()
+		this.dispatch = dispatch;
+		this.runs = Map();
+
+		this._log$ = new Subject<[Id, Observable<Command>]>();
+		this.log$ = this._log$;
 	}
 
-	async summon<K extends MachineKey<W>>(ids: Set<Id<W, K>>) {//: Promise<Set<AsyncIterable<Command>>> {
-		return (<Set<Id<W>>>ids)
-			.subtract(this.activeIds)
-			.map(([key, id]) => {
-				this.activeIds = this.activeIds.add([key, id]);
-				
+	summon<IR extends readonly Id<W>[]>(...ids: IR): IRun<W, IR[number][0]>[] {
+		const summoned = Map(ids.map(id => {
+			const found = this.runs.get(id);
+			if(found) return [id, found];
+			else {
+				const def = this.world.machines[id[0]];
 				const head = this.atoms.spawnHead();
-				const def = this.world.machines[key];
 
-				return runMachine(def, def.zero, head); //should like load state here + boot with rsumption
-			});
+				const run = new Run();
+				this._log$.next([id, run.log$]);
+				run.boot(this.dispatch, def.zero.resume);
+				
+				return [id, run];
+			}
+		}))
+		this.runs = this.runs.merge(summoned); //lots of needless churn
+		return [...summoned.values()];
 	}
 }
+
+
+
+class Run<W extends World, K extends MachineKey<W> = MachineKey<W>, M extends Machine<W, K> = Machine<W, K>> implements IRun<W, K> {
+	private _log$: Subject<Command>
+	log$: Observable<Command>
+	
+	constructor() {
+		this._log$ = new Subject<Command>();
+		this.log$ = this._log$;
+	}
+
+	boot(dispatch: Dispatch, command: Command) {
+		const sink = new Sink(this._log$);
+		setImmediate(() => drive(dispatch, sink, command))
+	}
+}
+
+interface IRun<W extends World, K extends MachineKey<W>> {
+	readonly log$: Observable<Command>
+}
+
 
 
 

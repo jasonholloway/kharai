@@ -1,4 +1,4 @@
-import { createHandler, join, compile, localize } from '../src/handler'
+import { createHandler, join, compile, localize, drive } from '../src/handler'
 import { Yield, Command } from '../src/lib'
 import { Observer, Subject } from 'rxjs'
 import { gather, delay } from './helpers'
@@ -66,7 +66,7 @@ describe('coroutines', () => {
 		const log$ = new Subject<Command>()
 		const gathering = gather(log$);
 
-		run(dispatch, log$, ['gaz', 'woof', 1]);
+		drive(dispatch, log$, ['gaz', 'woof', 1]);
 
 		await delay(100);
 		log$.complete();
@@ -83,11 +83,19 @@ describe('coroutines', () => {
 })
 
 
-function run(fn: (c: Command) => Yield, sink: Observer<Command>, c: Command) {
-	sink.next(c);
-	fn(c).then(out => {
-		out.forEach(o => run(fn, sink, o))
-	})
-	.catch(sink.error);
-}
+//summoning a machine gets its stream of logs, that we might or might not wnat to read
+//but - what would be the point in getting such a handle, if we can't do anything with it,
+//and the only reasonable reader is centralized?
+//
+//when communicating with another, we firstly want to summon it, and then interact with it
+//in the case of message passing, we want to blockinglly wait for it to receive a message from us
+//
+//------------------
+//
+//here we're back at the thought of having handlers hardcoded as resources: we would summon a machine context
+//and pass it bits and bobs; the actual path of execution would though be done by the dispatcher, and the handlers which would
+//use shared resources such as the MachineSpace
+//
+
+
 
