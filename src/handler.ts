@@ -103,11 +103,11 @@ export class Sink<V> {
 	}
 }
 
-export function drive(fn: (c: Command) => Yield, sink: Sink<Command>, c: Command) {
+export function boot(drive: (c: Command) => Yield, sink: Sink<Command>, c: Command) {
 	sink.hold();
 	sink.next(c);
-	fn(c).then(out => {
-		out.forEach(o => drive(fn, sink, o))
+	drive(c).then(out => {
+		out.forEach(o => boot(drive, sink, o))
 	})
 	.finally(() => sink.release())
 	.catch(sink.error.bind(sink));

@@ -1,4 +1,4 @@
-import { createHandler, join, compile, localize, drive } from '../src/handler'
+import { createHandler, join, compile, localize, boot, Sink } from '../src/handler'
 import { Yield, Command } from '../src/lib'
 import { Observer, Subject } from 'rxjs'
 import { gather, delay } from './helpers'
@@ -66,7 +66,7 @@ describe('coroutines', () => {
 		const log$ = new Subject<Command>()
 		const gathering = gather(log$);
 
-		drive(dispatch, log$, ['gaz', 'woof', 1]);
+		boot(dispatch, new Sink(log$), ['gaz', 'woof', 1]);
 
 		await delay(100);
 		log$.complete();

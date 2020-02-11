@@ -4,7 +4,7 @@ import Store from '../src/Store'
 import AtomSpace, { Head } from '../src/AtomSpace'
 import AtomSaver from '../src/AtomSaver'
 import { Id, Data, SpecWorld, makeWorld, World, Machine, PhaseKey, WorldImpl, MachineImpl, MachineState, MachineKey, Command, Yield, PhaseImpl, Phase, Cons, Prop } from '../src/lib'
-import { createHandler, localize, compile, drive, Sink, Handler } from '../src/handler'
+import { createHandler, localize, compile, boot, Sink, Handler } from '../src/handler'
 import { Observable } from 'rxjs/internal/Observable'
 import { Subject } from 'rxjs'
 import { RO } from './util'
@@ -12,20 +12,16 @@ import { gather } from './helpers'
 import { tap } from 'rxjs/operators'
 
 
-
 function buildMachine<W extends World, MK extends MachineKey<W>>(world: WorldImpl<W>, mk: MK) {
 
 	const phaseImpls = world.machines[mk].phases;
 	const p2 = Map(phaseImpls).mapKeys(k => <PhaseKey<Machine<W, MK>>>k)
-	
-	// const phases = Object.entries<PhaseImpl<W, MK, Phase<W, Machine<W, MK>, PhaseKey<Machine<W, MK>>>>>(world.machines[mk].phases);
 
 	const handler: Handler = [...p2.entries()].map(([k, p]) => {
-		return [k, async (s: string) => { console.log(s); return [] }] as const;
+		return [k, async (...args: any[]) => {
+			return k == 'start' ? [['dummy', 'middle'] as const] : [];
+		}] as const;
 	})
-
-	//
-	//
 	
 	return localize(mk, handler);
 }
@@ -116,7 +112,10 @@ describe('machines: running', () => {
 				phases: {
 					start: {
 						guard(d): d is number { return true },
-						run: async () => [['dummy', 'middle']]
+						run: async () => {
+							console.log('HIT dummy.start')
+							return [['dummy', 'middle']]
+						}
 					},
 					middle: {
 						guard(d): d is any { return true },
@@ -246,7 +245,7 @@ class Run<W extends World, K extends MachineKey<W> = MachineKey<W>, M extends Ma
 
 	boot(dispatch: Dispatch, command: Command) {
 		const sink = new Sink(this._log$);
-		setImmediate(() => drive(dispatch, sink, command))
+		setImmediate(() => boot(dispatch, sink, command))
 	}
 }
 
