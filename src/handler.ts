@@ -1,10 +1,10 @@
-import { t, Command, Cons, Tail, Yield, tail, Prop, Only, Lit} from './lib'
+import { Command, Cons, Tail, Yield, tail, Prop, Only, Lit} from './lib'
 import { Map } from 'immutable'
 import { RO } from './util'
-import { Observer, Subject } from 'rxjs'
+import { Subject } from 'rxjs'
 
 export type Handler<I extends Command = Command, O extends Command = Command> =
-	readonly [I[0], (...args: Tail<I>) => Yield<O>][]
+	(readonly [I[0], (...args: Tail<I>) => Yield<O>])[]
 
 export type HandlerMap<OH extends string = string, OT extends any[] = any[], O extends Command<OH, OT> = Command<OH, OT>> = {
 	[k: string]: ((...args: any[]) => Yield<Command<OH, OT>>)
@@ -40,7 +40,7 @@ export function join<HR extends Handler[]>(...handlers: HR) : Handler<In<HR[numb
 }
 
 export function compile<I extends Command, O extends Command>(handler: Handler<I, O>): (i: I) => Yield<O> {
-	const map = Map(handler)
+	const map = Map(handler.map(r => [r[0], r[1]]))
 	return async (c: I) => {
 		const found = map.get(c[0]);
 		return found

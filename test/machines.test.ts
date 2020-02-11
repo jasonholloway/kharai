@@ -3,43 +3,60 @@ import _Monoid from '../src/_Monoid'
 import Store from '../src/Store'
 import AtomSpace, { Head } from '../src/AtomSpace'
 import AtomSaver from '../src/AtomSaver'
-import { Id, Data, SpecWorld, makeWorld, World, Machine, PhaseKey, WorldImpl, MachineImpl, MachineState, MachineKey, Command, Yield } from '../src/lib'
-import { createHandler, localize, compile, drive, Sink } from '../src/handler'
+import { Id, Data, SpecWorld, makeWorld, World, Machine, PhaseKey, WorldImpl, MachineImpl, MachineState, MachineKey, Command, Yield, PhaseImpl, Phase, Cons, Prop } from '../src/lib'
+import { createHandler, localize, compile, drive, Sink, Handler } from '../src/handler'
 import { Observable } from 'rxjs/internal/Observable'
 import { Subject } from 'rxjs'
 import { RO } from './util'
 import { gather } from './helpers'
+import { tap } from 'rxjs/operators'
+
+
+
+function buildMachine<W extends World, MK extends MachineKey<W>>(world: WorldImpl<W>, mk: MK) {
+
+	const phaseImpls = world.machines[mk].phases;
+	const p2 = Map(phaseImpls).mapKeys(k => <PhaseKey<Machine<W, MK>>>k)
+	
+	// const phases = Object.entries<PhaseImpl<W, MK, Phase<W, Machine<W, MK>, PhaseKey<Machine<W, MK>>>>>(world.machines[mk].phases);
+
+	const handler: Handler = [...p2.entries()].map(([k, p]) => {
+		return [k, async (s: string) => { console.log(s); return [] }] as const;
+	})
+
+	//
+	//
+	
+	return localize(mk, handler);
+}
+
 
 describe('machines: running', () => {
 
+	let loader: MachineLoader<World1>
 	let dispatch: Dispatch
 
 	beforeEach(() => {
-		const h = createHandler({
-			async blah() {
-				return []
-			}
-		})
-		
-		dispatch = compile<Command, Command>(h)
+		loader = async () => Set();
+		dispatch = compile(buildMachine(world1, 'dummy'));
 	})	
 
 	it('run through phases', async () => {
-		const space = new MachineSpace(world1, async () => Set(), dispatch);
+		const space = new MachineSpace(world1, loader, dispatch);
 		
 		const [run] = space.summon(['dummy', '123']);
 
-		const out = await gather(run.log$);
+		const out = await gather(run.log$.pipe(tap(console.log)));
 
 		expect(out).toEqual([
-			['dummy', 'go', 'start'],
-			['dummy', 'go', 'middle'],
-			['dummy', 'go', 'end']
+			['dummy', 'start'],
+			['dummy', 'middle'],
+			['dummy', 'end']
 		]);
 	})
 
 	it('resumes', async () => {
-		const space = new MachineSpace(world1, async () => Set(), dispatch);
+		const space = new MachineSpace(world1, loader, dispatch);
 		const gathering = gather(space.log$);
 
 		const [run] = space.summon(['fancy', '123']); //but - you don't want to send a command to an already-running machine...
@@ -48,18 +65,27 @@ describe('machines: running', () => {
 
 		const out = await gathering;
 		expect(out).toEqual(List([
-			['fancy', 'go', 'start'],
-			['fancy', 'delay', 10, 'go', 'end'],
-			['fancy', 'delay', 10, 'go', 'end'],
-			['fancy', 'go', 'end']
+			['fancy', 'start'],
+			['delay', 10, 'fancy', 'end'],
+			['delay', 10, 'fancy', 'end'],
+			['fancy', 'end']
 		]))
 	})
+	
+
 	
 
 	interface World1 extends SpecWorld<{
 		context: {}
 
-		extraCommand: ['blah']
+		extraCommand: [
+			'blah'
+		]
+
+		handlers: {
+			'@delay': [number, ...any[]],
+			'@wait': [...any[]]
+		}
 		
 		machines: {
 			dummy: {
@@ -85,16 +111,16 @@ describe('machines: running', () => {
 			dummy: {
 				zero: {
 					data: {},
-					resume: ['go', 'start']
+					resume: ['start']
 				},
 				phases: {
 					start: {
 						guard(d): d is number { return true },
-						run: async () => [['@me', 'go', 'middle']]
+						run: async () => [['dummy', 'middle']]
 					},
 					middle: {
 						guard(d): d is any { return true },
-						run: async () => [['@me', 'go', 'end']]
+						run: async () => [['@me', 'end']]
 					},
 					end: {
 						guard(d): d is any { return true },
@@ -111,7 +137,7 @@ describe('machines: running', () => {
 				phases: {
 					start: {
 						guard(d): d is any { return true },
-						run: async () => [['@me', 'delay', 10, 'go', 'end']]
+						run: async () => [['@delay', 10, '@me', 'end']]
 					},
 					end: {
 						guard(d): d is any { return true },
@@ -142,7 +168,7 @@ async function *runMachine<
 	W extends World,
 	K extends MachineKey<W>,
 	M extends Machine<W, K> = Machine<W, K>>
-	(machineKey: K, def: MachineImpl<W, M>, head: Head<Data>) {
+	(machineKey: K, def: MachineImpl<W, K>, head: Head<Data>) {
 
 		const handler = createHandler({
 			async go(key: PhaseKey<M>, data: RO<MachineState<W, M>>) {
@@ -197,7 +223,7 @@ class MachineSpace<W extends World> {
 
 				const run = new Run();
 				this._log$.next([id, run.log$]);
-				run.boot(this.dispatch, def.zero.resume);
+				run.boot(this.dispatch, [id[0], ...def.zero.resume]);
 				
 				return [id, run];
 			}

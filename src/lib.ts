@@ -32,8 +32,15 @@ export type PhaseSpec = {
 }
 
 
+export	type Cmd<W extends World, MK extends MachineKey<W> = MachineKey<W>> =
+		readonly ['@me', PhaseKey<Machine<W, MK>>]
+	| readonly [MK, PhaseKey<Machine<W, MK>>]
+  | { [HK in keyof W['handlers']]: Cons<HK, W['handlers'][HK]> }[keyof W['handlers'] & string]
+
+
 export type World = {
 	context: any
+	handlers: Keyed<Array<any>>
 	machines: Keyed<MachineSpec>
 	extraCommand: RO<[string, ...Lit[]]>
 }
@@ -48,22 +55,22 @@ export type Id<W extends World = World, K extends MachineKey<W> = MachineKey<W>>
 
 export type WorldImpl<W extends World> = {
 	machines: {
-		[K in MachineKey<W>]: MachineImpl<W, Machine<W, K>>
+		[K in MachineKey<W>]: MachineImpl<W, K>
 	}
 }
 
 interface Impl<W extends World> extends WorldImpl<W> {}
 
-export type MachineImpl<W extends World, M extends Machine<W> = Machine<W>> = {
-	zero: MachineState<W, M>,
+export type MachineImpl<W extends World, MK extends MachineKey<W> = MachineKey<W>> = {
+	zero: MachineState<W, Machine<W, MK>>,
 	phases: {
-		[K in PhaseKey<M>]: PhaseImpl<W, M, Phase<W, M, K>>
+		[K in PhaseKey<Machine<W, MK>>]: PhaseImpl<W, MK, Phase<W, Machine<W, MK>, K>>
 	}
 }
 
-export type PhaseImpl<W extends World, M extends Machine<W>, P extends Phase<W, M>> = {
+export type PhaseImpl<W extends World, MK extends MachineKey<W>, P extends Phase<W, Machine<W, MK>>> = {
 	guard(d: any): d is P['input'] 
-	run(x: Context<W>, d: P['input']): Yield<['@me', 'go', PhaseKey<M>]|['@me', 'delay', number, 'go', PhaseKey<M>]>
+	run(x: Context<W>, d: P['input']): Yield<Cmd<W, MK>>
 }
 
 
