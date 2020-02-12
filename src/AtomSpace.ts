@@ -1,6 +1,6 @@
 import Locks, { Lock } from './Locks'
 import { Set } from 'immutable'
-import { Atom, AtomRef } from './atoms'
+import { Atom, AtomRef, AtomLike } from './atoms'
 import AtomPath from './AtomPath'
 
 export default class AtomSpace<V> {
@@ -56,4 +56,12 @@ export class Head<V> {
 	ref() {
 		return this._ref;
 	}
+
+	static conjoin<V>(heads: Head<V>[], v: V) {
+		const atom = new Atom(Set(heads).map(h => h._ref), v);
+		for(const head of heads) {
+			head._ref = new AtomRef(atom);
+		}
+	}
 }
+

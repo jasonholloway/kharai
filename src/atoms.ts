@@ -1,16 +1,16 @@
 import { Set } from 'immutable'
 
-export type AtomTarget<V> = Atom<V> | AtomRef<V> | null;
+export type AtomLike<V> = Atom<V> | AtomRef<V> | null;
 
 export class AtomRef<V> {
 	readonly _type = 'AtomRef'
-  private _target: AtomTarget<V>
+  private _target: AtomLike<V>
 
-	constructor(target?: AtomTarget<V>) {
+	constructor(target?: AtomLike<V>) {
 		this._target = target || null;
 	}
 
-	redirect(target: AtomTarget<V>) {
+	redirect(target: AtomLike<V>) {
 		this._target = target;
 	} 
 	

@@ -3,7 +3,7 @@ import _Monoid from '../src/_Monoid'
 import Store from '../src/Store'
 import AtomSpace, { Head } from '../src/AtomSpace'
 import AtomSaver from '../src/AtomSaver'
-import { Id, Data, SpecWorld, makeWorld, World, Machine, PhaseKey, WorldImpl, MachineImpl, MachineState, MachineKey, Command, Yield, PhaseImpl, Phase, Cons, Prop } from '../src/lib'
+import { Id, Data, SpecWorld, makeWorld, World, Machine, PhaseKey, WorldImpl, MachineImpl, MachineState, MachineKey, Command, Yield } from '../src/lib'
 import { createHandler, localize, compile, boot, Sink, Handler } from '../src/handler'
 import { Observable } from 'rxjs/internal/Observable'
 import { Subject } from 'rxjs'
@@ -17,9 +17,10 @@ function buildMachine<W extends World, MK extends MachineKey<W>>(world: WorldImp
 	const phaseImpls = world.machines[mk].phases;
 	const p2 = Map(phaseImpls).mapKeys(k => <PhaseKey<Machine<W, MK>>>k)
 
-	const handler: Handler = [...p2.entries()].map(([k, p]) => {
-		return [k, async (...args: any[]) => {
-			return k == 'start' ? [['dummy', 'middle'] as const] : [];
+	const handler: Handler = [...p2.entries()].map(([pk, p]) => {
+		return [pk, async (data: any) => {
+			if(!p.guard(data)) throw Error(`Bad data for phase ${mk}.${pk}: ${data}`);
+			return await p.run({}, data);
 		}] as const;
 	})
 	
@@ -53,13 +54,11 @@ describe('machines: running', () => {
 
 	it('resumes', async () => {
 		const space = new MachineSpace(world1, loader, dispatch);
-		const gathering = gather(space.log$);
 
 		const [run] = space.summon(['fancy', '123']); //but - you don't want to send a command to an already-running machine...
 		
-		//again, wait to complete here
+		const out = await gather(run.log$.pipe(tap(console.log)));
 
-		const out = await gathering;
 		expect(out).toEqual(List([
 			['fancy', 'start'],
 			['delay', 10, 'fancy', 'end'],
@@ -113,8 +112,7 @@ describe('machines: running', () => {
 					start: {
 						guard(d): d is number { return true },
 						run: async () => {
-							console.log('HIT dummy.start')
-							return [['dummy', 'middle']]
+							return [['@me', 'middle']]
 						}
 					},
 					middle: {
@@ -212,6 +210,28 @@ class MachineSpace<W extends World> {
 		this.log$ = this._log$;
 	}
 
+
+	async meet(id: Id<W>, negotiator: () => void): Promise<void> {
+		const machine1: any = null;
+		const machine2: any = null;
+		const probe: any = null;
+		const mediator: any = null;
+		
+		await mediator.meet(probe, machine1, machine2)
+
+		//in the above, causation is pooled. the linked atompaths needn't actually include anything... 
+		//they only need to be interlinked at one point for all successive histories to be tangled
+		//and this tangle is only written when all three have concluded their conference
+
+		//probe is the odd one out here
+		//but it will act like a normal party
+		//only without state and a dummy atom
+		//(though an atom could be provided here)
+
+	}
+	
+
+	//below shouldn't be public
 	summon<IR extends readonly Id<W>[]>(...ids: IR): IRun<W, IR[number][0]>[] {
 		const summoned = Map(ids.map(id => {
 			const found = this.runs.get(id);
@@ -232,6 +252,11 @@ class MachineSpace<W extends World> {
 	}
 }
 
+//below is what MachineSpace deals in
+interface IParty {
+	head: Head<Data>
+	barter(): [string, ...any[]]
+}
 
 
 class Run<W extends World, K extends MachineKey<W> = MachineKey<W>, M extends Machine<W, K> = Machine<W, K>> implements IRun<W, K> {
