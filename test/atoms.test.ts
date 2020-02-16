@@ -154,7 +154,7 @@ describe('atoms and stuff', () => {
 			]
 		]);
 	})
-
+	
 	it('locking', async () => {
 		const head1 = space.spawnHead();
 		head1.commit('1:1');

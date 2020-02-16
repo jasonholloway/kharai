@@ -1,13 +1,13 @@
-import Locks, { Lock } from './Locks'
+import Locks from './Locks'
 import { Set } from 'immutable'
-import { Atom, AtomRef, AtomLike } from './atoms'
+import { Atom, AtomRef } from './atoms'
 import AtomPath from './AtomPath'
 
 export default class AtomSpace<V> {
-	private _locks: Locks = new Locks();
+	private _locks: Locks = new Locks(1);
 	private _heads: Set<Head<V>> = Set();
 
-	lock<V>(atoms: Set<Atom<V>>): Promise<Lock> {
+	lock<V>(atoms: Set<Atom<V>>): Promise<{ release(): void }> {
 		return this._locks.lock(...atoms);
 	}
 
@@ -57,8 +57,8 @@ export class Head<V> {
 		return this._ref;
 	}
 
-	static conjoin<V>(heads: Head<V>[], v: V) {
-		const atom = new Atom(Set(heads).map(h => h._ref), v);
+	static conjoin<V>(heads: Head<V>[], val: V) {
+		const atom = new Atom(Set(heads).map(h => h._ref), val);
 		for(const head of heads) {
 			head._ref = new AtomRef(atom);
 		}

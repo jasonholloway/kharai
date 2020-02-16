@@ -40,6 +40,8 @@ describe('machines: running', () => {
 
 	it('run through phases', async () => {
 		const space = new MachineSpace(world1, loader, dispatch);
+
+		await space.meet(['dummy', '123'], () => {});
 		
 		const [run] = space.summon(['dummy', '123']);
 
@@ -212,12 +214,12 @@ class MachineSpace<W extends World> {
 
 
 	async meet(id: Id<W>, negotiator: () => void): Promise<void> {
-		const machine1: any = null;
-		const machine2: any = null;
-		const probe: any = null;
+		const run1 = new Run();
+		const run2 = new Run();
+		const probe = new Probe();
 		const mediator: any = null;
 		
-		await mediator.meet(probe, machine1, machine2)
+		await mediator.convene(probe, run1, run2)
 
 		//in the above, causation is pooled. the linked atompaths needn't actually include anything... 
 		//they only need to be interlinked at one point for all successive histories to be tangled
@@ -252,12 +254,10 @@ class MachineSpace<W extends World> {
 	}
 }
 
-//below is what MachineSpace deals in
-interface IParty {
-	head: Head<Data>
-	barter(): [string, ...any[]]
-}
 
+type Negotiator = () => void
+
+class Probe {}
 
 class Run<W extends World, K extends MachineKey<W> = MachineKey<W>, M extends Machine<W, K> = Machine<W, K>> implements IRun<W, K> {
 	private _log$: Subject<Command>
@@ -271,6 +271,10 @@ class Run<W extends World, K extends MachineKey<W> = MachineKey<W>, M extends Ma
 	boot(dispatch: Dispatch, command: Command) {
 		const sink = new Sink(this._log$);
 		setImmediate(() => boot(dispatch, sink, command))
+	}
+
+	async interrupt(negotiate: Negotiator): Promise<void> {
+		throw 'todo - can\'t interrupt as yet';
 	}
 }
 
