@@ -37,7 +37,7 @@ describe('locks', () => {
 			expect(locked).toBeFalsy();
 		})
 
-		it('lock after supply', async () => {
+		it('locks after supply', async () => {
 			let locked = false;
 			
 			locks.lock(_1)
@@ -49,7 +49,28 @@ describe('locks', () => {
 
 			expect(locked).toBeTruthy();
 		})
-		
+
+		it('releases incrs', async () => {
+			let locked1 = false;
+			let locked2 = false;
+			
+			locks.lock(_1)
+			  .then(() => locked1 = true);
+
+			const incr = await locks.inc([_1], 1);
+
+			await delay(30);
+
+			incr.release();
+
+			locks.lock(_1)
+			  .then(() => locked2 = true);
+
+			await delay(30);
+
+			expect(locked1).toBeTruthy();
+			expect(locked2).toBeFalsy();
+		})
 	})
 	
 
