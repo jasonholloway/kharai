@@ -51,25 +51,31 @@ describe('locks', () => {
 		})
 
 		it('releases incrs', async () => {
-			let locked1 = false;
-			let locked2 = false;
+			let isLocked1 = false;
+			let isLocked2 = false;
+			let isReleased1 = false;
 			
-			locks.lock(_1)
-			  .then(() => locked1 = true);
+			const locking1 = locks.lock(_1)
+			locking1.then(() => isLocked1 = true);
+			await delay(10);
+			expect(isLocked1).toBeFalsy();
 
 			const incr = await locks.inc([_1], 1);
+			await delay(10);
+			expect(isLocked1).toBeTruthy();
 
-			await delay(30);
+			incr.release().then(() => isReleased1 = true);
+			await delay(10);
+			expect(isReleased1).toBeFalsy();
 
-			incr.release();
+			const lock1 = await locking1;
+			await lock1.release();
+			await delay(10);
+			expect(isReleased1).toBeTruthy();
 
-			locks.lock(_1)
-			  .then(() => locked2 = true);
-
-			await delay(30);
-
-			expect(locked1).toBeTruthy();
-			expect(locked2).toBeFalsy();
+			locks.lock(_1).then(() => isLocked2 = true);
+			await delay(10);
+			expect(isLocked2).toBeFalsy();
 		})
 	})
 	
@@ -100,7 +106,7 @@ describe('locks', () => {
 			await delay(10);
 			expect(locked2).toBeFalsy();
 
-			lock.release();
+			await lock.release();
 			await delay(0);
 			expect(locked2).toBeTruthy();
 		})
@@ -116,7 +122,7 @@ describe('locks', () => {
 			await delay(50);
 			expect(locked2).toBeFalsy();
 
-			lock.release();
+			await lock.release();
 			await delay(0);
 			expect(locked2).toBeTruthy();
 		})
@@ -142,16 +148,16 @@ describe('locks', () => {
 				threads.map(async ({ duration, toLock }) => {
 					const lock = await locks.lock(...toLock)
 					await delay(duration);
-					lock.release();
+					await lock.release();
 				}));
 		})
 
 		it('extending existing lock to include new and non-contentious', async () => {
 			const lock = await locks.lock(_1, _2);
-			lock.extend(Set([_3]));
+			await lock.extend(Set([_3]));
 			expect(locks.canLock(_3)).toBeFalsy();
 
-			lock.release();
+			await lock.release();
 			expect(locks.canLock(_3)).toBeTruthy();
 		})
 	})

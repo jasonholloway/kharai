@@ -1,12 +1,11 @@
 import {Set, OrderedMap} from 'immutable'
 
 type Token = object
-type Releasable = () => void;
-type Waiter = () => (((l:Releasable)=>void) | false);
-type DoTheInc = () => Releasable;
+type Waiter = () => ((()=>void) | false);
+type DoTheInc = () => void;
 
 type Handle = {
-	release(): void
+	release(): Promise<void>
 	extend(extras: Set<object>): void
 }
 
@@ -29,9 +28,8 @@ export default class Locks {
 
 			const incAll: (items: Set<object>) => void =
 				(items) => {
-					const allDone = tryIncAllNow(items);
-					if(allDone) {
-						resolve(wrap(items, allDone));
+					if(tryIncAllNow(items)) {
+						resolve(handle(items));
 					}
 					else {
 						const answers = items.map(i => [i, tryIncOne(i)] as const);
@@ -41,11 +39,12 @@ export default class Locks {
 					}
 				};
 
-			const tryIncAllNow: (items: Set<object>) => Set<Releasable>|false =
+			const tryIncAllNow: (items: Set<object>) => boolean =
 				(items) => {
 					const answers = items.map(tryIncOne);
 					if(answers.every(([m]) => m == 'canAdd')) {
-						return answers.map(([,fn]) => (<DoTheInc>fn)());
+						answers.forEach(([,fn]) => (<DoTheInc>fn)());
+						return true;
 					}
 					else {
 						return false;
@@ -57,9 +56,8 @@ export default class Locks {
 					const answers = allItems.subtract([item]).map(i => [i, tryIncOne(i)] as const);
 
 					if(answers.every(([,[m]]) => m === 'canAdd')) {
-						const locks = answers.map(([,[,fn]]) => (<DoTheInc>fn)());
-						return lock =>
-							resolve(wrap(allItems, locks.add(lock)));
+						answers.forEach(([,[,fn]]) => (<DoTheInc>fn)());
+						return () => resolve(handle(allItems));
 					}
 					else {
 						answers.forEach(([i, ans]) => {
@@ -73,13 +71,27 @@ export default class Locks {
 			const tryIncOne =
 				(item: object) => this.summonEntry(item).tryInc(token, c);
 
-			const wrap: (items: Set<object>, handles: Set<Releasable>) => Handle =
-				(items, handles) => ({
-					release() { handles.forEach(release => release()); },
+			const handle: (items: Set<object>) => Handle =
+				(items) => ({
+					release: async () => {
+						const entries = items.map(i => this.summonEntry(i));
+						
+						await Promise.all(entries.map(entry => {
+							return new Promise(resolve => {
+								const ans = entry.tryInc(token, -c);
+								if(ans[0] == 'canAdd') {
+									ans[1]();
+									resolve();
+								}
+								else if(ans[0] == 'mustWait') {
+									ans[1](() => resolve);
+								}
+							})
+						}))
+					},
+
 					extend(extras) {
-						const locked2 = tryIncAllNow(extras.subtract(items));
-						if(locked2) {
-							handles = handles.union(locked2);
+						if(tryIncAllNow(extras.subtract(items))) {
 							items = items.union(extras);
 						}
 						else throw 'can\'t extend onto locked items!';
@@ -118,16 +130,14 @@ class Entry {
 		this._waits = OrderedMap();
 	}
 
-	tryInc(k:Token, c: number): ['canAdd',()=>Releasable] | ['mustWait',(cb:Waiter)=>void] {
+	tryInc(k:Token, c: number): ['canAdd',()=>void] | ['mustWait',(cb:Waiter)=>void] {
 		return this.canInc(c)
 		  ? ['canAdd', () => {
 					this.removeWait(k);
 					this.inc(c);
-					return () => this.inc(-c);
 			  }]
-		  : ['mustWait', cb => {
-					this.addWait(k, [c, cb]);
-					return () => this.removeWait(k);
+		  : ['mustWait', waiter => {
+					this.addWait(k, [c, waiter]);
 			  }];
 	}
 
@@ -137,10 +147,10 @@ class Entry {
 		for(const [k, [cc, waiter]] of this._waits) {
 			if(this.canInc(cc)) {
 				this.removeWait(k);
-				const willAdopt = waiter();
-				if(willAdopt) {
+				const cb = waiter();
+				if(cb) {
 					this.inc(cc)
-					willAdopt(() => this.inc(-cc));
+					cb();
 					return;
 				}
 			}
