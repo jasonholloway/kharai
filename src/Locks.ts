@@ -1,29 +1,28 @@
 import {Set, OrderedMap} from 'immutable'
+import _Monus, { NumberMonus } from './_Monus'
 
 type Token = object
 type Waiter = () => ((()=>void) | false);
 type DoTheInc = () => void;
 
-type Handle = {
+export type Lock = {
 	release(): Promise<void>
 	extend(extras: Set<object>): void
 }
 
-export default class Locks {
-	private readonly _defaultCount: number
-	private readonly _entries: WeakMap<object, Entry>
+export class Locks<C> {
+	private readonly _monus: _Monus<C>
+	private readonly _defaultCount: C
+	private readonly _entries: WeakMap<object, Entry<C>>
 
-	constructor(defaultAvail: number) {
-		this._defaultCount = defaultAvail;
-		this._entries = new WeakMap<object, Entry>();
+	constructor(monus: _Monus<C>, defaultCount: C) {
+		this._monus = monus;
+		this._defaultCount = defaultCount;
+		this._entries = new WeakMap<object, Entry<C>>();
 	}
 
-  lock(...items: object[]) {
-		return this.inc(items, -1);
-	}
-
-	inc(items: object[], c: number): Promise<Handle> {
-		return new Promise<Handle>(resolve => {
+	inc(items: object[], c: C): Promise<Lock> {
+		return new Promise<Lock>(resolve => {
 			const token = new Object();
 
 			const incAll: (items: Set<object>) => void =
@@ -71,14 +70,15 @@ export default class Locks {
 			const tryIncOne =
 				(item: object) => this.summonEntry(item).tryInc(token, c);
 
-			const handle: (items: Set<object>) => Handle =
+			const handle: (items: Set<object>) => Lock =
 				(items) => ({
 					release: async () => {
 						const entries = items.map(i => this.summonEntry(i));
 						
 						await Promise.all(entries.map(entry => {
 							return new Promise(resolve => {
-								const ans = entry.tryInc(token, -c);
+								const subtraction = this._monus.subtract(this._monus.zero, c)
+								const ans = entry.tryInc(token, subtraction);
 								if(ans[0] == 'canAdd') {
 									ans[1]();
 									resolve();
@@ -102,35 +102,33 @@ export default class Locks {
 		})
 	}
 
-	private summonEntry(i: object): Entry {
+	private summonEntry(i: object): Entry<C> {
 		return this._entries.get(i)
 		  || (() => {
-				const created = new Entry(this._defaultCount)
+				const created = new Entry(this._monus, this._defaultCount)
 				this._entries.set(i, created);
 				return created;
 			})()
 	}
 
-	canInc(item: object, c: number): boolean {
+	canInc(item: object, c: C): boolean {
 		const response = this.summonEntry(item).tryInc(new Object(), c);
 		return response[0] == 'canAdd';
 	}
-
-	canLock(item: object): boolean {
-		return this.canInc(item, -1);
-	}
 }
 
-class Entry {
-	private _avail: number
-	private _waits: OrderedMap<Token, [number, Waiter]>
+class Entry<C> {
+	private _monus: _Monus<C>
+	private _count: C
+	private _waits: OrderedMap<Token, [C, Waiter]>
 
-	constructor(avail: number) {
-		this._avail = avail;
+	constructor(monus: _Monus<C>,  count: C) {
+		this._monus = monus;
+		this._count = count;
 		this._waits = OrderedMap();
 	}
 
-	tryInc(k:Token, c: number): ['canAdd',()=>void] | ['mustWait',(cb:Waiter)=>void] {
+	tryInc(k:Token, c: C): ['canAdd',()=>void] | ['mustWait',(cb:Waiter)=>void] {
 		return this.canInc(c)
 		  ? ['canAdd', () => {
 					this.removeWait(k);
@@ -141,8 +139,8 @@ class Entry {
 			  }];
 	}
 
-	private inc(c: number) {
-		this._avail += c;
+	private inc(c: C) {
+		this._count = this._monus.add(this._count, c);
 
 		for(const [k, [cc, waiter]] of this._waits) {
 			if(this.canInc(cc)) {
@@ -157,15 +155,29 @@ class Entry {
 		}
 	}
 
-	private canInc(c: number) {
-		return this._avail + c >= 0;
+	private canInc(c: C) {
+		return this._monus.add(this._count, c) != this._monus.zero;
 	}
 
-	private addWait(k: Token, tup: [number, Waiter]) {
+	private addWait(k: Token, tup: [C, Waiter]) {
 		this._waits = this._waits.set(k, tup);
 	}
 	
 	private removeWait(k: Token) {
 		this._waits = this._waits.delete(k);
+	}
+}
+
+export class SimpleLocks extends Locks<number> {
+	constructor() {
+		super(new NumberMonus(), 1);
+	}
+	
+	canLock(item: object): boolean {
+		return this.canInc(item, -1);
+	}
+
+  lock(...items: object[]) {
+		return this.inc(items, -1);
 	}
 }
