@@ -1,6 +1,5 @@
 import { Set } from 'immutable'
 import Locks from '../src/Locks';
-import { NumberMonus } from './_Monus';
 
 
 describe('mediator', () => {
@@ -66,13 +65,11 @@ interface Party {
 type Chat = [string, ...any[]]
 
 class MeetSpace {
-	private locks = new Locks(new NumberMonus(), 0);
+	private locks = new Locks(0);
 
-  async convene(convener: Party, others: Set<Party>) {
-		const lock = await this.locks.lock(convener, ...others);
+  async convene(parties: Set<Party>) {
+		const lock = await this.locks.lock(...parties);
 		try {
-			//!!! CONVENOR ITSELF NEEDS TO +1 LOCK ITSELF HERE to prevent others talking to it
-			
 			//but what if one is not attached yet?
 			//we can only gain the lock of one registered with us
 

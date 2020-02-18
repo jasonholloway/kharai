@@ -4,4 +4,3 @@ export default interface _Monoid<V> {
 	add(a: V, b: V): V
 }
 
-

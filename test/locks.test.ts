@@ -1,12 +1,12 @@
-import { Locks, SimpleLocks } from '../src/Locks'
+import Locks from '../src/Locks'
 import {delay} from './helpers'
 import { Chooser, many, seedChooser, gen, pick, integer} from '../src/genau'
 import { List, Set } from 'immutable'
-import { NumberMonus } from '../src/_Monus'
 
 describe('locks', () => {
 	let run: Chooser;
 
+	let locks: Locks;
 	const _1 = new Object();
 	const _2 = new Object();
 	const _3 = new Object();
@@ -16,21 +16,20 @@ describe('locks', () => {
 	})
 
 	describe('as Locks(0), requiring supply', () => {
-		let locks: Locks<number>;
 
 		beforeEach(() => {
-			locks = new Locks(new NumberMonus(), 0);
+			locks = new Locks(0);
 		})
 
 		it('unavailable by default', () => {
-			const available = locks.canInc(_1, -1);
+			const available = locks.canLock(_1);
 			expect(available).toBeFalsy();
 		})
 
 		it('no lock without supply', async () => {
 			let locked = false;
 
-			locks.inc([_1], -1)
+			locks.lock(_1)
 			  .then(() => locked = true);
 
 			await delay(50);
@@ -41,7 +40,7 @@ describe('locks', () => {
 		it('locks after supply', async () => {
 			let locked = false;
 			
-			locks.inc([_1], -1)
+			locks.lock(_1)
 			  .then(() => locked = true);
 
 			await locks.inc([_1], 1);
@@ -56,7 +55,7 @@ describe('locks', () => {
 			let isLocked2 = false;
 			let isReleased1 = false;
 			
-			const locking1 = locks.inc([_1], -1)
+			const locking1 = locks.lock(_1)
 			locking1.then(() => isLocked1 = true);
 			await delay(10);
 			expect(isLocked1).toBeFalsy();
@@ -74,29 +73,16 @@ describe('locks', () => {
 			await delay(10);
 			expect(isReleased1).toBeTruthy();
 
-			locks.inc([_1], -1).then(() => isLocked2 = true);
+			locks.lock(_1).then(() => isLocked2 = true);
 			await delay(10);
 			expect(isLocked2).toBeFalsy();
-		})
-
-		it('shares context on lock', async () => {
-
-			const inc1 = await locks.inc([_1], 1);			
-
-			const locked1 = await locks.inc([_1], -1);
-
-			// expect(locked1.peers).toHaveLength(1);
-			// expect(locked1.peers[0]).toBe();
-			
 		})
 	})
 	
 
 	describe('as Locks(1)', () => {
-		let locks: SimpleLocks;
-		
 		beforeEach(() => {
-			locks = new SimpleLocks();
+			locks = new Locks(1);
 		})
 
 		it('available by default', () => {

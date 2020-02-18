@@ -1,10 +1,10 @@
-import { SimpleLocks } from './Locks'
+import Locks from './Locks'
 import { Set } from 'immutable'
 import { Atom, AtomRef } from './atoms'
 import AtomPath from './AtomPath'
 
 export default class AtomSpace<V> {
-	private _locks: SimpleLocks = new SimpleLocks();
+	private _locks: Locks = new Locks(1);
 	private _heads: Set<Head<V>> = Set();
 
 	lock<V>(atoms: Set<Atom<V>>): Promise<{ release(): void }> {
