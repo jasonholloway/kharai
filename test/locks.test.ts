@@ -1,4 +1,4 @@
-import Locks from '../src/Locks'
+import { Locks, Semaphores } from '../src/Locks'
 import {delay} from './helpers'
 import { Chooser, many, seedChooser, gen, pick, integer} from '../src/genau'
 import { List, Set } from 'immutable'
@@ -6,30 +6,30 @@ import { List, Set } from 'immutable'
 describe('locks', () => {
 	let run: Chooser;
 
-	let locks: Locks;
-	const _1 = new Object();
-	const _2 = new Object();
-	const _3 = new Object();
+	const _1 = [1];
+	const _2 = [2];
+	const _3 = [3];
 
 	beforeEach(() => {
 		run = seedChooser(820);
 	})
 
-	describe('as Locks(0), requiring supply', () => {
+	describe('Semaphore, requiring supply', () => {
+		let locks: Semaphores;
 
 		beforeEach(() => {
-			locks = new Locks(0);
+			locks = new Semaphores();
 		})
 
 		it('unavailable by default', () => {
-			const available = locks.canLock(_1);
+			const available = locks.canInc([_1], -1);
 			expect(available).toBeFalsy();
 		})
 
 		it('no lock without supply', async () => {
 			let locked = false;
 
-			locks.lock(_1)
+			locks.inc([_1], -1)
 			  .then(() => locked = true);
 
 			await delay(50);
@@ -40,7 +40,7 @@ describe('locks', () => {
 		it('locks after supply', async () => {
 			let locked = false;
 			
-			locks.lock(_1)
+			locks.inc([_1], -1)
 			  .then(() => locked = true);
 
 			await locks.inc([_1], 1);
@@ -55,7 +55,7 @@ describe('locks', () => {
 			let isLocked2 = false;
 			let isReleased1 = false;
 			
-			const locking1 = locks.lock(_1)
+			const locking1 = locks.inc([_1], -1)
 			locking1.then(() => isLocked1 = true);
 			await delay(10);
 			expect(isLocked1).toBeFalsy();
@@ -73,7 +73,7 @@ describe('locks', () => {
 			await delay(10);
 			expect(isReleased1).toBeTruthy();
 
-			locks.lock(_1).then(() => isLocked2 = true);
+			locks.inc([_1], -1).then(() => isLocked2 = true);
 			await delay(10);
 			expect(isLocked2).toBeFalsy();
 		})
@@ -81,8 +81,10 @@ describe('locks', () => {
 	
 
 	describe('as Locks(1)', () => {
+		let locks: Locks
+		
 		beforeEach(() => {
-			locks = new Locks(1);
+			locks = new Locks();
 		})
 
 		it('available by default', () => {
@@ -154,7 +156,7 @@ describe('locks', () => {
 
 		it('extending existing lock to include new and non-contentious', async () => {
 			const lock = await locks.lock(_1, _2);
-			await lock.extend(Set([_3]));
+			lock.extend(Set([_3]));
 			expect(locks.canLock(_3)).toBeFalsy();
 
 			await lock.release();

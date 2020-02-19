@@ -9,20 +9,69 @@ type Handle = {
 	extend(extras: Set<object>): void
 }
 
-export default class Locks {
-	private readonly _defaultCount: number
-	private readonly _entries: WeakMap<object, Entry>
+export class Locks {
+	private readonly _inner = new Allocator(false);
 
-	constructor(defaultAvail: number) {
-		this._defaultCount = defaultAvail;
-		this._entries = new WeakMap<object, Entry>();
+	private static readonly claim: Claim<boolean> = {
+		canApp: x => !x,
+		app: _ => true,
+		reverse: () => ({
+			canApp: x => x,
+			app: _ => false
+		})
+	};
+	
+	lock(...items: object[]) {
+		return this._inner.app(items, Locks.claim);
 	}
 
-  lock(...items: object[]) {
-		return this.inc(items, -1);
+	canLock(item: object) {
+		return this._inner.canApp(item, Locks.claim);
+	}
+}
+
+// export class Exchange {
+// 	claim(items: object[]): Promise<Handle> {
+// 		throw 123;
+// 	}
+
+// 	offer(items: object[], context: C): Promise<Handle> {
+// 		throw 123;
+// 	}
+// }
+
+export class Semaphores {
+	private readonly _inner = new Allocator(0);
+
+	private static readonly claim = (c: number): Claim<number> => ({
+		canApp: x => (x + c >= 0),
+		app: x => x + c,
+		reverse: () => ({
+			canApp: x => (x - c >= 0),
+			app: x => x - c
+		})
+	});
+
+	inc(items: object[], c: number) {
+		return this._inner.app(items, Semaphores.claim(c));
 	}
 
-	inc(items: object[], c: number): Promise<Handle> {
+	canInc(items: object[], c: number) {
+		return this._inner.canApp(items, Semaphores.claim(c));
+	}
+}
+
+
+export default class Allocator<X> {
+	private readonly _default: X
+	private readonly _entries: WeakMap<object, Entry<X>>
+
+	constructor(def: X) {
+		this._default = def;
+		this._entries = new WeakMap<object, Entry<X>>();
+	}
+
+	app(items: object[], c: Claim<X>): Promise<Handle> {
 		return new Promise<Handle>(resolve => {
 			const token = new Object();
 
@@ -69,7 +118,7 @@ export default class Locks {
 				}
 
 			const tryIncOne =
-				(item: object) => this.summonEntry(item).tryInc(token, c);
+				(item: object) => this.summonEntry(item).tryApp(token, c);
 
 			const handle: (items: Set<object>) => Handle =
 				(items) => ({
@@ -78,7 +127,7 @@ export default class Locks {
 						
 						await Promise.all(entries.map(entry => {
 							return new Promise(resolve => {
-								const ans = entry.tryInc(token, -c);
+								const ans = entry.tryApp(token, c.reverse());
 								if(ans[0] == 'canAdd') {
 									ans[1]();
 									resolve();
@@ -92,6 +141,7 @@ export default class Locks {
 
 					extend(extras) {
 						if(tryIncAllNow(extras.subtract(items))) {
+							//dunno wot setting items below does !!!!!!!!!!!
 							items = items.union(extras);
 						}
 						else throw 'can\'t extend onto locked items!';
@@ -102,54 +152,60 @@ export default class Locks {
 		})
 	}
 
-	private summonEntry(i: object): Entry {
+	private summonEntry(i: object): Entry<X> {
 		return this._entries.get(i)
 		  || (() => {
-				const created = new Entry(this._defaultCount)
+				const created = new Entry(this._default)
 				this._entries.set(i, created);
 				return created;
 			})()
 	}
 
-	canInc(item: object, c: number): boolean {
-		const response = this.summonEntry(item).tryInc(new Object(), c);
+	canApp(item: object, c: Claim<X>): boolean {
+		const response = this.summonEntry(item).tryApp(new Object(), c);
 		return response[0] == 'canAdd';
-	}
-
-	canLock(item: object): boolean {
-		return this.canInc(item, -1);
 	}
 }
 
-class Entry {
-	private _avail: number
-	private _waits: OrderedMap<Token, [number, Waiter]>
 
-	constructor(avail: number) {
-		this._avail = avail;
+interface Appl<X> {
+	canApp(x: X): boolean
+	app(x: X): X
+}
+
+interface Claim<X> extends Appl<X> {
+	reverse(): Appl<X>
+}
+
+class Entry<X> {
+	private _x: X
+	private _waits: OrderedMap<Token, [Appl<X>, Waiter]> //presumably Claim can replace Token
+
+	constructor(x: X) {
+		this._x = x;
 		this._waits = OrderedMap();
 	}
 
-	tryInc(k:Token, c: number): ['canAdd',()=>void] | ['mustWait',(cb:Waiter)=>void] {
-		return this.canInc(c)
+	tryApp(k:Token, c: Appl<X>): ['canAdd',()=>void] | ['mustWait',(cb:Waiter)=>void] {
+		return c.canApp(this._x)
 		  ? ['canAdd', () => {
 					this.removeWait(k);
-					this.inc(c);
+					this.app(c);
 			  }]
 		  : ['mustWait', waiter => {
 					this.addWait(k, [c, waiter]);
 			  }];
 	}
 
-	private inc(c: number) {
-		this._avail += c;
+	private app(c: Appl<X>) {
+		this._x = c.app(this._x);
 
 		for(const [k, [cc, waiter]] of this._waits) {
-			if(this.canInc(cc)) {
+			if(cc.canApp(this._x)) {
 				this.removeWait(k);
 				const cb = waiter();
 				if(cb) {
-					this.inc(cc)
+					this.app(cc)
 					cb();
 					return;
 				}
@@ -157,11 +213,7 @@ class Entry {
 		}
 	}
 
-	private canInc(c: number) {
-		return this._avail + c >= 0;
-	}
-
-	private addWait(k: Token, tup: [number, Waiter]) {
+	private addWait(k: Token, tup: [Appl<X>, Waiter]) {
 		this._waits = this._waits.set(k, tup);
 	}
 	
