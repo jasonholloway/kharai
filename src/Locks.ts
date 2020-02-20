@@ -4,11 +4,6 @@ type Token = object
 type Waiter = () => ((()=>void) | false);
 type DoTheInc = () => void;
 
-type Handle = {
-	release(): Promise<void>
-	extend(extras: Set<object>): void
-}
-
 export class Locks {
 	private readonly _inner = new Allocator(false);
 
@@ -30,15 +25,49 @@ export class Locks {
 	}
 }
 
-// export class Exchange {
-// 	claim(items: object[]): Promise<Handle> {
-// 		throw 123;
-// 	}
 
-// 	offer(items: object[], context: C): Promise<Handle> {
-// 		throw 123;
-// 	}
-// }
+interface ClaimHandle<X> extends Handle {
+	offers(): Set<X>
+}
+
+export class Exchange<X> {
+  private readonly _inner = new Allocator<[X?, boolean?]>([]);
+	
+	async claim(...items: object[]): Promise<ClaimHandle<X>> {
+		let offers = Set<X>();
+		
+		const h = await this._inner.app(items, {
+			canApp: ([x, b]) => (!!x && !b),
+			app: ([x]) => {
+				offers = offers.add(<X>x);
+				return [x, true];
+			},
+			reverse: () => ({
+				canApp: ([x, b]) => (!!x && !!b),
+				app: ([x]) => {
+					offers = offers.remove(<X>x);
+					return [x];
+				}
+			})
+		});
+
+		return {
+			...h,
+			offers: () => offers
+		};
+	}
+
+	offer(items: object[], context: X): Promise<Handle> {
+		return this._inner.app(items, {
+			canApp: ([x]) => !x,
+			app: _ => [context],
+			reverse: () => ({
+				canApp: ([x, b]) => (!!x && !b),
+				app: _ => []
+			})
+		});
+	}
+}
 
 export class Semaphores {
 	private readonly _inner = new Allocator(0);
@@ -61,6 +90,11 @@ export class Semaphores {
 	}
 }
 
+
+interface Handle {
+	release(): Promise<void>
+	extend(extras: Set<object>): void
+}
 
 export default class Allocator<X> {
 	private readonly _default: X
@@ -141,7 +175,6 @@ export default class Allocator<X> {
 
 					extend(extras) {
 						if(tryIncAllNow(extras.subtract(items))) {
-							//dunno wot setting items below does !!!!!!!!!!!
 							items = items.union(extras);
 						}
 						else throw 'can\'t extend onto locked items!';

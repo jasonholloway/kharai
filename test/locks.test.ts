@@ -1,4 +1,4 @@
-import { Locks, Semaphores } from '../src/Locks'
+import { Locks, Semaphores, Exchange } from '../src/Locks'
 import {delay} from './helpers'
 import { Chooser, many, seedChooser, gen, pick, integer} from '../src/genau'
 import { List, Set } from 'immutable'
@@ -12,6 +12,71 @@ describe('locks', () => {
 
 	beforeEach(() => {
 		run = seedChooser(820);
+	})
+
+	describe('Exchange, instances offered/claimed', () => {
+		let exchange: Exchange<{}>
+
+		beforeEach(() => {
+			exchange = new Exchange()
+		})
+
+		it('nothing claimable before offer', async () => {
+			let claimed = false;
+
+			const claiming = exchange.claim(_1);
+			claiming.then(() => claimed = true);
+			await delay(30);
+
+			expect(claimed).toBeFalsy();
+		})
+
+		it('claimable when offered', async () => {
+			let claimed = false;
+
+			const claiming = exchange.claim(_1, _2, _3);
+			claiming.then(() => claimed = true);
+
+			await exchange.offer([_1, _2], {});
+			await delay(30);
+			expect(claimed).toBeFalsy();
+
+			await exchange.offer([_3], {});
+			await delay(30);
+			expect(claimed).toBeTruthy();
+		})
+
+		it('doesnt release immediately', async () => {
+			let released = false;
+
+			const offer = await exchange.offer([_1, _2], {});
+			const claim = await exchange.claim(_1, _2);
+
+			const releasing = offer.release();
+			releasing.then(() => released = true);
+			await delay(30);
+			expect(released).toBeFalsy();
+
+			await claim.release();
+			expect(released).toBeTruthy();
+		})
+
+		it('offered contexts are accessible via handle', async () => {
+			const x1 = '1';
+			const x2 = '2';
+			
+			await exchange.offer([_1, _2], x1);
+			await exchange.offer([_3], x2);
+
+			const claim1 = await exchange.claim(_1);
+			const claim2 = await exchange.claim(_2, _3);
+			expect([...claim1.offers()]).toEqual([x1]);
+			expect([...claim2.offers()]).toEqual([x1, x2]);
+
+			await claim2.release();
+			const claim3 = await exchange.claim(_3);
+			expect([...claim3.offers()]).toEqual([x2])
+		})
 	})
 
 	describe('Semaphore, requiring supply', () => {
@@ -78,9 +143,8 @@ describe('locks', () => {
 			expect(isLocked2).toBeFalsy();
 		})
 	})
-	
 
-	describe('as Locks(1)', () => {
+	describe('Lock, take only', () => {
 		let locks: Locks
 		
 		beforeEach(() => {
