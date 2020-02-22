@@ -28,7 +28,7 @@ export class MeetSpace {
 		}
 	}
 
-	async attach<R>(item: object, attend: Attendee<R>): Promise<false|[R]> {
+	async attach<R>(item: object, attend: Attendee<R>): Promise<false|[R]> { //instead of returning false, should relock, retry till we get result
 		let _active = true;
 		let _return: false|[R] = false;
 		

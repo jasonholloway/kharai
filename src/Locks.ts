@@ -26,7 +26,7 @@ export class Locks {
 }
 
 
-interface ClaimHandle<X> extends Handle {
+interface ClaimHandle<X> extends Lock {
 	offers(): Set<X>
 }
 
@@ -57,7 +57,7 @@ export class Exchange<X> {
 		};
 	}
 
-	offer(items: object[], context: X): Promise<Handle> {
+	offer(items: object[], context: X): Promise<Lock> {
 		return this._inner.app(items, {
 			canApp: ([x]) => !x,
 			app: _ => [context],
@@ -91,7 +91,7 @@ export class Semaphores {
 }
 
 
-interface Handle {
+export interface Lock {
 	release(): Promise<void>
 	extend(extras: Set<object>): void
 }
@@ -105,8 +105,8 @@ export default class Allocator<X> {
 		this._entries = new WeakMap<object, Entry<X>>();
 	}
 
-	app(items: object[], c: Claim<X>): Promise<Handle> {
-		return new Promise<Handle>(resolve => {
+	app(items: object[], c: Claim<X>): Promise<Lock> {
+		return new Promise<Lock>(resolve => {
 			const token = new Object();
 
 			const incAll: (items: Set<object>) => void =
@@ -154,7 +154,7 @@ export default class Allocator<X> {
 			const tryIncOne =
 				(item: object) => this.summonEntry(item).tryApp(token, c);
 
-			const handle: (items: Set<object>) => Handle =
+			const handle: (items: Set<object>) => Lock =
 				(items) => ({
 					release: async () => {
 						const entries = items.map(i => this.summonEntry(i));
