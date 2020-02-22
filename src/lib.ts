@@ -1,5 +1,6 @@
-import { Map, Set } from 'immutable'
+import { Map } from 'immutable'
 import { RO } from './util'
+import { Attendee, Convener } from './Mediator'
 
 
 export type Data = Map<string, any>
@@ -11,9 +12,8 @@ export type MachineState<W extends World = World, M extends Machine<W> = Machine
 }
 
 
-export type Context<W extends World> = W['context']
 export type Machine<W extends World, K extends MachineKey<W> = MachineKey<W>> = W['machines'][K]
-export type Phase<W extends World, M extends Machine<W>, K extends PhaseKey<M> = PhaseKey<M>> = M['phases'][K]
+export type Phase<W extends World, M extends Machine<W>, K extends PhaseKey<M> = PhaseKey<M>> = M[K]
 
 
 export type Command<H extends string = string, T extends any[] = any[]> = RO<Cons<H, T>> //<K extends string = string> = RO<[K, ...any[]]>
@@ -23,9 +23,7 @@ export type Keyed<T> = { [key: string]: T }
 export type Keys<O> = keyof O & string;
 
 
-export type MachineSpec = {
-	phases: Keyed<PhaseSpec>
-}
+export type MachineSpec = Keyed<PhaseSpec>
 
 export type PhaseSpec = {
 	input: any
@@ -38,15 +36,22 @@ export type Cmd<W extends World, MK extends MachineKey<W> = MachineKey<W>> =
   | { [HK in keyof W['handlers']]: Cons<HK, W['handlers'][HK]> }[keyof W['handlers'] & string]
 
 
+
+export interface RunContext {
+	attach<R>(attend: Attendee<R>): Promise<false|[R]>
+	convene<R>(ids: Id[], convener: Convener<R>): Promise<R>
+}
+
+
 export type World = {
-	context: any
+	context: RunContext
 	handlers: Keyed<Array<any>>
 	machines: Keyed<MachineSpec>
 	extraCommand: RO<[string, ...Lit[]]>
 }
 
 export type MachineKey<W extends World> = Keys<W['machines']>
-export type PhaseKey<M extends MachineSpec> = Keys<M['phases']>
+export type PhaseKey<M extends MachineSpec> = Keys<M>
 
 
 export type Id<W extends World = World, K extends MachineKey<W> = MachineKey<W>> = RO<[K, string]>;
@@ -54,6 +59,7 @@ export type Id<W extends World = World, K extends MachineKey<W> = MachineKey<W>>
 
 
 export type WorldImpl<W extends World> = {
+	contextFac(x: RunContext): W['context']
 	machines: {
 		[K in MachineKey<W>]: MachineImpl<W, K>
 	}
@@ -62,15 +68,12 @@ export type WorldImpl<W extends World> = {
 interface Impl<W extends World> extends WorldImpl<W> {}
 
 export type MachineImpl<W extends World, MK extends MachineKey<W> = MachineKey<W>> = {
-	zero: MachineState<W, Machine<W, MK>>,
-	phases: {
-		[K in PhaseKey<Machine<W, MK>>]: PhaseImpl<W, MK, Phase<W, Machine<W, MK>, K>>
-	}
+	[K in PhaseKey<Machine<W, MK>>]: PhaseImpl<W, MK, Phase<W, Machine<W, MK>, K>>
 }
 
-export type PhaseImpl<W extends World, MK extends MachineKey<W>, P extends Phase<W, Machine<W, MK>>> = {
+export type PhaseImpl<W extends World, MK extends MachineKey<W>, P extends Phase<W, Machine<W, MK>>> = (x: W['context']) => {
 	guard(d: any): d is P['input']
-	run(x: Context<W>, d: P['input']): Yield<Cmd<W, MK>>
+	run(d: P['input']): Yield<Cmd<W, MK>>
 }
 
 

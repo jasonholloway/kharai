@@ -1,42 +1,46 @@
 import { Map, Set, List } from 'immutable'
 import _Monoid from '../src/_Monoid'
 import Store from '../src/Store'
-import AtomSpace, { Head } from '../src/AtomSpace'
+import AtomSpace from '../src/AtomSpace'
 import AtomSaver from '../src/AtomSaver'
-import { Id, Data, Cmd, SpecWorld, makeWorld, World, Machine, PhaseKey, WorldImpl, MachineImpl, MachineState, MachineKey, Command, Yield } from '../src/lib'
-import { createHandler, localize, compile, boot, Sink, Handler, join } from '../src/handler'
+import { Id, Data, Cmd, SpecWorld, makeWorld, World, Machine, PhaseKey, WorldImpl, MachineState, MachineKey, Command, Yield, RunContext } from '../src/lib'
+import { localize, compile, boot, Sink, Handler, join } from '../src/handler'
 import { Observable } from 'rxjs/internal/Observable'
 import { Subject } from 'rxjs'
-import { RO } from './util'
 import { gather } from './helpers'
 import { tap, flatMap, map } from 'rxjs/operators'
 import { MeetSpace, Convener } from '../src/Mediator'
 
 
-function buildMachine<W extends World, MK extends MachineKey<W>>(world: WorldImpl<W>, mk: MK) {
-
-	const phaseImpls = world.machines[mk].phases;
+function buildMachine<W extends World, MK extends MachineKey<W>>(world: WorldImpl<W>, mk: MK, contextFac: () => W['context']) {
+	const phaseImpls = world.machines[mk];
 	const p2 = Map(phaseImpls).mapKeys(k => <PhaseKey<Machine<W, MK>>>k)
 
-	const handler: Handler = [...p2.entries()].map(([pk, p]) => {
+	const handler: Handler = [...p2.entries()].map(([pk, fac]) => {
 		return [pk, async (data: any) => {
+			const x = contextFac();
+			const p = fac(x);
 			if(!p.guard(data)) throw Error(`Bad data for phase ${mk}.${pk}: ${data}`);
-			return await p.run({}, data);
+			return await p.run(data);
 		}] as const;
 	})
 	
 	return localize(mk, handler);
 }
 
-
 describe('machines: running', () => {
-
 	let loader: MachineLoader<World1>
 	let dispatch: Dispatch
 
 	beforeEach(() => {
 		loader = async () => Set();
-		dispatch = compile(join(buildMachine(world1, 'dummy'), buildMachine(world1, 'root')));
+
+		const contextFac = () => world1.contextFac({
+			attach() { console.log('attaching'); throw 123 },
+			convene() { throw 123 }
+		});
+
+		dispatch = compile(join(buildMachine(world1, 'dummy', contextFac), buildMachine(world1, 'root', contextFac)));
 	})	
 
 	it('run through phases', async () => {
@@ -87,10 +91,8 @@ describe('machines: running', () => {
 	//TODO: meetings must update involved heads
 	//
 
-	
-
 	interface World1 extends SpecWorld<{
-		context: {}
+		context: RunContext
 
 		extraCommand: [
 			'blah'
@@ -103,85 +105,78 @@ describe('machines: running', () => {
 		
 		machines: {
 			root: {
-				phases: {
-					boot: { input: void }
-				}
+				boot: { input: void }
 			}
+
 			dummy: {
-				phases: {
-					start: { input: number }
-					middle: { input: any }
-					end: { input: any }
-				}
+				start: { input: number }
+				middle: { input: any }
+				end: { input: any }
 			}
 
 			fancy: {
-				phases: {
-					start: { input: any },
-					end: { input: any }
-				}
+				start: { input: any },
+				end: { input: any }
 			}
 		}
 	}> {}
 
 	const world1 = makeWorld<World1>({
+
+		contextFac(x) {
+			return x;
+		},
+
 		machines: {
 
 			root: {
-				zero: {
-					data: 'na',
-					resume: ['na']
-				},
-				phases: {
-					boot: {
-						guard(d): d is void { return true },
-						run: async (x) => {
-							console.log('hello from root/boot!')
-							const cmd = <unknown>[];
-							return [<Cmd<World1, 'root'>>cmd];
+				boot: x => ({
+					guard(d): d is void { return true },
+					run: async () => {
+						console.log('hello from root/boot!')
+
+						const cmd = await x.attach<Cmd<World1, 'root'>>({
+							chat(c) { return c; }
+						});
+
+						console.log('received cmd', cmd)
+
+						if(cmd) {
+							return cmd;
+						}
+						else {
+							throw 'bad answer...';
 						}
 					}
-				}
+				})
 			},
 
 			dummy: {
-				zero: {
-					data: {},
-					resume: ['start']
-				},
-				phases: {
-					start: {
-						guard(d): d is number { return true },
-						run: async () => {
-							return [['@me', 'middle']]
-						}
-					},
-					middle: {
-						guard(d): d is any { return true },
-						run: async () => [['@me', 'end']]
-					},
-					end: {
-						guard(d): d is any { return true },
-						run: async () => [] 
+				start: x => ({
+					guard(d): d is number { return true },
+					run: async () => {
+						return [['@me', 'middle']]
 					}
-				}
+				}),
+				middle: x => ({
+					guard(d): d is any { return true },
+					run: async () => [['@me', 'end']]
+				}),
+				end: x => ({
+					guard(d): d is any { return true },
+					run: async () => [] 
+				})
 			},
 
 			fancy: {
-				zero: {
-					data: {},
-					resume: ['go', 'start']
-				},
-				phases: {
-					start: {
-						guard(d): d is any { return true },
-						run: async () => [['@delay', 10, '@me', 'end']]
-					},
-					end: {
-						guard(d): d is any { return true },
-						run: async () => []
-					}
-				}
+				start: x => ({
+					guard(d): d is any { return true },
+					run: async () => [['@delay', 10, '@me', 'end']]
+				}),
+				end: x => ({
+					guard(d): d is any { return true },
+					run: async () => []
+				})
 			}
 		}
 	})
@@ -200,30 +195,6 @@ describe('machines: loading and saving', () => {
 
 	//...
 })
-
-
-async function *runMachine<
-	W extends World,
-	K extends MachineKey<W>,
-	M extends Machine<W, K> = Machine<W, K>>
-	(machineKey: K, def: MachineImpl<W, K>, head: Head<Data>) {
-
-		const handler = createHandler({
-			async go(key: PhaseKey<M>, data: RO<MachineState<W, M>>) {
-				const _phase = def.phases[key];
-				if(!_phase) throw Error(`phase ${key} not found!`)
-				if(!_phase.guard(data)) throw Error('guard failed');
-
-				const cr = List(await _phase.run({}, data));
-				//should update machine state here
-				return [...cr];
-			},
-		});
-
-		const local = localize('', handler);
-		const dispatch = compile(local);
-		dispatch
-	}
 
 
 type MachineLoader<W extends World> = (ids: Set<Id<W>>) => Promise<Set<[Id<W>, MachineState<W>]>>
@@ -349,11 +320,4 @@ class FakeStore extends Store<Data> {
 				}
 			};
 	}
-}
-
-
-async function collect<V>(gen: AsyncIterable<V>): Promise<List<V>> {
-	const collected: V[] = [];
-	for await (let val of gen) collected.push(val);
-	return List(collected)
 }
