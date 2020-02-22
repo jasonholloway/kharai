@@ -1,5 +1,5 @@
 import { Set } from 'immutable'
-import { Exchange } from '../src/Locks';
+import { MeetSpace, Convener, Attendee } from '../src/Mediator'
 
 describe('mediator', () => {
 	let space: MeetSpace
@@ -41,59 +41,10 @@ describe('mediator', () => {
 		const result3 = await meeting3;
 		expect(result3).toEqual(['hello3']);
 	})
+
+	xit('heads conjoined', async () => {
+		//some kind of combining of context needed
+		//...
+	})
 })
 
-interface Peer {
-	chat(m: any): false|[any]
-}
-
-interface Convener<R = any> {
-	convene(peers: Set<Peer>): R
-}
-
-interface Attendee<R = any> {
-	chat(m: any, peers: Set<Peer>): [R]|[R, any]
-}
-
-
-class MeetSpace {
-	private locks = new Exchange<Peer>();
-
-  async convene<R>(convener: Convener<R>, others: Set<object>): Promise<R> {
-		const claim = await this.locks.claim(...others);
-		try {
-			const peers = claim.offers();
-			const answer = convener.convene(peers);
-			return answer;
-		}
-		finally {
-			await claim.release();
-		}
-	}
-
-	async attach<R>(item: object, attend: Attendee<R>): Promise<false|[R]> {
-		let _active = true;
-		let _return: false|[R] = false;
-		
-		const handle =
-			await this.locks.offer([item],
-				{
-					chat(m: any) {
-						if(_active) {
-							const [state, reply] = attend.chat(m, Set());
-							_return = [state];
-
-							if(reply !== undefined) {
-								return [reply];
-							}
-						}
-
-						return _active = false;
-					}
-				});
-	
-		await handle.release();
-
-		return _return;
-	}
-}
