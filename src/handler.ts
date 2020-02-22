@@ -42,6 +42,7 @@ export function join<HR extends Handler[]>(...handlers: HR) : Handler<In<HR[numb
 export function compile<I extends Command, O extends Command>(handler: Handler<I, O>): (i: I) => Yield<O> {
 	const map = Map(handler.map(r => [r[0], r[1]]))
 	return async (c: I) => {
+		console.log('c', c)
 		const found = map.get(c[0]);
 		return found
 		  ? found(...tail(c))

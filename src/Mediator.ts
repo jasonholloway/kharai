@@ -16,7 +16,7 @@ export interface Attendee<R = any> {
 export class MeetSpace {
 	private locks = new Exchange<Peer>();
 
-  async convene<R>(convener: Convener<R>, others: Set<object>): Promise<R> {
+  async mediate<R>(convener: Convener<R>, others: Set<object>): Promise<R> {
 		const claim = await this.locks.claim(...others);
 		try {
 			const peers = claim.offers();

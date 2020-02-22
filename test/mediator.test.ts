@@ -28,7 +28,7 @@ describe('mediator', () => {
 			}
 		}
 
-		const meeting1 = space.convene(p1, Set([p2, p3]));
+		const meeting1 = space.mediate(p1, Set([p2, p3]));
 		const meeting2 = space.attach(p2, p2);
 		const meeting3 = space.attach(p3, p3);
 

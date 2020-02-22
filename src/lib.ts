@@ -32,7 +32,7 @@ export type PhaseSpec = {
 }
 
 
-export	type Cmd<W extends World, MK extends MachineKey<W> = MachineKey<W>> =
+export type Cmd<W extends World, MK extends MachineKey<W> = MachineKey<W>> =
 		readonly ['@me', PhaseKey<Machine<W, MK>>]
 	| readonly [MK, PhaseKey<Machine<W, MK>>]
   | { [HK in keyof W['handlers']]: Cons<HK, W['handlers'][HK]> }[keyof W['handlers'] & string]
@@ -69,7 +69,7 @@ export type MachineImpl<W extends World, MK extends MachineKey<W> = MachineKey<W
 }
 
 export type PhaseImpl<W extends World, MK extends MachineKey<W>, P extends Phase<W, Machine<W, MK>>> = {
-	guard(d: any): d is P['input'] 
+	guard(d: any): d is P['input']
 	run(x: Context<W>, d: P['input']): Yield<Cmd<W, MK>>
 }
 

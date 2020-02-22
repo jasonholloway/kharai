@@ -3,13 +3,14 @@ import _Monoid from '../src/_Monoid'
 import Store from '../src/Store'
 import AtomSpace, { Head } from '../src/AtomSpace'
 import AtomSaver from '../src/AtomSaver'
-import { Id, Data, SpecWorld, makeWorld, World, Machine, PhaseKey, WorldImpl, MachineImpl, MachineState, MachineKey, Command, Yield } from '../src/lib'
-import { createHandler, localize, compile, boot, Sink, Handler } from '../src/handler'
+import { Id, Data, Cmd, SpecWorld, makeWorld, World, Machine, PhaseKey, WorldImpl, MachineImpl, MachineState, MachineKey, Command, Yield } from '../src/lib'
+import { createHandler, localize, compile, boot, Sink, Handler, join } from '../src/handler'
 import { Observable } from 'rxjs/internal/Observable'
 import { Subject } from 'rxjs'
 import { RO } from './util'
 import { gather } from './helpers'
-import { tap } from 'rxjs/operators'
+import { tap, flatMap, map } from 'rxjs/operators'
+import { MeetSpace, Convener } from '../src/Mediator'
 
 
 function buildMachine<W extends World, MK extends MachineKey<W>>(world: WorldImpl<W>, mk: MK) {
@@ -35,17 +36,26 @@ describe('machines: running', () => {
 
 	beforeEach(() => {
 		loader = async () => Set();
-		dispatch = compile(buildMachine(world1, 'dummy'));
+		dispatch = compile(join(buildMachine(world1, 'dummy'), buildMachine(world1, 'root')));
 	})	
 
 	it('run through phases', async () => {
 		const space = new MachineSpace(world1, loader, dispatch);
 
-		await space.meet(['dummy', '123'], () => {});
-		
-		const [run] = space.summon(['dummy', '123']);
+		const starter: Convener<void> = {
+			convene([p]) { p.chat(['dummy', 'start']) }
+		}
 
-		const out = await gather(run.log$.pipe(tap(console.log)));
+		await space.meet(starter)([['dummy', '123']]);		
+
+		// const [run] = space.summon(['dummy', '123']);
+
+		const out = await gather(space.log$.pipe(
+			flatMap(([id, l$]) => l$.pipe(map(l => [id, l]))),
+			tap(console.log)
+		));
+
+		// const out = await gather(run.log$.pipe(tap(console.log)));
 
 		expect(out).toEqual([
 			['dummy', 'start'],
@@ -57,9 +67,14 @@ describe('machines: running', () => {
 	it('resumes', async () => {
 		const space = new MachineSpace(world1, loader, dispatch);
 
-		const [run] = space.summon(['fancy', '123']); //but - you don't want to send a command to an already-running machine...
+		// const [run] = space.summon(['fancy', '123']); //but - you don't want to send a command to an already-running machine...
+		const starter: Convener<void> = {
+			convene([p]) { p.chat(['fancy', 'start']) }
+		}
+
+		await space.meet(starter)([['fancy', '123']]);		
 		
-		const out = await gather(run.log$.pipe(tap(console.log)));
+		const out = await gather(space.log$.pipe(tap(console.log)));
 
 		expect(out).toEqual(List([
 			['fancy', 'start'],
@@ -69,6 +84,8 @@ describe('machines: running', () => {
 		]))
 	})
 	
+	//TODO: meetings must update involved heads
+	//
 
 	
 
@@ -85,6 +102,11 @@ describe('machines: running', () => {
 		}
 		
 		machines: {
+			root: {
+				phases: {
+					boot: { input: void }
+				}
+			}
 			dummy: {
 				phases: {
 					start: { input: number }
@@ -104,6 +126,23 @@ describe('machines: running', () => {
 
 	const world1 = makeWorld<World1>({
 		machines: {
+
+			root: {
+				zero: {
+					data: 'na',
+					resume: ['na']
+				},
+				phases: {
+					boot: {
+						guard(d): d is void { return true },
+						run: async (x) => {
+							console.log('hello from root/boot!')
+							const cmd = <unknown>[];
+							return [<Cmd<World1, 'root'>>cmd];
+						}
+					}
+				}
+			},
 
 			dummy: {
 				zero: {
@@ -195,6 +234,7 @@ class MachineSpace<W extends World> {
 	private readonly world: WorldImpl<W>
 	private readonly atoms: AtomSpace<Data>
 	private readonly loader: MachineLoader<W>
+	private readonly mediator: MeetSpace
 	private readonly dispatch: Dispatch
 	private runs: Map<Id<W>, Run<W>>
 
@@ -204,6 +244,7 @@ class MachineSpace<W extends World> {
 	constructor(world: WorldImpl<W>, loader: MachineLoader<W>, dispatch: Dispatch) {
 		this.world = world;
 		this.atoms = new AtomSpace();
+		this.mediator = new MeetSpace();
 		this.loader = loader;
 		this.dispatch = dispatch;
 		this.runs = Map();
@@ -213,38 +254,25 @@ class MachineSpace<W extends World> {
 	}
 
 
-	async meet(id: Id<W>, negotiator: () => void): Promise<void> {
-		const run1 = new Run();
-		const run2 = new Run();
-		const probe = new Probe();
-		const mediator: any = null;
-		
-		await mediator.convene(probe, run1, run2)
-
-		//in the above, causation is pooled. the linked atompaths needn't actually include anything... 
-		//they only need to be interlinked at one point for all successive histories to be tangled
-		//and this tangle is only written when all three have concluded their conference
-
-		//probe is the odd one out here
-		//but it will act like a normal party
-		//only without state and a dummy atom
-		//(though an atom could be provided here)
-
+	meet<R = any>(convener: Convener<R>): (ids: Id<W>[]) => Promise<R> {
+		return async (ids) => {
+			const runs = await this.load(ids);
+			return await this.mediator.mediate(convener, Set(runs))
+		}
 	}
 	
-
-	//below shouldn't be public
-	summon<IR extends readonly Id<W>[]>(...ids: IR): IRun<W, IR[number][0]>[] {
+	private async load(ids: Id<W>[]): Promise<IRun[]> {
+		//AND WHAT ABOUT ASYNC LOADING HERE????????????? - it will cause race cond
 		const summoned = Map(ids.map(id => {
 			const found = this.runs.get(id);
 			if(found) return [id, found];
 			else {
-				const def = this.world.machines[id[0]];
+				const def = this.world.machines['root'];
 				const head = this.atoms.spawnHead();
 
 				const run = new Run();
 				this._log$.next([id, run.log$]);
-				run.boot(this.dispatch, [id[0], ...def.zero.resume]);
+				run.boot(this.dispatch, ['root', 'boot']);
 				
 				return [id, run];
 			}
@@ -252,14 +280,29 @@ class MachineSpace<W extends World> {
 		this.runs = this.runs.merge(summoned); //lots of needless churn
 		return [...summoned.values()];
 	}
+
+	//below shouldn't be public; all should be via meet()
+// 	summon<IR extends readonly Id<W>[]>(...ids: IR): IRun<W, IR[number][0]>[] {
+// 		const summoned = Map(ids.map(id => {
+// 			const found = this.runs.get(id);
+// 			if(found) return [id, found];
+// 			else {
+// 				const def = this.world.machines[id[0]];
+// 				const head = this.atoms.spawnHead();
+
+// 				const run = new Run();
+// 				this._log$.next([id, run.log$]);
+// 				run.boot(this.dispatch, [id[0], ...def.zero.resume]);
+				
+// 				return [id, run];
+// 			}
+// 		}))
+// 		this.runs = this.runs.merge(summoned); //lots of needless churn
+// 		return [...summoned.values()];
+// 	}
 }
 
-
-type Negotiator = () => void
-
-class Probe {}
-
-class Run<W extends World, K extends MachineKey<W> = MachineKey<W>, M extends Machine<W, K> = Machine<W, K>> implements IRun<W, K> {
+class Run<W extends World, K extends MachineKey<W> = MachineKey<W>, M extends Machine<W, K> = Machine<W, K>> implements IRun {
 	private _log$: Subject<Command>
 	log$: Observable<Command>
 	
@@ -272,17 +315,11 @@ class Run<W extends World, K extends MachineKey<W> = MachineKey<W>, M extends Ma
 		const sink = new Sink(this._log$);
 		setImmediate(() => boot(dispatch, sink, command))
 	}
-
-	async interrupt(negotiate: Negotiator): Promise<void> {
-		throw 'todo - can\'t interrupt as yet';
-	}
 }
 
-interface IRun<W extends World, K extends MachineKey<W>> {
+interface IRun {
 	readonly log$: Observable<Command>
 }
-
-
 
 
 //---------------------------------
