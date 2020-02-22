@@ -1,80 +1,99 @@
 import { Set } from 'immutable'
-import Locks, { Exchange } from '../src/Locks';
-
+import { Exchange } from '../src/Locks';
 
 describe('mediator', () => {
-
 	let space: MeetSpace
 
 	beforeEach(() => {
 		space = new MeetSpace();
 	})
-	
 
-	it('mediates', async () => {
-		const p1 = {
-			id: 'p1',
-			call() { throw 123 },
-			reply() { throw 123 }
+	it('convention occurs', async () => {
+		const p1: Convener<Set<any>> = {
+			convene(peers) {
+				const reply = peers.flatMap(p => p.chat(['hello']) || []);
+				return reply;
+			},
 		}
 
-		const p2 = {
-			id: 'p2',
-			reply() { throw 123 }
+		const p2: Attendee<string> = {
+			chat(m) {
+				return [`${m}2`, 'reply2'];
+			}
 		}
 
-		const p3 = {
-			id: 'p3',
-			reply() { throw 123 }
+		const p3: Attendee<string> = {
+			chat(m) {
+				return [`${m}3`, 'reply3'];
+			}
 		}
 
-		const convening = space.convene(p1, Set([p2, p3]));
+		const meeting1 = space.convene(p1, Set([p2, p3]));
+		const meeting2 = space.attach(p2, p2);
+		const meeting3 = space.attach(p3, p3);
 
-		const att2 = space.attach(p2, p2);
-		const att3 = space.attach(p3, p3);
+		const result1 = await meeting1;
+		expect(result1).toEqual(Set(['reply2', 'reply3']));
 
-		const convened = await convening;
-
-		await att2;
-		await att3;
+		const result2 = await meeting2;
+		expect(result2).toEqual(['hello2']);
+		
+		const result3 = await meeting3;
+		expect(result3).toEqual(['hello3']);
 	})
 })
 
-interface Party {
-	id: Id,
-	reply(chat: Chat): Chat
+interface Peer {
+	chat(m: any): false|[any]
 }
 
-interface Convener extends Party {
-	call(parties: Set<Party>): Chat //peers drop out as they emit their choices
+interface Convener<R = any> {
+	convene(peers: Set<Peer>): R
 }
 
-type Id = string
+interface Attendee<R = any> {
+	chat(m: any, peers: Set<Peer>): [R]|[R, any]
+}
 
-type Chat = [string, ...any[]]
 
 class MeetSpace {
-	private locks = new Exchange<Party>();
+	private locks = new Exchange<Peer>();
 
-  async convene(convener: Convener, others: Set<object>) {
+  async convene<R>(convener: Convener<R>, others: Set<object>): Promise<R> {
 		const claim = await this.locks.claim(...others);
 		try {
-			const convened = claim.offers();
-			convener.call(convened);
+			const peers = claim.offers();
+			const answer = convener.convene(peers);
+			return answer;
 		}
 		finally {
 			await claim.release();
 		}
 	}
 
-	async attach(item: object, party: Party) {
-		const handle = await this.locks.offer([item], party);
-		try {
-			//not sure if there's much to do here
-			//...
-		}
-		finally {
-			await handle.release();
-		}
+	async attach<R>(item: object, attend: Attendee<R>): Promise<false|[R]> {
+		let _active = true;
+		let _return: false|[R] = false;
+		
+		const handle =
+			await this.locks.offer([item],
+				{
+					chat(m: any) {
+						if(_active) {
+							const [state, reply] = attend.chat(m, Set());
+							_return = [state];
+
+							if(reply !== undefined) {
+								return [reply];
+							}
+						}
+
+						return _active = false;
+					}
+				});
+	
+		await handle.release();
+
+		return _return;
 	}
 }
