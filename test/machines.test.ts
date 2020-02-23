@@ -3,7 +3,7 @@ import _Monoid from '../src/_Monoid'
 import Store from '../src/Store'
 import AtomSpace from '../src/AtomSpace'
 import AtomSaver from '../src/AtomSaver'
-import { Id, Data, Cmd, SpecWorld, makeWorld, World, Machine, PhaseKey, WorldImpl, MachineState, MachineKey, Command, Yield, RunContext } from '../src/lib'
+import { Id, Data, SpecWorld, makeWorld, World, WorldImpl, RunContext, Phase } from '../src/lib'
 import { localize, compile, boot, Sink, Handler, join } from '../src/handler'
 import { Subject, Observable } from 'rxjs'
 import { gather } from './helpers'
@@ -92,92 +92,143 @@ describe('machines: running', () => {
 	//TODO: meetings must update involved heads
 	//
 
-	interface World1 extends SpecWorld<{
+	type Template<Me extends World = World> = SpecWorld<{
 		context: RunContext
 
-		extraCommand: [
-			'blah'
-		]
-
-		handlers: {
-			'@delay': [number, ...any[]],
-			'@wait': [...any[]]
-		}
-		
-		machines: {
-			root: {
-				boot: { input: void }
-			}
-
+		phases: {
+			boot: []
+			wait: [number, Phase<Me>]
+			watch: [Id, string, Phase<Me>]
+			
 			dummy: {
-				start: { input: number }
-				middle: { input: any }
-				end: { input: any }
+				start: [],
+				middle: [number]
+				end: [string]
 			}
 
-			fancy: {
-				start: { input: any },
-				end: { input: any }
-			}
+			// fancy: {
+			// 	start: [any]
+			// 	end: [any]
+			// }
 		}
-	}> {}
+	}>
+
+	type World1 = Template<Template>
+
+	
 
 	const world1 = makeWorld<World1>({
-
-		contextFac(x) {
+		contextFac(x) { //this shouldn't really have to be implemented here...
 			return x;
 		},
 
-		machines: {
+		phases: {
+			boot: x => ({
+				guard(d): d is [] { return true },
+				async run() {
 
-			root: {
-				boot: x => ({
-					guard(d): d is void { return true },
-					run: async () => {
-						const cmd = await x.attach<Cmd<World1, 'root'>>({
-							chat(c) { return c; } //should be checking this here...
-						});
+					const phase = await x.attach<Phase<World1>>({
+						chat(c) { return c; } //should be checking this here...
+					});
 
-						console.log('received cmd', cmd)
+					console.log('received cmd', phase)
 
-						if(cmd) {
-							return cmd;
-						}
-						else {
-							throw 'bad answer...';
-						}
+					if(phase) {
+						return phase[0];
 					}
-				})
-			},
+					else {
+						throw 'bad answer...';
+					}
+				}
+			}),
+
+			wait: x => ({
+				guard(d): d is [number, Phase<World1>] { return true },
+				async run() {
+					return ['boot', []]
+				}
+			}),
+
+			watch: x => ({
+				guard(d): d is [Id, string, Phase<World1>] { return true },
+				async run() {
+					return ['boot', []]
+				}
+			}),
 
 			dummy: {
 				start: x => ({
-					guard(d): d is number { return true },
-					run: async () => {
-						return [['@me', 'middle']]
+					guard(d): d is [] { return true },
+					async run() {
+						return ['boot', []]
 					}
 				}),
-				middle: x => ({
-					guard(d): d is any { return true },
-					run: async () => [['@me', 'end']]
-				}),
-				end: x => ({
-					guard(d): d is any { return true },
-					run: async () => [] 
-				})
-			},
 
-			fancy: {
-				start: x => ({
-					guard(d): d is any { return true },
-					run: async () => [['@delay', 10, '@me', 'end']]
+				middle: x => ({
+					guard(d): d is [number] { return true },
+					async run() {
+						return ['boot', []]
+					}
 				}),
+
 				end: x => ({
-					guard(d): d is any { return true },
-					run: async () => []
+					guard(d): d is [string] { return true },
+					async run() {
+						return ['boot', []]
+					}
 				})
 			}
-		}
+		},
+
+	// 	machines: {
+	// 		root: {
+	// 			boot: x => ({
+	// 				guard(d): d is void { return true },
+	// 				run: async () => {
+	// 					const cmd = await x.attach<Cmd<World1, 'root'>>({
+	// 						chat(c) { return c; } //should be checking this here...
+	// 					});
+
+	// 					console.log('received cmd', cmd)
+
+	// 					if(cmd) {
+	// 						return cmd;
+	// 					}
+	// 					else {
+	// 						throw 'bad answer...';
+	// 					}
+	// 				}
+	// 			})
+	// 		},
+
+	// 		dummy: {
+	// 			start: x => ({
+	// 				guard(d): d is number { return true },
+	// 				run: async () => {
+	// 					return [['@me', 'middle']]
+	// 				}
+	// 			}),
+	// 			middle: x => ({
+	// 				guard(d): d is any { return true },
+	// 				run: async () => [['@me', 'end']]
+	// 			}),
+	// 			end: x => ({
+	// 				guard(d): d is any { return true },
+	// 				run: async () => [] 
+	// 			})
+	// 		},
+
+	// 		fancy: {
+	// 			start: x => ({
+	// 				guard(d): d is any { return true },
+	// 				run: async () => [['@delay', 10, '@me', 'end']]
+	// 			}),
+	// 			end: x => ({
+	// 				guard(d): d is any { return true },
+	// 				run: async () => []
+	// 			})
+	// 		}
+	// 	}
 	})
 })
 
