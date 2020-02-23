@@ -1,6 +1,6 @@
 import { createHandler, join, compile, localize, boot, Sink } from '../src/handler'
-import { Yield, Command } from '../src/lib'
-import { Observer, Subject } from 'rxjs'
+import { Command } from '../src/lib'
+import { Subject } from 'rxjs'
 import { gather, delay } from './helpers'
 
 

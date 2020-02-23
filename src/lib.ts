@@ -12,6 +12,8 @@ export type MachineState<W extends World = World, M extends Machine<W> = Machine
 }
 
 
+export type Id = string
+
 export type Machine<W extends World, K extends MachineKey<W> = MachineKey<W>> = W['machines'][K]
 export type Phase<W extends World, M extends Machine<W>, K extends PhaseKey<M> = PhaseKey<M>> = M[K]
 
@@ -53,8 +55,6 @@ export type World = {
 export type MachineKey<W extends World> = Keys<W['machines']>
 export type PhaseKey<M extends MachineSpec> = Keys<M>
 
-
-export type Id<W extends World = World, K extends MachineKey<W> = MachineKey<W>> = RO<[K, string]>;
 
 
 

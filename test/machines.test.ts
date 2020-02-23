@@ -50,7 +50,7 @@ describe('machines: running', () => {
 			convene([p]) { p.chat(['dummy', 'start']) }
 		}
 
-		await space.meet(starter)([['dummy', '123']]);		
+		await space.meet(starter)(['dummy123']);		
 
 		// const [run] = space.summon(['dummy', '123']);
 
@@ -73,7 +73,7 @@ describe('machines: running', () => {
 			convene([p]) { p.chat(['fancy', 'start']) }
 		}
 
-		await space.meet(starter)([['fancy', '123']]);		
+		await space.meet(starter)(['fancy123']);		
 		
 		const out = await gather(space.log$.pipe(tap(console.log)));
 
@@ -192,7 +192,7 @@ describe('machines: loading and saving', () => {
 })
 
 
-type MachineLoader<W extends World> = (ids: Set<Id<W>>) => Promise<Set<[Id<W>, MachineState<W>]>>
+type MachineLoader<W extends World> = (ids: Set<Id>) => Promise<Set<[Id, MachineState<W>]>>
 
 type Dispatch<I extends Command = Command, O extends Command = Command> = (c: I) => Yield<O>
 
@@ -202,10 +202,10 @@ class MachineSpace<W extends World> {
 	private readonly loader: MachineLoader<W>
 	private readonly mediator: MeetSpace
 	private readonly dispatch: Dispatch
-	private runs: Map<Id<W>, Run<W>>
+	private runs: Map<Id, Run<W>>
 
-	private _log$: Subject<readonly [Id<W>, Command]>
-	log$: Observable<readonly [Id<W>, Command]>
+	private _log$: Subject<readonly [Id, Command]>
+	log$: Observable<readonly [Id, Command]>
 
 	constructor(world: WorldImpl<W>, loader: MachineLoader<W>, dispatch: Dispatch) {
 		this.world = world;
@@ -215,19 +215,19 @@ class MachineSpace<W extends World> {
 		this.dispatch = dispatch;
 		this.runs = Map();
 
-		this._log$ = new Subject<readonly [Id<W>, Command]>();
+		this._log$ = new Subject<readonly [Id, Command]>();
 		this.log$ = this._log$;
 	}
 
 
-	meet<R = any>(convener: Convener<R>): (ids: Id<W>[]) => Promise<R> {
+	meet<R = any>(convener: Convener<R>): (ids: Id[]) => Promise<R> {
 		return async (ids) => {
 			const runs = await this.load(ids);
 			return await this.mediator.mediate(convener, Set(runs))
 		}
 	}
 	
-	private async load(ids: Id<W>[]): Promise<IRun[]> {
+	private async load(ids: Id[]): Promise<IRun[]> {
 		//AND WHAT ABOUT ASYNC LOADING HERE????????????? - it will cause race cond
 		const summoned = Map(ids.map(id => {
 			const found = this.runs.get(id);
@@ -251,7 +251,7 @@ class MachineSpace<W extends World> {
 	}
 
 	//below shouldn't be public; all should be via meet()
-// 	summon<IR extends readonly Id<W>[]>(...ids: IR): IRun<W, IR[number][0]>[] {
+// 	summon<IR extends readonly Id[]>(...ids: IR): IRun<W, IR[number][0]>[] {
 // 		const summoned = Map(ids.map(id => {
 // 			const found = this.runs.get(id);
 // 			if(found) return [id, found];
