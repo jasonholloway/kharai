@@ -5,10 +5,9 @@ import AtomSpace from '../src/AtomSpace'
 import AtomSaver from '../src/AtomSaver'
 import { Id, Data, Cmd, SpecWorld, makeWorld, World, Machine, PhaseKey, WorldImpl, MachineState, MachineKey, Command, Yield, RunContext } from '../src/lib'
 import { localize, compile, boot, Sink, Handler, join } from '../src/handler'
-import { Observable } from 'rxjs/internal/Observable'
-import { Subject } from 'rxjs'
+import { Subject, Observable } from 'rxjs'
 import { gather } from './helpers'
-import { tap, flatMap, map } from 'rxjs/operators'
+import { tap, map } from 'rxjs/operators'
 import { MeetSpace, Convener } from '../src/Mediator'
 
 
@@ -45,6 +44,7 @@ describe('machines: running', () => {
 
 	it('run through phases', async () => {
 		const space = new MachineSpace(world1, loader, dispatch);
+		space.log$.subscribe(console.log);
 
 		const starter: Convener<void> = {
 			convene([p]) { p.chat(['dummy', 'start']) }
@@ -54,10 +54,7 @@ describe('machines: running', () => {
 
 		// const [run] = space.summon(['dummy', '123']);
 
-		const out = await gather(space.log$.pipe(
-			flatMap(([id, l$]) => l$.pipe(map(l => [id, l]))),
-			tap(console.log)
-		));
+		const out = await gather(space.log$.pipe(tap(console.log)));
 
 		// const out = await gather(run.log$.pipe(tap(console.log)));
 
@@ -133,8 +130,6 @@ describe('machines: running', () => {
 				boot: x => ({
 					guard(d): d is void { return true },
 					run: async () => {
-						console.log('hello from root/boot!')
-
 						const cmd = await x.attach<Cmd<World1, 'root'>>({
 							chat(c) { return c; }
 						});
@@ -209,8 +204,8 @@ class MachineSpace<W extends World> {
 	private readonly dispatch: Dispatch
 	private runs: Map<Id<W>, Run<W>>
 
-	private _log$: Subject<[Id, Observable<Command>]>
-	log$: Observable<[Id, Observable<Command>]>
+	private _log$: Subject<readonly [Id<W>, Command]>
+	log$: Observable<readonly [Id<W>, Command]>
 
 	constructor(world: WorldImpl<W>, loader: MachineLoader<W>, dispatch: Dispatch) {
 		this.world = world;
@@ -220,7 +215,7 @@ class MachineSpace<W extends World> {
 		this.dispatch = dispatch;
 		this.runs = Map();
 
-		this._log$ = new Subject<[Id, Observable<Command>]>();
+		this._log$ = new Subject<readonly [Id<W>, Command]>();
 		this.log$ = this._log$;
 	}
 
@@ -242,7 +237,10 @@ class MachineSpace<W extends World> {
 				const head = this.atoms.spawnHead();
 
 				const run = new Run();
-				this._log$.next([id, run.log$]);
+				run.log$
+					.pipe(map(l => [id, l] as const))
+				  .subscribe(this._log$)
+				
 				run.boot(this.dispatch, ['root', 'boot']);
 				
 				return [id, run];

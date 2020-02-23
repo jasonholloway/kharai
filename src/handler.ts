@@ -41,12 +41,10 @@ export function join<HR extends Handler[]>(...handlers: HR) : Handler<In<HR[numb
 
 export function compile<I extends Command, O extends Command>(handler: Handler<I, O>): (i: I) => Yield<O> {
 	const map = Map(handler.map(r => [r[0], r[1]]))
-	return async (c: I) => {
-		console.log('c', c)
+	return (c: I) => {
 		const found = map.get(c[0]);
-		return found
-		  ? found(...tail(c))
-		  : [];
+		if(found) return found(...tail(c));
+		else throw Error(`can't find ${c}!`);
 	}
 }
 
@@ -110,7 +108,7 @@ export function boot(drive: (c: Command) => Yield, sink: Sink<Command>, c: Comma
 	drive(c).then(out => {
 		out.forEach(o => boot(drive, sink, o))
 	})
+	.catch(sink.error.bind(sink))
 	.finally(() => sink.release())
-	.catch(sink.error.bind(sink));
 }
 
