@@ -11,13 +11,13 @@ import { tap, map } from 'rxjs/operators'
 import { MeetSpace, Convener } from '../src/Mediator'
 
 
-function buildMachine<W extends World, MK extends MachineKey<W>>(world: WorldImpl<W>, mk: MK, contextFac: () => W['context']) {
+function buildMachine<W extends World, MK extends MachineKey<W>>(world: WorldImpl<W>, mk: MK) {
 	const phaseImpls = world.machines[mk];
 	const p2 = Map(phaseImpls).mapKeys(k => <PhaseKey<Machine<W, MK>>>k)
 
 	const handler: Handler = [...p2.entries()].map(([pk, fac]) => {
 		return [pk, async (data: any) => {
-			const x = contextFac();
+			const x = <W['context']><unknown>undefined
 			const p = fac(x);
 			if(!p.guard(data)) throw Error(`Bad data for phase ${mk}.${pk}: ${data}`);
 			return await p.run(data);
@@ -29,17 +29,21 @@ function buildMachine<W extends World, MK extends MachineKey<W>>(world: WorldImp
 
 describe('machines: running', () => {
 	let loader: MachineLoader<World1>
+	let space: MachineSpace<World1>
 	let dispatch: Dispatch
 
 	beforeEach(() => {
 		loader = async () => Set();
+		
+		//dispatch is needed /before/ space... ****************
+		space = new MachineSpace(world1, loader, dispatch)
 
 		const contextFac = () => world1.contextFac({
 			attach() { console.log('attaching'); throw 123 },
 			convene() { throw 123 }
 		});
 
-		dispatch = compile(join(buildMachine(world1, 'dummy', contextFac), buildMachine(world1, 'root', contextFac)));
+		dispatch = compile(join(buildMachine(world1, 'dummy'), buildMachine(world1, 'root')));
 	})	
 
 	it('run through phases', async () => {
@@ -131,7 +135,7 @@ describe('machines: running', () => {
 					guard(d): d is void { return true },
 					run: async () => {
 						const cmd = await x.attach<Cmd<World1, 'root'>>({
-							chat(c) { return c; }
+							chat(c) { return c; } //should be checking this here...
 						});
 
 						console.log('received cmd', cmd)
