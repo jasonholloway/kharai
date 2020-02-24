@@ -1,29 +1,12 @@
 import { Map } from 'immutable'
-import { RO } from './util'
 import { Attendee, Convener } from './Mediator'
 
 
 export type Data = Map<string, any>
-
-
-// export type MachineState<W extends World = World, M extends Machine<W> = Machine<W>> = {
-// 	data: any
-// 	resume: Command
-// }
-
-
 export type Id = string
-
-// export type Machine<W extends World, K extends MachineKey<W> = MachineKey<W>> = W['machines'][K]
-// export type Phase<W extends World, M extends Machine<W>, K extends PhaseKey<M> = PhaseKey<M>> = M[K]
-
-
-// export type Command<H extends string = string, T extends any[] = any[]> = RO<Cons<H, T>> //<K extends string = string> = RO<[K, ...any[]]>
-// export type Yield<O extends Command = Command> = Promise<RO<O[]>>
 
 export type Keyed<T> = { [key: string]: T }
 export type Keys<O> = keyof O & string;
-
 
 export type MachineSpec = Keyed<PhaseSpec>
 
@@ -33,15 +16,9 @@ export type PhaseSpec = {
 
 type PathVal<T, E> = { [K in keyof T]: [K, T[K] extends E ? T[K] : PathVal<T[K], E>] }[keyof T]
 
-type _Phase<P> = PathVal<P, any[]>
+export type _Phase<P> = PathVal<P, any[]>
 
 export type Phase<W extends World> = _Phase<W['phases']>
-
-// export type Cmd<W extends World, MK extends MachineKey<W> = MachineKey<W>> =
-// 		readonly ['@me', PhaseKey<Machine<W, MK>>]
-// 	| readonly [MK, PhaseKey<Machine<W, MK>>]
-//   | { [HK in keyof W['handlers']]: Cons<HK, W['handlers'][HK]> }[keyof W['handlers'] & string]
-
 
 export interface RunContext {
 	attach<R>(attend: Attendee<R>): Promise<false|[R]>
@@ -57,47 +34,30 @@ export type World = {
 	phases: PhaseMap
 }
 
-//in combining available phases, we don't just want Phase<W>, but phases on all intermediate PhaseMaps
-//
-//
-//
 
-
-type MapPhaseImpl<W extends World, O extends PhaseMap, P extends PhaseMap> = {
-	[K in keyof P]: P[K] extends any[]
-		? PhaseImpl<P&O, W['context'], P[K]>
-		: (P[K] extends PhaseMap
-			 ? MapPhaseImpl<W, P&O, P[K]>
-			 : never)
+export type PhaseMapImpl<X, PCurr extends PhaseMap, PAcc extends false|PhaseMap = false> = {
+	[K in keyof PCurr]:
+		PCurr[K] extends any[]
+			? PhaseImpl<PAcc extends false ? PCurr : (PCurr&PAcc), X, PCurr[K]>
+			: (PCurr[K] extends PhaseMap
+				? PhaseMapImpl<X, PAcc extends false ? PCurr : (PCurr&PAcc), PCurr[K]>
+				: never)
 }
 
-export type WorldImpl<W extends World> = {
+export type WorldImpl<W extends World, PExplode extends boolean = false> = {
 	contextFac(x: RunContext): W['context']
-	phases: MapPhaseImpl<W, {}, W['phases']>
+	phases: PhaseMapImpl<W['context'], W['phases'], PExplode extends true ? {} : false>
 }
 
-export type PhaseImpl<P extends PhaseMap, X extends RunContext, D> = (x: X) => {
+export type PhaseImpl<P extends PhaseMap, X, D> = (x: X) => {
 	guard(d: any): d is D
 	run(d: D): Promise<_Phase<P>>
 }
 
-interface Impl<W extends World> extends WorldImpl<W> {}
-
-
-
-// export type MachineImpl<W extends World, MK extends MachineKey<W> = MachineKey<W>> = {
-// 	[K in PhaseKey<Machine<W, MK>>]: PhaseImpl<W, MK, Phase<W, Machine<W, MK>, K>>
-// }
-
-// export type _PhaseImpl<W extends World, MK extends MachineKey<W>, P extends Phase<W, Machine<W, MK>>> = (x: W['context']) => {
-// 	guard(d: any): d is P['input']
-// 	run(d: P['input']): Yield<Cmd<W, MK>>
-// }
-
 
 export type SpecWorld<W extends World> = W;
 
-export function makeWorld<W extends World>(w: Impl<W>) {
+export function makeWorld<W extends World>(w: WorldImpl<W, false>) {
 	return w;
 }
 

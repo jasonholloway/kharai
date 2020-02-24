@@ -3,47 +3,27 @@ import _Monoid from '../src/_Monoid'
 import Store from '../src/Store'
 import AtomSpace from '../src/AtomSpace'
 import AtomSaver from '../src/AtomSaver'
-import { Id, Data, SpecWorld, makeWorld, World, WorldImpl, RunContext, Phase } from '../src/lib'
-import { localize, compile, boot, Sink, Handler, join } from '../src/handler'
+import { Id, Data, SpecWorld, makeWorld, World, WorldImpl, RunContext, Phase, PhaseMap, PhaseMapImpl, _Phase } from '../src/lib'
+import { boot, Sink } from '../src/handler'
 import { Subject, Observable } from 'rxjs'
 import { gather } from './helpers'
 import { tap, map } from 'rxjs/operators'
 import { MeetSpace, Convener } from '../src/Mediator'
 
-
-function buildMachine<W extends World, MK extends MachineKey<W>>(world: WorldImpl<W>, mk: MK) {
-	const phaseImpls = world.machines[mk];
-	const p2 = Map(phaseImpls).mapKeys(k => <PhaseKey<Machine<W, MK>>>k)
-
-	const handler: Handler = [...p2.entries()].map(([pk, fac]) => {
-		return [pk, async (data: any) => {
-			const x = <W['context']><unknown>undefined
-			const p = fac(x);
-			if(!p.guard(data)) throw Error(`Bad data for phase ${mk}.${pk}: ${data}`);
-			return await p.run(data);
-		}] as const;
-	})
-	
-	return localize(mk, handler);
+function buildDispatch<W extends World>(impl: PhaseMapImpl<W['context'], W['phases']>): Dispatch<Phase<W>> {
+	throw 123;
 }
+
 
 describe('machines: running', () => {
 	let loader: MachineLoader<World1>
-	let space: MachineSpace<World1>
-	let dispatch: Dispatch
+	let space: MachineSpace<World1, World1['phases']>
+	let dispatch: Dispatch<Phase<World1>>
 
 	beforeEach(() => {
 		loader = async () => Set();
-		
-		//dispatch is needed /before/ space... ****************
+		dispatch = buildDispatch<World1>(world1.phases);
 		space = new MachineSpace(world1, loader, dispatch)
-
-		const contextFac = () => world1.contextFac({
-			attach() { console.log('attaching'); throw 123 },
-			convene() { throw 123 }
-		});
-
-		dispatch = compile(join(buildMachine(world1, 'dummy'), buildMachine(world1, 'root')));
 	})	
 
 	it('run through phases', async () => {
@@ -247,23 +227,24 @@ describe('machines: loading and saving', () => {
 	//...
 })
 
+type Dispatch<P> = (inp: P) => Promise<P>
 
-type MachineLoader<W extends World> = (ids: Set<Id>) => Promise<Set<[Id, MachineState<W>]>>
 
-type Dispatch<I extends Command = Command, O extends Command = Command> = (c: I) => Yield<O>
+type MachineLoader<P> = (ids: Set<Id>) => Promise<Set<[Id, P]>>
 
-class MachineSpace<W extends World> {
+
+class MachineSpace<W extends World, PM extends PhaseMap = W['phases'], P = _Phase<PM>> {
 	private readonly world: WorldImpl<W>
 	private readonly atoms: AtomSpace<Data>
 	private readonly loader: MachineLoader<W>
 	private readonly mediator: MeetSpace
-	private readonly dispatch: Dispatch
+	private readonly dispatch: Dispatch<P>
 	private runs: Map<Id, Run<W>>
 
-	private _log$: Subject<readonly [Id, Command]>
-	log$: Observable<readonly [Id, Command]>
+	private _log$: Subject<readonly [Id, P]>
+	log$: Observable<readonly [Id, P]>
 
-	constructor(world: WorldImpl<W>, loader: MachineLoader<W>, dispatch: Dispatch) {
+	constructor(world: WorldImpl<W>, loader: MachineLoader<W>, dispatch: Dispatch<P>) {
 		this.world = world;
 		this.atoms = new AtomSpace();
 		this.mediator = new MeetSpace();
@@ -271,7 +252,7 @@ class MachineSpace<W extends World> {
 		this.dispatch = dispatch;
 		this.runs = Map();
 
-		this._log$ = new Subject<readonly [Id, Command]>();
+		this._log$ = new Subject<readonly [Id, P]>();
 		this.log$ = this._log$;
 	}
 
@@ -282,29 +263,29 @@ class MachineSpace<W extends World> {
 			return await this.mediator.mediate(convener, Set(runs))
 		}
 	}
-	
-	private async load(ids: Id[]): Promise<IRun[]> {
-		//AND WHAT ABOUT ASYNC LOADING HERE????????????? - it will cause race cond
-		const summoned = Map(ids.map(id => {
-			const found = this.runs.get(id);
-			if(found) return [id, found];
-			else {
-				const def = this.world.machines['root'];
-				const head = this.atoms.spawnHead();
 
-				const run = new Run();
-				run.log$
-					.pipe(map(l => [id, l] as const))
-				  .subscribe(this._log$)
+	// private async load(ids: Id[]): Promise<IRun<P>[]> {
+	// 	//AND WHAT ABOUT ASYNC LOADING HERE????????????? - it will cause race cond
+	// 	const summoned = Map(ids.map(id => {
+	// 		const found = this.runs.get(id);
+	// 		if(found) return [id, found];
+	// 		else {
+	// 			const head = this.atoms.spawnHead();
+
+	// 			const run = new Run<P>();
+	// 			run.log$
+	// 				.pipe(map(l => [id, l] as const))
+	// 			  .subscribe(this._log$)
 				
-				run.boot(this.dispatch, ['root', 'boot']);
+	// 			run.boot(this.dispatch, ['boot']);
 				
-				return [id, run];
-			}
-		}))
-		this.runs = this.runs.merge(summoned); //lots of needless churn
-		return [...summoned.values()];
-	}
+	// 			return [id, run];
+	// 		}
+	// 	}))
+
+	// 	this.runs = this.runs.merge(summoned); //lots of needless churn
+	// 	return [...summoned.values()];
+	// }
 
 	//below shouldn't be public; all should be via meet()
 // 	summon<IR extends readonly Id[]>(...ids: IR): IRun<W, IR[number][0]>[] {
@@ -327,23 +308,24 @@ class MachineSpace<W extends World> {
 // 	}
 }
 
-class Run<W extends World, K extends MachineKey<W> = MachineKey<W>, M extends Machine<W, K> = Machine<W, K>> implements IRun {
-	private _log$: Subject<Command>
-	log$: Observable<Command>
+class Run<W extends World, P = _Phase<W['phases']>> implements IRun<P> {
+
+	private _log$: Subject<P>
+	log$: Observable<P>
 	
 	constructor() {
-		this._log$ = new Subject<Command>();
+		this._log$ = new Subject<P>();
 		this.log$ = this._log$;
 	}
 
-	boot(dispatch: Dispatch, command: Command) {
+	boot(dispatch: Dispatch<P>, phase: P) {
 		const sink = new Sink(this._log$);
-		setImmediate(() => boot(dispatch, sink, command))
+		setImmediate(() => boot(dispatch, sink, phase))
 	}
 }
 
-interface IRun {
-	readonly log$: Observable<Command>
+interface IRun<P> {
+	readonly log$: Observable<P>
 }
 
 
