@@ -1,5 +1,4 @@
 import { createHandler, join, compile, localize, boot, Sink } from '../src/handler'
-import { Command } from '../src/lib'
 import { Subject } from 'rxjs'
 import { gather, delay } from './helpers'
 
@@ -63,7 +62,7 @@ describe('coroutines', () => {
 		
 		const dispatch = compile(join(hh, h3))
 
-		const log$ = new Subject<Command>()
+		const log$ = new Subject<any>()
 		const gathering = gather(log$);
 
 		boot(dispatch, new Sink(log$), ['gaz', 'woof', 1]);

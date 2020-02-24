@@ -35,18 +35,18 @@ export type World = {
 }
 
 
-export type PhaseMapImpl<X, PCurr extends PhaseMap, PAcc extends false|PhaseMap = false> = {
+export type PhaseMapImpl<X, PCurr extends PhaseMap, PAcc extends PhaseMap = {}> = {
 	[K in keyof PCurr]:
 		PCurr[K] extends any[]
-			? PhaseImpl<PAcc extends false ? PCurr : (PCurr&PAcc), X, PCurr[K]>
+			? PhaseImpl<PCurr&PAcc, X, PCurr[K]>
 			: (PCurr[K] extends PhaseMap
-				? PhaseMapImpl<X, PAcc extends false ? PCurr : (PCurr&PAcc), PCurr[K]>
+				? PhaseMapImpl<X, PCurr[K], PCurr&PAcc>
 				: never)
 }
 
-export type WorldImpl<W extends World, PExplode extends boolean = false> = {
+export type WorldImpl<W extends World> = {
 	contextFac(x: RunContext): W['context']
-	phases: PhaseMapImpl<W['context'], W['phases'], PExplode extends true ? {} : false>
+	phases: PhaseMapImpl<W['context'], W['phases']>
 }
 
 export type PhaseImpl<P extends PhaseMap, X, D> = (x: X) => {
@@ -57,7 +57,7 @@ export type PhaseImpl<P extends PhaseMap, X, D> = (x: X) => {
 
 export type SpecWorld<W extends World> = W;
 
-export function makeWorld<W extends World>(w: WorldImpl<W, false>) {
+export function makeWorld<W extends World>(w: WorldImpl<W>) {
 	return w;
 }
 

@@ -17,30 +17,24 @@ function buildDispatch<W extends World>(impl: PhaseMapImpl<W['context'], W['phas
 
 describe('machines: running', () => {
 	let loader: MachineLoader<World1>
-	let space: MachineSpace<World1, World1['phases']>
+	let space: MachineSpace<World1>
 	let dispatch: Dispatch<Phase<World1>>
 
 	beforeEach(() => {
 		loader = async () => Set();
 		dispatch = buildDispatch<World1>(world1.phases);
-		space = new MachineSpace(world1, loader, dispatch)
+		space = new MachineSpace(world1, loader, dispatch, ['boot', []])
+		space.log$.subscribe(console.log);
 	})	
 
 	it('run through phases', async () => {
-		const space = new MachineSpace(world1, loader, dispatch);
-		space.log$.subscribe(console.log);
-
 		const starter: Convener<void> = {
 			convene([p]) { p.chat(['dummy', 'start']) }
 		}
 
 		await space.meet(starter)(['dummy123']);		
 
-		// const [run] = space.summon(['dummy', '123']);
-
 		const out = await gather(space.log$.pipe(tap(console.log)));
-
-		// const out = await gather(run.log$.pipe(tap(console.log)));
 
 		expect(out).toEqual([
 			['dummy', 'start'],
@@ -50,9 +44,6 @@ describe('machines: running', () => {
 	})
 
 	it('resumes', async () => {
-		const space = new MachineSpace(world1, loader, dispatch);
-
-		// const [run] = space.summon(['fancy', '123']); //but - you don't want to send a command to an already-running machine...
 		const starter: Convener<void> = {
 			convene([p]) { p.chat(['fancy', 'start']) }
 		}
@@ -69,8 +60,9 @@ describe('machines: running', () => {
 		]))
 	})
 	
+
 	//TODO: meetings must update involved heads
-	//
+	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 	type Template<Me extends World = World> = SpecWorld<{
 		context: RunContext
@@ -239,17 +231,19 @@ class MachineSpace<W extends World, PM extends PhaseMap = W['phases'], P = _Phas
 	private readonly loader: MachineLoader<W>
 	private readonly mediator: MeetSpace
 	private readonly dispatch: Dispatch<P>
-	private runs: Map<Id, Run<W>>
+	private readonly boot: P
+	private runs: Map<Id, Promise<Run<P>>>
 
 	private _log$: Subject<readonly [Id, P]>
 	log$: Observable<readonly [Id, P]>
 
-	constructor(world: WorldImpl<W>, loader: MachineLoader<W>, dispatch: Dispatch<P>) {
+	constructor(world: WorldImpl<W>, loader: MachineLoader<W>, dispatch: Dispatch<P>, boot: P) {
 		this.world = world;
 		this.atoms = new AtomSpace();
 		this.mediator = new MeetSpace();
 		this.loader = loader;
 		this.dispatch = dispatch;
+		this.boot = boot;
 		this.runs = Map();
 
 		this._log$ = new Subject<readonly [Id, P]>();
@@ -259,56 +253,47 @@ class MachineSpace<W extends World, PM extends PhaseMap = W['phases'], P = _Phas
 
 	meet<R = any>(convener: Convener<R>): (ids: Id[]) => Promise<R> {
 		return async (ids) => {
-			const runs = await this.load(ids);
+			const runs = await this.summon(Set(ids));
 			return await this.mediator.mediate(convener, Set(runs))
 		}
 	}
 
-	// private async load(ids: Id[]): Promise<IRun<P>[]> {
-	// 	//AND WHAT ABOUT ASYNC LOADING HERE????????????? - it will cause race cond
-	// 	const summoned = Map(ids.map(id => {
-	// 		const found = this.runs.get(id);
-	// 		if(found) return [id, found];
-	// 		else {
-	// 			const head = this.atoms.spawnHead();
+	private async summon(ids: Set<Id>): Promise<Map<Id, IRun<P>>> {
 
-	// 			const run = new Run<P>();
-	// 			run.log$
-	// 				.pipe(map(l => [id, l] as const))
-	// 			  .subscribe(this._log$)
-				
-	// 			run.boot(this.dispatch, ['boot']);
-				
-	// 			return [id, run];
-	// 		}
-	// 	}))
+		const summoned = ids.map(id => {
+			const found = this.runs.get(id);
+			if(found) {
+				return [false, id, found] as const;
+			}
+			else {
+		 		const run = new Run<P>();
 
-	// 	this.runs = this.runs.merge(summoned); //lots of needless churn
-	// 	return [...summoned.values()];
-	// }
+		 		run.log$
+		 			.pipe(map(l => [id, l] as const))
+		 		  .subscribe(this._log$)
+			
+		 		run.boot(this.dispatch, this.boot);
+			
+		 		return [true, id, Promise.resolve(run)] as const;
+			}
+		})
 
-	//below shouldn't be public; all should be via meet()
-// 	summon<IR extends readonly Id[]>(...ids: IR): IRun<W, IR[number][0]>[] {
-// 		const summoned = Map(ids.map(id => {
-// 			const found = this.runs.get(id);
-// 			if(found) return [id, found];
-// 			else {
-// 				const def = this.world.machines[id[0]];
-// 				const head = this.atoms.spawnHead();
+		const toAdd = summoned
+			.filter(([isNew]) => isNew)
+			.map(([, id, loading]) => <[Id, Promise<Run<P>>]>[id, loading]);
+    
+		this.runs = this.runs.merge(Map(toAdd));
 
-// 				const run = new Run();
-// 				this._log$.next([id, run.log$]);
-// 				run.boot(this.dispatch, [id[0], ...def.zero.resume]);
-				
-// 				return [id, run];
-// 			}
-// 		}))
-// 		this.runs = this.runs.merge(summoned); //lots of needless churn
-// 		return [...summoned.values()];
-// 	}
+		const loadedAll =
+			await Promise.all(
+				summoned.map(([, id, loading]) =>
+											loading.then(r => <[Id, Run<P>]>[id, r])));
+
+		return Map(loadedAll);
+	}
 }
 
-class Run<W extends World, P = _Phase<W['phases']>> implements IRun<P> {
+class Run<P> implements IRun<P> {
 
 	private _log$: Subject<P>
 	log$: Observable<P>
