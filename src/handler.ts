@@ -2,6 +2,7 @@ import { Command, Cons, Tail, Yield, tail, Prop, Only, Lit} from './lib'
 import { Map } from 'immutable'
 import { RO } from './util'
 import { Subject } from 'rxjs'
+import { Dispatch } from './dispatch'
 
 export type Handler<I extends Command = Command, O extends Command = Command> =
 	(readonly [I[0], (...args: Tail<I>) => Yield<O>])[]
@@ -102,11 +103,11 @@ export class Sink<V> {
 	}
 }
 
-export function boot(drive: (c: Command) => Yield, sink: Sink<Command>, c: Command) {
+export function boot<X, P>(dispatch: Dispatch<X, P>, sink: Sink<Command>, x: X, phase: P) {
 	sink.hold();
-	sink.next(c);
-	drive(c).then(out => {
-		out.forEach(o => boot(drive, sink, o))
+	sink.next(phase);
+	dispatch(x)(phase).then(out => {
+		boot(dispatch, sink, x, out);
 	})
 	.catch(sink.error.bind(sink))
 	.finally(() => sink.release())

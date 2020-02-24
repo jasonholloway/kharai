@@ -8,18 +8,26 @@ import { boot, Sink } from '../src/handler'
 import { Subject, Observable } from 'rxjs'
 import { gather } from './helpers'
 import { tap, map } from 'rxjs/operators'
-import { MeetSpace, Convener } from '../src/Mediator'
+import { MeetSpace, Convener, Attendee } from '../src/Mediator'
 import { Dispatch, buildDispatch } from '../src/dispatch'
 
 describe('machines: running', () => {
 	let loader: MachineLoader<World1>
 	let space: MachineSpace<World1>
 	let dispatch: Dispatch<World1['context'], Phase<World1>>
+	let context: World1['context']
 
 	beforeEach(() => {
 		loader = async () => Set();
 		dispatch = buildDispatch<World1['context'], World1['phases']>(world1.phases);
-		space = new MachineSpace(world1, loader, dispatch, ['boot', []])
+
+		//context to be populated in part by MachineSpace
+		context = {
+			async attach<R>(attend: Attendee<R>) { throw 666 },
+			async convene<R>(ids: string[], convener: Convener<R>) { throw 333 }
+		};
+		
+		space = new MachineSpace(world1, loader, dispatch, context, ['boot', []])
 		space.log$.subscribe(console.log);
 	})	
 
@@ -84,13 +92,8 @@ describe('machines: running', () => {
 
 	type World1 = Template<Template>
 
-	
 
 	const world1 = makeWorld<World1>({
-		contextFac(x) { //this shouldn't really have to be implemented here...
-			return x;
-		},
-
 		phases: {
 			boot: x => ({
 				guard(d): d is [] { return true },
@@ -129,14 +132,14 @@ describe('machines: running', () => {
 				start: x => ({
 					guard(d): d is [] { return true },
 					async run() {
-						return ['dummy', ['middle', [123] ]]
+						return ['middle', [123]]
 					}
 				}),
 
 				middle: x => ({
 					guard(d): d is [number] { return true },
 					async run([d]) {
-						return ['dummy', ['end', [`the number is ${d}`]]]
+						return ['end', [`the number is ${d}`]]
 					}
 				}),
 
@@ -149,56 +152,6 @@ describe('machines: running', () => {
 				})
 			}
 		},
-
-	// 	machines: {
-	// 		root: {
-	// 			boot: x => ({
-	// 				guard(d): d is void { return true },
-	// 				run: async () => {
-	// 					const cmd = await x.attach<Cmd<World1, 'root'>>({
-	// 						chat(c) { return c; } //should be checking this here...
-	// 					});
-
-	// 					console.log('received cmd', cmd)
-
-	// 					if(cmd) {
-	// 						return cmd;
-	// 					}
-	// 					else {
-	// 						throw 'bad answer...';
-	// 					}
-	// 				}
-	// 			})
-	// 		},
-
-	// 		dummy: {
-	// 			start: x => ({
-	// 				guard(d): d is number { return true },
-	// 				run: async () => {
-	// 					return [['@me', 'middle']]
-	// 				}
-	// 			}),
-	// 			middle: x => ({
-	// 				guard(d): d is any { return true },
-	// 				run: async () => [['@me', 'end']]
-	// 			}),
-	// 			end: x => ({
-	// 				guard(d): d is any { return true },
-	// 				run: async () => [] 
-	// 			})
-	// 		},
-
-	// 		fancy: {
-	// 			start: x => ({
-	// 				guard(d): d is any { return true },
-	// 				run: async () => [['@delay', 10, '@me', 'end']]
-	// 			}),
-	// 			end: x => ({
-	// 				guard(d): d is any { return true },
-	// 				run: async () => []
-	// 			})
-	// 		}
-	// 	}
 	})
 })
 
@@ -226,18 +179,20 @@ class MachineSpace<W extends World, PM extends PhaseMap = W['phases'], P = _Phas
 	private readonly loader: MachineLoader<W>
 	private readonly mediator: MeetSpace
 	private readonly dispatch: Dispatch<X, P>
+	private readonly x: X
 	private readonly boot: P
 	private runs: Map<Id, Promise<Run<X, P>>>
 
 	private _log$: Subject<readonly [Id, P]>
 	log$: Observable<readonly [Id, P]>
 
-	constructor(world: WorldImpl<W>, loader: MachineLoader<W>, dispatch: Dispatch<X, P>, boot: P) {
+	constructor(world: WorldImpl<W>, loader: MachineLoader<W>, dispatch: Dispatch<X, P>, x: X, boot: P) {
 		this.world = world;
 		this.atoms = new AtomSpace();
 		this.mediator = new MeetSpace();
 		this.loader = loader;
 		this.dispatch = dispatch;
+		this.x = x;
 		this.boot = boot;
 		this.runs = Map();
 
@@ -267,7 +222,7 @@ class MachineSpace<W extends World, PM extends PhaseMap = W['phases'], P = _Phas
 		 			.pipe(map(l => [id, l] as const))
 		 		  .subscribe(this._log$)
 			
-		 		run.boot(this.dispatch, this.boot);
+		 		run.begin(this.dispatch, this.x, this.boot);
 			
 		 		return [true, id, Promise.resolve(run)] as const;
 			}
@@ -298,9 +253,9 @@ class Run<X, P> implements IRun<P> {
 		this.log$ = this._log$;
 	}
 
-	boot(dispatch: Dispatch<X, P>, phase: P) {
+	begin(dispatch: Dispatch<X, P>, x: X, phase: P) {
 		const sink = new Sink(this._log$);
-		setImmediate(() => boot(dispatch, sink, phase))
+		setImmediate(() => boot(dispatch, sink, x, phase))
 	}
 }
 

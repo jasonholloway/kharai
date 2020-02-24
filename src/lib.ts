@@ -45,7 +45,6 @@ export type PhaseMapImpl<X, PCurr extends PhaseMap, PAcc extends PhaseMap = {}> 
 }
 
 export type WorldImpl<W extends World> = {
-	contextFac(x: RunContext): W['context']
 	phases: PhaseMapImpl<W['context'], W['phases']>
 }
 
