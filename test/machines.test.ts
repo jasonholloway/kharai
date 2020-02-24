@@ -3,26 +3,22 @@ import _Monoid from '../src/_Monoid'
 import Store from '../src/Store'
 import AtomSpace from '../src/AtomSpace'
 import AtomSaver from '../src/AtomSaver'
-import { Id, Data, SpecWorld, makeWorld, World, WorldImpl, RunContext, Phase, PhaseMap, PhaseMapImpl, _Phase } from '../src/lib'
+import { Id, Data, SpecWorld, makeWorld, World, WorldImpl, RunContext, Phase, PhaseMap, _Phase } from '../src/lib'
 import { boot, Sink } from '../src/handler'
 import { Subject, Observable } from 'rxjs'
 import { gather } from './helpers'
 import { tap, map } from 'rxjs/operators'
 import { MeetSpace, Convener } from '../src/Mediator'
-
-function buildDispatch<W extends World>(impl: PhaseMapImpl<W['context'], W['phases']>): Dispatch<Phase<W>> {
-	throw 123;
-}
-
+import { Dispatch, buildDispatch } from '../src/dispatch'
 
 describe('machines: running', () => {
 	let loader: MachineLoader<World1>
 	let space: MachineSpace<World1>
-	let dispatch: Dispatch<Phase<World1>>
+	let dispatch: Dispatch<World1['context'], Phase<World1>>
 
 	beforeEach(() => {
 		loader = async () => Set();
-		dispatch = buildDispatch<World1>(world1.phases);
+		dispatch = buildDispatch<World1['context'], World1['phases']>(world1.phases);
 		space = new MachineSpace(world1, loader, dispatch, ['boot', []])
 		space.log$.subscribe(console.log);
 	})	
@@ -32,14 +28,15 @@ describe('machines: running', () => {
 			convene([p]) { p.chat(['dummy', 'start']) }
 		}
 
-		await space.meet(starter)(['dummy123']);		
+		await space.meet(starter)(['bob1']);		
 
 		const out = await gather(space.log$.pipe(tap(console.log)));
 
 		expect(out).toEqual([
-			['dummy', 'start'],
-			['dummy', 'middle'],
-			['dummy', 'end']
+			['bob1', ['boot', []]],
+			['bob1', ['dummy', ['start', []]]],
+			['bob1', ['dummy', ['middle', 123]]],
+			['bob1', ['dummy', ['end', 'byebye']]]
 		]);
 	})
 
@@ -219,25 +216,23 @@ describe('machines: loading and saving', () => {
 	//...
 })
 
-type Dispatch<P> = (inp: P) => Promise<P>
-
 
 type MachineLoader<P> = (ids: Set<Id>) => Promise<Set<[Id, P]>>
 
 
-class MachineSpace<W extends World, PM extends PhaseMap = W['phases'], P = _Phase<PM>> {
+class MachineSpace<W extends World, PM extends PhaseMap = W['phases'], P = _Phase<PM>, X = W['context']> {
 	private readonly world: WorldImpl<W>
 	private readonly atoms: AtomSpace<Data>
 	private readonly loader: MachineLoader<W>
 	private readonly mediator: MeetSpace
-	private readonly dispatch: Dispatch<P>
+	private readonly dispatch: Dispatch<X, P>
 	private readonly boot: P
-	private runs: Map<Id, Promise<Run<P>>>
+	private runs: Map<Id, Promise<Run<X, P>>>
 
 	private _log$: Subject<readonly [Id, P]>
 	log$: Observable<readonly [Id, P]>
 
-	constructor(world: WorldImpl<W>, loader: MachineLoader<W>, dispatch: Dispatch<P>, boot: P) {
+	constructor(world: WorldImpl<W>, loader: MachineLoader<W>, dispatch: Dispatch<X, P>, boot: P) {
 		this.world = world;
 		this.atoms = new AtomSpace();
 		this.mediator = new MeetSpace();
@@ -266,7 +261,7 @@ class MachineSpace<W extends World, PM extends PhaseMap = W['phases'], P = _Phas
 				return [false, id, found] as const;
 			}
 			else {
-		 		const run = new Run<P>();
+		 		const run = new Run<X, P>();
 
 		 		run.log$
 		 			.pipe(map(l => [id, l] as const))
@@ -280,20 +275,20 @@ class MachineSpace<W extends World, PM extends PhaseMap = W['phases'], P = _Phas
 
 		const toAdd = summoned
 			.filter(([isNew]) => isNew)
-			.map(([, id, loading]) => <[Id, Promise<Run<P>>]>[id, loading]);
+			.map(([, id, loading]) => <[Id, Promise<Run<X, P>>]>[id, loading]);
     
 		this.runs = this.runs.merge(Map(toAdd));
 
 		const loadedAll =
 			await Promise.all(
 				summoned.map(([, id, loading]) =>
-											loading.then(r => <[Id, Run<P>]>[id, r])));
+										 loading.then(r => <[Id, Run<X, P>]>[id, r])));
 
 		return Map(loadedAll);
 	}
 }
 
-class Run<P> implements IRun<P> {
+class Run<X, P> implements IRun<P> {
 
 	private _log$: Subject<P>
 	log$: Observable<P>
@@ -303,7 +298,7 @@ class Run<P> implements IRun<P> {
 		this.log$ = this._log$;
 	}
 
-	boot(dispatch: Dispatch<P>, phase: P) {
+	boot(dispatch: Dispatch<X, P>, phase: P) {
 		const sink = new Sink(this._log$);
 		setImmediate(() => boot(dispatch, sink, phase))
 	}
