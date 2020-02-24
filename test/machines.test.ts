@@ -160,20 +160,21 @@ describe('machines: running', () => {
 				start: x => ({
 					guard(d): d is [] { return true },
 					async run() {
-						return ['boot', []]
+						return ['dummy', ['middle', [123] ]]
 					}
 				}),
 
 				middle: x => ({
 					guard(d): d is [number] { return true },
-					async run() {
-						return ['boot', []]
+					async run([d]) {
+						return ['dummy', ['end', [`the number is ${d}`]]]
 					}
 				}),
 
 				end: x => ({
 					guard(d): d is [string] { return true },
-					async run() {
+					async run([d]) {
+						console.log('message received:', d)
 						return ['boot', []]
 					}
 				})

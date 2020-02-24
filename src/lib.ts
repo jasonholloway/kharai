@@ -32,7 +32,10 @@ export type PhaseSpec = {
 }
 
 type PathVal<T, E> = { [K in keyof T]: [K, T[K] extends E ? T[K] : PathVal<T[K], E>] }[keyof T]
-export type Phase<W extends World> = PathVal<W['phases'], any[]>
+
+type _Phase<P> = PathVal<P, any[]>
+
+export type Phase<W extends World> = _Phase<W['phases']>
 
 // export type Cmd<W extends World, MK extends MachineKey<W> = MachineKey<W>> =
 // 		readonly ['@me', PhaseKey<Machine<W, MK>>]
@@ -54,22 +57,28 @@ export type World = {
 	phases: PhaseMap
 }
 
-type MapPhaseImpl<W extends World, P extends PhaseMap> = {
+//in combining available phases, we don't just want Phase<W>, but phases on all intermediate PhaseMaps
+//
+//
+//
+
+
+type MapPhaseImpl<W extends World, O extends PhaseMap, P extends PhaseMap> = {
 	[K in keyof P]: P[K] extends any[]
-		? PhaseImpl<W, P[K]>
+		? PhaseImpl<P&O, W['context'], P[K]>
 		: (P[K] extends PhaseMap
-			 ? MapPhaseImpl<W, P[K]>
+			 ? MapPhaseImpl<W, P&O, P[K]>
 			 : never)
 }
 
 export type WorldImpl<W extends World> = {
 	contextFac(x: RunContext): W['context']
-	phases: MapPhaseImpl<W, W['phases']>
+	phases: MapPhaseImpl<W, {}, W['phases']>
 }
 
-export type PhaseImpl<W extends World, D> = (x: W['context']) => {
+export type PhaseImpl<P extends PhaseMap, X extends RunContext, D> = (x: X) => {
 	guard(d: any): d is D
-	run(d: D): Promise<Phase<W>>
+	run(d: D): Promise<_Phase<P>>
 }
 
 interface Impl<W extends World> extends WorldImpl<W> {}
