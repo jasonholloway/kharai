@@ -28,12 +28,12 @@ describe('machines: running', () => {
 
 	it('run through phases', async () => {
 		const starter: Convener<void> = {
-			convene([p]) { p.chat(['dummy', 'start']) }
+			convene([p]) { p.chat( [['dummy', ['start']]] ) }
 		}
 
 		await space.meet(starter)(['bob1']);		
 
-		const out = await gather(space.log$.pipe(tap(console.log)));
+		const out = await gather(space.log$);
 
 		expect(out).toEqual([
 			['bob1', ['boot', []]],
@@ -50,7 +50,7 @@ describe('machines: running', () => {
 
 		await space.meet(starter)(['fancy123']);		
 		
-		const out = await gather(space.log$.pipe(tap(console.log)));
+		const out = await gather(space.log$);
 
 		expect(out).toEqual(List([
 			['fancy', 'start'],
@@ -101,20 +101,18 @@ describe('machines: running', () => {
 			boot: x => ({
 				guard(d): d is [] { return true },
 				async run() {
-					let answer: false|[Phase<World1>];
-
-					do {
-						answer = await x.attach<Phase<World1>>({
+					while(true) {
+						const answer = await x.attach<Phase<World1>>({
 							chat(c) { return c; } //should be checking this here...
 						});
-						await delay(100); //attach should always return asynchronously! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-						
-						console.log('boot', 'answer', answer);
-					} while(!answer);
-					
-					const [phase] = answer;
-					console.log('received cmd', phase)
-					return phase;
+
+						if(answer) {
+							return answer[0];
+						}
+						else {
+							await delay(30); //when we release properly, this can be removed
+						}
+					}
 				}
 			}),
 
@@ -150,7 +148,6 @@ describe('machines: running', () => {
 				end: x => ({
 					guard(d): d is [string] { return true },
 					async run([d]) {
-						console.log('message received:', d)
 						return ['boot', []]
 					}
 				})
@@ -203,15 +200,14 @@ class MachineSpace<W extends World, PM extends PhaseMap = W['phases'], P = _Phas
 	}
 
 	private createContext(run: Run<X, P>): X {
-		const mediator = this.mediator;
 
 		return this.world.contextFac({
-			attach<R>(attend: Attendee<R>) {
-				return mediator.attach(run, attend);
+			attach: <R>(attend: Attendee<R>) => {
+				return this.mediator.attach(run, attend)
 			},
-			convene<R>(ids: string[], convene: Convener<R>) {
-				//need to summon runs here... eek!
-				return mediator.mediate(convene, Set());
+			convene: async <R>(ids: Id[], convene: Convener<R>) => {
+				const runs = await this.summon(Set(ids));
+				return this.mediator.mediate(convene, Set(runs.values()));
 			}
 		});
 	}
@@ -220,7 +216,8 @@ class MachineSpace<W extends World, PM extends PhaseMap = W['phases'], P = _Phas
 	meet<R = any>(convener: Convener<R>): (ids: Id[]) => Promise<R> {
 		return async (ids) => {
 			const runs = await this.summon(Set(ids));
-			return await this.mediator.mediate(convener, Set(runs))
+			return await this.mediator
+				.mediate(convener, Set(runs.values()))
 		}
 	}
 

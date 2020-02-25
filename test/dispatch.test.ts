@@ -80,5 +80,37 @@ describe('dispatching', () => {
 		const result1 = await dispatch({})(['fruit', ['citrus', ['lemon', [111]]]]);
 		expect(result1).toEqual(['fruit', ['citrus', ['orange', [999]]]]);
 	})
+
+	it('root phases from within nest', async () => {
+		type Phases = {
+			root: [number]
+			fruit: {
+				berry: {
+					raspberry: [number],
+				}
+			}
+		}
+
+		const phases: PhaseMapImpl<any, Phases> = {
+			root: x => ({
+				guard(d): d is [number] { return true },
+				async run() { return ['root', [7]] }
+			}),
+			
+			fruit: {
+				berry: {
+					raspberry: x => ({
+						guard(d): d is [number] { return true },
+						async run() { return ['root', [3]] }
+					})
+				}
+			}
+		}
+
+		const dispatch = buildDispatch(phases);
+
+		const result1 = await dispatch({})(['fruit', ['berry', ['raspberry', [111]]]]);
+		expect(result1).toEqual(['root', [3]]);
+	})
 })
 

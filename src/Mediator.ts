@@ -24,6 +24,7 @@ export class MeetSpace {
 			return answer;
 		}
 		finally {
+			console.log('mediate', 'release')
 			await claim.release();
 		}
 	}
@@ -48,6 +49,10 @@ export class MeetSpace {
 						return _active = false;
 					}
 				});
+
+		//why are we immediately releasing our handle?
+		//seems like, if we have made our offer, we should wait for it to be taken up...?
+		console.log('RELEASING PREMATURELY!')
 	
 		await handle.release();
 
