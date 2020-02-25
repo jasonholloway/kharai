@@ -10,6 +10,7 @@ import { gather } from './helpers'
 import { tap, map } from 'rxjs/operators'
 import { MeetSpace, Convener, Attendee } from '../src/Mediator'
 import { Dispatch, buildDispatch } from '../src/dispatch'
+import {delay} from '../src/util'
 
 describe('machines: running', () => {
 	let loader: MachineLoader<World1>
@@ -19,15 +20,9 @@ describe('machines: running', () => {
 
 	beforeEach(() => {
 		loader = async () => Set();
-		dispatch = buildDispatch<World1['context'], World1['phases']>(world1.phases);
+		dispatch = buildDispatch(world1.phases);
 
-		//context to be populated in part by MachineSpace
-		context = {
-			async attach<R>(attend: Attendee<R>) { throw 666 },
-			async convene<R>(ids: string[], convener: Convener<R>) { throw 333 }
-		};
-		
-		space = new MachineSpace(world1, loader, dispatch, context, ['boot', []])
+		space = new MachineSpace(world1, loader, dispatch, ['boot', []])
 		space.log$.subscribe(console.log);
 	})	
 
@@ -69,9 +64,15 @@ describe('machines: running', () => {
 	//TODO: meetings must update involved heads
 	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-	type Template<Me extends World = World> = SpecWorld<{
-		context: RunContext
+	//if phases are to have layers, those at lower layers
+	//are to 
+	//
 
+	
+	type Template<Me extends World = World> = SpecWorld<{
+
+		context: RunContext
+				
 		phases: {
 			boot: []
 			wait: [number, Phase<Me>]
@@ -92,25 +93,28 @@ describe('machines: running', () => {
 
 	type World1 = Template<Template>
 
-
 	const world1 = makeWorld<World1>({
+
+		contextFac: x => x,
+
 		phases: {
 			boot: x => ({
 				guard(d): d is [] { return true },
 				async run() {
+					let answer: false|[Phase<World1>];
 
-					const phase = await x.attach<Phase<World1>>({
-						chat(c) { return c; } //should be checking this here...
-					});
-
+					do {
+						answer = await x.attach<Phase<World1>>({
+							chat(c) { return c; } //should be checking this here...
+						});
+						await delay(100); //attach should always return asynchronously! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+						
+						console.log('boot', 'answer', answer);
+					} while(!answer);
+					
+					const [phase] = answer;
 					console.log('received cmd', phase)
-
-					if(phase) {
-						return phase[0];
-					}
-					else {
-						throw 'bad answer...';
-					}
+					return phase;
 				}
 			}),
 
@@ -179,25 +183,37 @@ class MachineSpace<W extends World, PM extends PhaseMap = W['phases'], P = _Phas
 	private readonly loader: MachineLoader<W>
 	private readonly mediator: MeetSpace
 	private readonly dispatch: Dispatch<X, P>
-	private readonly x: X
 	private readonly boot: P
 	private runs: Map<Id, Promise<Run<X, P>>>
 
 	private _log$: Subject<readonly [Id, P]>
 	log$: Observable<readonly [Id, P]>
 
-	constructor(world: WorldImpl<W>, loader: MachineLoader<W>, dispatch: Dispatch<X, P>, x: X, boot: P) {
+	constructor(world: WorldImpl<W>, loader: MachineLoader<W>, dispatch: Dispatch<X, P>, boot: P) {
 		this.world = world;
 		this.atoms = new AtomSpace();
 		this.mediator = new MeetSpace();
 		this.loader = loader;
 		this.dispatch = dispatch;
-		this.x = x;
 		this.boot = boot;
 		this.runs = Map();
 
 		this._log$ = new Subject<readonly [Id, P]>();
 		this.log$ = this._log$;
+	}
+
+	private createContext(run: Run<X, P>): X {
+		const mediator = this.mediator;
+
+		return this.world.contextFac({
+			attach<R>(attend: Attendee<R>) {
+				return mediator.attach(run, attend);
+			},
+			convene<R>(ids: string[], convene: Convener<R>) {
+				//need to summon runs here... eek!
+				return mediator.mediate(convene, Set());
+			}
+		});
 	}
 
 
@@ -222,7 +238,7 @@ class MachineSpace<W extends World, PM extends PhaseMap = W['phases'], P = _Phas
 		 			.pipe(map(l => [id, l] as const))
 		 		  .subscribe(this._log$)
 			
-		 		run.begin(this.dispatch, this.x, this.boot);
+		 		run.begin(this.dispatch, this.createContext.bind(this, run), this.boot);
 			
 		 		return [true, id, Promise.resolve(run)] as const;
 			}
@@ -253,9 +269,9 @@ class Run<X, P> implements IRun<P> {
 		this.log$ = this._log$;
 	}
 
-	begin(dispatch: Dispatch<X, P>, x: X, phase: P) {
+	begin(dispatch: Dispatch<X, P>, contextFac: () => X, phase: P) {
 		const sink = new Sink(this._log$);
-		setImmediate(() => boot(dispatch, sink, x, phase))
+		setImmediate(() => boot(dispatch, sink, contextFac, phase))
 	}
 }
 

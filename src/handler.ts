@@ -103,11 +103,11 @@ export class Sink<V> {
 	}
 }
 
-export function boot<X, P>(dispatch: Dispatch<X, P>, sink: Sink<Command>, x: X, phase: P) {
+export function boot<X, P>(dispatch: Dispatch<X, P>, sink: Sink<Command>, contextFac: () => X, phase: P) {
 	sink.hold();
 	sink.next(phase);
-	dispatch(x)(phase).then(out => {
-		boot(dispatch, sink, x, out);
+	dispatch(contextFac())(phase).then(out => {
+		boot(dispatch, sink, contextFac, out);
 	})
 	.catch(sink.error.bind(sink))
 	.finally(() => sink.release())
