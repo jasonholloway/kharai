@@ -8,7 +8,7 @@ import { boot, Sink } from '../src/handler'
 import { Subject, Observable } from 'rxjs'
 import { gather } from './helpers'
 import { tap, map } from 'rxjs/operators'
-import { MeetSpace, Convener, Attendee } from '../src/Mediator'
+import { Mediator, Convener, Attendee } from '../src/Mediator'
 import { Dispatch, buildDispatch } from '../src/dispatch'
 import {delay} from '../src/util'
 
@@ -178,7 +178,7 @@ class MachineSpace<W extends World, PM extends PhaseMap = W['phases'], P = _Phas
 	private readonly world: WorldImpl<W>
 	private readonly atoms: AtomSpace<Data>
 	private readonly loader: MachineLoader<W>
-	private readonly mediator: MeetSpace
+	private readonly mediator: Mediator
 	private readonly dispatch: Dispatch<X, P>
 	private readonly boot: P
 	private runs: Map<Id, Promise<Run<X, P>>>
@@ -189,7 +189,7 @@ class MachineSpace<W extends World, PM extends PhaseMap = W['phases'], P = _Phas
 	constructor(world: WorldImpl<W>, loader: MachineLoader<W>, dispatch: Dispatch<X, P>, boot: P) {
 		this.world = world;
 		this.atoms = new AtomSpace();
-		this.mediator = new MeetSpace();
+		this.mediator = new Mediator();
 		this.loader = loader;
 		this.dispatch = dispatch;
 		this.boot = boot;
@@ -207,7 +207,7 @@ class MachineSpace<W extends World, PM extends PhaseMap = W['phases'], P = _Phas
 			},
 			convene: async <R>(ids: Id[], convene: Convener<R>) => {
 				const runs = await this.summon(Set(ids));
-				return this.mediator.mediate(convene, Set(runs.values()));
+				return this.mediator.convene(convene, Set(runs.values()));
 			}
 		});
 	}
@@ -217,7 +217,7 @@ class MachineSpace<W extends World, PM extends PhaseMap = W['phases'], P = _Phas
 		return async (ids) => {
 			const runs = await this.summon(Set(ids));
 			return await this.mediator
-				.mediate(convener, Set(runs.values()))
+				.convene(convener, Set(runs.values()))
 		}
 	}
 
