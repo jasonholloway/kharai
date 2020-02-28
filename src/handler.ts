@@ -107,7 +107,7 @@ export function boot<X, P>(dispatch: Dispatch<X, P>, sink: Sink<Command>, contex
 	sink.hold();
 	sink.next(phase);
 	dispatch(contextFac())(phase).then(out => {
-		boot(dispatch, sink, contextFac, out);
+		if(out) boot(dispatch, sink, contextFac, out);
 	})
 	.catch(sink.error.bind(sink))
 	.finally(() => sink.release())

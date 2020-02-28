@@ -28,7 +28,7 @@ export class Mediator {
 				if(a) throw Error('peer responded badly to kill');
 			});
 			
-			// console.log('convener :>', answer)
+			console.log('convener :>', answer)
 			return answer;
 		}
 		finally {
@@ -45,14 +45,14 @@ export class Mediator {
 				{
 					chat(m: false|[any]) {
 						try {
-							// console.log('attendee <-', m)
+							console.log('attendee <-', m)
 							if(!_go) return false;
 							if(!m) {
 								resolve(_handle);
 								return _go = false;
 							}
 
-							const [state, reply] = attend.chat(m[0], Set());
+							const [state, reply] = attend.chat(m, Set());
 							_state = [state];
 
 							if(reply === undefined) {
@@ -72,7 +72,7 @@ export class Mediator {
 		})
 	
 		await handle.release();
-		// console.log('attendee :>', _state);
+		console.log('attendee :>', _state);
 
 		return _state;
 	}

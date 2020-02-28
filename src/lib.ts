@@ -51,7 +51,7 @@ export type WorldImpl<W extends World> = {
 
 export type PhaseImpl<P extends PhaseMap, X, D> = (x: X) => {
 	guard(d: any): d is D
-	run(d: D): Promise<_Phase<P>>
+	run(d: D): Promise<_Phase<P>|false>
 }
 
 

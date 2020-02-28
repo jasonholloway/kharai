@@ -1,10 +1,11 @@
-import { PhaseMap, PhaseMapImpl, _Phase, PhaseImpl} from './lib'
+import { PhaseMap, PhaseMapImpl, _Phase } from './lib'
+import { inspect } from 'util'
 
 type Val = any
 type Name = any
 type Path = readonly [Path|undefined, Name, Val]
 
-export type Dispatch<X, P> = (x: X) => (inp: P) => Promise<P>
+export type Dispatch<X, P> = (x: X) => (inp: P) => Promise<P|false>
 
 export function buildDispatch<X, PM extends PhaseMap>(phases: PhaseMapImpl<X, PM>): Dispatch<X, _Phase<PM>> {
 	return _buildDispatch<X, PM>([,,phases])
@@ -22,7 +23,7 @@ function _buildDispatch<X, PM extends PhaseMap>(path: Path): Dispatch<X, _Phase<
 			const phase = found(x);
 			if(phase.guard(args)) {
 				const result = await phase.run(args);
-				return tryBind(path, result);
+				return result && tryBind(path, result);
 			}
 			else {
 				throw `bad input ${args}!`
@@ -41,7 +42,7 @@ function _buildDispatch<X, PM extends PhaseMap>(path: Path): Dispatch<X, _Phase<
 			return trace(path, curr)
 		}
 		else {
-			if(!parent) throw `can't bind ${curr}!`;
+			if(!parent) throw Error(`can't bind ${curr}! ${inspect(map)}`);
 			return tryBind(parent, curr);
 		}
 

@@ -112,5 +112,23 @@ describe('dispatching', () => {
 		const result1 = await dispatch({})(['fruit', ['berry', ['raspberry', [111]]]]);
 		expect(result1).toEqual(['root', [3]]);
 	})
+
+	it('phase returning false', async () => {
+		type Phases = {
+			artichoke: [],
+		}
+
+		const phases: PhaseMapImpl<any, Phases> = {
+			artichoke: x => ({
+				guard(d): d is [] { return true },
+				async run() { return false }
+			})
+		}
+
+		const dispatch = buildDispatch(phases);
+
+		const result1 = await dispatch({})(['artichoke', []]);
+		expect(result1).toEqual(false);
+	})
 })
 

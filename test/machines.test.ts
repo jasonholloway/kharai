@@ -7,7 +7,7 @@ import { Id, Data, SpecWorld, makeWorld, World, WorldImpl, RunContext, Phase, Ph
 import { boot, Sink } from '../src/handler'
 import { Subject, Observable } from 'rxjs'
 import { gather } from './helpers'
-import { tap, map } from 'rxjs/operators'
+import { map } from 'rxjs/operators'
 import { Mediator, Convener, Attendee } from '../src/Mediator'
 import { Dispatch, buildDispatch } from '../src/dispatch'
 import {delay} from '../src/util'
@@ -22,24 +22,24 @@ describe('machines: running', () => {
 		loader = async () => Set();
 		dispatch = buildDispatch(world1.phases);
 
-		space = new MachineSpace(world1, loader, dispatch, ['boot', []])
+		space = new MachineSpace(world1, loader, dispatch, ['$boot', []])
 		space.log$.subscribe(console.log);
 	})	
 
 	it('run through phases', async () => {
 		const starter: Convener<void> = {
-			convene([p]) { p.chat( [['dummy', ['start']]] ) }
+			convene([p]) { p.chat([['dummy', ['start', []]]]) }
 		}
+
+		const gathering = gather(space.log$);
 
 		await space.meet(starter)(['bob1']);		
 
-		const out = await gather(space.log$);
-
-		expect(out).toEqual([
-			['bob1', ['boot', []]],
+		expect(await gathering).toEqual([
+			['bob1', ['$boot', []]],
 			['bob1', ['dummy', ['start', []]]],
-			['bob1', ['dummy', ['middle', 123]]],
-			['bob1', ['dummy', ['end', 'byebye']]]
+			['bob1', ['dummy', ['middle', [123]]]],
+			['bob1', ['$end', ['the number is 123!']]]
 		]);
 	})
 
@@ -74,14 +74,14 @@ describe('machines: running', () => {
 		context: RunContext
 				
 		phases: {
-			boot: []
-			wait: [number, Phase<Me>]
-			watch: [Id, string, Phase<Me>]
+			$boot: []
+			$end: [any]
+			$wait: [number, Phase<Me>]
+			$watch: [Id, string, Phase<Me>]
 			
 			dummy: {
 				start: [],
 				middle: [number]
-				end: [string]
 			}
 
 			// fancy: {
@@ -98,7 +98,7 @@ describe('machines: running', () => {
 		contextFac: x => x,
 
 		phases: {
-			boot: x => ({
+			$boot: x => ({
 				guard(d): d is [] { return true },
 				async run() {
 					while(true) {
@@ -116,17 +116,22 @@ describe('machines: running', () => {
 				}
 			}),
 
-			wait: x => ({
+			$end: x => ({
+				guard(d): d is [any] { return true },
+				async run() { return false }
+			}),
+
+			$wait: x => ({
 				guard(d): d is [number, Phase<World1>] { return true },
 				async run() {
-					return ['boot', []]
+					return ['$boot', []]
 				}
 			}),
 
-			watch: x => ({
+			$watch: x => ({
 				guard(d): d is [Id, string, Phase<World1>] { return true },
 				async run() {
-					return ['boot', []]
+					return ['$boot', []]
 				}
 			}),
 
@@ -141,14 +146,7 @@ describe('machines: running', () => {
 				middle: x => ({
 					guard(d): d is [number] { return true },
 					async run([d]) {
-						return ['end', [`the number is ${d}`]]
-					}
-				}),
-
-				end: x => ({
-					guard(d): d is [string] { return true },
-					async run([d]) {
-						return ['boot', []]
+						return ['$end', [`the number is ${d}!`]]
 					}
 				})
 			}
