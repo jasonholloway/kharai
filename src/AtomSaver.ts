@@ -17,8 +17,11 @@ export default class AtomSaver<V> {
 		const M = this._monoidV;
 
 		const path = await this._space.lockTips(...heads.map(h => h.ref()));
-		//after getting the lock, we should ensure the roots are still the roots...
-		//should this be done as part of lockTips?
+		//TODO
+		//lockTips ensures we have the latest reformed roots locked
+		//but we should resample the heads at this point too - if we have their roots locked, we should
+		//be free to take the latest here, as heads can only move forwards
+		//(as is we'll always be saving out-of-date state)
 
 		try {
 			while(path.hasAtoms()) {
