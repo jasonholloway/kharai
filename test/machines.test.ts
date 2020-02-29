@@ -1,7 +1,7 @@
-import { Map, Set } from 'immutable'
+import { List, Map, Set } from 'immutable'
 import _Monoid from '../src/_Monoid'
 import Store from '../src/Store'
-import AtomSpace from '../src/AtomSpace'
+import AtomSpace, { Head } from '../src/AtomSpace'
 import AtomSaver from '../src/AtomSaver'
 import { Id, Data, SpecWorld, makeWorld, World, WorldImpl, RunContext, Phase, PhaseMap, _Phase } from '../src/lib'
 import { Subject, Observable } from 'rxjs'
@@ -11,26 +11,31 @@ import { Mediator, Convener, Attendee } from '../src/Mediator'
 import { Dispatch, buildDispatch } from '../src/dispatch'
 import { delay } from '../src/util'
 import { AtomRef } from '../src/atoms'
+import { inspect } from 'util'
 
 describe('machines: running', () => {
-	let loader: MachineLoader<World1>
+	let loader: MachineLoader<Phase<World1>>
+	let atoms: AtomSpace<Data>;
 	let space: MachineSpace<World1>
 	let dispatch: Dispatch<World1['context'], Phase<World1>>
-
+	
 	beforeEach(() => {
-		loader = async () => Set();
+		atoms = new AtomSpace<Data>();
+		loader = async ([id]) => Map({ [id]: [atoms.spawnHead()] }); //FILL OUT!!!!!!!!
 		dispatch = buildDispatch(world1.phases);
 
 		space = new MachineSpace(world1, loader, dispatch, ['$boot', []])
-		space.log$.subscribe(console.log);
+		
+		// space.log$.subscribe(console.log);
 	})	
 
 	it('run through phases', async () => {
-		const gathering = gather(space.log$);
+		const [logs] = await Promise.all([
+			gather(space.log$),
+			space.boot('bob', ['rat', ['wake', []]])
+		]);
 
-		await space.boot('bob', ['rat', ['wake', []]]);
-
-		expect(await gathering).toEqual([
+		expect(logs.filter(([,[t]]) => t != Save)).toEqual([
 			['bob', ['$boot', []]],
 			['bob', ['rat', ['wake', []]]],
 			['bob', ['rat', ['squeak', [123]]]],
@@ -39,14 +44,13 @@ describe('machines: running', () => {
 	})
 
 	it('two run at once', async () => {
-		const gathering = gather(space.log$);
-
-		await Promise.all([
+		const [logs] = await Promise.all([
+			gather(space.log$),
 			space.boot('nib', ['hamster', ['wake', [77]]]),
 		  space.boot('bob', ['rat', ['wake', []]])
 		]);
 
-		expect(await gathering).toEqual([
+		expect(logs.filter(([,[t]]) => t != Save)).toEqual([
 			['nib', ['$boot', []]],
 			['bob', ['$boot', []]],
 			['nib', ['hamster', ['wake', [77]]]],
@@ -58,14 +62,13 @@ describe('machines: running', () => {
 	})
 
 	it('two talk to one another', async () => {
-		const gathering = gather(space.log$);
-
-		await Promise.all([
+		const [logs] = await Promise.all([
+			gather(space.log$),
 			space.boot('gaz', ['guineaPig', ['runAbout', []]]),
 			space.boot('goz', ['guineaPig', ['gruntAt', ['gaz']]])
 		]);
 
-		expect(await gathering).toEqual([
+		expect(logs.filter(([,[t]]) => t != Save)).toEqual([
 			['gaz', ['$boot', []]],
 			['goz', ['$boot', []]],
 			['gaz', ['guineaPig', ['runAbout', []]]],
@@ -75,46 +78,39 @@ describe('machines: running', () => {
 		])
 	})
 
-	it('heads are combined on meeting', async () => {
-		const gathering = gather(space.log$);
 
-		await Promise.all([
-			space.boot('gaz', ['guineaPig', ['runAbout', []]]),
-			space.boot('goz', ['guineaPig', ['gruntAt', ['gaz']]])
-		]);
+  describe('saving', () => {
+		let logs: Emit<Phase<World1>>[]
 
-		await gathering;
+		beforeEach(async () => {
+			[logs] = await Promise.all([
+				gather(space.log$),
+				space.boot('gaz', ['guineaPig', ['runAbout', []]]),
+				space.boot('goz', ['guineaPig', ['gruntAt', ['gaz']]])
+			]);
+		})
+		
+		it('emits some saves', () => {
+			expect(logs.some(([,[k]]) => k == Save)).toBeTruthy();
+		})
 
-		throw 'no they\'re not!'
+		it('final atoms represent state', () => {
 
-		//now, somehow test the head recombining!
-		//means I need to get the heads from the space
-		//or get them as outputs somehow
+			const atomRefs = List(logs)
+				.filter(([id, [k]]) => id == 'gaz' && k == Save)
+			  .map(([,[, atom]]) => <AtomRef<Data>>atom);
 
-		//we need to get the heads in particular
-		//calling save on the entire space would be one way of doing it 
-		//an ordered list of atoms to save would be returned
+			console.log(inspect(atomRefs.toArray(), { depth: 5 }))
 
-		//it wouldn't be 'save' so much as 'getAtoms' or somesuch
-		//though we want the phases to be able t say 'save' quite explicitly
-		//which implicates the MachineSpace in actually calling the save
+			const lastAtom = atomRefs.last(undefined)?.resolve();
 
-		//almost like a MachineSpace is different from the Runner
-		//the runner would do the actual saving; the MachineSpace would yield,
-		//what? actual wrapped machines; these are the real runtimes
-
-		//these little runtimes need to be able to trigger a save,
-		//and such a save would take a prioritised list of heads from the MachineSpace
-		//and pass them to the AtomSaver; MachineSpace should certainly know nothing
-		//of AtomSaver; but MachineRuntime? it needs to know about it
-
-		//what would MachineSpace actually do in this case?
-		//it would know what machines were about, 
-		//it would load them as needed, and it would wrap each one
-		//in a nice yolk - but this yolk wouldn't be its own; it would be
-		//provided from outside
-		//
+			if(!lastAtom) throw 'no atom found!';
+			else {
+				expect(lastAtom.val).toEqual(Map({ gaz: ['$end', ['grunt!']] }))
+			}
+		})
 	})
+
 	
 	
 	type Template<Me extends World = World> = SpecWorld<{
@@ -252,17 +248,17 @@ describe('machines: loading and saving', () => {
 })
 
 
-type MachineLoader<P> = (ids: Set<Id>) => Promise<Set<[Id, P]>>
+type MachineLoader<P> = (ids: Set<Id>) => Promise<Map<Id, [Head<Data>, P?]>>
 
 
 const Save = Symbol('Save');
 
-type Emit<P> = readonly [Id, P] | readonly [typeof Save, Id, AtomRef<Data>, true?]
+type Emit<P = any> = readonly [Id, MachineEmit<P>]
+type MachineEmit<P = any> = P | [typeof Save, AtomRef<Data>, true?]
 
 class MachineSpace<W extends World, PM extends PhaseMap = W['phases'], P = _Phase<PM>, X = W['context']> {
 	private readonly world: WorldImpl<W>
-	private readonly atoms: AtomSpace<Data>
-	private readonly loader: MachineLoader<W>
+	private readonly loader: MachineLoader<P>
 	private readonly mediator: Mediator
 	private readonly dispatch: Dispatch<X, P>
 	private readonly zeroPhase: P
@@ -271,13 +267,12 @@ class MachineSpace<W extends World, PM extends PhaseMap = W['phases'], P = _Phas
 	private _log$: Subject<Emit<P>>
 	log$: Observable<Emit<P>>
 
-	constructor(world: WorldImpl<W>, loader: MachineLoader<W>, dispatch: Dispatch<X, P>, zeroPhase: P) {
+	constructor(world: WorldImpl<W>, loader: MachineLoader<P>, dispatch: Dispatch<X, P>, zeroPhase: P) {
 		this.world = world;
-		this.atoms = new AtomSpace();
-		this.mediator = new Mediator();
 		this.loader = loader;
 		this.dispatch = dispatch;
 		this.zeroPhase = zeroPhase;
+		this.mediator = new Mediator();
 		this.runs = Map();
 
 		this._log$ = new Subject<Emit<P>>();
@@ -285,7 +280,6 @@ class MachineSpace<W extends World, PM extends PhaseMap = W['phases'], P = _Phas
 	}
 
 	private createContext(run: Run<X, P>): X {
-
 		return this.world.contextFac({
 			attach: <R>(attend: Attendee<R>) => {
 				return this.mediator.attach(run, attend)
@@ -323,15 +317,23 @@ class MachineSpace<W extends World, PM extends PhaseMap = W['phases'], P = _Phas
 				return [false, id, found] as const;
 			}
 			else {
-		 		const run = new Run<X, P>();
+				const loading = this.loader(Set([id]));
 
-		 		run.log$
-		 			.pipe(map(l => [id, l] as const))
-		 		  .subscribe(this._log$)
-			
-		 		run.begin(this.dispatch, this.createContext.bind(this, run), this.zeroPhase);
-			
-		 		return [true, id, Promise.resolve(run)] as const;
+				return [
+					true,
+					id,
+					loading.then(([[,[head, phase]]]) => {
+						const run: Run<X, P> = new Run<X, P>(this.dispatch, () => this.createContext(run));
+
+						run.log$
+							.pipe(map(l => [id, l] as const))
+							.subscribe(this._log$)
+
+						run.begin(id, head, phase || this.zeroPhase);
+
+						return run;
+					})
+				] as const;
 			}
 		})
 
@@ -352,25 +354,39 @@ class MachineSpace<W extends World, PM extends PhaseMap = W['phases'], P = _Phas
 
 export class Run<X, P> implements IRun<P> {
 
-	private _log$: Subject<P>
-	log$: Observable<P>
+	private _log$: Subject<MachineEmit<P>>
+	private dispatch: Dispatch<X, P>
+	private contextFac: () => X
 	
-	constructor() {
-		this._log$ = new Subject<P>();
+	log$: Observable<MachineEmit<P>>
+	
+	constructor(dispatch: Dispatch<X, P>, contextFac: () => X) {
+		this._log$ = new Subject<MachineEmit<P>>();
 		this.log$ = this._log$;
+
+		this.dispatch = dispatch;
+		this.contextFac = contextFac;
 	}
 
-	begin(dispatch: Dispatch<X, P>, contextFac: () => X, phase: P) {
+	begin(id: Id, head: Head<Data>, phase: P) {
 		const log$ = this._log$;
+		const disp = this.dispatch;
+		const contextFac = this.contextFac;
 
 		setImmediate(() => (async () => {			
 				while(true) {
 					log$.next(phase);
 
-					const out = await dispatch(contextFac())(phase);
+					const out = await disp(contextFac())(phase);
 
-					if(out) phase = out;
-					else break;
+					if(out) {
+						head.commit(Map({ [id]: out }))
+						log$.next([Save, head.ref()]);
+						phase = out;
+					}
+					else {
+						break;
+					}
 				}
 			})()
 			.catch(log$.error.bind(log$))
@@ -379,7 +395,7 @@ export class Run<X, P> implements IRun<P> {
 }
 
 interface IRun<P> {
-	readonly log$: Observable<P>
+	readonly log$: Observable<MachineEmit<P>>
 }
 
 
