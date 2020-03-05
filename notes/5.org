@@ -1,0 +1,15 @@
+
+*stopping*
+
+every summoned machine must contribute to a combined handle; only when all machines that have been summoned have completed will this handle itself complete
+
+summoning shouldn't just return a Promise, then, but this handle
+
+this is basically the IRun interface, that currently only returns a per-machine log
+this IRun interface does itself complete, and an aggregation of these would complete also
+
+every interaction returns a new, accumulated IRun, with all machine logs merged into it
+
+
+
+

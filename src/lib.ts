@@ -20,7 +20,7 @@ export type _Phase<P> = PathVal<P, any[]>
 
 export type Phase<W extends World> = _Phase<W['phases']>
 
-export interface RunContext {
+export interface MachineContext {
 	attach<R>(attend: Attendee<R>): Promise<false|[R]>
 	convene<R>(ids: Id[], convener: Convener<R>): Promise<R>
 }
@@ -45,7 +45,7 @@ export type PhaseMapImpl<X, PCurr extends PhaseMap, PAcc extends PhaseMap = {}> 
 }
 
 export type WorldImpl<W extends World> = {
-	contextFac: (x: RunContext) => W['context']
+	contextFac: (x: MachineContext) => W['context']
 	phases: PhaseMapImpl<W['context'], W['phases']>
 }
 
@@ -56,7 +56,7 @@ export type PhaseImpl<P extends PhaseMap, X, D> = (x: X) => {
 
 
 export type ContextImpl<X> = {
-	contextFac: (x: RunContext) => X
+	contextFac: (x: MachineContext) => X
 }
 
 

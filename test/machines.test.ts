@@ -3,39 +3,39 @@ import _Monoid from '../src/_Monoid'
 import Store from '../src/Store'
 import AtomSpace, { Head } from '../src/AtomSpace'
 import AtomSaver from '../src/AtomSaver'
-import { Id, Data, SpecWorld, makeWorld, World, WorldImpl, RunContext, Phase, PhaseMap, _Phase } from '../src/lib'
-import { Subject, Observable } from 'rxjs'
-import { gather } from './helpers'
-import { map } from 'rxjs/operators'
+import { Id, Data, SpecWorld, makeWorld, World, WorldImpl, MachineContext, Phase, PhaseMap, _Phase } from '../src/lib'
+import { Subject, Observable, from, merge } from 'rxjs'
+import { tap, flatMap, mergeAll, publish, toArray } from 'rxjs/operators'
 import { Mediator, Convener, Attendee } from '../src/Mediator'
 import { Dispatch, buildDispatch } from '../src/dispatch'
 import { delay } from '../src/util'
 import { AtomRef, Atom } from '../src/atoms'
 import { inspect } from 'util'
+import Commit from '../src/Commit'
+import { gather } from './helpers'
 
 describe('machines: running', () => {
 	let loader: MachineLoader<Phase<World1>>
 	let atoms: AtomSpace<Data>;
 	let space: MachineSpace<World1>
 	let dispatch: Dispatch<World1['context'], Phase<World1>>
+	let run: Run<World1>
 	
 	beforeEach(() => {
 		atoms = new AtomSpace<Data>();
 		loader = async ([id]) => Map({ [id]: [atoms.spawnHead()] }); //FILL OUT!!!!!!!!
 		dispatch = buildDispatch(world1.phases);
-
 		space = new MachineSpace(world1, loader, dispatch, ['$boot', []])
-		
-		// space.log$.subscribe(console.log);
+		run = space.newRun();
 	})	
 
 	it('run through phases', async () => {
 		const [logs] = await Promise.all([
-			gather(space.log$),
-			space.boot('bob', ['rat', ['wake', []]])
+			gather(run.log$.pipe(tap(console.log))),
+			run.boot('bob', ['rat', ['wake', []]])
 		]);
 
-		expect(logs.filter(([,[t]]) => t != Save)).toEqual([
+		expect(logs).toEqual([
 			['bob', ['$boot', []]],
 			['bob', ['rat', ['wake', []]]],
 			['bob', ['rat', ['squeak', [123]]]],
@@ -45,30 +45,30 @@ describe('machines: running', () => {
 
 	it('two run at once', async () => {
 		const [logs] = await Promise.all([
-			gather(space.log$),
-			space.boot('nib', ['hamster', ['wake', [77]]]),
-		  space.boot('bob', ['rat', ['wake', []]])
+			gather(run.log$.pipe(tap(console.log))),
+			run.boot('nib', ['hamster', ['wake', [77]]]),
+		  run.boot('bob', ['rat', ['wake', []]])
 		]);
 
-		expect(logs.filter(([,[t]]) => t != Save)).toEqual([
+		expect(logs).toEqual([
 			['nib', ['$boot', []]],
 			['bob', ['$boot', []]],
 			['nib', ['hamster', ['wake', [77]]]],
 			['bob', ['rat', ['wake', []]]],
-			['nib', ['$end', [77]]],
 			['bob', ['rat', ['squeak', [123]]]],
-			['bob', ['$end', ['I have squeaked 123!']]]
+			['bob', ['$end', ['I have squeaked 123!']]],
+			['nib', ['$end', [77]]],
 		])
 	})
 
 	it('two talk to one another', async () => {
 		const [logs] = await Promise.all([
-			gather(space.log$),
-			space.boot('gaz', ['guineaPig', ['runAbout', []]]),
-			space.boot('goz', ['guineaPig', ['gruntAt', ['gaz']]])
+			gather(run.log$),
+			run.boot('gaz', ['guineaPig', ['runAbout', []]]),
+			run.boot('goz', ['guineaPig', ['gruntAt', ['gaz']]])
 		]);
 
-		expect(logs.filter(([,[t]]) => t != Save)).toEqual([
+		expect(logs).toEqual([
 			['gaz', ['$boot', []]],
 			['goz', ['$boot', []]],
 			['gaz', ['guineaPig', ['runAbout', []]]],
@@ -86,8 +86,8 @@ describe('machines: running', () => {
 		beforeEach(async () => {
 			[logs] = await Promise.all([
 				gather(space.log$),
-				space.boot('gaz', ['guineaPig', ['runAbout', []]]),
-				space.boot('goz', ['guineaPig', ['gruntAt', ['gaz']]])
+				run.boot('gaz', ['guineaPig', ['runAbout', []]]),
+				run.boot('goz', ['guineaPig', ['gruntAt', ['gaz']]])
 			]);
 
 			atoms = List(logs)
@@ -132,7 +132,7 @@ describe('machines: running', () => {
 	
 	
 	type Template<Me extends World = World> = SpecWorld<{
-		context: RunContext
+		context: MachineContext
 		phases: {
 			$boot: []
 			$end: [any]
@@ -218,6 +218,7 @@ describe('machines: running', () => {
 				wake: x => ({
 					guard(d): d is [number] { return true },
 					async run([d]) {
+						await delay(100);
 						return ['$end', [d]]
 					}
 				}),
@@ -247,6 +248,7 @@ describe('machines: running', () => {
 					}
 				})
 			}
+
 		},
 	})
 })
@@ -274,15 +276,50 @@ const Save = Symbol('Save');
 type Emit<P = any> = readonly [Id, MachineEmit<P>]
 type MachineEmit<P = any> = P | [typeof Save, AtomRef<Data>, true?]
 
+class Run<W extends World, P = Phase<W>> {
+	private readonly space: MachineSpace<W, PhaseMap, P>
+	private readonly mediator: Mediator
+	private readonly log$$: Subject<Observable<Emit<P>>>
+
+	log$: Observable<Emit<P>>
+
+	constructor(space: MachineSpace<W, PhaseMap, P, any>, mediator: Mediator) {
+		this.space = space;
+		this.mediator = mediator;
+		this.log$$ = new Subject();
+		this.log$ = this.log$$.pipe(mergeAll());
+	}
+	
+	async meet<R = any>(ids: Id[], convener: Convener<R>): Promise<R> {
+		const machine$ = publish<IMachine<P>>()(this.space.summon(Set(ids)));
+
+		this.log$$.next(machine$.pipe(flatMap(m => m.log$)))
+		const gathering = machine$.pipe(toArray()).toPromise();
+		machine$.connect();
+
+		return await this.mediator
+			.convene(convener, Set(await gathering));
+	}
+
+	tell(id: Id, m: any) {
+		return this.meet([id], { convene([p]) { return p.chat([m]) } });
+	}
+
+	boot(id: Id, p: Phase<W>) {
+		return this.tell(id, p);
+	}
+}
+
+
 class MachineSpace<W extends World = World, PM extends PhaseMap = W['phases'], P = _Phase<PM>, X = W['context']> {
 	private readonly world: WorldImpl<W>
 	private readonly loader: MachineLoader<P>
 	private readonly mediator: Mediator
 	private readonly dispatch: Dispatch<X, P>
 	private readonly zeroPhase: P
-	private runs: Map<Id, Promise<Run<X, P>>>
+	private machines: Map<Id, Promise<Machine<X, P>>>
 
-	private _log$: Subject<Emit<P>>
+	private log$$: Subject<Observable<Emit<P>>>
 	log$: Observable<Emit<P>>
 
 	constructor(world: WorldImpl<W>, loader: MachineLoader<P>, dispatch: Dispatch<X, P>, zeroPhase: P) {
@@ -291,32 +328,26 @@ class MachineSpace<W extends World = World, PM extends PhaseMap = W['phases'], P
 		this.dispatch = dispatch;
 		this.zeroPhase = zeroPhase;
 		this.mediator = new Mediator();
-		this.runs = Map();
+		this.machines = Map();
 
-		this._log$ = new Subject<Emit<P>>();
-		this.log$ = this._log$;
+		this.log$$ = new Subject();
+		this.log$ = this.log$$.pipe(mergeAll())
 	}
 
-
-	meet<R = any>(convener: Convener<R>): (ids: Id[]) => Promise<R> {
-		return async (ids) => {
-			const runs = await this.summon(Set(ids));
-			return await this.mediator
-				.convene(convener, Set(runs.values()))
-		}
+	newRun(): Run<W, P> {
+		//summoning must return a context
+		//
+		//
+		
+		return new Run(this, this.mediator);
 	}
 
-	tell(id: Id, m: any) {
-		return this.meet({ convene([p]) { return p.chat([m]) } })([id]);
-	}
+	//summon, instead of returning its map
+	//should just return a stream
 
-	boot(id: Id, p: Phase<W>) {
-		return this.tell(id, p);
-	}
-
-	private async summon(ids: Set<Id>): Promise<Map<Id, IRun<P>>> {
+	summon(ids: Set<Id>): Observable<IMachine<P>> {
 		const summoned = ids.map(id => {
-			const found = this.runs.get(id);
+			const found = this.machines.get(id);
 			if(found) {
 				return [false, id, found] as const;
 			}
@@ -327,15 +358,13 @@ class MachineSpace<W extends World = World, PM extends PhaseMap = W['phases'], P
 					true,
 					id,
 					loading.then(([[,[head, phase]]]) => {
-						const run: Run<X, P> = new Run<X, P>(this.dispatch, () => this.buildContext(run), this.world.contextFac);
+						const machine: Machine<X, P> = new Machine<X, P>(this.dispatch, () => this.buildContext(machine), this.world.contextFac);
 
-						run.log$
-							.pipe(map(l => [id, l] as const))
-							.subscribe(this._log$)
+						this.log$$.next(machine.log$);
 
-						run.begin(id, head, phase || this.zeroPhase);
+						machine.begin(id, head, phase || this.zeroPhase);
 
-						return run;
+						return machine;
 					})
 				] as const;
 			}
@@ -343,75 +372,70 @@ class MachineSpace<W extends World = World, PM extends PhaseMap = W['phases'], P
 
 		const toAdd = summoned
 			.filter(([isNew]) => isNew)
-			.map(([, id, loading]) => <[Id, Promise<Run<X, P>>]>[id, loading]);
+			.map(([, id, loading]) => <[Id, Promise<Machine<X, P>>]>[id, loading]);
     
-		this.runs = this.runs.merge(Map(toAdd));
+		this.machines = this.machines.merge(Map(toAdd));
 
-		const loadedAll =
-			await Promise.all(
-				summoned.map(([, id, loading]) =>
-										 loading.then(r => <[Id, Run<X, P>]>[id, r])));
-
-		return Map(loadedAll);
+		return merge(...(summoned.map(
+			([,, loading]) => from(loading))
+		));
 	}
 
-	private buildContext(run: Run<X, P>): RunContext {
-		const x = this;
+	// async meet<R = any>(ids: Id[], convener: Convener<R>): Promise<R> {
+	// 	const machine$ = publish<IMachine<P>>()(this.space.summon(Set(ids)));
+
+	// 	this.log$$.next(machine$.pipe(flatMap(m => m.log$)))
+	// 	const gathering = machine$.pipe(toArray()).toPromise();
+	// 	machine$.connect();
+
+	// 	return await this.mediator
+	// 		.convene(convener, Set(await gathering));
+	// }
+
+	//even a convene like below must extend each involved Run
+	//if the machines of two separate Runs interact, then they too must wait on each other to complete (tho possibly not actually)
+	//but if a machine of a Run summons another machine, then the context of that run should then include the child.
+	//
+	//this is it: every machine has its one or more runs it reports to
+	//as soon as another is contacted, that other is also implicated in each originary run
+	//
+	//another point: summoning the same machine repeatedly (as will certainly happen)
+	//will register new sinks each time, duplicating all emissions
+	//
+	//almost like each Run should unify streams so that only one stream for each address is recognised
+	//so the space holds the 'physical' machines, while Runs hold views of the same, but the pattern is similar in both'
+
+	private buildContext(m: Machine<X, P>): MachineContext {
+		const _this = this;
 		return {
 			async attach<R>(attend: Attendee<R>): Promise<false|[R]> {
-				return x.mediator.attach(run, attend);
+				return _this.mediator.attach(m, attend);
 			},
 
-			//problem with below is that we don't have clean communication with our peer:
-			//the mediator is cleaning the channel
-			//
-			//
-
 			async convene<R>(ids: Id[], convene: Convener<R>): Promise<R> {
-				return x.meet({
-					convene(peers) {
-						const proxied = peers.map(p => ({
-							chat(m: any): false|[any] {
-								const [[t, v]] = <[[boolean, any]]><unknown>p.chat(m);
-								console.log([t, v])
-								if(t) {
-									return [v];
-								}
-								else {
-									const head = <Head<Data>>v;
-									console.log('head', head)
-									return false;
-								}
-							}
-						}))
+				//has to be loaded into the Run!!!
+				//not separate
 
-						return convene.convene(proxied);
-					}
-				})(ids);
+				
+				const machine$ = _this.summon(Set(ids));
+				return await _this.mediator
+					.convene(convene, Set(await gather(machine$)));
 			}
 		}
 	}
-
-
 }
 
-//so, when talking to each other, heads must be pooled (with the convener in charge of collecting them - though! what about peer-to-peer comms?)
-//when the convener sends its kill message, this is the opportunity for activated peers to return their heads as a final concluding step
-//
-//then there comes the problem of how to actually combine heads??
-//they can be combined into one, but each peer must be involved in combinin itself
 
-export class Run<X, P> implements IRun<P> {
-
-	private _log$: Subject<MachineEmit<P>>
+export class Machine<X, P> implements IMachine<P> {
+	private _log$: Subject<Emit<P>>
 	private dispatch: Dispatch<X, P>
-	private getRootContext: () => RunContext
-	private finishContext: (x: RunContext) => X
+	private getRootContext: () => MachineContext
+	private finishContext: (x: MachineContext) => X
+
+	log$: Observable<Emit<P>>
 	
-	log$: Observable<MachineEmit<P>>
-	
-	constructor(dispatch: Dispatch<X, P>, getRootContext: () => RunContext, finishContext: (x: RunContext) => X) {
-		this._log$ = new Subject<MachineEmit<P>>();
+	constructor(dispatch: Dispatch<X, P>, getRootContext: () => MachineContext, finishContext: (x: MachineContext) => X) {
+		this._log$ = new Subject<Emit<P>>();
 		this.log$ = this._log$;
 
 		this.dispatch = dispatch;
@@ -427,14 +451,17 @@ export class Run<X, P> implements IRun<P> {
 
 		setImmediate(() => (async () => {			
 				while(true) {
-					log$.next(phase);
+					log$.next([id, phase]);
+
+					const commit = new Commit<Data>(new MonoidData(), head);
 
 					const context = buildContext(getRootContext(), head);
 					const out = await disp(context)(phase);
 
 					if(out) {
-						head.commit(Map({ [id]: out }))
-						log$.next([Save, head.ref()]);
+						// head.commit(Map({ [id]: out }));
+						await commit.complete(Map({ [id]: out }));
+						// log$.next([Save, head.ref()]);
 						phase = out;
 					}
 					else {
@@ -446,20 +473,21 @@ export class Run<X, P> implements IRun<P> {
 			.finally(log$.complete.bind(log$)));
 	}
 	
-	private buildContext(x: RunContext, h: Head<Data>): X {
+	private buildContext(x: MachineContext, h: Head<Data>): X {
 		return this.finishContext({
 			attach<R>(attend: Attendee<R>) {
-				return x.attach({
-					chat(m, p) {
-						const [ret, ans] = attend.chat(m, p);
-						if(ans) {
-							return [ret, [true, ans]];
-						}
-						else {
-							return [ret, [false, h]];
-						}
-					}
-				});
+				return x.attach(attend);
+				// return x.attach({
+				// 	chat(m, p) {
+				// 		const [ret, ans] = attend.chat(m, p);
+				// 		if(ans) {
+				// 			return [ret, [true, ans]];
+				// 		}
+				// 		else {
+				// 			return [ret, [false, h]];
+				// 		}
+				// 	}
+				// });
 			},
 			convene<R>(ids: Id[], convene: Convener<R>) {
 				return x.convene(ids, convene);
@@ -468,8 +496,10 @@ export class Run<X, P> implements IRun<P> {
 	}
 }
 
-interface IRun<P> {
-	readonly log$: Observable<MachineEmit<P>>
+//IRun is to be merged together, so as we interact with the system, we build up a big composite handle
+
+interface IMachine<P> {
+	readonly log$: Observable<Emit<P>>
 }
 
 
