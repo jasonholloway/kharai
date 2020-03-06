@@ -5,7 +5,7 @@ import AtomSpace, { Head } from '../src/AtomSpace'
 import AtomSaver from '../src/AtomSaver'
 import { Id, Data, SpecWorld, makeWorld, World, WorldImpl, MachineContext, Phase, PhaseMap, _Phase } from '../src/lib'
 import { Subject, Observable, from, merge } from 'rxjs'
-import { tap, flatMap, mergeAll, publish, toArray } from 'rxjs/operators'
+import { tap, flatMap, mergeAll, publish, toArray, endWith, startWith, skipWhile, reduce, scan, takeUntil, takeWhile, finalize, skip } from 'rxjs/operators'
 import { Mediator, Convener, Attendee } from '../src/Mediator'
 import { Dispatch, buildDispatch } from '../src/dispatch'
 import { delay } from '../src/util'
@@ -288,6 +288,19 @@ class Run<W extends World, P = Phase<W>> {
     this.mediator = mediator;
     this.log$$ = new Subject();
     this.log$ = this.log$$.pipe(mergeAll());
+
+		const count$ = this.log$$.pipe(
+			flatMap(l => l.pipe(
+				skipWhile<any>(_ => true),
+				startWith<number>(1),
+			  endWith<number>(-1),
+				)),
+			scan((c, n) => c + n, 0));
+
+		count$.pipe(
+			takeWhile(c => c > 0),
+			finalize(() => this.log$$.complete())
+		).subscribe();
   }
   
   async meet<R = any>(ids: Id[], convener: Convener<R>): Promise<R> {
@@ -332,6 +345,7 @@ class MachineSpace<W extends World = World, PM extends PhaseMap = W['phases'], P
 
     this.log$$ = new Subject();
     this.log$ = this.log$$.pipe(mergeAll())
+
   }
 
   newRun(): Run<W, P> {
