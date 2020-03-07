@@ -80,22 +80,20 @@ describe('machines: running', () => {
 
 
   describe('saving', () => {
-    let logs: Emit<Phase<World1>>[]
+    let logs: (readonly [typeof $Commit, Id, AtomRef<Data>, true?])[]
     let atoms: { [id:string]: Atom<Data>[] }
 
     beforeEach(async () => {
       [logs] = await Promise.all([
-        gather(run.log$.pipe(tap(console.log))),
+        gather(run.log$.pipe(commitsOnly())),
         run.boot('gaz', ['guineaPig', ['runAbout', []]]),
         run.boot('goz', ['guineaPig', ['gruntAt', ['gaz']]])
       ]);
 
       atoms = List(logs)
-        .filter(([t]) => t == Save)
-			  .map(([, id, a]) => [<Id>id, <AtomRef<Data>>a] as const)
         .reduce((
 					ac: { [id:string]:Atom<Data>[] },
-					[id,ar]) => {
+					[, id,ar]) => {
             const a = ar.resolve()
             if(a) {
               if(ac[id]) ac[id].push(a);
@@ -109,9 +107,8 @@ describe('machines: running', () => {
     })
     
     it('emits some saves', () => {
-      expect(logs.some(([k]) => k == Save))
-        .toBeTruthy();
-    })
+      expect(logs.length).toBeGreaterThan(0);
+		})
 
     it('final atoms represent state', () => {
       expect(atoms['gaz'][1].val)
@@ -273,11 +270,11 @@ describe('machines: loading and saving', () => {
 type MachineLoader<P> = (ids: Set<Id>) => Promise<Map<Id, [Head<Data>, P?]>>
 
 
-const Save = Symbol('Save');
+const $Commit = Symbol('Commit');
 
 type Emit<P = any> =
 		readonly [Id, P]
-	| readonly [typeof Save, Id, AtomRef<Data>, true?]
+	| readonly [typeof $Commit, Id, AtomRef<Data>, true?]
 
 class Run<W extends World, P = Phase<W>> {
   private readonly space: MachineSpace<W, PhaseMap, P>
@@ -477,7 +474,7 @@ export class Machine<X, P> implements IMachine<P> {
 
           if(out) {
             await commit.complete(Map({ [id]: out }));
-            log$.next([Save, id, head.ref()]);
+            log$.next([$Commit, id, head.ref()]);
             phase = out;
           }
           else {
@@ -552,6 +549,17 @@ function phasesOnly(): OperatorFunction<Emit<any>, readonly [Id, any]> {
 	return flatMap(l => {
 		if(isString(l[0])) {
 			return [<[Id, any]>l];
+		}
+		else {
+			return [];
+		}
+	})
+}
+
+function commitsOnly(): OperatorFunction<Emit<any>, readonly [typeof $Commit, Id, AtomRef<Data>, true?]> {
+	return flatMap(l => {
+		if(l[0] == $Commit) {
+			return [<[typeof $Commit, Id, AtomRef<Data>, true?]>l];
 		}
 		else {
 			return [];
