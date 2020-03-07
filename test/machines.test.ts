@@ -4,13 +4,13 @@ import Store from '../src/Store'
 import AtomSpace, { Head } from '../src/AtomSpace'
 import AtomSaver from '../src/AtomSaver'
 import { Id, Data, SpecWorld, makeWorld, World, WorldImpl, MachineContext, Phase, PhaseMap, _Phase } from '../src/lib'
-import { Subject, Observable, from, merge } from 'rxjs'
+import { Subject, Observable, from, merge, Operator, OperatorFunction } from 'rxjs'
 import { tap, flatMap, mergeAll, publish, toArray, endWith, startWith, skipWhile, reduce, scan, takeUntil, takeWhile, finalize, skip } from 'rxjs/operators'
 import { Mediator, Convener, Attendee } from '../src/Mediator'
 import { Dispatch, buildDispatch } from '../src/dispatch'
 import { delay } from '../src/util'
 import { AtomRef, Atom } from '../src/atoms'
-import { inspect } from 'util'
+import { inspect, isString } from 'util'
 import Commit from '../src/Commit'
 import { gather } from './helpers'
 
@@ -31,7 +31,7 @@ describe('machines: running', () => {
 
   it('run through phases', async () => {
     const [logs] = await Promise.all([
-      gather(run.log$.pipe(tap(console.log))),
+      gather(run.log$.pipe(phasesOnly())),
       run.boot('bob', ['rat', ['wake', []]])
     ]);
 
@@ -45,7 +45,7 @@ describe('machines: running', () => {
 
   it('two run at once', async () => {
     const [logs] = await Promise.all([
-      gather(run.log$.pipe(tap(console.log))),
+      gather(run.log$.pipe(phasesOnly())),
       run.boot('nib', ['hamster', ['wake', [77]]]),
       run.boot('bob', ['rat', ['wake', []]])
     ]);
@@ -63,7 +63,7 @@ describe('machines: running', () => {
 
   it('two talk to one another', async () => {
     const [logs] = await Promise.all([
-      gather(run.log$),
+      gather(run.log$.pipe(phasesOnly())),
       run.boot('gaz', ['guineaPig', ['runAbout', []]]),
       run.boot('goz', ['guineaPig', ['gruntAt', ['gaz']]])
     ]);
@@ -85,16 +85,18 @@ describe('machines: running', () => {
 
     beforeEach(async () => {
       [logs] = await Promise.all([
-        gather(space.log$),
+        gather(run.log$.pipe(tap(console.log))),
         run.boot('gaz', ['guineaPig', ['runAbout', []]]),
         run.boot('goz', ['guineaPig', ['gruntAt', ['gaz']]])
       ]);
 
       atoms = List(logs)
-        .filter(([,[t]]) => t == Save)
-        .reduce((ac: { [id:string]:Atom<Data>[] },
-          [id,[,ar]]) => {
-            const a = (<AtomRef<Data>>ar).resolve()
+        .filter(([t]) => t == Save)
+			  .map(([, id, a]) => [<Id>id, <AtomRef<Data>>a] as const)
+        .reduce((
+					ac: { [id:string]:Atom<Data>[] },
+					[id,ar]) => {
+            const a = ar.resolve()
             if(a) {
               if(ac[id]) ac[id].push(a);
               else ac[id] = [a];
@@ -107,7 +109,7 @@ describe('machines: running', () => {
     })
     
     it('emits some saves', () => {
-      expect(logs.some(([,[k]]) => k == Save))
+      expect(logs.some(([k]) => k == Save))
         .toBeTruthy();
     })
 
@@ -273,8 +275,9 @@ type MachineLoader<P> = (ids: Set<Id>) => Promise<Map<Id, [Head<Data>, P?]>>
 
 const Save = Symbol('Save');
 
-type Emit<P = any> = readonly [Id, MachineEmit<P>]
-type MachineEmit<P = any> = P | [typeof Save, AtomRef<Data>, true?]
+type Emit<P = any> =
+		readonly [Id, P]
+	| readonly [typeof Save, Id, AtomRef<Data>, true?]
 
 class Run<W extends World, P = Phase<W>> {
   private readonly space: MachineSpace<W, PhaseMap, P>
@@ -473,9 +476,8 @@ export class Machine<X, P> implements IMachine<P> {
           const out = await disp(context)(phase);
 
           if(out) {
-            // head.commit(Map({ [id]: out }));
             await commit.complete(Map({ [id]: out }));
-            // log$.next([Save, head.ref()]);
+            log$.next([Save, id, head.ref()]);
             phase = out;
           }
           else {
@@ -544,4 +546,15 @@ class FakeStore extends Store<Data> {
         }
       };
   }
+}
+
+function phasesOnly(): OperatorFunction<Emit<any>, readonly [Id, any]> {
+	return flatMap(l => {
+		if(isString(l[0])) {
+			return [<[Id, any]>l];
+		}
+		else {
+			return [];
+		}
+	})
 }

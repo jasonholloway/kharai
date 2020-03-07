@@ -45,7 +45,7 @@ export class Mediator {
         {
           chat(m: false|[any]) {
             try {
-              console.log('attendee <-', m)
+              // console.log('attendee <-', m)
               if(!_go) return false;
               if(!m) {
                 resolve(_handle);
