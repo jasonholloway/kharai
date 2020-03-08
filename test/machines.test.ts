@@ -11,7 +11,7 @@ import { Dispatch, buildDispatch } from '../src/dispatch'
 import { delay } from '../src/util'
 import { AtomRef, Atom } from '../src/atoms'
 import { inspect, isString } from 'util'
-import Commit from '../src/Commit'
+import Committer from '../src/Commit'
 import { gather } from './helpers'
 
 describe('machines: running', () => {
@@ -270,7 +270,6 @@ describe('machines: loading and saving', () => {
 type MachineLoader<P> = (ids: Set<Id>) => Promise<Map<Id, [Head<Data>, P?]>>
 
 
-const $Commit = Symbol('Commit');
 
 type Emit<P = any> =
 		readonly [Id, P]
@@ -467,7 +466,7 @@ export class Machine<X, P> implements IMachine<P> {
         while(true) {
           log$.next([id, phase]);
 
-          const commit = new Commit<Data>(new MonoidData(), head);
+          const commit = new Committer<Data>(new MonoidData(), head);
 
           const context = buildContext(getRootContext(), head);
           const out = await disp(context)(phase);
@@ -475,6 +474,16 @@ export class Machine<X, P> implements IMachine<P> {
           if(out) {
             await commit.complete(Map({ [id]: out }));
             log$.next([$Commit, id, head.ref()]);
+
+						//but... the commit should be emitted not here, but centrally
+						//and a commit can relate to several heads at once
+						//once a head is updated (by a commit), then the newly confirmed AtomRef
+						//should be emitted to be saved asap. 
+						//
+						//these atomrefs are supplied to the saver in line; the saver should be consuming these constantly until it exceeds its batch size/or an important save is found
+						//
+						//
+						
             phase = out;
           }
           else {

@@ -58,10 +58,11 @@ export class Head<V> {
 	}
 
 	static conjoin<V>(heads: Head<V>[], val: V) {
-		const atom = new Atom(Set(heads).map(h => h._ref), val);
+		const ref = new AtomRef(new Atom(Set(heads).map(h => h._ref), val));
 		for(const head of heads) {
-			head._ref = new AtomRef(atom);
+			head._ref = ref;
 		}
+		return ref;
 	}
 }
 

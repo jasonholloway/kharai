@@ -1,19 +1,24 @@
 import _Monoid from './_Monoid'
 import { Head } from'./AtomSpace'
+import { AtomRef } from '../src/atoms'
+import { Set } from 'immutable'
+import { Observer } from 'rxjs/internal/types'
 
+export const $Commit = Symbol('Commit');
+export type Commit<V> = readonly [typeof $Commit, AtomRef<V>]
 
-export default class Commit<V> {
+export default class Committer<V> {
 	private inner: Inner<V>
 
-	constructor(mv: _Monoid<V>, h: Head<V>) {
-		this.inner = new Inner(mv, [h], 1);
+	constructor(mv: _Monoid<V>,  h: Head<V>, sink: Observer<Commit<V>>) {
+		this.inner = new Inner(mv, Set([h]), Set([sink]), 1);
 	}
 
 	complete(v: V): Promise<void> {
 		return this.inner.complete(v);
 	}
 
-	static join<V>(mv: _Monoid<V>, cs: Commit<V>[]) {
+	static combine<V>(mv: _Monoid<V>, cs: Committer<V>[]) {
 		const mi = new MonoidInner(mv);
 		const newInner = cs.reduce((ac, c) => mi.add(ac, c.inner), mi.zero)
 		cs.forEach(c => c.inner = newInner);
@@ -23,16 +28,18 @@ export default class Commit<V> {
 
 class Inner<V> {
 	private readonly mv: _Monoid<V>
-	readonly heads: Head<V>[]
+	readonly heads: Set<Head<V>>
 	readonly waiters: (() => void)[] = []
+	readonly sinks: Set<Observer<Commit<V>>>
 	private done = false;
 
 	value: V
 	refCount: number
 	
-	constructor(mv: _Monoid<V>, heads: Head<V>[], refCount: number) {
+	constructor(mv: _Monoid<V>, heads: Set<Head<V>>, sinks: Set<Observer<Commit<V>>>, refCount: number) {
 		this.mv = mv;
 		this.heads = heads;
+		this.sinks = sinks;
 		this.value = mv.zero;
 		this.refCount = refCount;
 	}
@@ -41,7 +48,8 @@ class Inner<V> {
 		this.value = this.mv.add(this.value, v);
 		
 		if(!(--this.refCount)) {
-			Head.conjoin(this.heads, this.value);
+			const ref = Head.conjoin([...this.heads], this.value);
+			this.sinks.forEach(s => s.next([$Commit, ref]));
 
 			this.waiters.forEach(fn => fn());
 			this.done = true;
@@ -61,12 +69,17 @@ class MonoidInner<V> implements _Monoid<Inner<V>> {
 	
 	constructor(mv: _Monoid<V>) {
 		this.mv = mv;
-		this.zero = new Inner(this.mv, [], 0);
+		this.zero = new Inner(this.mv, Set(), Set(), 0);
 	}
 	
   readonly zero: Inner<V>
 
 	add(a: Inner<V>, b: Inner<V>): Inner<V> {
-		return new Inner(this.mv, [...a.heads, ...b.heads], a.refCount + b.refCount);
+		return new Inner(
+			this.mv,
+			a.heads.merge(b.heads),
+			a.sinks.merge(b.sinks),
+			a.refCount + b.refCount
+		);
   }
 }
