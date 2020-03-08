@@ -406,30 +406,6 @@ class MachineSpace<W extends World = World, PM extends PhaseMap = W['phases'], P
     ));
   }
 
-  // async meet<R = any>(ids: Id[], convener: Convener<R>): Promise<R> {
-  //  const machine$ = publish<IMachine<P>>()(this.space.summon(Set(ids)));
-
-  //  this.log$$.next(machine$.pipe(flatMap(m => m.log$)))
-  //  const gathering = machine$.pipe(toArray()).toPromise();
-  //  machine$.connect();
-
-  //  return await this.mediator
-  //    .convene(convener, Set(await gathering));
-  // }
-
-  //even a convene like below must extend each involved Run
-  //if the machines of two separate Runs interact, then they too must wait on each other to complete (tho possibly not actually)
-  //but if a machine of a Run summons another machine, then the context of that run should then include the child.
-  //
-  //this is it: every machine has its one or more runs it reports to
-  //as soon as another is contacted, that other is also implicated in each originary run
-  //
-  //another point: summoning the same machine repeatedly (as will certainly happen)
-  //will register new sinks each time, duplicating all emissions
-  //
-  //almost like each Run should unify streams so that only one stream for each address is recognised
-  //so the space holds the 'physical' machines, while Runs hold views of the same, but the pattern is similar in both'
-
   private buildContext(m: Machine<X, P>): MachineContext {
     const _this = this;
     return {
@@ -438,10 +414,6 @@ class MachineSpace<W extends World = World, PM extends PhaseMap = W['phases'], P
       },
 
       async convene<R>(ids: Id[], convene: Convener<R>): Promise<R> {
-        //has to be loaded into the Run!!!
-        //not separate
-
-        
         const machine$ = _this.summon(Set(ids));
         return await _this.mediator
           .convene(convene, Set(await gather(machine$)));
@@ -498,36 +470,38 @@ export class Machine<X, P> implements IMachine<P> {
       .catch(log$.error.bind(log$))
       .finally(log$.complete.bind(log$)));
   }
-
-	//in attaching, we provide our committer up front
-	//we have to - as it must be joined before the first complete (which is a tad shoddy)
-	//in fact this is very shoddy: an attendee might attach, receive a message, and give up directly,
-	//yielding instead to its machine before its attendee had actually signalled back to the convener
-
-	//so...
-	//1) committers should handle completions before combinations 
-	//2) attendees can then offer their committer on very final 'false'
-	//   but: we might want to see other contextual bits, such as id - this would require a context up front
-	//   ie this would require a constant side-channel of communication
   
   private buildContext(inner: MachineContext, committer: Committer<Data>): X {
 		const context: MachineContext = {
       attach<R>(attend: Attendee<R>) {
-        return inner.attach(attend);
-        // return x.attach({
-        //  chat(m, p) {
-        //    const [ret, ans] = attend.chat(m, p);
-        //    if(ans) {
-        //      return [ret, [true, ans]];
-        //    }
-        //    else {
-        //      return [ret, [false, h]];
-        //    }
-        //  }
-        // });
+        return inner.attach({
+					chat(m, peers) {
+						//demux convener committer here; combine
+						//...
+
+						//also proxy all peers here
+						//....
+
+						//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1
+						//the possibility of multiple combinations of this context however
+						//opens us to errors in the Committer's Inner monoid - it will keep on adding up refCounts; this needs to be fixed
+						//before we can be free and easy with combos here <- TODO!!!!!!
+
+						return attend.chat(m, peers);
+					}
+				});
       },
       convene<R>(ids: Id[], convene: Convener<R>) {
-        return inner.convene(ids, convene);
+				//convener must send its committer here
+				//...
+
+        return inner.convene(ids, {
+					convene([p]) {
+						//proxy all peers here
+						//...
+						throw 12345;
+					}
+				});
       }
     };
 		

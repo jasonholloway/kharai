@@ -1,4 +1,4 @@
-import AtomSpace from '../src/AtomSpace'
+import AtomSpace, { Head } from '../src/AtomSpace'
 import Committer, { Commit } from '../src/Committer'
 import _Monoid from '../src/_Monoid'
 import { delay } from '../src/util'
@@ -9,6 +9,7 @@ import { gather } from './helpers'
 describe('committable', () => {
 	let space: AtomSpace<number>
 	let log$: Subject<Commit<number>>
+	const newCommitter = (h: Head<number>) => new Committer(new MonoidNumber(), h, log$);  
 
 	beforeEach(() => {
 		space = new AtomSpace();
@@ -17,7 +18,7 @@ describe('committable', () => {
 
 	it('commits singly', async () => {
 		const head = space.spawnHead();
-		const commit = new Committer(new MonoidNumber(), head, log$);
+		const commit = newCommitter(head);
 		expect(head.ref().resolve()).toBeUndefined();
 
 		await commit.complete(3);
@@ -26,13 +27,13 @@ describe('committable', () => {
 
 	it('commits trebly', async () => {
 		const h1 = space.spawnHead();
-		const c1 = new Committer(new MonoidNumber(), h1, log$);
+		const c1 = newCommitter(h1);
 
 		const h2 = space.spawnHead();
-		const c2 = new Committer(new MonoidNumber(), h2, log$);
+		const c2 = newCommitter(h2);
 
 		const h3 = space.spawnHead();
-		const c3 = new Committer(new MonoidNumber(), h3, log$);
+		const c3 = newCommitter(h3);
 
 		Committer.combine(new MonoidNumber(), [c1, c2, c3]);
 
@@ -53,10 +54,10 @@ describe('committable', () => {
 
 	it('completes after all commit', async () => {
 		const h1 = space.spawnHead();
-		const c1 = new Committer(new MonoidNumber(), h1, log$);
+		const c1 = newCommitter(h1);
 
 		const h2 = space.spawnHead();
-		const c2 = new Committer(new MonoidNumber(), h2, log$);
+		const c2 = newCommitter(h2);
 
 		Committer.combine(new MonoidNumber(), [c1, c2]);
 
@@ -74,10 +75,10 @@ describe('committable', () => {
 		const gathering = gather(log$);
 
 		const h1 = space.spawnHead();
-		const c1 = new Committer(new MonoidNumber(), h1, log$);
+		const c1 = newCommitter(h1);
 
 		const h2 = space.spawnHead();
-		const c2 = new Committer(new MonoidNumber(), h2, log$);
+		const c2 = newCommitter(h2);
 
 		Committer.combine(new MonoidNumber(), [c1, c2]);
 		await Promise.all([
@@ -85,7 +86,7 @@ describe('committable', () => {
 			c2.complete(5),
 		]);
 
-		const c3 = new Committer(new MonoidNumber(), h1, log$);
+		const c3 = newCommitter(h1);
 		await c3.complete(7);
 
 		log$.complete();
