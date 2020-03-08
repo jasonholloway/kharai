@@ -95,6 +95,30 @@ describe('committable', () => {
 		expect(logs[0][1].resolve()?.val).toBe(8);
 		expect(logs[1][1].resolve()?.val).toBe(7);
 	})
+
+	it('multiple recombinations', async () => {
+		const gathering = gather(log$);
+
+		const h1 = space.spawnHead();
+		const c1 = newCommitter(h1);
+
+		const h2 = space.spawnHead();
+		const c2 = newCommitter(h2);
+
+		Committer.combine(new MonoidNumber(), [c1, c2]);
+		Committer.combine(new MonoidNumber(), [c1, c2]);
+		Committer.combine(new MonoidNumber(), [c1, c2]);
+
+		await Promise.all([
+			c1.complete(3),
+			c2.complete(5),
+		]);
+
+		log$.complete();
+		const logs = await gathering;
+		expect(logs.length).toBe(1);
+		expect(logs[0][1].resolve()?.val).toBe(8);
+	})
 })
 
 class MonoidNumber implements _Monoid<number> {

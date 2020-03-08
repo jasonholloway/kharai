@@ -11,11 +11,11 @@ export default class Committer<V> {
 	private inner: Inner<V>
 
 	constructor(mv: _Monoid<V>,  h: Head<V>, sink: Observer<Commit<V>>) {
-		this.inner = new Inner(mv, Set([h]), Set([sink]), 1);
+		this.inner = new Inner(mv, Set([h]), Set([sink]), Set([this]));
 	}
 
 	complete(v: V): Promise<void> {
-		return this.inner.complete(v);
+		return this.inner.complete(this, v);
 	}
 
 	static combine<V>(mv: _Monoid<V>, cs: Committer<V>[]) {
@@ -34,20 +34,21 @@ class Inner<V> {
 	private done = false;
 
 	value: V
-	refCount: number
+	refs: Set<Committer<V>>
 	
-	constructor(mv: _Monoid<V>, heads: Set<Head<V>>, sinks: Set<Observer<Commit<V>>>, refCount: number) {
+	constructor(mv: _Monoid<V>, heads: Set<Head<V>>, sinks: Set<Observer<Commit<V>>>, refs: Set<Committer<V>>) {
 		this.mv = mv;
 		this.heads = heads;
 		this.sinks = sinks;
 		this.value = mv.zero;
-		this.refCount = refCount;
+		this.refs = refs;
 	}
 
-	complete(v: V): Promise<void> {
+	complete(committer: Committer<V>, v: V): Promise<void> {
 		this.value = this.mv.add(this.value, v);
-		
-		if(!(--this.refCount)) {
+
+		this.refs = this.refs.delete(committer);
+		if(this.refs.isEmpty()) {
 			const ref = Head.conjoin([...this.heads], this.value);
 			this.sinks.forEach(s => s.next([$Commit, ref]));
 
@@ -69,7 +70,7 @@ class MonoidInner<V> implements _Monoid<Inner<V>> {
 	
 	constructor(mv: _Monoid<V>) {
 		this.mv = mv;
-		this.zero = new Inner(this.mv, Set(), Set(), 0);
+		this.zero = new Inner(this.mv, Set(), Set(), Set());
 	}
 	
   readonly zero: Inner<V>
@@ -79,7 +80,7 @@ class MonoidInner<V> implements _Monoid<Inner<V>> {
 			this.mv,
 			a.heads.merge(b.heads),
 			a.sinks.merge(b.sinks),
-			a.refCount + b.refCount
+			a.refs.merge(b.refs)
 		);
   }
 }
