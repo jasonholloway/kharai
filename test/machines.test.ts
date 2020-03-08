@@ -4,8 +4,8 @@ import Store from '../src/Store'
 import AtomSpace, { Head } from '../src/AtomSpace'
 import AtomSaver from '../src/AtomSaver'
 import { Id, Data, SpecWorld, makeWorld, World, WorldImpl, MachineContext, Phase, PhaseMap, _Phase } from '../src/lib'
-import { Subject, Observable, from, merge, Operator, OperatorFunction } from 'rxjs'
-import { tap, flatMap, mergeAll, publish, toArray, endWith, startWith, skipWhile, reduce, scan, takeUntil, takeWhile, finalize, skip } from 'rxjs/operators'
+import { Subject, Observable, from, merge, OperatorFunction } from 'rxjs'
+import { tap, flatMap, mergeAll, publish, toArray, endWith, startWith, skipWhile, scan, takeWhile, finalize } from 'rxjs/operators'
 import { Mediator, Convener, Attendee } from '../src/Mediator'
 import { Dispatch, buildDispatch } from '../src/dispatch'
 import { delay } from '../src/util'
@@ -457,7 +457,7 @@ export class Machine<X, P> implements IMachine<P> {
   private _log$: Subject<Emit<P>>
   private dispatch: Dispatch<X, P>
   private getRootContext: () => MachineContext
-  private finishContext: (x: MachineContext) => X
+  private decorateContext: (x: MachineContext) => X
 	private committerFac: CommitterFac
 
   log$: Observable<Emit<P>>
@@ -468,13 +468,13 @@ export class Machine<X, P> implements IMachine<P> {
 
     this.dispatch = dispatch;
     this.getRootContext = getRootContext;
-    this.finishContext = finishContext;
+    this.decorateContext = finishContext;
 		this.committerFac = committerFac;
   }
 
   begin(id: Id, head: Head<Data>, phase: P) {
     const log$ = this._log$;
-    const disp = this.dispatch.bind(this);
+    const dispatch = this.dispatch.bind(this);
     const buildContext = this.buildContext.bind(this);
     const getRootContext = this.getRootContext.bind(this);
 
@@ -482,12 +482,12 @@ export class Machine<X, P> implements IMachine<P> {
         while(true) {
           log$.next([id, phase]);
 
-          const commit = this.committerFac(head);
-          const context = buildContext(getRootContext(), head);
-          const out = await disp(context)(phase);
+          const committer = this.committerFac(head);
+          const context = buildContext(getRootContext(), committer);
+          const out = await dispatch(context)(phase);
 
           if(out) {
-            await commit.complete(Map({ [id]: out }));
+            await committer.complete(Map({ [id]: out }));
             phase = out;
           }
           else {
@@ -498,11 +498,22 @@ export class Machine<X, P> implements IMachine<P> {
       .catch(log$.error.bind(log$))
       .finally(log$.complete.bind(log$)));
   }
+
+	//in attaching, we provide our committer up front
+	//we have to - as it must be joined before the first complete (which is a tad shoddy)
+	//in fact this is very shoddy: an attendee might attach, receive a message, and give up directly,
+	//yielding instead to its machine before its attendee had actually signalled back to the convener
+
+	//so...
+	//1) committers should handle completions before combinations 
+	//2) attendees can then offer their committer on very final 'false'
+	//   but: we might want to see other contextual bits, such as id - this would require a context up front
+	//   ie this would require a constant side-channel of communication
   
-  private buildContext(x: MachineContext, h: Head<Data>): X {
-    return this.finishContext({
+  private buildContext(inner: MachineContext, committer: Committer<Data>): X {
+		const context: MachineContext = {
       attach<R>(attend: Attendee<R>) {
-        return x.attach(attend);
+        return inner.attach(attend);
         // return x.attach({
         //  chat(m, p) {
         //    const [ret, ans] = attend.chat(m, p);
@@ -516,13 +527,14 @@ export class Machine<X, P> implements IMachine<P> {
         // });
       },
       convene<R>(ids: Id[], convene: Convener<R>) {
-        return x.convene(ids, convene);
+        return inner.convene(ids, convene);
       }
-    });
+    };
+		
+    return this.decorateContext(context);
   }
 }
 
-//IRun is to be merged together, so as we interact with the system, we build up a big composite handle
 
 interface IMachine<P> {
   readonly log$: Observable<Emit<P>>
