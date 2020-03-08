@@ -11,7 +11,7 @@ import { Dispatch, buildDispatch } from '../src/dispatch'
 import { delay } from '../src/util'
 import { AtomRef, Atom } from '../src/atoms'
 import { inspect, isString } from 'util'
-import Committer from '../src/Commit'
+import Committer, { Commit, $Commit } from '../src/Committer'
 import { gather } from './helpers'
 
 describe('machines: running', () => {
@@ -80,28 +80,27 @@ describe('machines: running', () => {
 
 
   describe('saving', () => {
-    let logs: (readonly [typeof $Commit, Id, AtomRef<Data>, true?])[]
-    let atoms: { [id:string]: Atom<Data>[] }
+    let logs: Commit<Data>[]
+    let atoms: Atom<Data>[]
 
     beforeEach(async () => {
-      [logs] = await Promise.all([
-        gather(run.log$.pipe(commitsOnly())),
+			const gatheringLogs = gather(space.log$.pipe(commitsOnly()));
+			
+      await Promise.all([
+        run.log$.toPromise(),
         run.boot('gaz', ['guineaPig', ['runAbout', []]]),
         run.boot('goz', ['guineaPig', ['gruntAt', ['gaz']]])
       ]);
 
+			space.complete();
+			logs = await gatheringLogs;
+			
       atoms = List(logs)
-        .reduce((
-					ac: { [id:string]:Atom<Data>[] },
-					[, id,ar]) => {
-            const a = ar.resolve()
-            if(a) {
-              if(ac[id]) ac[id].push(a);
-              else ac[id] = [a];
-              return ac;
-            }
-            else throw 'bad!';
-          }, {});
+			  .flatMap(([,ar]) => {
+					const a = ar.resolve();
+					return a ? [a] : [];
+				})
+				.toArray();
 
       console.log(inspect(atoms, { depth: 10 }));
     })
@@ -111,21 +110,21 @@ describe('machines: running', () => {
 		})
 
     it('final atoms represent state', () => {
-      expect(atoms['gaz'][1].val)
-        .toEqual(Map({ gaz: ['$end', ['grunt!']] }))
-
-      expect(atoms['goz'][1].val)
+      expect(atoms[2].val)
         .toEqual(Map({ goz: ['$end', ['squeak!']] }))
+
+      expect(atoms[3].val)
+        .toEqual(Map({ gaz: ['$end', ['grunt!']] }))
     })
 
     it('atoms start separate', () => {
-      expect(atoms['gaz'][0])
-        .not.toBe(atoms['goz'][0]);
+      expect(atoms[0])
+        .not.toBe(atoms[1]);
     })
 
     it('atoms conjoin on meet', () => {
-      expect(atoms['gaz'][1])
-        .toBe(atoms['goz'][1]);
+      expect(atoms[2])
+        .toBe(atoms[3]);
     })
   })
   
@@ -272,8 +271,7 @@ type MachineLoader<P> = (ids: Set<Id>) => Promise<Map<Id, [Head<Data>, P?]>>
 
 
 type Emit<P = any> =
-		readonly [Id, P]
-	| readonly [typeof $Commit, Id, AtomRef<Data>, true?]
+		readonly [Id, P] | Commit<Data>
 
 class Run<W extends World, P = Phase<W>> {
   private readonly space: MachineSpace<W, PhaseMap, P>
@@ -332,6 +330,7 @@ class MachineSpace<W extends World = World, PM extends PhaseMap = W['phases'], P
   private machines: Map<Id, Promise<Machine<X, P>>>
 
   private log$$: Subject<Observable<Emit<P>>>
+	private commit$: Subject<Commit<Data>>
   log$: Observable<Emit<P>>
 
   constructor(world: WorldImpl<W>, loader: MachineLoader<P>, dispatch: Dispatch<X, P>, zeroPhase: P) {
@@ -343,9 +342,17 @@ class MachineSpace<W extends World = World, PM extends PhaseMap = W['phases'], P
     this.machines = Map();
 
     this.log$$ = new Subject();
-    this.log$ = this.log$$.pipe(mergeAll())
-
+		this.commit$ = new Subject();
+    this.log$ = merge(
+			this.commit$,
+			this.log$$.pipe(mergeAll())
+		);
   }
+
+	complete() {
+		this.commit$.complete();
+		this.log$$.complete();
+	}
 
   newRun(): Run<W, P> {
     //summoning must return a context
@@ -371,7 +378,12 @@ class MachineSpace<W extends World = World, PM extends PhaseMap = W['phases'], P
           true,
           id,
           loading.then(([[,[head, phase]]]) => {
-            const machine: Machine<X, P> = new Machine<X, P>(this.dispatch, () => this.buildContext(machine), this.world.contextFac);
+            const machine: Machine<X, P> = new Machine<X, P>(
+							this.dispatch,
+							() => this.buildContext(machine),
+							this.world.contextFac,
+						  h => new Committer<Data>(new MonoidData(), h, this.commit$)
+						);
 
             this.log$$.next(machine.log$);
 
@@ -438,22 +450,26 @@ class MachineSpace<W extends World = World, PM extends PhaseMap = W['phases'], P
   }
 }
 
+type CommitterFac = (h: Head<Data>) => Committer<Data>
+
 
 export class Machine<X, P> implements IMachine<P> {
   private _log$: Subject<Emit<P>>
   private dispatch: Dispatch<X, P>
   private getRootContext: () => MachineContext
   private finishContext: (x: MachineContext) => X
+	private committerFac: CommitterFac
 
   log$: Observable<Emit<P>>
   
-  constructor(dispatch: Dispatch<X, P>, getRootContext: () => MachineContext, finishContext: (x: MachineContext) => X) {
+  constructor(dispatch: Dispatch<X, P>, getRootContext: () => MachineContext, finishContext: (x: MachineContext) => X, committerFac: CommitterFac) {
     this._log$ = new Subject<Emit<P>>();
     this.log$ = this._log$;
 
     this.dispatch = dispatch;
     this.getRootContext = getRootContext;
     this.finishContext = finishContext;
+		this.committerFac = committerFac;
   }
 
   begin(id: Id, head: Head<Data>, phase: P) {
@@ -466,24 +482,12 @@ export class Machine<X, P> implements IMachine<P> {
         while(true) {
           log$.next([id, phase]);
 
-          const commit = new Committer<Data>(new MonoidData(), head);
-
+          const commit = this.committerFac(head);
           const context = buildContext(getRootContext(), head);
           const out = await disp(context)(phase);
 
           if(out) {
             await commit.complete(Map({ [id]: out }));
-            log$.next([$Commit, id, head.ref()]);
-
-						//but... the commit should be emitted not here, but centrally
-						//and a commit can relate to several heads at once
-						//once a head is updated (by a commit), then the newly confirmed AtomRef
-						//should be emitted to be saved asap. 
-						//
-						//these atomrefs are supplied to the saver in line; the saver should be consuming these constantly until it exceeds its batch size/or an important save is found
-						//
-						//
-						
             phase = out;
           }
           else {
@@ -565,10 +569,10 @@ function phasesOnly(): OperatorFunction<Emit<any>, readonly [Id, any]> {
 	})
 }
 
-function commitsOnly(): OperatorFunction<Emit<any>, readonly [typeof $Commit, Id, AtomRef<Data>, true?]> {
+function commitsOnly(): OperatorFunction<Emit<any>, Commit<Data>> {
 	return flatMap(l => {
 		if(l[0] == $Commit) {
-			return [<[typeof $Commit, Id, AtomRef<Data>, true?]>l];
+			return [<[typeof $Commit, AtomRef<Data>]>l];
 		}
 		else {
 			return [];

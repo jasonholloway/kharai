@@ -1,5 +1,5 @@
 import AtomSpace from '../src/AtomSpace'
-import Committer, { Commit } from '../src/Commit'
+import Committer, { Commit } from '../src/Committer'
 import _Monoid from '../src/_Monoid'
 import { delay } from '../src/util'
 import { Subject } from 'rxjs/internal/Subject'
