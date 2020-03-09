@@ -6,11 +6,11 @@ import AtomSaver from '../src/AtomSaver'
 import { Id, Data, SpecWorld, makeWorld, World, WorldImpl, MachineContext, Phase, PhaseMap, _Phase } from '../src/lib'
 import { Subject, Observable, from, merge, OperatorFunction } from 'rxjs'
 import { tap, flatMap, mergeAll, publish, toArray, endWith, startWith, skipWhile, scan, takeWhile, finalize } from 'rxjs/operators'
-import { Mediator, Convener, Attendee } from '../src/Mediator'
+import { Peer, Mediator, Convener, Attendee } from '../src/Mediator'
 import { Dispatch, buildDispatch } from '../src/dispatch'
 import { delay } from '../src/util'
 import { AtomRef, Atom } from '../src/atoms'
-import { inspect, isString } from 'util'
+import { inspect, isString, isArray } from 'util'
 import Committer, { Commit, $Commit } from '../src/Committer'
 import { gather } from './helpers'
 
@@ -102,20 +102,12 @@ describe('machines: running', () => {
 				})
 				.toArray();
 
-      console.log(inspect(atoms, { depth: 10 }));
+      // console.log(inspect(atoms, { depth: 10 }));
     })
     
     it('emits some saves', () => {
       expect(logs.length).toBeGreaterThan(0);
 		})
-
-    it('final atoms represent state', () => {
-      expect(atoms[2].val)
-        .toEqual(Map({ goz: ['$end', ['squeak!']] }))
-
-      expect(atoms[3].val)
-        .toEqual(Map({ gaz: ['$end', ['grunt!']] }))
-    })
 
     it('atoms start separate', () => {
       expect(atoms[0])
@@ -123,8 +115,11 @@ describe('machines: running', () => {
     })
 
     it('atoms conjoin on meet', () => {
-      expect(atoms[2])
-        .toBe(atoms[3]);
+      expect(atoms[2].val)
+			  .toEqual(Map({
+					gaz: ['$end', ['grunt!']],
+					goz: ['$end', ['squeak!']]
+				}));
     })
   })
   
@@ -470,36 +465,41 @@ export class Machine<X, P> implements IMachine<P> {
       .catch(log$.error.bind(log$))
       .finally(log$.complete.bind(log$)));
   }
+
+	//TODO
+	//do peer chat etc as middleware layers
+	//... 
+
+	private static $Internal = Symbol('CommitCtx')
   
-  private buildContext(inner: MachineContext, committer: Committer<Data>): X {
+  private buildContext(inner: MachineContext, commitCtx: Committer<Data>): X {
 		const context: MachineContext = {
       attach<R>(attend: Attendee<R>) {
         return inner.attach({
 					chat(m, peers) {
-						//demux convener committer here; combine
-						//...
+						if(isArray(m) && m[0] == Machine.$Internal) {
+							Committer.combine(new MonoidData(), [commitCtx, <Committer<Data>>m[1]]);
+							m = m[2];
+						}
 
-						//also proxy all peers here
-						//....
-
-						//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1
-						//the possibility of multiple combinations of this context however
-						//opens us to errors in the Committer's Inner monoid - it will keep on adding up refCounts; this needs to be fixed
-						//before we can be free and easy with combos here <- TODO!!!!!!
-
-						return attend.chat(m, peers);
+						const proxied = peers.map(p => <Peer>({
+							chat(m) {
+								return p.chat([Machine.$Internal, commitCtx, m]);
+							}
+						}));
+						return attend.chat(m, proxied);
 					}
 				});
       },
       convene<R>(ids: Id[], convene: Convener<R>) {
-				//convener must send its committer here
-				//...
-
         return inner.convene(ids, {
-					convene([p]) {
-						//proxy all peers here
-						//...
-						throw 12345;
+					convene(peers) {
+						const proxied = peers.map(p => <Peer>({
+							chat(m) {
+								return p.chat([Machine.$Internal, commitCtx, m]);
+							}
+						}));
+						return convene.convene(proxied);
 					}
 				});
       }
