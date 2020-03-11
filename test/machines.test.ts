@@ -3,7 +3,7 @@ import _Monoid from '../src/_Monoid'
 import Store from '../src/Store'
 import AtomSpace from '../src/AtomSpace'
 import AtomSaver from '../src/AtomSaver'
-import { Id, Data, SpecWorld, makeWorld, World, MachineContext, Phase, _Phase } from '../src/lib'
+import { Id, Data, SpecWorld, makeWorld, World, MachineContext, Phase, PhaseMapImpl, PhaseMap, WorldImpl, PhaseImpl } from '../src/lib'
 import { OperatorFunction } from 'rxjs'
 import { flatMap } from 'rxjs/operators'
 import { Dispatch, buildDispatch } from '../src/dispatch'
@@ -16,17 +16,17 @@ import { Emit, MachineLoader, MachineSpace, Run } from '../src/MachineSpace'
 import MonoidData from '../src/MonoidData'
 
 describe('machines: running', () => {
-  let loader: MachineLoader<Phase<World1>>
+  let loader: MachineLoader<Phase<RodentWorld>>
   let atoms: AtomSpace<Data>;
-  let space: MachineSpace<World1>
-  let dispatch: Dispatch<World1['context'], Phase<World1>>
-  let run: Run<World1>
+  let space: MachineSpace<RodentWorld>
+  let dispatch: Dispatch<MachineContext, Phase<RodentWorld>>
+  let run: Run<RodentWorld, MachineContext, Phase<RodentWorld>>
   
   beforeEach(() => {
     atoms = new AtomSpace<Data>();
     loader = async ([id]) => Map({ [id]: [atoms.spawnHead()] }); //FILL OUT!!!!!!!!
-    dispatch = buildDispatch(world1.phases);
-    space = new MachineSpace(world1, loader, dispatch, ['$boot', []])
+    dispatch = buildDispatch(rodentWorld.phases);
+    space = new MachineSpace(rodentWorld, loader, dispatch, ['$boot', []])
     run = space.newRun();
   })  
 
@@ -80,11 +80,11 @@ describe('machines: running', () => {
   })
 
 	it('one can watch the other', async () => {
-		const [logs] = await Promise.all([
-			gather(run.log$.pipe(phasesOnly())),
-			run.boot('maz', ['mink', ['eatFrog', []]]),
-			run.boot('moz', ['mink', ['watch', ['maz']]])
-		]);
+		// const [logs] = await Promise.all([
+		// 	gather(run.log$.pipe(phasesOnly())),
+		// 	run.boot('maz', ['mink', ['eatFrog', []]]),
+		// 	run.boot('moz', ['mink', ['watch', ['maz']]])
+		// ]);
 
 		throw 123;
 	})
@@ -133,128 +133,199 @@ describe('machines: running', () => {
 				}));
     })
   })
-  
-  
-  type Template<Me extends World = World> = SpecWorld<{
-    context: MachineContext
-    phases: {
-      $boot: []
-      $end: [any]
-      $wait: [number, Phase<Me>]
-      $watch: [Id, string, Phase<Me>]
-      
-      rat: {
-        wake: [],
-        squeak: [number]
-      }
+	
+	type TRodentWorld<Me extends World = World> = SpecWorld<{
+    $boot: []
+    $end: [any]
+    $wait: [number, Phase<Me>]
 
-      hamster: {
-        wake: [number]
-      }
+    rat: {
+      wake: [],
+      squeak: [number]
+    }
 
-      guineaPig: {
-        runAbout: []
-        gruntAt: [Id]
-      }
+    hamster: {
+      wake: [number]
+    }
+
+    guineaPig: {
+      runAbout: []
+      gruntAt: [Id]
     }
   }>
 
-  type World1 = Template<Template>
+	type TFishWorld<Me extends World = World> = SpecWorld<{
+    $boot: []
+    $end: [any]
+    $wait: [number, Phase<Me>]
 
-  const world1 = makeWorld<World1>({
-    contextFac: x => x,
-    phases: {
+    trout: [number]
+	}>
 
-      $boot: x => ({
-        guard(d): d is [] { return true },
-        async run() {
-          while(true) {
-            const answer = await x.attach<Phase<World1>>({
-              chat(c) { return c; } //should be checking this here...
-            });
+  type RodentWorld = TRodentWorld<TRodentWorld>
 
-            if(answer) {
-              return answer[0];
-            }
-            else {
-              await delay(30); //when we release properly, this can be removed
-            }
+
+  const bootPhase = <W extends World>(): PhaseImpl<W, MachineContext, []> =>
+    (x => ({
+      guard(d: any): d is [] { return true },
+      async run() {
+        while(true) {
+          const answer = await x.attach<Phase<W>>({
+            chat(c) { return c; } //should be checking this here...
+          });
+
+          if(answer) {
+            return answer[0];
+          }
+          else {
+            await delay(30); //when we release properly, this can be removed
           }
         }
-      }),
-
-      $end: x => ({
-        guard(d): d is [any] { return true },
-        async run() { return false }
-      }),
-
-      $wait: x => ({
-        guard(d): d is [number, Phase<World1>] { return true },
-        async run() {
-          return ['$boot', []]
-        }
-      }),
-
-      $watch: x => ({
-        guard(d): d is [Id, string, Phase<World1>] { return true },
-        async run() {
-          return ['$boot', []]
-        }
-      }),
-
-      rat: {
-        wake: x => ({
-          guard(d): d is [] { return true },
-          async run() {
-            return ['squeak', [123]]
-          }
-        }),
-
-        squeak: x => ({
-          guard(d): d is [number] { return true },
-          async run([d]) {
-            return ['$end', [`I have squeaked ${d}!`]]
-          }
-        })
-      },
-
-      hamster: {
-        wake: x => ({
-          guard(d): d is [number] { return true },
-          async run([d]) {
-            await delay(100);
-            return ['$end', [d]]
-          }
-        }),
-      },
-
-      guineaPig: {
-        runAbout: x => ({
-          guard(d): d is [] { return true },
-          async run() {
-            const a = await x.attach({ chat(m) { return [m, 'squeak!'] } });
-            return (a && ['$end', a]) || ['$end', ['BIG NASTY ERROR']]
-          }
-        }),
-
-        gruntAt: x => ({
-          guard(d): d is [Id] { return true },
-          async run([id]) {
-            const resp = await x.convene([id], {
-              convene([p]) {
-                const a = p.chat('grunt!');
-                if(a) return a;
-                else throw Error('bad response from attendee')
-              }
-            });
-            
-            return ['$end', resp]
-          }
-        })
       }
+    }));
 
-    },
-  })
+  const endPhase = <W extends World>(): PhaseImpl<W, MachineContext, [any]> =>
+    (x => ({
+      guard(d: any): d is [any] { return true },
+      async run() { return false as const; }
+    }));
+
+  const waitPhase = <W extends World>(): PhaseImpl<W, MachineContext, [number, Phase<W>]> =>
+    (x => ({
+      guard(d: any): d is [number, Phase<W>] { return true },
+      async run([delay, next]) {
+        return next;
+      }
+    }));
+  
+
+  // function basicPhases<Me extends World>(): PhaseMapImpl<MachineContext, TBasicWorld<Me>> {
+  //   return {
+  //     $boot: (x => ({
+  //       guard(d): d is [] { return true },
+  //       async run() {
+  //         while(true) {
+  //           const answer = await x.attach<Phase<TBasicWorld<Me>>>({
+  //             chat(c) { return c; } //should be checking this here...
+  //           });
+
+  //           if(answer) {
+  //             return answer[0];
+  //           }
+  //           else {
+  //             await delay(30); //when we release properly, this can be removed
+  //           }
+  //         }
+  //       }
+  //     })),
+
+  //     $end: x => ({
+  //       guard(d): d is [any] { return true },
+  //       async run() { return false }
+  //     }),
+
+  //     $wait: x => ({
+  //     	guard(d): d is [number, Phase<Me>] { return true },
+  //     	async run() {
+  //     		return ['$boot', []]
+  //     	}
+  //     }),
+
+  //     // $watch: x => ({
+  //     // 	guard(d): d is [] { return true },
+  //     // 	async run() {
+  //     // 		return ['$boot', []]
+  //     // 	}
+  //     // })
+  //   };
+  // }
+
+  type FishWorld = TFishWorld<TFishWorld>
+ 
+
+  function makePhases<W extends PhaseMap>(impl: PhaseMapImpl<MachineContext, W>) {
+    return impl;
+  }
+  
+  
+	const fishWorld = makeWorld<TFishWorld<TFishWorld>>()({
+		contextFac: x => x,
+		phases: {
+      $boot: bootPhase(),
+      $end: endPhase(),
+      $wait: waitPhase(),
+      
+      trout: x => ({
+        guard(d): d is [number] { return true },
+        async run() {
+          return ['$wait', [123, ['trout', [55]]]];
+          // return ['trout', [123]];
+        }
+      })
+		}
+	})
+
+	
+  const rodentWorld = makeWorld<TRodentWorld<TRodentWorld>>()({
+		contextFac: x => x,
+		phases: {
+      $boot: bootPhase(),
+      $end: endPhase(),
+      $wait: waitPhase(),
+
+			rat: {
+				wake: x => ({
+					guard(d): d is [] { return true },
+					async run() {
+						return ['squeak', [123]]
+					}
+				}),
+
+				squeak: x => ({
+					guard(d): d is [number] { return true },
+					async run([d]) {
+						return ['$end', [`I have squeaked ${d}!`]]
+					}
+				})
+			},
+
+			hamster: {
+				wake: x => ({
+					guard(d): d is [number] { return true },
+					async run([d]) {
+						await delay(100);
+						return ['$end', [d]]
+					}
+				}),
+			},
+
+			guineaPig: {
+				runAbout: x => ({
+					guard(d): d is [] { return true },
+					async run() {
+						const a = await x.attach({ chat(m) { return [m, 'squeak!'] } });
+						return (a && ['$end', a]) || ['$end', ['BIG NASTY ERROR']]
+					}
+				}),
+
+				gruntAt: x => ({
+					guard(d): d is [Id] { return true },
+					async run([id]) {
+						const resp = await x.convene([id], {
+							convene([p]) {
+								const a = p.chat('grunt!');
+								if(a) return a;
+								else throw Error('bad response from attendee')
+							}
+						});
+
+						return ['$end', resp]
+					}
+				})
+			},
+
+		}
+	})
 })
 
 describe('machines: loading and saving', () => {

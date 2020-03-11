@@ -1,4 +1,4 @@
-import { Id, Data, World, WorldImpl, PhaseMap, Phase, _Phase, MachineContext } from './lib'
+import { Id, Data, WorldImpl, PhaseMap, Phase, MachineContext } from './lib'
 import { Head } from './AtomSpace'
 import { Mediator, Convener, Attendee, Peer } from './Mediator'
 import { Observable, Subject, from, merge } from 'rxjs'
@@ -8,19 +8,19 @@ import { Map, Set } from 'immutable'
 import { Dispatch } from './dispatch'
 import { isArray } from 'util'
 import MonoidData from './MonoidData'
-import { gather } from './helpers'
+import { gather } from '../test/helpers' //!!!!!!!!!!!!!!!!!!!!!!!!!!!!11
 
 export type Emit<P = any> =
 		readonly [Id, P] | Commit<Data>
 
-export class Run<W extends World, P = Phase<W>> {
-  private readonly space: MachineSpace<W, PhaseMap, P>
+export class Run<W extends PhaseMap, X extends MachineContext, P> {
+  private readonly space: MachineSpace<W, X, P>
   private readonly mediator: Mediator
   private readonly log$$: Subject<Observable<Emit<P>>>
 
   log$: Observable<Emit<P>>
 
-  constructor(space: MachineSpace<W, PhaseMap, P, any>, mediator: Mediator) {
+  constructor(space: MachineSpace<W, X, P>, mediator: Mediator) {
     this.space = space;
     this.mediator = mediator;
     this.log$$ = new Subject();
@@ -63,8 +63,8 @@ export class Run<W extends World, P = Phase<W>> {
 
 export type MachineLoader<P> = (ids: Set<Id>) => Promise<Map<Id, [Head<Data>, P?]>>
 
-export class MachineSpace<W extends World = World, PM extends PhaseMap = W['phases'], P = _Phase<PM>, X = W['context']> {
-  private readonly world: WorldImpl<W>
+export class MachineSpace<W extends PhaseMap = {}, X extends MachineContext = MachineContext, P = Phase<W>> {
+  private readonly world: WorldImpl<W, X>
   private readonly loader: MachineLoader<P>
   private readonly mediator: Mediator
   private readonly dispatch: Dispatch<X, P>
@@ -75,7 +75,7 @@ export class MachineSpace<W extends World = World, PM extends PhaseMap = W['phas
 	private commit$: Subject<Commit<Data>>
   log$: Observable<Emit<P>>
 
-  constructor(world: WorldImpl<W>, loader: MachineLoader<P>, dispatch: Dispatch<X, P>, zeroPhase: P) {
+  constructor(world: WorldImpl<W, X>, loader: MachineLoader<P>, dispatch: Dispatch<X, P>, zeroPhase: P) {
     this.world = world;
     this.loader = loader;
     this.dispatch = dispatch;
@@ -96,7 +96,7 @@ export class MachineSpace<W extends World = World, PM extends PhaseMap = W['phas
 		this.log$$.complete();
 	}
 
-  newRun(): Run<W, P> {
+  newRun(): Run<W, X, P> {
     return new Run(this, this.mediator);
   }
 

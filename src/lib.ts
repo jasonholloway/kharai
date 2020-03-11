@@ -16,9 +16,7 @@ export type PhaseSpec = {
 
 type PathVal<T, E> = { [K in keyof T]: [K, T[K] extends E ? T[K] : PathVal<T[K], E>] }[keyof T]
 
-export type _Phase<P> = PathVal<P, any[]>
-
-export type Phase<W extends World> = _Phase<W['phases']>
+export type Phase<P extends PhaseMap> = PathVal<P, any[]>
 
 export interface MachineContext {
 	attach<R>(attend: Attendee<R>): Promise<false|[R]>
@@ -29,11 +27,7 @@ export type PhaseMap = {
 	[k: string]: PhaseMap | any[]
 }
 
-export type World = {
-	context: any
-	phases: PhaseMap
-}
-
+export type World = PhaseMap
 
 export type PhaseMapImpl<X, PCurr extends PhaseMap, PAcc extends PhaseMap = {}> = {
 	[K in keyof PCurr]:
@@ -44,14 +38,14 @@ export type PhaseMapImpl<X, PCurr extends PhaseMap, PAcc extends PhaseMap = {}> 
 				: never)
 }
 
-export type WorldImpl<W extends World> = {
-	contextFac: (x: MachineContext) => W['context']
-	phases: PhaseMapImpl<W['context'], W['phases']>
+export type WorldImpl<P extends PhaseMap, X> = {
+	contextFac: (x: MachineContext) => (X & MachineContext)
+	phases: PhaseMapImpl<(X & MachineContext), P>
 }
 
 export type PhaseImpl<P extends PhaseMap, X, D> = (x: X) => {
 	guard(d: any): d is D
-	run(d: D): Promise<_Phase<P>|false>
+	run(d: D): Promise<Phase<P>|false>
 }
 
 
@@ -62,7 +56,7 @@ export type ContextImpl<X> = {
 
 export type SpecWorld<W extends World> = W;
 
-export const makeWorld = <W extends World>(w: WorldImpl<W>) => w;
+export const makeWorld = <P extends PhaseMap>() => <X>(w: WorldImpl<P, X>): WorldImpl<P, X> => w;
 
 
 export type Cons<H, T extends readonly any[]> = ((h: H, ...t: T) => any) extends ((...l: infer L) => any) ? (L extends ReadonlyArray<any> ? L : never) : never;

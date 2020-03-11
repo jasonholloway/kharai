@@ -1,5 +1,5 @@
 import { buildDispatch } from '../src/dispatch'
-import { PhaseMapImpl, _Phase } from '../src/lib'
+import { PhaseMapImpl } from '../src/lib'
 
 describe('dispatching', () => {
 	it('shallow phases', async () => {
