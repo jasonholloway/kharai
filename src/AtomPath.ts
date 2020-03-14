@@ -1,6 +1,5 @@
 import { Set, Map } from 'immutable'
 import { Atom, AtomRef } from './atoms'
-import { lift } from './util'
 import { Lock } from './Locks'
 
 export type AtomVisitor<V> = (ref: AtomRef<V>, atom: Atom<V>) => readonly [AtomRef<V>[], Atom<V>|null]
@@ -23,7 +22,7 @@ export default class AtomPath<V> {
 	maxDepth(): number {
 		const plumbDepth = (refs: Set<AtomRef<V>>, d: number): Set<number> =>
 			refs
-				.flatMap(r => lift(r.resolve()))
+				.flatMap(r => r.resolve())
 				.flatMap(a => plumbDepth(a.parents, d + 1))
 				.concat([d]);
 
@@ -31,7 +30,7 @@ export default class AtomPath<V> {
 	}
 
 	hasAtoms(): boolean {
-		return this._tips.some(r => !!r.resolve());
+		return this._tips.some(r => !!r.resolve().length);
 	}	
 
 	rewrite(fn: (self: (a: AtomRef<V>) => AtomRef<V>) => AtomVisitor<V>): AtomPatch {
@@ -39,7 +38,7 @@ export default class AtomPath<V> {
 
 		const visitor: AtomVisitor<V> = fn(ref => {
 			return redirects.get(ref) || (() => {
-				const atom = ref.resolve();
+				const [atom] = ref.resolve();
 				if(!atom) return ref;
 				else {
 					const [sources, newAtom] = visitor(ref, atom);
@@ -53,7 +52,7 @@ export default class AtomPath<V> {
 		});
 
 		const newRefs = this._tips.flatMap(ref => {
-			const atom = ref.resolve();
+			const [atom] = ref.resolve();
 			if(atom) {
 				const [sources, newAtom] = visitor(ref, atom);
 				const newRef = new AtomRef(newAtom);
@@ -93,7 +92,7 @@ export default class AtomPath<V> {
 
 	path(): Path<V> {
 		const _map = (ref: AtomRef<V>): Set<PathNode<V>> => {
-			const atom = ref.resolve()
+			const [atom] = ref.resolve()
 			if(!atom) return Set();
 
 			const parents = atom?.parents.flatMap(_map)
@@ -104,7 +103,7 @@ export default class AtomPath<V> {
 	}
 
 	static findRoots<V>(ref: AtomRef<V>): Set<Atom<V>> {
-		const atom = ref.resolve();
+		const [atom] = ref.resolve();
 		if(!atom) return Set();
 		else {
 			const above = atom.parents.flatMap(AtomPath.findRoots);

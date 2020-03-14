@@ -1,6 +1,5 @@
 import { isArray } from 'util'
 import { List } from 'immutable'
-import { Lit } from './lib';
 
 export const peek = <V>(tag: string, lens?: (v: V) => any) => (v: V) => {
     console.log(tag, lens ? lens(v) : v)
@@ -24,7 +23,7 @@ export const clone = <X>(x: X): X =>
 export const isTuple2 = <A, B>(v: any): v is readonly [A, B] =>
     isArray(v) && v.length == 2;
 
-export const lift = <V>(v: V|undefined) => (v ? [v] : []);
+// export const lift = <V>(v: V|undefined) => (v ? [v] : []);
 
 export async function collect<V>(gen: AsyncIterable<V>): Promise<List<V>> {
 	const collected: V[] = [];
@@ -36,14 +35,3 @@ export type RO<T> =
   T extends any[] ? { readonly [K in keyof T]: RO<T[K]> } :
   T 
 	
-
-// export type RO<T> =
-//     T extends any[] ? DeepReadonlyArray<T[number]> :
-//     T extends object ? DeepReadonlyObject<T> :
-//     T;
-
-// interface DeepReadonlyArray<T> extends ReadonlyArray<RO<T>> {}
-
-// type DeepReadonlyObject<T> = {
-//     readonly [P in keyof T]: RO<T[P]>;
-// };

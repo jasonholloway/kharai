@@ -1,0 +1,184 @@
+*HOOKS*
+
+how would we hook remote machines? we'd have to send them a message; they'd promise to call us back on certain conditions
+but as soon as things were remote we'd expect more in terms of guarantee: the recipient would have to store its hooks along with its state;
+it would have to guarantee to retry if sending us changes failed previously; this could be done, by means of the messaging mechanism;
+maybe the target machine could even self-hook by the usual local mechanism
+
+in this case the data of the predicate wouldn't be saved by the hooker, but by the hooked: same data, separate places;
+but the saving of the hook then becomes a tracked thing; it must be serialized into the system of the recipient;
+maybe maintenance of a hook list could be done in parallel, even saved in parallel? each hook change and phase change would itself
+capture the whole, repersist the whole; but each would proceed at its own rate
+
+could a hook in this case be released? only by means of an identifying token, which the hooker would itself have to persist
+
+----------------------------------------------------------------------------
+
+as we're after the simplest most generic foundations for this:
+
+each machine would then have multiple possible compartments, whose intercommunication would be limited:
+all compartments would necessarily be saved at once, and each would be able to read the entire cross-section of state each time
+
+but each compartment's handler would only regenerate its own state
+a collection of hooks would then be able to view what the other compartment has gotten up to:
+every time it ran it would see the overall momentary state
+
+but in seeing this state, it would be causally downstream of the other compartment's activity, as well as being downstream
+of whatever caller was sending it messages (hook me in please!) - though this would be tracked by the shared atomicity of the whole
+if the other's state has bee read, it's been locally established as state at least (ie locally persisted)
+
+the thing is, each compartment would have its own subatom - subatoms would be subsumed by the overall atom when merged; they would be effervescent,
+but still trackable sparks; if a compartment hadn't finished its processing in time, then its subatom wouldn't be merged into the whole, and wouldn't
+therefore be truly persisted
+
+----
+
+so - each machine has compartments, each of which moves at its own pace, gathers a commit context of its own, and joins it into the overall machine atom only on finish
+like binary stars: collocated subsystems, each of which is consistent with itself, synchronised into a consistent whole, and treated as just one thing from outside
+
+the only thing that distinguishes a compartment from a machine is its privileged view of the other's state; machines certainly can't communicate except for by convened meetings;
+compartments can communicate with much greater efficiency
+
+so there isn't a need for encapsulation to hide the multipart reality: outside agents should know the possibilities awaiting it; maybe compartments could even be summoned from outside:
+no point in running a HookAgent if there are no hooks in place; but as soon as another machine wants to emplace a hook, then there is a need; similarly a compartment could kill itself
+by returning false as normal
+
+this summoning of a compartment in another, with its own base logic, would be something like the current $boot; except without the need to attach;
+the machine itself would be summoned, a compartment within it would be summoned - we would ask to meet with the compartment. This compartment would begin as $boot, as now,
+and attach, waiting for meetings, and we would give it something to do in its compartment
+
+---------------------------------------------
+
+a compartment is summoned with a composite name string|[string,string] (with there being a default compartment)
+
+-------------------------------------------------
+
+but - having multiple compartments, each one synchronised at every cut point, is it that far from actual javascript code in the Machine behaving like a compartment?
+not really - except perhaps for its greater complexity!
+
+but - compartments open up the chance of storing multiple points of data in single atomic units, as clusters of information
+
+compartments can be run as separate small segments, each one at their own pace
+can a segment meet a segment of the same machine? seemingly, yes! unsure why we'd want that though
+
+can be a way of buffering input as well, as a mailbox: the mailbox compartment will quickly, synchronously, receive incoming commands;
+the real app will do its normal processing, and consume as and when it can: the inverse of hooks, in that here the main compartment reads from the mailbox,
+rather than the hook reading from the main compartment
+
+a hook though, when fired, needs to make sure it notifies the hooker - yet another compartment could be hived off specially for this purpose
+
+--------------------------------------------------
+
+compartments are then a way to reliably carry through tasks, as well as a mechanism for collocating small bits of data.
+
+but can compartments be provided by a more basic machine? the machine makes itself always available for meetings; it is constantly attached; as soon as a potential suitor
+appears it becomes a peer, receives a code with a prefix, which must be handled by a sub-handler
+
+the machine then is a separate module, a kind of container for behaviours; externally at least, all interactions are via meetings, 
+so it is mostly a conduit for these: it's role is in summoning segments (each of which will first of all go into $boot) and in running them as it currently runs a single
+thread in the machine
+
+the state of each segment will be split and merged for each small phase
+
+when this is in place, a hook can be placed by emplacement; this could be done by a well-known $hook behaviour, though it would be implemented via meeting
+the $hook would convene a compartment on the target, and emplace its claw there; the claw would then message back to a $hooked state; the actual continuation state needn't go via
+the target therefore - only a token and target id to communicate back when circumstances fit. This two-sided hookedness allows the target to enliven the watching.
+
+---------------------------------------------------
+
+storing data in segments would be via consistent hashing
+which is inflexible of course - circular hashing is the way to go here (thanks, Orleans!)
+with a concept of compartments, we can store data in this fashion; actually quite large data sets could be created
+indexes could be reliably maintained...
+
+--------------------------------------------------
+
+So.....
+
+let's test the Machine in isolation (except, it's not really a machine at this point, it's something more organic)
+and get it communicating between us and its segments; except that the Machine relies very much on its Space: it needs to summon,
+it needs to mediate...
+
+all these bits that are difficult/pointless to separate out
+
+
+
+
+tho each Machine proceeds at its own pace, makes me wonder about logs
+we will summon a single Machine in a bunch, and in doing so will capture logs
+for that machine, not for the whole bunch.
+
+but - we can't summon one without the whole
+and we can also summon the whole explicitly: just summoning 'hammy'
+will load up both the mouth and the brain
+
+but ['hammy','mouth'] will summon first hammy from the space, and then 'mouth' from the bunch
+the space is just like one big bunch
+within a bunch, a machine may or may not already be in place
+
+if it isn't there, then it needs to be loaded, either from scratch or from disk
+so the act of summoning is itself a piecemeal, recursive process
+
+the summoner is a visitor, that firstly goes to the Space, summons a Bunch, and then finally the Machine
+within a bunch (or a space), siblings can be viewed, although doing so implicates causality, and what is
+seen might actually be out of date; how does such vision compare to meeting?
+in meeting, a true current interaction can take place, with both machines synchronised
+
+I'm not sure what advantage the generalisation of the bunch would give us though - there seem to be three tiers:
+- the remote siblings separated by network, with no  privileged peeks of each other's data
+- the MachineSpace in the Node runtime, with it's single memoryspace and single-threadedness; which does allow privileged views
+- the Bunch, again with a single memoryspace, allowing privileged views still
+
+if machines can view machines, albeit with the possibility of delay, and the tracing of causality as ever
+how are they differentiated from siblings in a pod?
+a machine could hook another, by viewing it at its own pace, maybe even repeatedly viewing it at intervals, in a polling manner
+
+(it differs in granularity, and in responsiblity)
+the idea is to pass responsiblity for notification to the hooked: one of its submachines will monitor the changes of its whole,
+and send messages back to the hook-placers
+
+but within a bunch, how can one submachine be triggered by anothers change - it will under current thinking jsut move at its own pace,
+occasionally sampling the other; while really it needs to actually register a callback that will re-enliven itself
+it could even just be reenlivened on each upstream change - kind of like the current attach; but with no prospect of meeting, just a passive receipt
+of the latest view; viewing another could actually mean capturing a stream of views, each one with its causal context
+
+this could be achieved between machines, even without bunching
+but, between machines, a view implies a summoning: and that summoning might just be of an empty boot
+but, once hooked, we'd expect to be re-enlivened on each change; then we can hook again, and apply whatever test on whatever it is we've hooked
+
+the problem with this approach is that everything that goes via the dispatcher is saved, and we don't want to end up saving the totality of the other's state
+in our state each time; so either this is passed via the context (possible and reasonable) or we ship the function, which is more heavyweight and implicates
+us in supporting segments (with privileged, cheap access to other's data)
+
+so either way we need a special hooking mechanism: a hooking mechanism between machines would fulfil our current needs; though this would require us to
+enliven each machine right at the beginning of the run to ensure hooks were placed (which is what we have deployed right now anyway)
+
+or, additionally, we could implement segments, with a visiting summoner, which would let us store and serve multiple cooperative machines from a single row, with
+cheap and priviliged hooking between the segments, which would allow submachines to be written to store hooks in the hooked
+
+the first port of call has to be cross-machine hooking however, which will let us match the current deployment, and is needed anyway
+
+----------------
+
+so - views from machine to machine: which will capture the latest (and potentally summon) but also provide a further waiter to await a further iteration of the viewed
+such views will always be lossy - ie if a viewed updates too quickly frames will be missed
+though - this is like an observable, isn't it? except that each observable frame comes with a commit context that should be merged into ours
+no, not a commit context - but an AtomRef that we must include as a parent of our current head
+but the actual merging of the head should be done as late as possible: otherwise we will accumulate parents that are actually uncles, aunts, etc!
+an updated head from such a stream is always a successor of the previous given
+
+so, a view gives us an Observable<P> that is ours to parse out the body from
+
+--
+
+a view between segments would give us the same, an Observable<P>; hooks would be run necessarily with sibling machines however
+
+imagine running an entire bunch at a time, with the entire program being one bunch: this loading is too eager; not least because the space has no index of
+what is actually loadable - the backing data is far away; whereas in the local bunch, the data is always local
+
+every machine that is loaded shall be run; the abstract tree runtime becomes concrete as its different levels map to pages of data, living in different caches
+
+the stream of views is simpler than negotiation: it's a one-way statement of fact
+something happens, we send it, along with the atom to whatever hooks are registered in the machine
+
+

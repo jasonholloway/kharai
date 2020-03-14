@@ -14,14 +14,15 @@ export class AtomRef<V> {
 		this._target = target;
 	} 
 	
-	resolve(): Atom<V>|undefined {
+	resolve(): [Atom<V>]|[] {
 		const t = this._target;
 		if(t) {
 			switch(t._type) {
-				case 'Atom': return t;
+				case 'Atom': return [t];
 				case 'AtomRef': return t.resolve();
 			}
 		}
+		return [];
 	}
 }
 

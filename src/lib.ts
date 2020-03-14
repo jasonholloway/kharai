@@ -1,5 +1,6 @@
 import { Map } from 'immutable'
 import { Attendee, Convener } from './Mediator'
+import { Observable } from 'rxjs/internal/Observable'
 
 
 export type Data = Map<string, any>
@@ -19,6 +20,7 @@ type PathVal<T, E> = { [K in keyof T]: [K, T[K] extends E ? T[K] : PathVal<T[K],
 export type Phase<P extends PhaseMap> = PathVal<P, any[]>
 
 export interface MachineContext {
+	watch(ids: Id[]): Observable<any>
 	attach<R>(attend: Attendee<R>): Promise<false|[R]>
 	convene<R>(ids: Id[], convener: Convener<R>): Promise<R>
 }
@@ -43,9 +45,11 @@ export type WorldImpl<P extends PhaseMap, X> = {
 	phases: PhaseMapImpl<(X & MachineContext), P>
 }
 
+export type ViewSegment = (name: string) => any;
+
 export type PhaseImpl<P extends PhaseMap, X, D> = (x: X) => {
 	guard(d: any): d is D
-	run(d: D): Promise<Phase<P>|false>
+	run(d: D, all: any): Promise<Phase<P>|false>
 }
 
 

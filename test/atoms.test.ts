@@ -20,19 +20,18 @@ describe('atoms and stuff', () => {
 
 	it('pristine head has no atom', () => {
 		const head = space.spawnHead();
-		const atom = head.ref().resolve();
-		expect(atom).toBeUndefined();
+		expect(head.ref().resolve()).toEqual([]);
 	})
 
 	it('committing creates atom', () => {
 		const head = space.spawnHead()
 		head.commit('1');
 		
-		const atom = head.ref().resolve();
+		const [atom] = head.ref().resolve();
 		expect(atom).not.toBeUndefined();
 		expect(atom?.val).toBe('1');
 		expect(atom?.parents.size).toBe(1);
-		expect(atom?.parents.first(undefined)?.resolve()).toBeUndefined();
+		expect(atom?.parents.first(undefined)?.resolve()).toEqual([]);
 	})
 
 	it('committing several times appends many atoms', async () => {
@@ -41,17 +40,17 @@ describe('atoms and stuff', () => {
 		head.commit('2');
 		head.commit('3');
 
-		const atom3 = head.ref().resolve();
+		const [atom3] = head.ref().resolve();
 		expect(atom3?.val).toBe('3');
 
-		const atom2 = atom3?.parents.first(undefined)?.resolve();
+		const [atom2] = atom3?.parents.first(undefined)?.resolve() || [];
 		expect(atom2?.val).toBe('2');
 		
-		const atom1 = atom2?.parents.first(undefined)?.resolve();
+		const [atom1] = atom2?.parents.first(undefined)?.resolve() || [];
 		expect(atom1?.val).toBe('1');
 
 		expect(atom1?.parents.size).toBe(1);
-		expect(atom1?.parents.first(undefined)?.resolve()).toBeUndefined();
+		expect(atom1?.parents.first(undefined)?.resolve()).toEqual([]);
 	})
 
 	it('like-for-like rewrite', async () => {

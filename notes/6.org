@@ -1,0 +1,268 @@
+
+each assertion applies itself immediately
+the ast is only there as a frame for application of constraints;
+once they are in place, they look after themselves
+
+-------------------------------
+
+Assert(x > 7 & x < 9)
+
+And(Greater(Var(x), Const(7)), Greater(Const(9), Var(x)))
+
+asserting the above applies constraints to all involved variables
+and those constraints exactly match the structure of the ast
+
+just the constraints are soft and malleable, combinable too
+
+actually, they don't exactly match - the application of greater implies a Numeric() constraint on X
+as well as the application of the Greater() constraint
+
+x:
+  And(
+		Numeric()
+		\_GreaterThan(7)
+		Numeric()
+		\_LessThan(9))
+
+the greater/less constraints mingle if brought into the same branch
+by combining the numeric constraints into one
+
+but some of the evaluation has to be done at the last moment, at the point of sampling
+how can we decide which way to go on an 'or'?
+
+there's so much we can pre-prepare though: we can pre-decide if branches are even possible
+though such pre-simplifying of the network isn't necessary absolutely: a simple system could avoid it altogether
+
+------------------------------
+
+Assert(x < 3 & y > 5 & x < y)
+
+x:
+  And(
+    Numeric()
+    \_LessThan(3)
+    Numeric()
+    \_LessThan(y))
+
+y:
+  And(
+	  Numeric()
+		\_GreaterThan(5)
+		GreaterThan(x))
+		
+in sampling, you must always have a set of variables you are sampling: these selected variables must be consistent
+otherwise you will be sampling variables one at a time, and no matter what pre-preparation, you can't pre-decide values
+until you explicitly request to do so; am imagining a sample function that actually starts evaluating each variable it comes across
+starting from the specified variables, but requires only the variables it cares about to be settled before returning
+
+------------------------------
+
+Assert(x > 5 | x != x)
+
+x:
+  Or(
+    Numeric()
+    \_GreaterThan(5)
+    Not(
+      EqualTo(x)))
+
+in sampling, we would firstly get to the *or*, which is a place to backtrack; we have here rules to choose between
+we gather the Numeric, then the GreaterThan; this leaves us with a domain of values; we can sample now from the Numeric.GreaterThan and all is good
+
+-------------------------------
+
+Assert(x > 5 & x != x)
+
+x:
+  And(
+    Numeric()
+    \_GreaterThan(5)
+    Not(
+      EqualTo(x)))
+			
+as before, but in sampling the *and* we need to return possibilities from each rule
+so we evaluate the second branch as well as the first; 
+
+but *EqualTo* returns boolean, which is then inverted by the *Not*: these aren't domains, or sources of values
+similarly, *GreaterThan* is really a boolean thing
+
+or, it is a constraint that returns true/false given certain composable conditions
+and here we're trying to bind x by clobbering together constraints
+so what constraint does EqualTo offer up? either an *any* or a *never*
+neither of which like to be sampled directly, one for being too over-full, the other for being impossible
+
+the *Not* just inverts *any* and *never*
+
+the EqualTo, in this case, would have a special case that detected that x refers to x, and would return an *any* constraint here up the stack
+
+-------------------------------
+
+Assert(x < 3 & x < y)
+
+x:
+  And(
+    Numeric()
+    \_LessThan(3)
+    Numeric()
+    \_LessThan(y))
+
+y:
+  GreaterThan(x)
+
+*x* first meets the familiar *and*, which requires all its branch constraints to happily combine
+*Numeric* and *LessThan(3)* give a possible constraint; then we evaluate the next branch...
+
+*LessThan(y)* suddenly involves us in evaluating *y*, which we can do directly
+but the single constraint we find applied to *y* is the inverse of the *LessThan* that brought us here
+in fact it is exactly the same relation; this is then a binary relation...
+
+--------------------------------
+
+Assert(x < (y + 1))
+
+x:
+  LessThan(PlusOne(y))
+
+y:
+  MinusOne()
+  \_GreaterThan(x)
+
+yet this duplicates constraints that are actually single
+*GreaterThan* is one numeric relation; and *PlusOne* similarly
+
+the original syntax is as pristine as can be; our flattened view a distortion
+which should though reflect our evaluation. We iterate through the sampled variables one by one:
+what doesn't happen is that in evaluation we 'leap' from one variable to another; but we do find ourselves traversing
+shared relations quickly enough
+
+so we start by sampling *x*, and immediately find the *LessThan* relation
+which faces in two directions: it doesn't offer one single constraint, but two - one at each port
+but the two are symmetrical in their way
+
+*PlusOne* is effectively unary here, though if the other argument were non-constant, it would be binary also, with two 'ports'
+it's questionable here what constraints such a modifier can offer however...
+
+-------------------------------
+
+Assert(x < (x + y))
+
+x:
+  LessThan(Plus(x, y))
+
+y:
+  Minus(x) |> GreaterThan(x)
+
+*Plus* here constrains both variables to be 'addable'; *GreaterThan* comes closer to constraining with *Numeric*
+
+in sampling *x*, we immediately get the *LessThan* constraint belonging to the *<* relation; and in figuring out the domain of this
+we must follow upstream to the source domain, that of *Plus*; but then that too has two upstream domains; one of which refers back to the
+*x* variable to restart our exact analysis anew; and we can recurse, we can begin again, so many times till the stack goes pop.
+
+but if y /was/ constrained, then this would be solvable; given y == 1, then we'd know that *x* was addable, comparable and numeric
+nothing more than that though; and in reality the recursion will have killed us - what to do?
+
+the recursion has to be detected as meaningless: if we recurse once without any narrowing of constraints, then we know the recursion
+leads nowhere good, and we can give up on it
+
+-------------------------------
+
+Assert(x == x)
+
+Here is a case of meaningless recursion; we would detect the meaningless quickly; and this would leave *x* completely unconstrained as *any*
+which would be correct as it happens
+
+-------------------------------
+
+Assert(x < x + 1)
+
+More meaningless recursion; though the *numeric* constraint would be accumulated, which is something
+
+but here the recursion isn't just meaningless; it's impossible. If we gave the domain of *numeric* to *x*, this would be wrong
+as actually no *x* can ever satisfy the above; its domain should be *never*
+
+for the recursion to lead somewhere good, our constraints must be narrowing (and in narrowing, they must be closing in on a base case)
+the constraint may actually be on another variable than the one which is causing us to recurse: but if it is doing good, that is good;
+
+bad recursions are where our constraints /aren't/ narrowing; in this case our current evaluation is opening up, and we should just say *any*
+
+-------------------------------
+
+Assert(x > x + 1)
+
+This is recursive and impossible; *x* should be bound to *never* here
+
+x:
+  GreaterThan(Plus(x, 1))
+
+the *>* relation yields a *GreaterThan* domain, that we then try to combine with its upstream; but we keep getting pulled in deeper
+at some point we have to realise that we're travelling exactly the same loop (could be a very variegated cycle of course, not so direct:
+a breadcrumb trail would allow us to notice that we have been here before; some means of comparing gathered constraints would be needed though)
+
+so, in cycling, we would rediscover the breadcrumb trail, and compare our progress in terms of domains
+if the domain of at least one was narrowing, we'd be getting somewhere, and we could continue recursing
+but if any were exploding; then, bollocks. On our current branch of evaluation they must be bound to *never* then, asap
+
+in the above case, we'd directly find the trail when going back to the *>* relation; we'd compare *x: any* of old to *x: >(x+1)* 
+which seems like a narrowing; on the next pass it will be *x: >(x+1)* vs *x: >(>(x+1)+1)* which is a building up of information right there
+
+I suppose this build of constraints is in fact an explosion though: we want information not to be piling up, but to be narrowing into a simpler
+more precise expression; it's clear the composite domain there is getting more and more difficult to evaluate
+
+seems that compression/simplification should be done at each step to try and simplify these domains: not just as a secondary step at the end, but
+the very act that actually allows recursion to drive our constraining
+
+composite domains will be asked if one is within the other; this they will do by delegation to their inners
+
+but these are two separate cases:
+
+*Assert(x < x + 1)* => x: never
+*Assert(x > x + 1)* => x: number
+
+the self-comparison of domains will decide the outcome
+
+1) *any* vs. *<(x+1)*
+
+            (*-1*)
+	           /
+ (*T*)<=(*<*)<=(*+*)
+      /     | 
+    (*x*)   ('*x*)
+      \     | 
+    	(*+*)=>(*>*)=>(*T*)
+    	/  
+    (*1*) 
+		
+(and so all binary operations are shown to be ternary relations
+they have two inputs and an output each
+
+it's our job to find domains of variables that make the system work
+
+each relation is a small engine of simplification; each one has its own power of narrowing the domains at play)
+
+in sampling *x* above, there are two rules to evaluate, which are ends of the same composite relation
+we require both to work out for x to have a domain at all
+
+------
+
+we have to traverse the network from each vantage point, constraining variables as much as we can as we go
+each step we take in this simplification, we gradually improve our bindings (immutable dictionary needed here)
+
+how can a ternary *+* work then? it modifies domains rather than produces them directly;
+all three directions should be simplified by it; each node of the graph has to be consistent, and each node of
+the graph rules and protects its own consistency: the domains on each leg of the constraint must be kept consistent
+and its only the constraint itself that knows enough about its rules to do this job
+
+an update to one domain should then propagate through the network, by means of these knowledgable connectors
+a propagation is kind of a runContext; it's a visitor, unifying domains by visiting constraints 
+
+so the graph itself will hopefully be changed by the visitor
+but this will be done by binding variables: new relations will be emplaced by the visitor onto new derived nodes
+
+we again find ourselves in the position of needing to do multi-directional immutable graphing (familiar from shrewkins - the same obstacle)
+
+such a kind of easily visitable/updatable graph is therefore a good subproject here: it's something we need before proceeding with this
+if we had it, then we could start this proper
+without it, we can do nothing but speculate
+
+with Shrewkins, the problem was it was difficult to make the requisiste investment of time in a subsystem /first/, when we just wanted a functioning prototype
+and I was hoping for a shortcut to eanble that; but here there's no way round it

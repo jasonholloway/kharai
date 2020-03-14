@@ -17,6 +17,7 @@ export default class AtomSaver<V> {
 		const M = this._monoidV;
 
 		const path = await this._space.lockTips(...heads.map(h => h.ref()));
+
 		//TODO
 		//lockTips ensures we have the latest reformed roots locked
 		//but we should resample the heads at this point too - if we have their roots locked, we should
@@ -36,7 +37,8 @@ export default class AtomSaver<V> {
 							const upstreamCombo = M.add(
 								bagged,
 								parents
-									.map(ref => ref.resolve()?.val || M.zero)
+								  .flatMap(r => r.resolve())
+								  .map(a => a.val)
 									.reduce(M.add, M.zero)
 							);
 							const canSave1 = store.prepare(upstreamCombo);

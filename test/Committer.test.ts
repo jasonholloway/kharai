@@ -1,65 +1,68 @@
 import AtomSpace, { Head } from '../src/AtomSpace'
-import Committer, { Commit } from '../src/Committer'
+import Commit from '../src/Committer'
 import _Monoid from '../src/_Monoid'
 import { delay } from '../src/util'
-import { Subject } from 'rxjs/internal/Subject'
-import { ReplaySubject } from 'rxjs/internal/ReplaySubject'
 import { gather } from './helpers'
+import { AtomRef } from './atoms'
+import { ReplaySubject } from 'rxjs/internal/ReplaySubject'
+import { Subject } from 'rxjs/internal/Subject'
 
 describe('committable', () => {
 	let space: AtomSpace<number>
-	let log$: Subject<Commit<number>>
-	const newCommitter = (h: Head<number>) => new Committer(new MonoidNumber(), h, log$);  
+	let atom$: Subject<AtomRef<number>>
+	const newCommit = (h: Head<number>) => new Commit(new MonoidNumber(), h, atom$);  
 
 	beforeEach(() => {
 		space = new AtomSpace();
-		log$ = new ReplaySubject();
+		atom$ = new ReplaySubject();
 	})
 
 	it('commits singly', async () => {
 		const head = space.spawnHead();
-		const commit = newCommitter(head);
-		expect(head.ref().resolve()).toBeUndefined();
+		const commit = newCommit(head);
+		expect(head.ref().resolve()).toEqual([]);
 
 		await commit.complete(3);
-		expect(head.ref().resolve()?.val).toEqual(3)
+
+		const [atom] = head.ref().resolve();
+		expect(atom?.val).toEqual(3)
 	})
 
 	it('commits trebly', async () => {
 		const h1 = space.spawnHead();
-		const c1 = newCommitter(h1);
+		const c1 = newCommit(h1);
 
 		const h2 = space.spawnHead();
-		const c2 = newCommitter(h2);
+		const c2 = newCommit(h2);
 
 		const h3 = space.spawnHead();
-		const c3 = newCommitter(h3);
+		const c3 = newCommit(h3);
 
-		Committer.combine(new MonoidNumber(), [c1, c2, c3]);
+		Commit.combine(new MonoidNumber(), [c1, c2, c3]);
 
 		const committing1 = c1.complete(3);
 		await delay(15);
-		expect(h1.ref().resolve()).toBeUndefined();
+		expect(h1.ref().resolve()).toEqual([]);
 
 		const committing2 = c2.complete(5);
 		await delay(15);
-		expect(h1.ref().resolve()).toBeUndefined();
-		expect(h2.ref().resolve()).toBeUndefined();
+		expect(h1.ref().resolve()).toEqual([]);
+		expect(h2.ref().resolve()).toEqual([]);
 
 		await Promise.all([c3.complete(7), committing1, committing2]);
-		expect(h1.ref().resolve()?.val).toEqual(15);
-		expect(h2.ref().resolve()?.val).toEqual(15);
-		expect(h3.ref().resolve()?.val).toEqual(15);
+		expect(h1.ref().resolve()[0]?.val).toEqual(15);
+		expect(h2.ref().resolve()[0]?.val).toEqual(15);
+		expect(h3.ref().resolve()[0]?.val).toEqual(15);
 	})
 
 	it('completes after all commit', async () => {
 		const h1 = space.spawnHead();
-		const c1 = newCommitter(h1);
+		const c1 = newCommit(h1);
 
 		const h2 = space.spawnHead();
-		const c2 = newCommitter(h2);
+		const c2 = newCommit(h2);
 
-		Committer.combine(new MonoidNumber(), [c1, c2]);
+		Commit.combine(new MonoidNumber(), [c1, c2]);
 
 		let commited1 = false;
 		const committing1 = c1.complete(3);
@@ -71,53 +74,49 @@ describe('committable', () => {
 		expect(commited1).toBeTruthy();
 	})
 
-	it('emits commits to sink', async () => {
-		const gathering = gather(log$);
-
+	it('atoms streamed from commits', async () => {
 		const h1 = space.spawnHead();
-		const c1 = newCommitter(h1);
+		const c1 = newCommit(h1);
 
 		const h2 = space.spawnHead();
-		const c2 = newCommitter(h2);
+		const c2 = newCommit(h2);
 
-		Committer.combine(new MonoidNumber(), [c1, c2]);
+		Commit.combine(new MonoidNumber(), [c1, c2]);
 		await Promise.all([
 			c1.complete(3),
 			c2.complete(5),
 		]);
 
-		const c3 = newCommitter(h1);
+		const c3 = newCommit(h1);
 		await c3.complete(7);
-
-		log$.complete();
-		const logs = await gathering;
-		expect(logs.length).toBe(2);
-		expect(logs[0][1].resolve()?.val).toBe(8);
-		expect(logs[1][1].resolve()?.val).toBe(7);
+		
+		atom$.complete();
+		const refs = await gather(atom$);
+		expect(refs.length).toBe(2);
+		expect(refs[0].resolve()[0]?.val).toBe(8);
+		expect(refs[1].resolve()[0]?.val).toBe(7);
 	})
 
 	it('multiple recombinations', async () => {
-		const gathering = gather(log$);
-
 		const h1 = space.spawnHead();
-		const c1 = newCommitter(h1);
+		const c1 = newCommit(h1);
 
 		const h2 = space.spawnHead();
-		const c2 = newCommitter(h2);
+		const c2 = newCommit(h2);
 
-		Committer.combine(new MonoidNumber(), [c1, c2]);
-		Committer.combine(new MonoidNumber(), [c1, c2]);
-		Committer.combine(new MonoidNumber(), [c1, c2]);
+		Commit.combine(new MonoidNumber(), [c1, c2]);
+		Commit.combine(new MonoidNumber(), [c1, c2]);
+		Commit.combine(new MonoidNumber(), [c1, c2]);
 
 		await Promise.all([
 			c1.complete(3),
 			c2.complete(5),
 		]);
 
-		log$.complete();
-		const logs = await gathering;
-		expect(logs.length).toBe(1);
-		expect(logs[0][1].resolve()?.val).toBe(8);
+		atom$.complete();
+		const refs = await gather(atom$);
+		expect(refs.length).toBe(1);
+		expect(refs[0].resolve()[0]?.val).toBe(8);
 	})
 })
 
