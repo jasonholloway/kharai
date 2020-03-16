@@ -1,8 +1,8 @@
 import { Id, Data, WorldImpl, PhaseMap, Phase, MachineContext } from './lib'
 import { Head } from './AtomSpace'
 import { Mediator, Convener, Attendee, Peer } from './Mediator'
-import { Observable, Subject, from, merge } from 'rxjs'
-import { flatMap, skipWhile, startWith, mergeAll, endWith, scan, takeWhile, finalize, publish, toArray, map } from 'rxjs/operators'
+import { Observable, Subject, from, merge, ReplaySubject } from 'rxjs'
+import { flatMap, skipWhile, startWith, mergeAll, endWith, scan, takeWhile, finalize, publish, toArray, map, mergeMap, tap } from 'rxjs/operators'
 import Commit, { AtomEmit } from './Committer'
 import { Map, Set } from 'immutable'
 import { Dispatch } from './dispatch'
@@ -72,9 +72,11 @@ export class MachineSpace<W extends PhaseMap = {}, X extends MachineContext = Ma
   private readonly zeroPhase: P
   private machines: Map<Id, Promise<Machine<X, P>>>
 
-  private log$$: Subject<Observable<Emit<P>>>
-	private atom$: Subject<AtomRef<Data>>
-  log$: Observable<Emit<P>>
+  private _log$$: Subject<Observable<Emit<P>>>
+	private _atom$: Subject<AtomRef<Data>>
+
+  readonly log$: Observable<Emit<P>>
+  readonly atom$: Observable<AtomRef<Data>>
 
   constructor(world: WorldImpl<W, X>, loader: MachineLoader<P>, dispatch: Dispatch<X, P>, zeroPhase: P) {
     this.world = world;
@@ -84,14 +86,16 @@ export class MachineSpace<W extends PhaseMap = {}, X extends MachineContext = Ma
     this.mediator = new Mediator();
     this.machines = Map();
 
-    this.log$$ = new Subject();
-		this.atom$ = new Subject();
-    this.log$ = this.log$$.pipe(mergeAll());
+    this._log$$ = new Subject();
+    this.log$ = this._log$$.pipe(mergeAll());
+
+		this._atom$ = new Subject();
+    this.atom$ = this._atom$;
   }
 
 	complete() {
-		this.atom$.complete();
-		this.log$$.complete();
+		this._atom$.complete();
+		this._log$$.complete();
 	}
 
   newRun(): Run<W, X, P> {
@@ -120,10 +124,10 @@ export class MachineSpace<W extends PhaseMap = {}, X extends MachineContext = Ma
               this.asSpace(),
 							this.dispatch,
 							this.world.contextFac,
-						  h => new Commit<Data>(new MonoidData(), h, this.atom$)
+						  h => new Commit<Data>(new MonoidData(), h, this._atom$)
 						);
 
-            this.log$$.next(machine.log$);
+            this._log$$.next(machine.log$);
 
             machine.begin(id, head, phase || this.zeroPhase);
 
@@ -148,7 +152,8 @@ export class MachineSpace<W extends PhaseMap = {}, X extends MachineContext = Ma
     const _this = this;
     return {
       watch(ids: Id[]): Observable<AtomRef<Data>> {
-        throw 123;
+        return _this.summon(Set(ids))
+          .pipe(mergeMap(m => m.atom$));
       },
 
       async attach<R>(me: any, attend: Attendee<R>): Promise<false|[R]> {
@@ -158,7 +163,7 @@ export class MachineSpace<W extends PhaseMap = {}, X extends MachineContext = Ma
       async convene<R>(ids: Id[], convene: Convener<R>): Promise<R> {
         const machine$ = _this.summon(Set(ids));
         return await _this.mediator
-          .convene(convene, Set(await gather(machine$)));
+          .convene(convene, Set(await machine$.pipe(toArray()).toPromise()));
       }
     }
   }
@@ -186,10 +191,10 @@ export class Machine<X, P> implements IMachine<P> {
   readonly atom$: Observable<AtomRef<Data>>
   
   constructor(space: ISpace, dispatch: Dispatch<X, P>, modContext: (x: MachineContext) => X, commitFac: CommitFac) {
-    this._log$ = new Subject();
+    this._log$ = new ReplaySubject(1);
     this.log$ = this._log$;
 
-    this._atom$ = new Subject();
+    this._atom$ = new ReplaySubject(1);
     this.atom$ = this._atom$;
 
     this.space = space;
@@ -223,7 +228,10 @@ export class Machine<X, P> implements IMachine<P> {
         }
       })()
       .catch(log$.error.bind(log$))
-      .finally(log$.complete.bind(log$)));
+      .finally(() => {
+        atom$.complete();
+        log$.complete();
+      }));
   }
 
 	private static $Internal = Symbol('CommitCtx')

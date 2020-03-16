@@ -5,11 +5,11 @@ import AtomSpace from '../src/AtomSpace'
 import AtomSaver from '../src/AtomSaver'
 import { Id, Data, SpecWorld, makeWorld, World, MachineContext, Phase, PhaseMap, WorldImpl, PhaseImpl } from '../src/lib'
 import { OperatorFunction } from 'rxjs'
-import { flatMap } from 'rxjs/operators'
+import { flatMap, tap, toArray } from 'rxjs/operators'
 import { buildDispatch } from '../src/dispatch'
 import { delay } from '../src/util'
 import { AtomRef, Atom } from '../src/atoms'
-import { isString, isArray } from 'util'
+import { isString, isArray, inspect } from 'util'
 import { AtomEmit, $Commit } from '../src/Committer'
 import { gather } from './helpers'
 import { Emit, MachineLoader, MachineSpace } from '../src/MachineSpace'
@@ -198,12 +198,12 @@ describe('machines: running', () => {
   describe('saving', () => {
     const fac = scenario(rodents());
     let x: ReturnType<typeof fac>
-    let logs: AtomEmit<Data>[]
     let atoms: Atom<Data>[]
 
     beforeEach(async () => {
       x = fac();
-			const gatheringLogs = gather(x.space.log$.pipe(commitsOnly()));
+      const gatheringAtoms =
+        gather(x.space.atom$.pipe(flatMap(r => r.resolve())));
 			
       await Promise.all([
         x.run.log$.toPromise(),
@@ -212,20 +212,11 @@ describe('machines: running', () => {
       ]);
 
 			x.space.complete();
-			logs = await gatheringLogs;
-			
-      atoms = List(logs)
-			  .flatMap(([,ar]) => {
-					const a = ar.resolve();
-					return a ? [a] : [];
-				})
-				.toArray();
-
-      // console.log(inspect(atoms, { depth: 10 }));
+      atoms = await gatheringAtoms;
     })
     
     it('emits some saves', () => {
-      expect(logs.length).toBeGreaterThan(0);
+      expect(atoms.length).toBeGreaterThan(0);
 		})
 
     it('atoms start separate', () => {
@@ -248,12 +239,8 @@ describe('machines: running', () => {
       $end: [any]
       // $watch: [Id, string, Phase<Me>]
 
-      kestrel: {
-        watch: [Id]
-      }
-      stoat: {
-        runAround: [number]
-      }
+      track: [Id]
+      runAround: [number]
     }>
 
     type Birds = TBirds<TBirds>
@@ -264,29 +251,27 @@ describe('machines: running', () => {
         $boot: bootPhase(),
         $end: endPhase(),
 
-        kestrel: {
-          watch: x => ({
-            guard(d): d is [Id] { return true },
-            async run([id]) {
-              const frames = await gather(x.watch(id));
-              return ['$end', [frames]];
-            }
-          })
-        },
+        track: x => ({
+          guard(d): d is [Id] { return true },
+          async run([id]) {
+            const frames = await x.watch([id])
+              .pipe(toArray()).toPromise();
 
-        stoat: {
-          runAround: x => ({
-            guard(d): d is [number] { return true },
-            async run([n]) {
-              if(n > 0) {
-                await delay(10);
-                return ['stoat', ['runAround', [n-1]]]
-              }
+            return ['$end', [frames]];
+          }
+        }),
 
-              return false;
+        runAround: x => ({
+          guard(d): d is [number] { return true },
+          async run([n]) {
+            if(n > 0) {
+              await delay(20);
+              return ['runAround', [n-1]]
             }
-          })
-        }
+
+            return false;
+          }
+        })
       }
     })
 
@@ -300,13 +285,29 @@ describe('machines: running', () => {
 
     it('one can watch the other', async () => {
       const [logs] = await Promise.all([
-      	gather(x.run.log$.pipe(phasesOnly())),
-      	x.run.boot('Kes', ['kestrel', ['watch', ['Seb']]]),
-      	x.run.boot('Seb', ['stoat', ['runAround', [3]]])
+      	gather(x.run.log$),
+      	x.run.boot('Kes', ['track', ['Stu']]),
+      	x.run.boot('Stu', ['runAround', [3]])
       ]);
 
-      console.log(logs);
-      throw 123;
+      const [kesEnd] = List(logs)
+        .flatMap(([id, [p, d]]) =>
+          (id == 'Kes' && p == '$end') ? d : [])
+      
+      expect(kesEnd).toEqual([
+        Map({ Stu: ['runAround', [3]] }),
+        Map({ Stu: ['runAround', [2]] }),
+        Map({ Stu: ['runAround', [1]] }),
+        Map({ Stu: ['runAround', [0]] })
+      ])
+    })
+
+    it('loaded state immediately visible', () => {
+      throw 'todo'
+    })
+
+    it('tracks causality in atom tree', () => {
+      throw 'todo'
     })
 
   })
@@ -408,6 +409,12 @@ function rodents() {
             return ['$end', [d]]
           }
         }),
+        nibble: x => ({
+          guard(d): d is [] { return true },
+          async run() {
+            return false;
+          }
+        })
       },
 
       guineaPig: {
