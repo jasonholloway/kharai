@@ -97,7 +97,14 @@ function *diffAll(r1: any[], r2: any[])
     return updates;
 
     function sortById(r: any[]) {
-        return r.map((i: any) => ({ ...i, id: parseInt(i['Member ID']) }))
+        return r.map((i: any) => ({
+								...i,
+								id: (() => {
+										const id = parseInt(i['Member ID']);
+										if(typeof id !== 'number') throw Error('bad id: ' + id);
+										return id;
+								})()
+						}))
             .sort((a, b) => a.id - b.id) 
     }
 
