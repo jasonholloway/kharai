@@ -11,7 +11,7 @@ AWS.config.update({
     apiVersion: '2012-08-10',
     sslEnabled: false,
     httpOptions: {
-        proxy: 'localhost:8080'
+        // proxy: 'localhost:8080'
     }
 })
 
