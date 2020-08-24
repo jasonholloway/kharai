@@ -9,10 +9,10 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "aws-sdk": "^2.562.0",
+    "aws-sdk": "^2.653.0",
     "cheerio": "^1.0.0-rc.3",
-    "csv-parse": "^4.6.5",
-    "date-fns": "^2.8.0",
+    "csv-parse": "^4.8.8",
+    "date-fns": "^2.11.1",
     "fast-stream-to-buffer": "^1.0.0",
     "fastpriorityqueue": "^0.6.3",
     "fs-write-stream-atomic": "^1.0.10",
@@ -20,20 +20,20 @@
     "highland": "^2.13.5",
     "pify": "^4.0.1",
     "readable-stream-clone": "0.0.4",
-    "superagent": "^5.1.0",
+    "superagent": "^5.2.2",
     "superagent-proxy": "^2.0.0",
     "to-readable-stream": "^2.1.0"
   },
   "devDependencies": {
-    "@types/cheerio": "^0.22.13",
+    "@types/cheerio": "^0.22.17",
     "@types/csv-parse": "^1.2.2",
     "@types/date-fns": "^2.6.0",
     "@types/get-stream": "^3.0.2",
-    "@types/highland": "^2.12.4",
-    "@types/node": "^12.12.5",
+    "@types/highland": "^2.12.9",
+    "@types/node": "^12.12.34",
     "@types/pify": "^3.0.2",
-    "@types/superagent": "^4.1.4",
-    "ts-node": "^8.4.1",
-    "typescript": "^3.6.4"
+    "@types/superagent": "^4.1.7",
+    "ts-node": "^8.8.1",
+    "typescript": "^3.8.3"
   }
 }
