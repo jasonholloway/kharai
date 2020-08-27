@@ -1,11 +1,11 @@
-import { List, Map } from 'immutable'
+import { List, Map, Set } from 'immutable'
 import _Monoid from '../src/_Monoid'
 import Store from '../src/Store'
 import AtomSpace from '../src/AtomSpace'
 import AtomSaver from '../src/AtomSaver'
 import { Id, Data, SpecWorld, makeWorld, World, MachineContext, Phase, PhaseMap, WorldImpl, PhaseImpl } from '../src/lib'
 import { OperatorFunction } from 'rxjs'
-import { flatMap, tap, toArray, take } from 'rxjs/operators'
+import { flatMap, tap, toArray, take, mergeMap } from 'rxjs/operators'
 import { buildDispatch } from '../src/dispatch'
 import { delay } from '../src/util'
 import { AtomRef, Atom } from '../src/atoms'
@@ -345,8 +345,39 @@ describe('machines: running', () => {
       ])
     })
 
-    it('tracks causality in atom tree', () => {
-      throw 'todo'
+    it('tracks causality in atom tree', async () => {
+      x = fac();
+
+      var gathering = gather(x.space.atom$.pipe(mergeMap(a => a.resolve())));
+      
+      await Promise.all([
+      	gather(x.run.log$),
+      	x.run.boot('Gordon', ['runAround', [1]]),
+      	x.run.boot('Ed', ['track', [['Gordon'], 1]]),
+      ]);
+
+      x.space.complete();
+      var atoms = await gathering;
+
+      var edsAtoms = atoms.filter(a => !!a.val.get('Ed'));
+      var gordsAtoms = atoms.filter(a => !!a.val.get('Gordon'));
+
+      expect(gordsAtoms[0].parents.flatMap(r => r.resolve()))
+        .toEqual(Set())
+
+      expect(edsAtoms[0].parents.flatMap(r => r.resolve()))
+        .toEqual(Set())
+
+      expect([...gordsAtoms[1].parents.flatMap(r => r.resolve()).map(a => a.val)])
+        .toEqual([
+          gordsAtoms[0].val
+        ])
+
+      expect([...edsAtoms[1].parents.flatMap(r => r.resolve()).map(a => a.val)])
+        .toEqual([
+          edsAtoms[0].val,
+          gordsAtoms[0].val
+        ])
     })
 
   })
