@@ -2,14 +2,14 @@ import { Id, Data, WorldImpl, PhaseMap, Phase, MachineContext } from './lib'
 import { Head } from './AtomSpace'
 import { Mediator, Convener, Attendee, Peer } from './Mediator'
 import { Observable, Subject, from, merge, ReplaySubject } from 'rxjs'
-import { flatMap, skipWhile, startWith, mergeAll, endWith, scan, takeWhile, finalize, publish, toArray, map, mergeMap, tap } from 'rxjs/operators'
+import { flatMap, skipWhile, startWith, mergeAll, endWith, scan, takeWhile, finalize, publish, toArray, map, mergeMap, tap, combineAll } from 'rxjs/operators'
 import Commit, { AtomEmit } from './Committer'
-import { Map, Set } from 'immutable'
+import { Map, Set, mergeWith } from 'immutable'
 import { Dispatch } from './dispatch'
 import { isArray } from 'util'
 import MonoidData from './MonoidData'
-import { gather } from '../test/helpers' //!!!!!!!!!!!!!!!!!!!!!!!!!!!!11
 import { AtomRef } from './atoms'
+import { compileFunction } from 'vm'
 
 export type Emit<P = any> =
 		readonly [Id, P] | AtomEmit<Data>
@@ -151,9 +151,11 @@ export class MachineSpace<W extends PhaseMap = {}, X extends MachineContext = Ma
   private asSpace(): ISpace {
     const _this = this;
     return {
-      watch(ids: Id[]): Observable<AtomRef<Data>> {
+      watch(ids: Id[]): Observable<Emit> {
         return _this.summon(Set(ids))
-          .pipe(mergeMap(m => m.atom$));
+          .pipe(
+            mergeMap(m => m.log$),
+          );
       },
 
       async attach<R>(me: any, attend: Attendee<R>): Promise<false|[R]> {
@@ -170,7 +172,7 @@ export class MachineSpace<W extends PhaseMap = {}, X extends MachineContext = Ma
 }
 
 interface ISpace {
-  watch(ids: Id[]): Observable<AtomRef<Data>>
+  watch(ids: Id[]): Observable<Emit>
   attach<R>(me: any, attend: Attendee<R>): Promise<false|[R]>
   convene<R>(ids: Id[], convene: Convener<R>): Promise<R>
 }
@@ -241,12 +243,8 @@ export class Machine<X, P> implements IMachine<P> {
     const space = this.space;;
 
     return this.modContext({
-      watch(ids: Id[]): Observable<any> {
-        return space.watch(ids) //still of course need to fold in these atoms
-            .pipe(
-              flatMap(r => r.resolve()), 
-              map(a => a.val)
-            );
+      watch(ids: Id[]): Observable<Emit> {
+        return space.watch(ids);
       },
       attach<R>(attend: Attendee<R>) {
         return space.attach(me, {

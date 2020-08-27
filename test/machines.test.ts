@@ -5,7 +5,7 @@ import AtomSpace from '../src/AtomSpace'
 import AtomSaver from '../src/AtomSaver'
 import { Id, Data, SpecWorld, makeWorld, World, MachineContext, Phase, PhaseMap, WorldImpl, PhaseImpl } from '../src/lib'
 import { OperatorFunction } from 'rxjs'
-import { flatMap, tap, toArray } from 'rxjs/operators'
+import { flatMap, tap, toArray, take } from 'rxjs/operators'
 import { buildDispatch } from '../src/dispatch'
 import { delay } from '../src/util'
 import { AtomRef, Atom } from '../src/atoms'
@@ -58,12 +58,14 @@ const watchPhase = <W extends World>(): PhaseImpl<W, MachineContext, [Id, string
 
 
 function scenario<W extends PhaseMap, X>(world: WorldImpl<W, X>) {
-  return () => {
+  return (phases?: Map<Id, Phase<W>>) => {
     const atoms = new AtomSpace<Data>();
 
     const loader: MachineLoader<Phase<W>> = async ([id]) => {
-      return Map({ [isArray(id) ? id[0] : id]: [atoms.spawnHead()] });
-    }
+      return Map({
+        [isArray(id) ? id[0] : id]: [atoms.spawnHead(), phases?.get(id)]
+      });
+    };
 
     const dispatch = buildDispatch(world.phases);
     const space = new MachineSpace(world, loader, dispatch, ['$boot', []])
@@ -200,7 +202,7 @@ describe('machines: running', () => {
     let x: ReturnType<typeof fac>
     let atoms: Atom<Data>[]
 
-    beforeEach(async () => {
+    beforeAll(async () => {
       x = fac();
       const gatheringAtoms =
         gather(x.space.atom$.pipe(flatMap(r => r.resolve())));
@@ -239,7 +241,7 @@ describe('machines: running', () => {
       $end: [any]
       // $watch: [Id, string, Phase<Me>]
 
-      track: [Id]
+      track: [Id[], number]
       runAround: [number]
     }>
 
@@ -252,10 +254,11 @@ describe('machines: running', () => {
         $end: endPhase(),
 
         track: x => ({
-          guard(d): d is [Id] { return true },
-          async run([id]) {
-            const frames = await x.watch([id])
-              .pipe(toArray()).toPromise();
+          guard(d): d is [Id[], number] { return true },
+          async run([ids, c]) {
+            const frames = await x.watch(ids)
+              .pipe(take(c), toArray())
+              .toPromise();
 
             return ['$end', [frames]];
           }
@@ -278,15 +281,13 @@ describe('machines: running', () => {
 
     const fac = scenario(birds);
     let x: ReturnType<typeof fac>
-    
-    beforeEach(() => {
-      x = fac();
-    })
 
     it('one can watch the other', async () => {
+      x = fac();
+      
       const [logs] = await Promise.all([
       	gather(x.run.log$),
-      	x.run.boot('Kes', ['track', ['Stu']]),
+      	x.run.boot('Kes', ['track', [['Stu'], 100]]),
       	x.run.boot('Stu', ['runAround', [3]])
       ]);
 
@@ -295,15 +296,53 @@ describe('machines: running', () => {
           (id == 'Kes' && p == '$end') ? d : [])
       
       expect(kesEnd).toEqual([
-        Map({ Stu: ['runAround', [3]] }),
-        Map({ Stu: ['runAround', [2]] }),
-        Map({ Stu: ['runAround', [1]] }),
-        Map({ Stu: ['runAround', [0]] })
+        ['Stu', ['runAround', [3]]],
+        ['Stu', ['runAround', [2]]],
+        ['Stu', ['runAround', [1]]],
+        ['Stu', ['runAround', [0]]]
       ])
     })
 
-    it('loaded state immediately visible', () => {
-      throw 'todo'
+    it('loaded state immediately visible; implies dispatch', async () => {
+      x = fac(Map({
+        Gwen: ['runAround', [13]]
+      }));
+
+      const [logs] = await Promise.all([
+      	gather(x.run.log$),
+      	x.run.boot('Gareth', ['track', [['Gwen'], 2]]),
+      ]);
+
+      const [seen] = List(logs)
+        .flatMap(([id, [p, d]]) =>
+          (id == 'Gareth' && p == '$end') ? d : [])
+      
+      expect(seen).toEqual([
+        ['Gwen', ['runAround', [13]]],
+        ['Gwen', ['runAround', [12]]]
+      ])
+    })
+
+    it('can watch several at once', async () => {
+      x = fac();
+      
+      const [logs] = await Promise.all([
+      	gather(x.run.log$),
+      	x.run.boot('Kes', ['track', [['Biff', 'Kipper'], 4]]),
+      	x.run.boot('Biff', ['runAround', [11]]),
+      	x.run.boot('Kipper', ['runAround', [22]])
+      ]);
+
+      const [kesEnd] = List(logs)
+        .flatMap(([id, [p, d]]) =>
+          (id == 'Kes' && p == '$end') ? d : [])
+      
+      expect(kesEnd).toEqual([
+        ['Biff', ['runAround', [11]]],
+        ['Kipper', ['runAround', [22]]],
+        ['Biff', ['runAround', [10]]],
+        ['Kipper', ['runAround', [21]]]
+      ])
     })
 
     it('tracks causality in atom tree', () => {
