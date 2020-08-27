@@ -238,7 +238,7 @@ describe('machines: running', () => {
   describe('watching', () => {
     type TBirds<Me extends World = World> = SpecWorld<{
       $boot: []
-      $end: [any]
+      $end: [Data[]]
       // $watch: [Id, string, Phase<Me>]
 
       track: [Id[], number]
@@ -291,15 +291,17 @@ describe('machines: running', () => {
       	x.run.boot('Stu', ['runAround', [3]])
       ]);
 
-      const [kesEnd] = List(logs)
-        .flatMap(([id, [p, d]]) =>
-          (id == 'Kes' && p == '$end') ? d : [])
+      const seen = List(logs)
+        .flatMap(([id, [p, [d]]]) =>
+          (id == 'Kes' && p == '$end') ? <Data[]>d : [])
+        .map(m => m.toObject())
+        .toArray()
       
-      expect(kesEnd).toEqual([
-        ['Stu', ['runAround', [3]]],
-        ['Stu', ['runAround', [2]]],
-        ['Stu', ['runAround', [1]]],
-        ['Stu', ['runAround', [0]]]
+      expect(seen).toEqual([
+        { Stu: ['runAround', [3]] },
+        { Stu: ['runAround', [2]] },
+        { Stu: ['runAround', [1]] },
+        { Stu: ['runAround', [0]] }
       ])
     })
 
@@ -313,13 +315,15 @@ describe('machines: running', () => {
       	x.run.boot('Gareth', ['track', [['Gwen'], 2]]),
       ]);
 
-      const [seen] = List(logs)
-        .flatMap(([id, [p, d]]) =>
-          (id == 'Gareth' && p == '$end') ? d : [])
+      const seen = List(logs)
+        .flatMap(([id, [p, [d]]]) =>
+          (id == 'Gareth' && p == '$end') ? <Data[]>d : [])
+        .map(m => m.toObject())
+        .toArray()
       
       expect(seen).toEqual([
-        ['Gwen', ['runAround', [13]]],
-        ['Gwen', ['runAround', [12]]]
+        { Gwen: ['runAround', [13]] },
+        { Gwen: ['runAround', [12]] }
       ])
     })
 
@@ -333,15 +337,17 @@ describe('machines: running', () => {
       	x.run.boot('Kipper', ['runAround', [22]])
       ]);
 
-      const [kesEnd] = List(logs)
-        .flatMap(([id, [p, d]]) =>
-          (id == 'Kes' && p == '$end') ? d : [])
+      const seen = List(logs)
+        .flatMap(([id, [p, [d]]]) =>
+          (id == 'Kes' && p == '$end') ? <Data[]>d : [])
+        .map(m => m.toObject())
+        .toArray()
       
-      expect(kesEnd).toEqual([
-        ['Biff', ['runAround', [11]]],
-        ['Kipper', ['runAround', [22]]],
-        ['Biff', ['runAround', [10]]],
-        ['Kipper', ['runAround', [21]]]
+      expect(seen).toEqual([
+        { Biff: ['runAround', [11]] },
+        { Kipper: ['runAround', [22]] },
+        { Biff: ['runAround', [10]] },
+        { Kipper: ['runAround', [21]] }
       ])
     })
 
@@ -352,28 +358,27 @@ describe('machines: running', () => {
       
       await Promise.all([
       	gather(x.run.log$),
-      	x.run.boot('Gordon', ['runAround', [1]]),
-      	x.run.boot('Ed', ['track', [['Gordon'], 1]]),
+      	x.run.boot('Gord', ['runAround', [1]]),
+      	x.run.boot('Ed', ['track', [['Gord'], 1]]),
       ]);
 
       x.space.complete();
       var atoms = await gathering;
+      var edsAtoms = atoms.filter(a => a.val.has('Ed'));
+      var gordsAtoms = atoms.filter(a => a.val.has('Gord'));
 
-      var edsAtoms = atoms.filter(a => !!a.val.get('Ed'));
-      var gordsAtoms = atoms.filter(a => !!a.val.get('Gordon'));
+      expect(gordsAtoms[0].parents.flatMap(r => r.resolve()).toArray())
+        .toEqual([])
 
-      expect(gordsAtoms[0].parents.flatMap(r => r.resolve()))
-        .toEqual(Set())
+      expect(edsAtoms[0].parents.flatMap(r => r.resolve()).toArray())
+        .toEqual([])
 
-      expect(edsAtoms[0].parents.flatMap(r => r.resolve()))
-        .toEqual(Set())
-
-      expect([...gordsAtoms[1].parents.flatMap(r => r.resolve()).map(a => a.val)])
+      expect(gordsAtoms[1].parents.flatMap(r => r.resolve()).map(a => a.val).toArray())
         .toEqual([
           gordsAtoms[0].val
         ])
 
-      expect([...edsAtoms[1].parents.flatMap(r => r.resolve()).map(a => a.val)])
+      expect(edsAtoms[1].parents.flatMap(r => r.resolve()).map(a => a.val).toArray())
         .toEqual([
           edsAtoms[0].val,
           gordsAtoms[0].val
@@ -409,6 +414,14 @@ describe('machines: running', () => {
 		}
 	})
 })
+
+
+describe('machines: conversations', () => {
+  it('atom dependencies tracked', async () => {
+    throw 'todo!'
+  })
+})
+
 
 describe('machines: loading and saving', () => {
   let atomSpace: AtomSpace<Data>

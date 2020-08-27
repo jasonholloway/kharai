@@ -8,8 +8,7 @@ import { Map, Set, mergeWith } from 'immutable'
 import { Dispatch } from './dispatch'
 import { isArray } from 'util'
 import MonoidData from './MonoidData'
-import { AtomRef } from './atoms'
-import { compileFunction } from 'vm'
+import { AtomRef, Atom } from './atoms'
 
 export type Emit<P = any> =
 		readonly [Id, P] | AtomEmit<Data>
@@ -151,10 +150,10 @@ export class MachineSpace<W extends PhaseMap = {}, X extends MachineContext = Ma
   private asSpace(): ISpace {
     const _this = this;
     return {
-      watch(ids: Id[]): Observable<Emit> {
+      watch(ids: Id[]): Observable<AtomRef<Data>> {
         return _this.summon(Set(ids))
           .pipe(
-            mergeMap(m => m.log$),
+            mergeMap(m => m.atom$)
           );
       },
 
@@ -172,7 +171,7 @@ export class MachineSpace<W extends PhaseMap = {}, X extends MachineContext = Ma
 }
 
 interface ISpace {
-  watch(ids: Id[]): Observable<Emit>
+  watch(ids: Id[]): Observable<AtomRef<Data>>
   attach<R>(me: any, attend: Attendee<R>): Promise<false|[R]>
   convene<R>(ids: Id[], convene: Convener<R>): Promise<R>
 }
@@ -211,6 +210,14 @@ export class Machine<X, P> implements IMachine<P> {
     const dispatch = this.dispatch.bind(this);
     const buildContext = this.buildContext.bind(this);
 
+    //HACK !!!!!!!!!!!!!!!!!!!!!!!!!!
+    atom$.next(new AtomRef<Data>(new Atom<Data>(Set(), Map({ [id]: phase }))));
+    //HACKYHACKYHACK
+
+    //in fact above is DANGEROUS!!!!
+    //watchers may build on it... thus overwriting the very real tree
+    //!!!!!!!!!!!!!!!!!!!!!!!!!
+
     setImmediate(() => (async () => {     
         while(true) {
           log$.next([id, phase]);
@@ -243,8 +250,11 @@ export class Machine<X, P> implements IMachine<P> {
     const space = this.space;;
 
     return this.modContext({
-      watch(ids: Id[]): Observable<Emit> {
-        return space.watch(ids);
+      watch(ids: Id[]): Observable<Data> {
+        return space.watch(ids).pipe(
+          mergeMap(r => r.resolve()), //in resolving, we should also capture the atomRefs here
+          map(a => a.val) //and what if there is no val?
+        );
       },
       attach<R>(attend: Attendee<R>) {
         return space.attach(me, {
