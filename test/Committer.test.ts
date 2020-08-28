@@ -21,11 +21,11 @@ describe('committable', () => {
 	})
 
 	it('commits singly', async () => {
-		const head = space.head();
+		let head = space.head();
 		const commit = newCommit(head);
 		expect(atoms(head.refs())).toEqual([]);
 
-		await commit.complete(3);
+		[head] = await commit.complete(3);
 
 		const [atom] = atoms(head.refs());
 		expect(atom?.val).toEqual(3)
@@ -42,7 +42,7 @@ describe('committable', () => {
 		const c3 = newCommit(h3);
 
 		Commit.combine(new MonoidNumber(), [c1, c2, c3]);
-
+		
 		const committing1 = c1.complete(3);
 		await delay(15);
 		expect(atoms(h1.refs())).toEqual([]);
@@ -52,10 +52,12 @@ describe('committable', () => {
 		expect(atoms(h1.refs())).toEqual([]);
 		expect(atoms(h2.refs())).toEqual([]);
 
-		await Promise.all([c3.complete(7), committing1, committing2]);
-		expect(atoms(h1.refs())[0]?.val).toEqual(15);
-		expect(atoms(h2.refs())[0]?.val).toEqual(15);
-		expect(atoms(h3.refs())[0]?.val).toEqual(15);
+		const [[h12], [h22], [h32]] = await Promise
+			.all([c3.complete(7), committing1, committing2]);
+
+		expect(atoms(h12.refs())[0]?.val).toEqual(15);
+		expect(atoms(h22.refs())[0]?.val).toEqual(15);
+		expect(atoms(h32.refs())[0]?.val).toEqual(15);
 	})
 
 	it('completes after all commit', async () => {
@@ -123,22 +125,28 @@ describe('committable', () => {
 	})
 
 	it('heads accept extra upstreams', async () => {
-		const h1 = space.head();
+		let h1 = space.head();
 		const c1 = newCommit(h1);
 
 		const u1 = new AtomRef(new Atom(Set(), 3));
 		const u2 = new AtomRef(new Atom(Set(), 4));
 
+		//need way of updating commit with new head... !!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TODO
 		const h2 = h1.addUpstreams(Set([u1, u2]));
 
-		await c1.complete(1);
+		const [h3, a3] = await c1.complete(13);
 
-		expect(h2.refs()
-			.flatMap(r => r.resolve())
-			.first(undefined)?.val
-			).toEqual(3); //should be checking parentage of otput atom
+		expect(atoms(Set([a3]))[0].val)
+			.toEqual(13);
 
-		throw 'todo!!!'
+		expect(atoms(h3.refs())[0].val)
+			.toEqual(13);
+
+		const parents = Set(atoms(h3.refs()))
+			.flatMap(r => r.parents);
+
+		expect(atoms(parents)).toContain(u1);
+		expect(atoms(parents)).toContain(u2);
 	})
 })
 

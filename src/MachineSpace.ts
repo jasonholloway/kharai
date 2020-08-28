@@ -227,7 +227,8 @@ export class Machine<X, P> implements IMachine<P> {
           const out = await dispatch(context)(phase);
 
           if(out) {
-            const atom = await committer.complete(Map({ [id]: out }));
+            let atom: AtomRef<Data>;
+            [head, atom] = await committer.complete(Map({ [id]: out }));
             atom$.next(atom);
             phase = out;
           }
@@ -258,7 +259,12 @@ export class Machine<X, P> implements IMachine<P> {
         //seemingly via Commit.combine...
 
         //so here we're not dealing in atoms, but in commits that wrap atoms
-        //
+        //but there's no transaction on a watch, just a data dependency
+
+        //so there's not really a commit todeal with then
+        //well, there is - it's just not shared between peers
+
+        //where does this commit come from,preloaded with dependency?
         
         return space.watch(ids).pipe(
           mergeMap(r => r.resolve()), //in resolving, we should also capture the atomRefs here

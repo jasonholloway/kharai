@@ -44,6 +44,10 @@ export class Head<V> {
 		this._refs = refs;
 	}
 
+	move(ref: AtomRef<V>) {
+		return new Head(this._space, Set([ref]))
+	}
+
 	write(val: V): Head<V> {
 		const atom = new Atom(this._refs, val);
 		const ref = new AtomRef(atom);
