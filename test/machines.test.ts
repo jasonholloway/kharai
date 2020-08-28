@@ -243,6 +243,7 @@ describe('machines: running', () => {
 
       track: [Id[], number]
       runAround: [number]
+      sleep: [number]
     }>
 
     type Birds = TBirds<TBirds>
@@ -273,6 +274,14 @@ describe('machines: running', () => {
             }
 
             return false;
+          }
+        }),
+
+        sleep: x => ({
+          guard(d): d is [number] { return true },
+          async run([timeout]) {
+            await delay(timeout);
+            return ['$end', [[]]]
           }
         })
       }
@@ -386,7 +395,20 @@ describe('machines: running', () => {
     })
 
     it('past atoms of target aren\'t seen', async () => {
-      throw 'todo!!!'
+      x = fac();
+      
+      x.run.boot('Gord', ['runAround', [3]]);
+      x.run.boot('Snoozy', ['sleep', [200]]);  // keeps run alive
+      await delay(100);
+
+      const [logs] = await Promise.all([
+        gather(x.run.log$),
+      	x.run.boot('Ed', ['track', [['Gord'], 1]]),
+      ]);
+
+      expect(logs[2]).toEqual(
+        ['Ed', ['$end', [[ Map({ Gord: ['runAround', [0]] }) ]] ]]
+      );
     })
 
   })

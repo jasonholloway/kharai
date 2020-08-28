@@ -55,19 +55,17 @@ export class Head<V> {
 	}
 
 	addUpstreams(refs: Set<AtomRef<V>>): Head<V> {
-		return new Head(this._space, this._refs.union(refs));
+		//for efficiency: simply superceded atoms eagerly purged
+		//imperfect, but catches common case
+		const newRefs = this._refs
+			.subtract(refs.flatMap(r => r.resolve()).flatMap(a => a.parents))
+			.union(refs);
+
+		return new Head(this._space, newRefs);
 	}
 
 	refs() {
 		return this._refs;
 	}
-
-	// static conjoin<V>(heads: Head<V>[], val: V) {
-	// 	const refs = new AtomRef(new Atom(Set(heads).flatMap(h => h._refs), val));
-	// 	for(const head of heads) {
-	// 		head._refs = refs;
-	// 	}
-	// 	return refs;
-	// }
 }
 

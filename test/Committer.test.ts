@@ -125,13 +125,13 @@ describe('committable', () => {
 	})
 
 	it('accepts extra upstreams', async () => {
-		let h1 = space.head();
+		const h1 = space.head();
 		const c1 = newCommit(h1);
 
-		const u1 = new AtomRef(new Atom(Set(), 3));
-		const u2 = new AtomRef(new Atom(Set(), 4));
+		const u1 = new Atom(Set(), 3);
+		const u2 = new Atom(Set(), 4);
 
-		c1.add(Set([u1, u2]));
+		c1.add(Set([new AtomRef(u1), new AtomRef(u2)]));
 
 		const [h2, a2] = await c1.complete(13);
 
@@ -146,6 +146,31 @@ describe('committable', () => {
 
 		expect(atoms(parents)).toContain(u1);
 		expect(atoms(parents)).toContain(u2);
+	})
+
+	it('upstreams are simplified on addition', async () => {
+		const h1 = space.head().write(0);
+		const c1 = newCommit(h1);
+
+		const h21 = space.head().write(1);
+		c1.add(h21.refs());
+
+		const h22 = h21.write(2);
+		c1.add(h22.refs());
+
+		const h23 = h22.write(3);
+		c1.add(h23.refs());
+
+		const [h3] = await c1.complete(9);
+
+		const upstreams1 = atoms(h3.refs());
+		expect(upstreams1).toHaveLength(1);
+		expect(upstreams1.map(a => a.val)).toContain(9);
+
+		const upstreams2 = atoms(Set(upstreams1).flatMap(r => r.parents))
+		expect(upstreams2).toHaveLength(2);
+		expect(upstreams2.map(a => a.val)).toContain(0);
+		expect(upstreams2.map(a => a.val)).toContain(3);
 	})
 })
 
