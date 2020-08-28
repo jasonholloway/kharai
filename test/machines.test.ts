@@ -63,7 +63,7 @@ function scenario<W extends PhaseMap, X>(world: WorldImpl<W, X>) {
 
     const loader: MachineLoader<Phase<W>> = async ([id]) => {
       return Map({
-        [isArray(id) ? id[0] : id]: [atoms.spawnHead(), phases?.get(id)]
+        [isArray(id) ? id[0] : id]: [atoms.head(), phases?.get(id)]
       });
     };
 
@@ -383,6 +383,10 @@ describe('machines: running', () => {
           edsAtoms[0].val,
           gordsAtoms[0].val
         ])
+    })
+
+    it('past atoms of target aren\'t seen', async () => {
+      throw 'todo!!!'
     })
 
   })

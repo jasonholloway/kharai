@@ -6,6 +6,8 @@ import { Atom, AtomRef } from '../src/atoms'
 import AtomSpace from '../src/AtomSpace'
 import AtomSaver from '../src/AtomSaver'
 
+const getAtoms = <V>(rs: Set<AtomRef<V>>) => rs.flatMap(r => r.resolve())
+
 describe('atoms and stuff', () => {
 
 	let store: FakeStore
@@ -19,47 +21,45 @@ describe('atoms and stuff', () => {
 	})
 
 	it('pristine head has no atom', () => {
-		const head = space.spawnHead();
-		expect(head.ref().resolve()).toEqual([]);
+		const head = space.head();
+		expect(head.refs().toArray()).toEqual([]);
 	})
 
-	it('committing creates atom', () => {
-		const head = space.spawnHead()
-		head.commit('1');
+	it('writing creates atom', () => {
+		const head = space.head()
+		  .write('1');
 		
-		const [atom] = head.ref().resolve();
+		const [atom] = getAtoms(head.refs())
 		expect(atom).not.toBeUndefined();
 		expect(atom?.val).toBe('1');
-		expect(atom?.parents.size).toBe(1);
-		expect(atom?.parents.first(undefined)?.resolve()).toEqual([]);
+		expect(getAtoms(atom?.parents).toArray()).toEqual([]);
 	})
 
-	it('committing several times appends many atoms', async () => {
-		const head = space.spawnHead();
-		head.commit('1');
-		head.commit('2');
-		head.commit('3');
+	it('writing several times appends many atoms', async () => {
+		const head = space.head()
+		  .write('1')
+			.write('2')
+			.write('3');
 
-		const [atom3] = head.ref().resolve();
+		const [atom3] = getAtoms(head.refs());
 		expect(atom3?.val).toBe('3');
 
-		const [atom2] = atom3?.parents.first(undefined)?.resolve() || [];
+		const [atom2] = getAtoms(atom3.parents);
 		expect(atom2?.val).toBe('2');
 		
-		const [atom1] = atom2?.parents.first(undefined)?.resolve() || [];
+		const [atom1] = getAtoms(atom2.parents);
 		expect(atom1?.val).toBe('1');
 
-		expect(atom1?.parents.size).toBe(1);
-		expect(atom1?.parents.first(undefined)?.resolve()).toEqual([]);
+		expect(getAtoms(atom1?.parents).toArray()).toEqual([]);
 	})
 
 	it('like-for-like rewrite', async () => {
-		const head = space.spawnHead();
-		head.commit('1');
-		head.commit('2');
-		head.commit('3');
+		const head = space.head()
+		  .write('1')
+			.write('2')
+			.write('3');
 
-		const path = await space.lockTips(head.ref());
+		const path = await space.lockTips(...head.refs());
 		expect(path.maxDepth()).toBe(3)
 
 		const before = path.path().render()
@@ -74,16 +74,16 @@ describe('atoms and stuff', () => {
 	})
 
 	it('two heads rewrite', async () => {
-		const head1 = space.spawnHead();
-		
-		head1.commit('1:1');
+		const head11 = space.head()
+			.write('1:1');
 
-		const head2 = head1.spawnHead();
-		
-		head1.commit('1:2');
-		head2.commit('2:1');
+		const head21 = head11
+			.write('2:1');
 
-		const path1 = await space.lockTips(head1.ref());
+		const head12 = head11
+		  .write('1:2');
+
+		const path1 = await space.lockTips(...head12.refs());
 		expect(path1.maxDepth()).toBe(2)
 
 		const before = path1.path().render()
@@ -98,7 +98,7 @@ describe('atoms and stuff', () => {
 		const after1 = path1.path().render()
 		expect(after1).toEqual(before)
 
-		const path2 = await space.lockTips(head2.ref());
+		const path2 = await space.lockTips(...head21.refs());
 		const after2 = path2.path().render();
 	})
 
@@ -155,18 +155,19 @@ describe('atoms and stuff', () => {
 	})
 	
 	it('locking', async () => {
-		const head1 = space.spawnHead();
-		head1.commit('1:1');
+		const head11 = space.head()
+			.write('1:1');
 
-		const head2 = head1.spawnHead();
-		head2.commit('2:1');
+		const head2 = head11
+			.write('2:1');
 
-		head1.commit('1:2');
+		const head12 = head11
+			.write('1:2');
 
-		const path1 = await space.lockTips(head1.ref());
+		const path1 = await space.lockTips(...head12.refs());
 
 		let locked2 = false;
-		space.lockTips(head2.ref()).then(() => locked2 = true);
+		space.lockTips(...head2.refs()).then(() => locked2 = true);
 
 		await delay(100);
 		expect(locked2).toBeFalsy();
@@ -177,18 +178,19 @@ describe('atoms and stuff', () => {
 	})
 
 	it('path -> patch -> path lock', async () => {
-		const head1 = space.spawnHead();
-		head1.commit('1:1');
+		const head11 = space.head()
+			.write('1:1');
 
-		const head2 = head1.spawnHead();
-		head2.commit('2:1');
+		const head2 = head11
+			.write('2:1');
 
-		head1.commit('1:2');
+		const head12 = head11
+			.write('1:2');
 
-		const path = await space.lockTips(head1.ref());
+		const path = await space.lockTips(...head12.refs());
 
 		let head2Activated = false;
-		space.lockTips(head2.ref()).then(() => head2Activated = true);
+		space.lockTips(...head2.refs()).then(() => head2Activated = true);
 
 		await delay(50);
 		expect(head2Activated).toBeFalsy();
@@ -207,10 +209,10 @@ describe('atoms and stuff', () => {
 	})
 
 	it('saving simple combination', async () => {
-		const head = space.spawnHead();
-		head.commit('1');
-		head.commit('2');
-		head.commit('3');
+		const head = space.head()
+			.write('1')
+			.write('2')
+			.write('3');
 
 		await saver.save(store, Set([head]));
 
@@ -218,12 +220,12 @@ describe('atoms and stuff', () => {
 	});
 
 	it('saving in multiple transactions', async () => {
-		const head = space.spawnHead();
-		head.commit('1');
-		head.commit('2');
-		head.commit('3');
-		head.commit('4');
-		head.commit('5');
+		const head = space.head()
+			.write('1')
+			.write('2')
+			.write('3')
+			.write('4')
+			.write('5');
 
 		await saver.save(store, Set([head]));
 
@@ -231,12 +233,13 @@ describe('atoms and stuff', () => {
 	});
 
 	it('locking tips gets latest roots', async () => {
-		const head = space.spawnHead();
-		head.commit('0');
-		const ref = head.ref();
+		const head = space.head()
+			.write('0');
 
-		const locking1 = space.lockTips(ref);
-		const locking2 = space.lockTips(ref);
+		const refs = head.refs();
+
+		const locking1 = space.lockTips(...refs);
+		const locking2 = space.lockTips(...refs);
 
 		const path1 = await locking1;
 
@@ -249,7 +252,7 @@ describe('atoms and stuff', () => {
 		await delay(50);
 
 		let locked3 = false;
-		const locking3 = space.lockTips(ref);
+		const locking3 = space.lockTips(...refs);
 		locking3.then(() => locked3 = true);
 
 		await delay(50);

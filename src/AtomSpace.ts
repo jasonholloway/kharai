@@ -5,15 +5,13 @@ import AtomPath from './AtomPath'
 
 export default class AtomSpace<V> {
 	private _locks: Locks = new Locks();
-	private _heads: Set<Head<V>> = Set();
 
 	lock<V>(atoms: Set<Atom<V>>): Promise<Lock> {
 		return this._locks.lock(...atoms);
 	}
 
-	spawnHead(ref?: AtomRef<V>): Head<V> {
-		const head = new Head(this, ref || new AtomRef());
-		this._heads = this._heads.add(head);
+	head(ref?: AtomRef<V>): Head<V> {
+		const head = new Head(this, Set(ref ? [ref] : []));
 		return head;
 	}
 
@@ -36,33 +34,36 @@ export default class AtomSpace<V> {
 	}
 }
 
+
 export class Head<V> {
-	private _space: AtomSpace<V>
-	private _ref: AtomRef<V>
+	private readonly _space: AtomSpace<V>
+	private readonly _refs: Set<AtomRef<V>>
 
-	constructor(space: AtomSpace<V>, ref: AtomRef<V>) {
+	constructor(space: AtomSpace<V>, refs: Set<AtomRef<V>>) {
 		this._space = space;
-		this._ref = ref;
+		this._refs = refs;
 	}
 
-	commit(val: V) {
-		this._ref = new AtomRef(new Atom(Set([this._ref]), val));
+	write(val: V): Head<V> {
+		const atom = new Atom(this._refs, val);
+		const ref = new AtomRef(atom);
+		return new Head(this._space, Set([ref]));
 	}
 
-	spawnHead(): Head<V> {
-		return this._space.spawnHead(this._ref);
+	addUpstreams(refs: Set<AtomRef<V>>): Head<V> {
+		return new Head(this._space, this._refs.union(refs));
 	}
 
-	ref() {
-		return this._ref;
+	refs() {
+		return this._refs;
 	}
 
-	static conjoin<V>(heads: Head<V>[], val: V) {
-		const ref = new AtomRef(new Atom(Set(heads).map(h => h._ref), val));
-		for(const head of heads) {
-			head._ref = ref;
-		}
-		return ref;
-	}
+	// static conjoin<V>(heads: Head<V>[], val: V) {
+	// 	const refs = new AtomRef(new Atom(Set(heads).flatMap(h => h._refs), val));
+	// 	for(const head of heads) {
+	// 		head._refs = refs;
+	// 	}
+	// 	return refs;
+	// }
 }
 

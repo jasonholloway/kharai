@@ -1,6 +1,6 @@
 import _Monoid from './_Monoid'
 import { Head } from'./AtomSpace'
-import { AtomRef } from '../src/atoms'
+import { AtomRef } from './atoms'
 import { Set } from 'immutable'
 import { Observer } from 'rxjs/internal/types'
 
@@ -25,7 +25,6 @@ export default class Commit<V> {
 	}
 }
 
-
 class Inner<V> {
 	private readonly mv: _Monoid<V>
 	readonly heads: Set<Head<V>>
@@ -34,21 +33,25 @@ class Inner<V> {
 	private done = false;
 
 	value: V
-	refs: Set<Commit<V>>
+	todo: Set<Commit<V>>
 	
-	constructor(mv: _Monoid<V>, heads: Set<Head<V>>, sinks: Set<Observer<AtomRef<V>>>, refs: Set<Commit<V>>) {
+	constructor(mv: _Monoid<V>, heads: Set<Head<V>>, sinks: Set<Observer<AtomRef<V>>>, todo: Set<Commit<V>>) {
 		this.mv = mv;
 		this.heads = heads;
 		this.sinks = sinks;
 		this.value = mv.zero;
-		this.refs = refs;
+		this.todo = todo;
 	}
 
+	//
+	// below must now return updated *head* to caller (note - singular head!!!!)
+	//
+	
 	complete(commit: Commit<V>, v: V): Promise<AtomRef<V>> {
 		this.value = this.mv.add(this.value, v);
 
-		this.refs = this.refs.delete(commit);
-		if(this.refs.isEmpty()) {			
+		this.todo = this.todo.delete(commit);
+		if(this.todo.isEmpty()) {			
 			const ref = Head.conjoin([...this.heads], this.value);
 			this.sinks.forEach(s => s.next(ref));
 
@@ -80,7 +83,7 @@ class MonoidInner<V> implements _Monoid<Inner<V>> {
 			this.mv,
 			a.heads.merge(b.heads),
 			a.sinks.merge(b.sinks),
-			a.refs.merge(b.refs)
+			a.todo.merge(b.todo)
 		);
   }
 }

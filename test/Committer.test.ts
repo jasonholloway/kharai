@@ -3,9 +3,12 @@ import Commit from '../src/Committer'
 import _Monoid from '../src/_Monoid'
 import { delay } from '../src/util'
 import { gather } from './helpers'
-import { AtomRef } from './atoms'
+import { AtomRef, Atom } from '../src/atoms'
 import { ReplaySubject } from 'rxjs/internal/ReplaySubject'
 import { Subject } from 'rxjs/internal/Subject'
+import { Set } from 'immutable'
+
+const atoms = <V>(rs: Set<AtomRef<V>>) => rs.flatMap(r => r.resolve()).toArray()
 
 describe('committable', () => {
 	let space: AtomSpace<number>
@@ -18,48 +21,48 @@ describe('committable', () => {
 	})
 
 	it('commits singly', async () => {
-		const head = space.spawnHead();
+		const head = space.head();
 		const commit = newCommit(head);
-		expect(head.ref().resolve()).toEqual([]);
+		expect(atoms(head.refs())).toEqual([]);
 
 		await commit.complete(3);
 
-		const [atom] = head.ref().resolve();
+		const [atom] = atoms(head.refs());
 		expect(atom?.val).toEqual(3)
 	})
 
 	it('commits trebly', async () => {
-		const h1 = space.spawnHead();
+		const h1 = space.head();
 		const c1 = newCommit(h1);
 
-		const h2 = space.spawnHead();
+		const h2 = space.head();
 		const c2 = newCommit(h2);
 
-		const h3 = space.spawnHead();
+		const h3 = space.head();
 		const c3 = newCommit(h3);
 
 		Commit.combine(new MonoidNumber(), [c1, c2, c3]);
 
 		const committing1 = c1.complete(3);
 		await delay(15);
-		expect(h1.ref().resolve()).toEqual([]);
+		expect(atoms(h1.refs())).toEqual([]);
 
 		const committing2 = c2.complete(5);
 		await delay(15);
-		expect(h1.ref().resolve()).toEqual([]);
-		expect(h2.ref().resolve()).toEqual([]);
+		expect(atoms(h1.refs())).toEqual([]);
+		expect(atoms(h2.refs())).toEqual([]);
 
 		await Promise.all([c3.complete(7), committing1, committing2]);
-		expect(h1.ref().resolve()[0]?.val).toEqual(15);
-		expect(h2.ref().resolve()[0]?.val).toEqual(15);
-		expect(h3.ref().resolve()[0]?.val).toEqual(15);
+		expect(atoms(h1.refs())[0]?.val).toEqual(15);
+		expect(atoms(h2.refs())[0]?.val).toEqual(15);
+		expect(atoms(h3.refs())[0]?.val).toEqual(15);
 	})
 
 	it('completes after all commit', async () => {
-		const h1 = space.spawnHead();
+		const h1 = space.head();
 		const c1 = newCommit(h1);
 
-		const h2 = space.spawnHead();
+		const h2 = space.head();
 		const c2 = newCommit(h2);
 
 		Commit.combine(new MonoidNumber(), [c1, c2]);
@@ -75,10 +78,10 @@ describe('committable', () => {
 	})
 
 	it('atoms streamed from commits', async () => {
-		const h1 = space.spawnHead();
+		const h1 = space.head();
 		const c1 = newCommit(h1);
 
-		const h2 = space.spawnHead();
+		const h2 = space.head();
 		const c2 = newCommit(h2);
 
 		Commit.combine(new MonoidNumber(), [c1, c2]);
@@ -98,10 +101,10 @@ describe('committable', () => {
 	})
 
 	it('multiple recombinations', async () => {
-		const h1 = space.spawnHead();
+		const h1 = space.head();
 		const c1 = newCommit(h1);
 
-		const h2 = space.spawnHead();
+		const h2 = space.head();
 		const c2 = newCommit(h2);
 
 		Commit.combine(new MonoidNumber(), [c1, c2]);
@@ -117,6 +120,25 @@ describe('committable', () => {
 		const refs = await gather(atom$);
 		expect(refs.length).toBe(1);
 		expect(refs[0].resolve()[0]?.val).toBe(8);
+	})
+
+	it('heads accept extra upstreams', async () => {
+		const h1 = space.head();
+		const c1 = newCommit(h1);
+
+		const u1 = new AtomRef(new Atom(Set(), 3));
+		const u2 = new AtomRef(new Atom(Set(), 4));
+
+		const h2 = h1.addUpstreams(Set([u1, u2]));
+
+		await c1.complete(1);
+
+		expect(h2.refs()
+			.flatMap(r => r.resolve())
+			.first(undefined)?.val
+			).toEqual(3); //should be checking parentage of otput atom
+
+		throw 'todo!!!'
 	})
 })
 

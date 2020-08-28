@@ -16,7 +16,7 @@ export default class AtomSaver<V> {
 	async save(store: Store<V>, heads: Set<Head<V>>): Promise<void> {
 		const M = this._monoidV;
 
-		const path = await this._space.lockTips(...heads.map(h => h.ref()));
+		const path = await this._space.lockTips(...heads.flatMap(h => h.refs()));
 
 		//TODO
 		//lockTips ensures we have the latest reformed roots locked
