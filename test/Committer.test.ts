@@ -124,25 +124,24 @@ describe('committable', () => {
 		expect(refs[0].resolve()[0]?.val).toBe(8);
 	})
 
-	it('heads accept extra upstreams', async () => {
+	it('accepts extra upstreams', async () => {
 		let h1 = space.head();
 		const c1 = newCommit(h1);
 
 		const u1 = new AtomRef(new Atom(Set(), 3));
 		const u2 = new AtomRef(new Atom(Set(), 4));
 
-		//need way of updating commit with new head... !!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TODO
-		const h2 = h1.addUpstreams(Set([u1, u2]));
+		c1.add(Set([u1, u2]));
 
-		const [h3, a3] = await c1.complete(13);
+		const [h2, a2] = await c1.complete(13);
 
-		expect(atoms(Set([a3]))[0].val)
+		expect(atoms(Set([a2]))[0].val)
 			.toEqual(13);
 
-		expect(atoms(h3.refs())[0].val)
+		expect(atoms(h2.refs())[0].val)
 			.toEqual(13);
 
-		const parents = Set(atoms(h3.refs()))
+		const parents = Set(atoms(h2.refs()))
 			.flatMap(r => r.parents);
 
 		expect(atoms(parents)).toContain(u1);

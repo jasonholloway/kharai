@@ -4,7 +4,7 @@ import { Mediator, Convener, Attendee, Peer } from './Mediator'
 import { Observable, Subject, from, merge, ReplaySubject } from 'rxjs'
 import { flatMap, skipWhile, startWith, mergeAll, endWith, scan, takeWhile, finalize, publish, toArray, map, mergeMap, tap, combineAll } from 'rxjs/operators'
 import Commit, { AtomEmit } from './Committer'
-import { Map, Set, mergeWith } from 'immutable'
+import { Map, Set } from 'immutable'
 import { Dispatch } from './dispatch'
 import { isArray } from 'util'
 import MonoidData from './MonoidData'
@@ -252,24 +252,13 @@ export class Machine<X, P> implements IMachine<P> {
 
     return this.modContext({
       watch(ids: Id[]): Observable<Data> {
-        //need to somehow add each seen atom to a contextual list
-        //which means the ontext has to be stateful, as there's no way of threading accumulated state through the callsites
-        //context is luckily built per call
-        //everything that flows through the below is captured here
-        //seemingly via Commit.combine...
-
-        //so here we're not dealing in atoms, but in commits that wrap atoms
-        //but there's no transaction on a watch, just a data dependency
-
-        //so there's not really a commit todeal with then
-        //well, there is - it's just not shared between peers
-
-        //where does this commit come from,preloaded with dependency?
-        
-        return space.watch(ids).pipe(
-          mergeMap(r => r.resolve()), //in resolving, we should also capture the atomRefs here
-          map(a => a.val) //and what if there is no val?
-        );
+        return space.watch(ids)
+          .pipe(
+            tap(r => commit.add(Set([r]))), //gathering all watched atomrefs here into mutable Commit
+            mergeMap(r => r.resolve()), //empty refs get gathered too of course (to test for)
+            map(a => a.val)
+            //todo filter on passed ids
+          );
       },
       attach<R>(attend: Attendee<R>) {
         return space.attach(me, {

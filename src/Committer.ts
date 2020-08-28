@@ -16,6 +16,11 @@ export default class Commit<V> {
 		this.inner = new Inner(mv, Set([h]), Set([sink]), Set([this]));
 	}
 
+	add(rs: Set<AtomRef<V>>) {
+		//also need to simplify added refs - each addition should potentially replace an existing ref
+		throw 'todo!'
+	}
+
 	async complete(v: V): Promise<[Head<V>, AtomRef<V>]> {
 		const ref = await this.inner.complete(this, v);
 		const head = this.head.move(ref);
