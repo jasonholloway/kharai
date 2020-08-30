@@ -1,8 +1,8 @@
 import { Id, Data, WorldImpl, PhaseMap, Phase, MachineContext } from './lib'
-import { Head } from './AtomSpace'
+import AtomSpace, { Head } from './AtomSpace'
 import { Mediator, Convener, Attendee, Peer } from './Mediator'
 import { Observable, Subject, from, merge, ReplaySubject } from 'rxjs'
-import { flatMap, skipWhile, startWith, mergeAll, endWith, scan, takeWhile, finalize, publish, toArray, map, mergeMap, tap, combineAll } from 'rxjs/operators'
+import { flatMap, skipWhile, startWith, mergeAll, endWith, scan, takeWhile, finalize, publish, toArray, map, mergeMap, tap, combineAll, debounce } from 'rxjs/operators'
 import Commit, { AtomEmit } from './Committer'
 import { Map, Set } from 'immutable'
 import { Dispatch } from './dispatch'
@@ -61,39 +61,38 @@ export class Run<W extends PhaseMap, X extends MachineContext, P> {
 }
 
 
-export type MachineLoader<P> = (ids: Set<Id>) => Promise<Map<Id, [Head<Data>, P?]>>
+export type DataLoader<P> = (ids: Set<Id>) => Promise<Map<Id, [Head<Data>, P?]>>
+export type MachineLoader<P> = (id: Id) => Promise<[Head<Data>, P]>
 
 export class MachineSpace<W extends PhaseMap = {}, X extends MachineContext = MachineContext, P = Phase<W>> {
   private readonly world: WorldImpl<W, X>
   private readonly loader: MachineLoader<P>
   private readonly mediator: Mediator
   private readonly dispatch: Dispatch<X, P>
-  private readonly zeroPhase: P
   private machines: Map<Id, Promise<Machine<X, P>>>
 
   private _log$$: Subject<Observable<Emit<P>>>
-	private _atom$: Subject<AtomRef<Data>>
+	// private _atom$: Subject<AtomRef<Data>>
 
   readonly log$: Observable<Emit<P>>
-  readonly atom$: Observable<AtomRef<Data>>
+  // readonly atom$: Observable<AtomRef<Data>>
 
-  constructor(world: WorldImpl<W, X>, loader: MachineLoader<P>, dispatch: Dispatch<X, P>, zeroPhase: P) {
+  constructor(world: WorldImpl<W, X>, loader: MachineLoader<P>, dispatch: Dispatch<X, P>) {
     this.world = world;
     this.loader = loader;
     this.dispatch = dispatch;
-    this.zeroPhase = zeroPhase;
     this.mediator = new Mediator();
     this.machines = Map();
 
     this._log$$ = new Subject();
     this.log$ = this._log$$.pipe(mergeAll());
 
-		this._atom$ = new Subject();
-    this.atom$ = this._atom$;
+		// this._atom$ = new Subject();
+    // this.atom$ = this._atom$;
   }
 
 	complete() {
-		this._atom$.complete();
+		// this._atom$.complete();
 		this._log$$.complete();
 	}
 
@@ -108,27 +107,29 @@ export class MachineSpace<W extends PhaseMap = {}, X extends MachineContext = Ma
         return [false, id, found] as const;
       }
       else {
-        const loading = this.loader(Set([id]));
-
-        //why can't a commit expose an observable of Atoms?
-        //it would need to make sure it completes/errors to avoid hanging observers
-        //multiple commits would relate to one real inner commit
-        //a network of subjects
+        const loading = this.loader(id);
 
         return [
           true,
           id,
-          loading.then(([[,[head, phase]]]) => {
+          loading.then(([head, phase]) => {
             const machine: Machine<X, P> = new Machine<X, P>(
               this.asSpace(),
 							this.dispatch,
 							this.world.contextFac,
-						  h => new Commit<Data>(new MonoidData(), h, this._atom$)
+						  h => new Commit<Data>(new MonoidData(), h)
 						);
+
+            // machine.atom$.subscribe(this._atom$);
+            //above ^^ there shouldn't be a central stream of atoms
+            //only per machine please - but this means again that atoms might appear
+            //more than once, we need to debounce separately
+            //but that's unavoidable if we're doing per-machine watches, which we must do
+            //
 
             this._log$$.next(machine.log$);
 
-            machine.begin(id, head, phase || this.zeroPhase);
+            machine.begin(id, head, phase);
 
             return machine;
           })
@@ -210,13 +211,8 @@ export class Machine<X, P> implements IMachine<P> {
     const dispatch = this.dispatch.bind(this);
     const buildContext = this.buildContext.bind(this);
 
-    //HACK !!!!!!!!!!!!!!!!!!!!!!!!!!
-    atom$.next(new AtomRef<Data>(new Atom<Data>(Set(), Map({ [id]: phase }))));
-    //HACKYHACKYHACK
-
-    //in fact above is DANGEROUS!!!!
-    //watchers may build on it... thus overwriting the very real tree
-    //!!!!!!!!!!!!!!!!!!!!!!!!!
+    head.refs().forEach(r => atom$.next(r));
+    //AND NOW! special root atom should be marked as already-persisted, otherwise will incur unnecessary overwrite
 
     setImmediate(() => (async () => {     
         while(true) {

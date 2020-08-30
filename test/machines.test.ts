@@ -5,7 +5,7 @@ import AtomSpace from '../src/AtomSpace'
 import AtomSaver from '../src/AtomSaver'
 import { Id, Data, SpecWorld, makeWorld, World, MachineContext, Phase, PhaseMap, WorldImpl, PhaseImpl } from '../src/lib'
 import { OperatorFunction } from 'rxjs'
-import { flatMap, tap, toArray, take, mergeMap } from 'rxjs/operators'
+import { flatMap, tap, toArray, take, mergeMap, distinct } from 'rxjs/operators'
 import { buildDispatch } from '../src/dispatch'
 import { delay } from '../src/util'
 import { AtomRef, Atom } from '../src/atoms'
@@ -61,14 +61,19 @@ function scenario<W extends PhaseMap, X>(world: WorldImpl<W, X>) {
   return (phases?: Map<Id, Phase<W>>) => {
     const atoms = new AtomSpace<Data>();
 
-    const loader: MachineLoader<Phase<W>> = async ([id]) => {
-      return Map({
-        [isArray(id) ? id[0] : id]: [atoms.head(), phases?.get(id)]
-      });
+    const loader: MachineLoader<Phase<W>> = async id => {
+      const p = phases?.get(id) || <Phase<W>><unknown>(['$boot', []]); //zero phase should be well-known
+
+      const h = atoms.head()
+        .write(Map({
+          [isArray(id) ? id[0] : id]: p
+        }));
+
+      return [h, p];
     };
 
     const dispatch = buildDispatch(world.phases);
-    const space = new MachineSpace(world, loader, dispatch, ['$boot', []])
+    const space = new MachineSpace(world, loader, dispatch);
     const run = space.newRun();
 
     return {
@@ -77,6 +82,7 @@ function scenario<W extends PhaseMap, X>(world: WorldImpl<W, X>) {
   }
 }
 
+const getAtoms = (rs: Set<AtomRef<Data>>) => rs.flatMap(r => r.resolve()).toArray()
 
 // type Hamsters = SpecWorld<{
 //   $boot: []
@@ -200,38 +206,62 @@ describe('machines: running', () => {
   describe('saving', () => {
     const fac = scenario(rodents());
     let x: ReturnType<typeof fac>
-    let atoms: Atom<Data>[]
 
-    beforeAll(async () => {
-      x = fac();
-      const gatheringAtoms =
-        gather(x.space.atom$.pipe(flatMap(r => r.resolve())));
+    const atomsFrom = (id: Id) =>
+      gather(x.space.summon(Set([id]))
+        .pipe(
+          mergeMap(m => m.atom$),
+          mergeMap(r => r.resolve())
+        ))
 			
-      await Promise.all([
-        x.run.log$.toPromise(),
+
+    it('atoms conjoin', async () => {
+      x = fac();
+
+      const [gazAtoms, gozAtoms] = await Promise.all([
+        atomsFrom('gaz'),
+        atomsFrom('goz'),
         x.run.boot('gaz', ['guineaPig', ['runAbout', []]]),
         x.run.boot('goz', ['guineaPig', ['gruntAt', ['gaz']]])
       ]);
 
-			x.space.complete();
-      atoms = await gatheringAtoms;
-    })
-    
-    it('emits some saves', () => {
-      expect(atoms.length).toBeGreaterThan(0);
-		})
+      expect(gazAtoms.map(a => a.val.toObject()))
+        .toEqual([
+          {
+            gaz: ['$boot', []]
+          },
+          {
+            gaz: ['guineaPig', ['runAbout', []]]
+          },
+          {
+            gaz: ['$end', ['grunt!']],
+            goz: ['$end', ['squeak!']]
+          }
+        ]);
 
-    it('atoms start separate', () => {
-      expect(atoms[0])
-        .not.toBe(atoms[1]);
-    })
+      expect(gazAtoms[0].parents.isEmpty).toBeTruthy();
+      expect(gazAtoms[1].parents.flatMap(r => r.resolve()).toArray()).toEqual([gazAtoms[0]]);
+      expect(gazAtoms[2].parents.flatMap(r => r.resolve()).toArray()).toContain(gazAtoms[1]);
+      expect(gazAtoms[2].parents.flatMap(r => r.resolve()).toArray()).toContain(gozAtoms[1]);
 
-    it('atoms conjoin on meet', () => {
-      expect(atoms[2].val)
-			  .toEqual(Map({
-					gaz: ['$end', ['grunt!']],
-					goz: ['$end', ['squeak!']]
-				}));
+      expect(gozAtoms.map(a => a.val.toObject()))
+        .toEqual([
+          {
+            goz: ['$boot', []]
+          },
+          {
+            goz: ['guineaPig', ['gruntAt', ['gaz']]]
+          },
+          {
+            gaz: ['$end', ['grunt!']],
+            goz: ['$end', ['squeak!']]
+          }
+        ]);
+
+      expect(gozAtoms[0].parents.isEmpty).toBeTruthy();
+      expect(gozAtoms[1].parents.flatMap(r => r.resolve()).toArray()).toEqual([gozAtoms[0]]);
+      expect(gozAtoms[2].parents.flatMap(r => r.resolve()).toArray()).toContain(gozAtoms[1]);
+      expect(gozAtoms[2].parents.flatMap(r => r.resolve()).toArray()).toContain(gazAtoms[1]);
     })
   })
 
@@ -290,6 +320,14 @@ describe('machines: running', () => {
 
     const fac = scenario(birds);
     let x: ReturnType<typeof fac>
+
+    const atomsFrom = (id: Id) =>
+      gather(x.space.summon(Set([id]))
+        .pipe(
+          mergeMap(m => m.atom$),
+          mergeMap(r => r.resolve())
+        ))
+
 
     it('one can watch the other', async () => {
       x = fac();
@@ -360,37 +398,43 @@ describe('machines: running', () => {
       ])
     })
 
+
     it('tracks causality in atom tree', async () => {
       x = fac();
-
-      var gathering = gather(x.space.atom$.pipe(mergeMap(a => a.resolve())));
       
-      await Promise.all([
+      const [gordAtoms, edAtoms] = await Promise.all([
+        atomsFrom('Gord'),
+        atomsFrom('Ed'),
       	gather(x.run.log$),
       	x.run.boot('Gord', ['runAround', [1]]),
-      	x.run.boot('Ed', ['track', [['Gord'], 1]]),
+      	x.run.boot('Ed', ['track', [['Gord'], 1]])
       ]);
-
-      x.space.complete();
-      var atoms = await gathering;
-      var edsAtoms = atoms.filter(a => a.val.has('Ed'));
-      var gordsAtoms = atoms.filter(a => a.val.has('Gord'));
-
-      expect(gordsAtoms[0].parents.flatMap(r => r.resolve()).toArray())
+      
+      expect(getAtoms(gordAtoms[0].parents))
         .toEqual([])
 
-      expect(edsAtoms[0].parents.flatMap(r => r.resolve()).toArray())
+      expect(getAtoms(edAtoms[0].parents))
         .toEqual([])
 
-      expect(gordsAtoms[1].parents.flatMap(r => r.resolve()).map(a => a.val).toArray())
+      expect(getAtoms(gordAtoms[1].parents))
         .toEqual([
-          gordsAtoms[0].val
+          gordAtoms[0]
         ])
 
-      expect(edsAtoms[1].parents.flatMap(r => r.resolve()).map(a => a.val).toArray())
+      expect(getAtoms(edAtoms[1].parents))
         .toEqual([
-          edsAtoms[0].val,
-          gordsAtoms[0].val
+          edAtoms[0]
+        ])
+
+      expect(getAtoms(gordAtoms[2].parents))
+        .toEqual([
+          gordAtoms[1]
+        ])
+
+      expect(getAtoms(edAtoms[2].parents))
+        .toEqual([
+          edAtoms[1],
+          gordAtoms[1]
         ])
     })
 

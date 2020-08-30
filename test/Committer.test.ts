@@ -4,20 +4,16 @@ import _Monoid from '../src/_Monoid'
 import { delay } from '../src/util'
 import { gather } from './helpers'
 import { AtomRef, Atom } from '../src/atoms'
-import { ReplaySubject } from 'rxjs/internal/ReplaySubject'
-import { Subject } from 'rxjs/internal/Subject'
 import { Set } from 'immutable'
 
 const atoms = <V>(rs: Set<AtomRef<V>>) => rs.flatMap(r => r.resolve()).toArray()
 
 describe('committable', () => {
 	let space: AtomSpace<number>
-	let atom$: Subject<AtomRef<number>>
-	const newCommit = (h: Head<number>) => new Commit(new MonoidNumber(), h, atom$);  
+	const newCommit = (h: Head<number>) => new Commit(new MonoidNumber(), h);  
 
 	beforeEach(() => {
 		space = new AtomSpace();
-		atom$ = new ReplaySubject();
 	})
 
 	it('commits singly', async () => {
@@ -79,7 +75,7 @@ describe('committable', () => {
 		expect(commited1).toBeTruthy();
 	})
 
-	it('atoms streamed from commits', async () => {
+	it('atoms returned from commits', async () => {
 		const h1 = space.head();
 		const c1 = newCommit(h1);
 
@@ -87,19 +83,17 @@ describe('committable', () => {
 		const c2 = newCommit(h2);
 
 		Commit.combine(new MonoidNumber(), [c1, c2]);
-		await Promise.all([
+		const [[,a1], [,a2]] = await Promise.all([
 			c1.complete(3),
 			c2.complete(5),
 		]);
 
 		const c3 = newCommit(h1);
-		await c3.complete(7);
+		const [,a3] = await c3.complete(7);
 		
-		atom$.complete();
-		const refs = await gather(atom$);
-		expect(refs.length).toBe(2);
-		expect(refs[0].resolve()[0]?.val).toBe(8);
-		expect(refs[1].resolve()[0]?.val).toBe(7);
+		expect(a1.resolve()[0]?.val).toBe(8);
+		expect(a2.resolve()[0]?.val).toBe(8);
+		expect(a3.resolve()[0]?.val).toBe(7);
 	})
 
 	it('multiple recombinations', async () => {
@@ -113,15 +107,13 @@ describe('committable', () => {
 		Commit.combine(new MonoidNumber(), [c1, c2]);
 		Commit.combine(new MonoidNumber(), [c1, c2]);
 
-		await Promise.all([
+		const [[,a1], [,a2]] = await Promise.all([
 			c1.complete(3),
 			c2.complete(5),
 		]);
 
-		atom$.complete();
-		const refs = await gather(atom$);
-		expect(refs.length).toBe(1);
-		expect(refs[0].resolve()[0]?.val).toBe(8);
+		expect(a1.resolve()[0]?.val).toBe(8);
+		expect(a2.resolve()[0]?.val).toBe(8);
 	})
 
 	it('accepts extra upstreams', async () => {
