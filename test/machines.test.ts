@@ -5,11 +5,11 @@ import AtomSpace from '../src/AtomSpace'
 import AtomSaver from '../src/AtomSaver'
 import { Id, Data, SpecWorld, makeWorld, World, MachineContext, Phase, PhaseMap, WorldImpl, PhaseImpl } from '../src/lib'
 import { OperatorFunction } from 'rxjs'
-import { flatMap, tap, toArray, take, mergeMap, distinct } from 'rxjs/operators'
+import { flatMap, toArray, take, mergeMap } from 'rxjs/operators'
 import { buildDispatch } from '../src/dispatch'
 import { delay } from '../src/util'
-import { AtomRef, Atom } from '../src/atoms'
-import { isString, isArray, inspect } from 'util'
+import { AtomRef } from '../src/atoms'
+import { isString, isArray } from 'util'
 import { AtomEmit, $Commit } from '../src/Committer'
 import { gather } from './helpers'
 import { Emit, MachineLoader, MachineSpace } from '../src/MachineSpace'
@@ -59,12 +59,12 @@ const watchPhase = <W extends World>(): PhaseImpl<W, MachineContext, [Id, string
 
 function scenario<W extends PhaseMap, X>(world: WorldImpl<W, X>) {
   return (phases?: Map<Id, Phase<W>>) => {
-    const atoms = new AtomSpace<Data>();
+    const atomSpace = new AtomSpace<Data>();
 
     const loader: MachineLoader<Phase<W>> = async id => {
       const p = phases?.get(id) || <Phase<W>><unknown>(['$boot', []]); //zero phase should be well-known
 
-      const h = atoms.head()
+      const h = atomSpace.head()
         .write(Map({
           [isArray(id) ? id[0] : id]: p
         }));
@@ -77,7 +77,24 @@ function scenario<W extends PhaseMap, X>(world: WorldImpl<W, X>) {
     const run = space.newRun();
 
     return {
-      atoms, loader, dispatch, space, run
+      loader,
+      dispatch,
+      space,
+      run,
+
+      logs() {
+        return gather(run.log$
+          .pipe(phasesOnly()))
+      },
+
+      atoms(id: Id) {
+        return gather(space
+          .summon(Set([id]))
+          .pipe(
+            mergeMap(m => m.atom$),
+            mergeMap(r => r.resolve())
+          ));
+      }
     }
   }
 }
@@ -153,7 +170,7 @@ describe('machines: running', () => {
 
   it('run through phases', async () => {
     const [logs] = await Promise.all([
-      gather(x.run.log$.pipe(phasesOnly())),
+      x.logs(),
       x.run.boot('bob', ['rat', ['wake', []]])
     ]);
 
@@ -167,7 +184,7 @@ describe('machines: running', () => {
 
   it('two run at once', async () => {
     const [logs] = await Promise.all([
-      gather(x.run.log$.pipe(phasesOnly())),
+      x.logs(),
       x.run.boot('nib', ['hamster', ['wake', [77]]]),
       x.run.boot('bob', ['rat', ['wake', []]])
     ]);
@@ -185,7 +202,7 @@ describe('machines: running', () => {
 
   it('two talk to one another', async () => {
     const [logs] = await Promise.all([
-      gather(x.run.log$.pipe(phasesOnly())),
+      x.logs(),
       x.run.boot('gaz', ['guineaPig', ['runAbout', []]]),
       x.run.boot('goz', ['guineaPig', ['gruntAt', ['gaz']]])
     ]);
@@ -207,20 +224,12 @@ describe('machines: running', () => {
     const fac = scenario(rodents());
     let x: ReturnType<typeof fac>
 
-    const atomsFrom = (id: Id) =>
-      gather(x.space.summon(Set([id]))
-        .pipe(
-          mergeMap(m => m.atom$),
-          mergeMap(r => r.resolve())
-        ))
-			
-
     it('atoms conjoin', async () => {
       x = fac();
 
       const [gazAtoms, gozAtoms] = await Promise.all([
-        atomsFrom('gaz'),
-        atomsFrom('goz'),
+        x.atoms('gaz'),
+        x.atoms('goz'),
         x.run.boot('gaz', ['guineaPig', ['runAbout', []]]),
         x.run.boot('goz', ['guineaPig', ['gruntAt', ['gaz']]])
       ]);
@@ -321,19 +330,11 @@ describe('machines: running', () => {
     const fac = scenario(birds);
     let x: ReturnType<typeof fac>
 
-    const atomsFrom = (id: Id) =>
-      gather(x.space.summon(Set([id]))
-        .pipe(
-          mergeMap(m => m.atom$),
-          mergeMap(r => r.resolve())
-        ))
-
-
     it('one can watch the other', async () => {
       x = fac();
       
       const [logs] = await Promise.all([
-      	gather(x.run.log$),
+      	x.logs(),
       	x.run.boot('Kes', ['track', [['Stu'], 100]]),
       	x.run.boot('Stu', ['runAround', [3]])
       ]);
@@ -358,7 +359,7 @@ describe('machines: running', () => {
       }));
 
       const [logs] = await Promise.all([
-      	gather(x.run.log$),
+      	x.logs(),
       	x.run.boot('Gareth', ['track', [['Gwen'], 2]]),
       ]);
 
@@ -378,7 +379,7 @@ describe('machines: running', () => {
       x = fac();
       
       const [logs] = await Promise.all([
-      	gather(x.run.log$),
+      	x.logs(),
       	x.run.boot('Kes', ['track', [['Biff', 'Kipper'], 4]]),
       	x.run.boot('Biff', ['runAround', [11]]),
       	x.run.boot('Kipper', ['runAround', [22]])
@@ -403,9 +404,9 @@ describe('machines: running', () => {
       x = fac();
       
       const [gordAtoms, edAtoms] = await Promise.all([
-        atomsFrom('Gord'),
-        atomsFrom('Ed'),
-      	gather(x.run.log$),
+        x.atoms('Gord'),
+        x.atoms('Ed'),
+      	x.logs(),
       	x.run.boot('Gord', ['runAround', [1]]),
       	x.run.boot('Ed', ['track', [['Gord'], 1]])
       ]);
@@ -446,7 +447,7 @@ describe('machines: running', () => {
       await delay(100);
 
       const [logs] = await Promise.all([
-        gather(x.run.log$),
+        x.logs(),
       	x.run.boot('Ed', ['track', [['Gord'], 1]]),
       ]);
 
@@ -483,14 +484,73 @@ describe('machines: running', () => {
       })
 		}
 	})
-})
 
 
-describe('machines: conversations', () => {
-  it('atom dependencies tracked', async () => {
-    throw 'todo!'
+	type TParakeet<Me extends World = World> = SpecWorld<{
+    $boot: []
+    $end: [any]
+
+    sit: []
+    chirp: [Id[], string]
+	}>
+
+  type Parakeet = TParakeet<TParakeet>
+  
+	const parakeet = makeWorld<Parakeet>()({
+		contextFac: x => x,
+		phases: {
+      $boot: bootPhase(),
+      $end: endPhase(),
+
+      sit: x => ({
+        guard(d): d is [] { return true },
+        async run() {
+          const r = await x.attach({
+            chat(m, peers) {
+              return [1];
+            }
+          }) || [-1];
+
+          return ['$end', r];
+        }
+      }),
+      
+      chirp: x => ({
+        guard(d): d is [Id[], string] { return true },
+        async run([ids, message]) {
+          const r = await x.convene(ids, {
+            convene(peers) {
+              return 1;
+            }
+          });
+
+          return ['$end', [r]];
+        }
+      })
+		}
+	})
+
+  describe('conversations', () => {
+    const fac = scenario(parakeet);
+    
+    it('atom dependencies tracked', async () => {
+      const x = fac();
+
+      const [pollyAtoms, priscillaAtoms, peteAtoms] = await Promise.all([
+        x.atoms('Polly'),
+        x.atoms('Priscilla'),
+        x.atoms('Pete'),
+        x.run.boot('Polly', ['sit', []]),
+        x.run.boot('Priscilla', ['sit', []]),
+        x.run.boot('Pete', ['chirp', [['Polly', 'Priscilla'], 'hello!']])
+      ]);
+      
+      throw 'todo!'
+    })
   })
 })
+
+
 
 
 describe('machines: loading and saving', () => {
