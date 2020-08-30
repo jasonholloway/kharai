@@ -488,9 +488,9 @@ describe('machines: running', () => {
 
 	type TParakeet<Me extends World = World> = SpecWorld<{
     $boot: []
-    $end: [any]
+    $end: [any?]
 
-    sit: []
+    listen: []
     chirp: [Id[], string]
 	}>
 
@@ -502,29 +502,38 @@ describe('machines: running', () => {
       $boot: bootPhase(),
       $end: endPhase(),
 
-      sit: x => ({
+      listen: x => ({
         guard(d): d is [] { return true },
         async run() {
           const r = await x.attach({
-            chat(m, peers) {
-              return [1];
+            chat([ids, m]) {
+              return <[[Id[], string]]>[[ids, m]];
             }
-          }) || [-1];
+          });
 
-          return ['$end', r];
+          if(r) {
+            const [[ids, m]] = r;
+            return ['chirp', [ids, m]]
+          }
+
+          return ['$end', []];
         }
       }),
       
       chirp: x => ({
         guard(d): d is [Id[], string] { return true },
-        async run([ids, message]) {
-          const r = await x.convene(ids, {
-            convene(peers) {
-              return 1;
-            }
-          });
+        async run([[id, ...otherIds], message]) {
+          if(id) {
+            const r = await x.convene([id], {
+              convene(peers) {
+                peers.forEach(p => p.chat([otherIds, message]));
+                return 'chirped!';
+              }
+            });
+            return ['$end', [r]];
+          }
 
-          return ['$end', [r]];
+          return ['$end', ['no-one to chirp to!']];
         }
       })
 		}
@@ -536,16 +545,40 @@ describe('machines: running', () => {
     it('atom dependencies tracked', async () => {
       const x = fac();
 
-      const [pollyAtoms, priscillaAtoms, peteAtoms] = await Promise.all([
+      const [polly, priscilla, pete] = await Promise.all([
         x.atoms('Polly'),
         x.atoms('Priscilla'),
         x.atoms('Pete'),
-        x.run.boot('Polly', ['sit', []]),
-        x.run.boot('Priscilla', ['sit', []]),
+        x.run.boot('Polly', ['listen', []]),
+        x.run.boot('Priscilla', ['listen', []]),
         x.run.boot('Pete', ['chirp', [['Polly', 'Priscilla'], 'hello!']])
       ]);
+
+      expect(priscilla[0].val.toObject())
+        .toEqual({ Priscilla: ['$boot', []] })
+
+      expect(priscilla[1].val.toObject())
+        .toEqual({ Priscilla: ['listen', []] })
       
-      throw 'todo!'
+      expect(priscilla[2].val.toObject())
+        .toEqual({
+          Polly: ['$end', ['chirped!']],
+          Priscilla: ['chirp', [[], 'hello!']]
+        })
+
+      expect(getAtoms(priscilla[2].parents))
+        .toContain(priscilla[1])
+
+      expect(getAtoms(priscilla[2].parents))
+        .toContain(polly[2])
+
+      expect(priscilla[3].val.toObject())
+        .toEqual({
+          Priscilla: ['$end', ['no-one to chirp to!']]
+        })
+
+      expect(getAtoms(priscilla[3].parents))
+        .toContain(priscilla[2])
     })
   })
 })
