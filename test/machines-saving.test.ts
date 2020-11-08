@@ -1,6 +1,9 @@
 import _Monoid from '../src/_Monoid'
-import { scenario } from './shared'
+import { scenario, getAtoms } from './shared'
 import { rodents } from './worlds/rodents'
+import FakeStore from './FakeStore';
+import MonoidData from '../src/MonoidData';
+import { Set } from 'immutable'
 
 describe('machines - saving', () => {
 	const fac = scenario(rodents());
@@ -9,49 +12,78 @@ describe('machines - saving', () => {
 	it('atoms conjoin', async () => {
 		x = fac();
 
-		const [gazAtoms, gozAtoms] = await Promise.all([
-			x.atoms('gaz'),
-			x.atoms('goz'),
-			x.run.boot('gaz', ['guineaPig', ['runAbout', []]]),
-			x.run.boot('goz', ['guineaPig', ['gruntAt', ['gaz']]])
+		const [bazAtoms, lozAtoms] = await Promise.all([
+			x.atoms('baz'),
+			x.atoms('loz'),
+			x.run.boot('baz', ['guineaPig', ['runAbout', []]]),
+			x.run.boot('loz', ['guineaPig', ['gruntAt', ['baz']]])
 		]);
 
-		expect(gazAtoms.map(a => a.val.toObject()))
+		expect(bazAtoms.map(a => a.val.toObject()))
 			.toEqual([
 				{
-					gaz: ['$boot', []]
+					baz: ['$boot', []]
 				},
 				{
-					gaz: ['guineaPig', ['runAbout', []]]
+					baz: ['guineaPig', ['runAbout', []]]
 				},
 				{
-					gaz: ['$end', ['grunt!']],
-					goz: ['$end', ['squeak!']]
+					baz: ['$end', ['grunt!']],
+					loz: ['$end', ['squeak!']]
 				}
 			]);
 
-		expect(gazAtoms[0].parents.isEmpty).toBeTruthy();
-		expect(gazAtoms[1].parents.flatMap(r => r.resolve()).toArray()).toEqual([gazAtoms[0]]);
-		expect(gazAtoms[2].parents.flatMap(r => r.resolve()).toArray()).toContain(gazAtoms[1]);
-		expect(gazAtoms[2].parents.flatMap(r => r.resolve()).toArray()).toContain(gozAtoms[1]);
+		expect(bazAtoms[0].parents.isEmpty).toBeTruthy();
+		expect(getAtoms(bazAtoms[1].parents)).toEqual([bazAtoms[0]]);
+		expect(getAtoms(bazAtoms[2].parents)).toContain(bazAtoms[1]);
+		expect(getAtoms(bazAtoms[2].parents)).toContain(lozAtoms[1]);
 
-		expect(gozAtoms.map(a => a.val.toObject()))
+		expect(lozAtoms.map(a => a.val.toObject()))
 			.toEqual([
 				{
-					goz: ['$boot', []]
+					loz: ['$boot', []]
 				},
 				{
-					goz: ['guineaPig', ['gruntAt', ['gaz']]]
+					loz: ['guineaPig', ['gruntAt', ['baz']]]
 				},
 				{
-					gaz: ['$end', ['grunt!']],
-					goz: ['$end', ['squeak!']]
+					baz: ['$end', ['grunt!']],
+					loz: ['$end', ['squeak!']]
 				}
 			]);
 
-		expect(gozAtoms[0].parents.isEmpty).toBeTruthy();
-		expect(gozAtoms[1].parents.flatMap(r => r.resolve()).toArray()).toEqual([gozAtoms[0]]);
-		expect(gozAtoms[2].parents.flatMap(r => r.resolve()).toArray()).toContain(gozAtoms[1]);
-		expect(gozAtoms[2].parents.flatMap(r => r.resolve()).toArray()).toContain(gazAtoms[1]);
+		expect(lozAtoms[0].parents.isEmpty).toBeTruthy();
+		expect(getAtoms(lozAtoms[1].parents)).toEqual([lozAtoms[0]]);
+		expect(getAtoms(lozAtoms[2].parents)).toContain(lozAtoms[1]);
+		expect(getAtoms(lozAtoms[2].parents)).toContain(bazAtoms[1]);
+	})
+
+	it('saving', async () => {
+		x = fac();
+
+		const [bazAtoms, lozAtoms] = await Promise.all([
+			x.atoms('baz'),
+			x.atoms('loz'),
+			x.run.boot('baz', ['guineaPig', ['runAbout', []]]),
+			x.run.boot('loz', ['guineaPig', ['gruntAt', ['baz']]])
+		]);
+
+
+		//HOW TO SAVE HEADS (they are internal)
+		//?????
+		
+
+		
+		const store = new FakeStore(new MonoidData(), 5);
+		
+		await x.saver.save(store, Set())
+
+		
+		//what would even save?
+		//the scenario needs a saver
+		//
+		//
+		//
+		
 	})
 })

@@ -81,11 +81,10 @@ describe('mediator', () => {
 
 	it('attendee released after chat', async () => {
 		const convener: Convener<number> = {
-			convene(peers) {
-				const [peer] = peers;
+			convene([peer]) {
 				peer.chat(['hello']);
 				return 1;
-			},
+			}
 		}
 
 		const attendee: Attendee<number> = {
@@ -183,12 +182,5 @@ describe('mediator', () => {
 	//we can go ahead with what we have then
 	//which is: the mediator's injected, wrapping handlers will talk to each other, ensuring all involved parties complete at the end of a communication
 	
-
-
-
-	xit('heads conjoined', async () => {
-		//some kind of combining of context needed
-		//...
-	})
 })
 

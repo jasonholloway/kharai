@@ -11,6 +11,8 @@ import { isString, isArray } from 'util'
 import { AtomEmit, $Commit } from '../src/Committer'
 import { gather } from './helpers'
 import { Emit, MachineLoader, MachineSpace } from '../src/MachineSpace'
+import AtomSaver from '../src/AtomSaver'
+import MonoidData from '../src/MonoidData'
 
 export const bootPhase = <W extends World>(): PhaseImpl<W, MachineContext, []> =>
   (x => ({
@@ -71,12 +73,14 @@ export function scenario<W extends PhaseMap, X>(world: WorldImpl<W, X>) {
 
     const dispatch = buildDispatch(world.phases);
     const space = new MachineSpace(world, loader, dispatch);
+    const saver = new AtomSaver(new MonoidData(), atomSpace);
     const run = space.newRun();
 
     return {
       loader,
       dispatch,
       space,
+      saver,
       run,
 
       logs() {
@@ -99,23 +103,23 @@ export function scenario<W extends PhaseMap, X>(world: WorldImpl<W, X>) {
 export const getAtoms = (rs: Set<AtomRef<Data>>) => rs.flatMap(r => r.resolve()).toArray()
 
 export function phasesOnly(): OperatorFunction<Emit<any>, readonly [Id, any]> {
-	return flatMap(l => {
-		if(isString(l[0]) || (isArray(l[0]) && isString(l[0][0]) && isString(l[0][1]))) {
-			return [<[Id, any]>l];
-		}
-		else {
-			return [];
-		}
-	})
+  return flatMap(l => {
+    if(isString(l[0]) || (isArray(l[0]) && isString(l[0][0]) && isString(l[0][1]))) {
+      return [<[Id, any]>l];
+    }
+    else {
+      return [];
+    }
+  })
 }
 
 export function commitsOnly(): OperatorFunction<Emit<any>, AtomEmit<Data>> {
-	return flatMap(l => {
-		if(l[0] == $Commit) {
-			return [<[typeof $Commit, AtomRef<Data>]>l];
-		}
-		else {
-			return [];
-		}
-	})
+  return flatMap(l => {
+    if(l[0] == $Commit) {
+      return [<[typeof $Commit, AtomRef<Data>]>l];
+    }
+    else {
+      return [];
+    }
+  })
 }
