@@ -72,10 +72,7 @@ export class MachineSpace<W extends PhaseMap = {}, X extends MachineContext = Ma
   private machines: Map<Id, Promise<Machine<X, P>>>
 
   private _log$$: Subject<Observable<Emit<P>>>
-	// private _atom$: Subject<AtomRef<Data>>
-
   readonly log$: Observable<Emit<P>>
-  // readonly atom$: Observable<AtomRef<Data>>
 
   constructor(world: WorldImpl<W, X>, loader: MachineLoader<P>, dispatch: Dispatch<X, P>) {
     this.world = world;
@@ -86,13 +83,9 @@ export class MachineSpace<W extends PhaseMap = {}, X extends MachineContext = Ma
 
     this._log$$ = new Subject();
     this.log$ = this._log$$.pipe(mergeAll());
-
-		// this._atom$ = new Subject();
-    // this.atom$ = this._atom$;
   }
 
 	complete() {
-		// this._atom$.complete();
 		this._log$$.complete();
 	}
 
@@ -120,16 +113,13 @@ export class MachineSpace<W extends PhaseMap = {}, X extends MachineContext = Ma
 						  h => new Commit<Data>(new MonoidData(), h)
 						);
 
-            // machine.atom$.subscribe(this._atom$);
-            //above ^^ there shouldn't be a central stream of atoms
-            //only per machine please - but this means again that atoms might appear
-            //more than once, we need to debounce separately
-            //but that's unavoidable if we're doing per-machine watches, which we must do
-            //
-
             this._log$$.next(machine.log$);
 
             machine.begin(id, head, phase);
+
+            //head needs to be property on machine, not just closure thing
+            //and exposed too via IMachine
+            //...
 
             return machine;
           })

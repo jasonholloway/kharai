@@ -19,6 +19,7 @@ export default class AtomSpace<V> {
 		const _tips = Set(tips);
 		let roots1 = _tips.flatMap(AtomPath.findRoots);
 
+		//repeatedly lock until stable
 		while(true) {
 			const lock = await this.lock(roots1);
 			const roots2 = _tips.flatMap(AtomPath.findRoots);

@@ -73,10 +73,13 @@ describe('machines - saving', () => {
 		//?????
 		
 
-		
 		const store = new FakeStore(new MonoidData(), 5);
 		
+		//where to find the heads?
+		//they will only be available within the MachineSpace
 		await x.saver.save(store, Set())
+
+		console.log(store.saved)
 
 		
 		//what would even save?

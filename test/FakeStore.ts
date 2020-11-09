@@ -1,9 +1,10 @@
 import Store from '../src/Store'
 import { Data } from '../src/lib'
 import _Monoid from '../src/_Monoid'
+import { Map } from 'immutable'
 
 export default class FakeStore extends Store<Data> {
-  saved: Data[] = []
+  saved: Data = Map()
   private _maxBatch: number;
 
   constructor(monoid: _Monoid<Data>, batchSize: number) {
@@ -15,7 +16,7 @@ export default class FakeStore extends Store<Data> {
     return v.count() <= this._maxBatch
       && {
         save: () => {
-          this.saved.push(v);
+          this.saved = this.saved.merge(v);
           return Promise.resolve();
         }
       };

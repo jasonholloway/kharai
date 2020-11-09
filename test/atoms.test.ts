@@ -298,7 +298,7 @@ class FakeStore extends Store<string> {
 	}
 
 	prepare(v: string): {save():Promise<void>}|false {
-		return v.length <= this._maxBatch
+		return (v.length <= this._maxBatch)
 			&& {
 				save: () => {
 					this.saved.push(v);

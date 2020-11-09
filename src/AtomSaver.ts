@@ -16,6 +16,7 @@ export default class AtomSaver<V> {
 	async save(store: Store<V>, heads: Set<Head<V>>): Promise<void> {
 		const M = this._monoidV;
 
+		//lock everything all at once, until stable; with risk of contention
 		const path = await this._space.lockTips(...heads.flatMap(h => h.refs()));
 
 		//TODO
@@ -25,48 +26,50 @@ export default class AtomSaver<V> {
 		//(as is we'll always be saving out-of-date state)
 
 		try {
+			//save and rewrite locked path till all done
 			while(path.hasAtoms()) {
 				let mode: 'gather'|'copy' = 'gather';
 				let bagged = M.zero;
 				let save = () => Promise.resolve();
 
-				const patch = path.rewrite(fn => (ref, atom) => {
-					const parents = atom.parents.map(fn);
-					switch(mode) {
-						case 'gather':
-							const upstreamCombo = M.add(
-								bagged,
-								parents
-								  .flatMap(r => r.resolve())
-								  .map(a => a.val)
-									.reduce(M.add, M.zero)
-							);
-							const canSave1 = store.prepare(upstreamCombo);
-							if(canSave1) {
-								bagged = upstreamCombo;
-								save = () => canSave1.save();
-							}
-							else {
-								mode = 'copy'
+				const patch = path
+					.rewrite(self => (ref, atom) => {
+						const parents = atom.parents.map(self);
+						switch(mode) {
+							case 'gather':
+								const upstreamCombo = M.add(
+									bagged,
+									parents
+										.flatMap(r => r.resolve())
+										.map(a => a.val)
+										.reduce(M.add, M.zero)
+								);
+								const canSave1 = store.prepare(upstreamCombo);
+								if(canSave1) {
+									bagged = upstreamCombo;
+									save = () => canSave1.save();
+								}
+								else {
+									mode = 'copy'
+									return [[ref], new Atom(parents, atom.val)];
+								}
+
+								const combo = M.add(bagged, atom.val);
+								const canSave2 = store.prepare(combo);
+								if(canSave2) {
+									bagged = combo;
+									save = () => canSave2.save();
+									return [[...parents, ref], null];
+								}
+								else {
+									mode = 'copy'
+									return [[...parents, ref], new Atom(Set(), atom.val)];
+								}
+
+							case 'copy':
 								return [[ref], new Atom(parents, atom.val)];
-							}
-
-							const combo = M.add(bagged, atom.val);
-							const canSave2 = store.prepare(combo);
-							if(canSave2) {
-								bagged = combo;
-								save = () => canSave2.save();
-								return [[...parents, ref], null];
-							}
-							else {
-								mode = 'copy'
-								return [[...parents, ref], new Atom(Set(), atom.val)];
-							}
-
-						case 'copy':
-							return [[ref], new Atom(parents, atom.val)];
-					}
-				});
+						}
+					});
 
 				await save();
 
