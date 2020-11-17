@@ -3,16 +3,16 @@ import _Monoid from '../src/_Monoid'
 import AtomSpace from '../src/AtomSpace'
 import { Id, Data, World, MachineContext, Phase, PhaseMap, WorldImpl, PhaseImpl } from '../src/lib'
 import { OperatorFunction } from 'rxjs'
-import { flatMap, mergeMap } from 'rxjs/operators'
-import { buildDispatch } from '../src/dispatch'
+import { flatMap, mergeMap, filter } from 'rxjs/operators'
 import { delay } from '../src/util'
 import { AtomRef } from '../src/atoms'
 import { isString, isArray } from 'util'
 import { AtomEmit, $Commit } from '../src/Committer'
 import { gather } from './helpers'
-import { Emit, MachineLoader, MachineSpace } from '../src/MachineSpace'
+import { Emit, MachineLoader } from '../src/MachineSpace'
 import AtomSaver from '../src/AtomSaver'
 import MonoidData from '../src/MonoidData'
+import { Run } from '../src/Run'
 
 export const bootPhase = <W extends World>(): PhaseImpl<W, MachineContext, []> =>
   (x => ({
@@ -56,12 +56,12 @@ export const watchPhase = <W extends World>(): PhaseImpl<W, MachineContext, [Id,
   }));
 
 
-export function scenario<W extends PhaseMap, X>(world: WorldImpl<W, X>) {
-  return (phases?: Map<Id, Phase<W>>) => {
+export function scenario<W extends PhaseMap, X extends MachineContext, P = Phase<W>>(world: WorldImpl<W, X>) {
+  return (phases?: Map<Id, P>) => {
     const atomSpace = new AtomSpace<Data>();
 
-    const loader: MachineLoader<Phase<W>> = async id => {
-      const p = phases?.get(id) || <Phase<W>><unknown>(['$boot', []]); //zero phase should be well-known
+    const loader: MachineLoader<P> = async id => {
+      const p = phases?.get(id) || <P><unknown>(['$boot', []]); //zero phase should be well-known
 
       const h = atomSpace.head()
         .write(Map({
@@ -71,15 +71,12 @@ export function scenario<W extends PhaseMap, X>(world: WorldImpl<W, X>) {
       return [h, p];
     };
 
-    const dispatch = buildDispatch(world.phases);
-    const space = new MachineSpace(world, loader, dispatch);
     const saver = new AtomSaver(new MonoidData(), atomSpace);
-    const run = space.newRun();
+
+    const run = new Run<W, X, P>(world, loader);
 
     return {
       loader,
-      dispatch,
-      space,
       saver,
       run,
 
@@ -89,12 +86,13 @@ export function scenario<W extends PhaseMap, X>(world: WorldImpl<W, X>) {
       },
 
       atoms(id: Id) {
-        return gather(space
-          .summon(Set([id]))
-          .pipe(
+        return gather(
+          run.machine$.pipe(
+            filter(m => m.id == id),
             mergeMap(m => m.atom$),
             mergeMap(r => r.resolve())
-          ));
+          )
+        )
       }
     }
   }

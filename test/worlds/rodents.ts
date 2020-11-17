@@ -22,6 +22,10 @@ export type TRodents<Me extends World = World> = SpecWorld<{
     runAbout: []
     gruntAt: [Id]
   }
+
+  gerbil: {
+    spawn: [number[], number]
+  }
 }>
 
 export type Rodents = TRodents<TRodents>
@@ -90,6 +94,30 @@ export function rodents() {
           }
         })
       },
+
+      gerbil: {
+        spawn: x => ({
+          guard(d): d is [number[], number] { return true; },
+          async run([path, i]) {
+            console.log(path, i, Date.now())
+
+            if(path.length < 3 && i < 3) {
+              //spawn
+              const path2 = [...path, i];
+
+              await x.convene([`${x.id}${i}`], {
+                convene([p]) {
+                  p.chat([['gerbil', ['spawn', [path2, 0]]]])
+                }
+              })
+
+              return ['spawn', [path, i + 1]]
+            }
+
+            return false;
+          }
+        })
+      }
     }
   })
 }

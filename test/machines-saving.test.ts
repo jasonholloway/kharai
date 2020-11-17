@@ -4,6 +4,8 @@ import { rodents } from './worlds/rodents'
 import FakeStore from './FakeStore';
 import MonoidData from '../src/MonoidData';
 import { Set } from 'immutable'
+import { flatMap, take, map } from 'rxjs/operators';
+import { gather, delay } from './helpers';
 
 describe('machines - saving', () => {
 	const fac = scenario(rodents());
@@ -68,25 +70,57 @@ describe('machines - saving', () => {
 			x.run.boot('loz', ['guineaPig', ['gruntAt', ['baz']]])
 		]);
 
-
-		//HOW TO SAVE HEADS (they are internal)
-		//?????
-		
-
 		const store = new FakeStore(new MonoidData(), 5);
 		
 		//where to find the heads?
 		//they will only be available within the MachineSpace
-		await x.saver.save(store, Set())
 
-		console.log(store.saved)
+		const heads = await gather(x.space
+			.summon(Set(['baz', 'loz']))
+		  .pipe(flatMap(m => m.head$.pipe(take(1)))))
 
+		await x.saver.save(store, Set(heads))
+	})
+
+	it('further saving', async () => {
+		x = fac();
+
+		const store = new FakeStore(new MonoidData(), 2);
+
+		x.run.log$.subscribe(console.log)
+
+		// await Promise.all([
+		// 	x.atoms('jeremy'),
+		// 	x.atoms('jessica'),
+			x.run.boot('jeremy', ['gerbil', ['spawn', [[], 0]]]),
+			x.run.boot('jessica', ['gerbil', ['spawn', [[], 0]]])
+		// ]);
+
+		//the spawned machines aren't waited of course
+		//we need to somehow wait for all machines to quieten...
+		//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+		console.log(1)
+		const gatheringHeads = gather(x.run.machine$
+			.pipe(flatMap(m => m.head$)))
+
+		console.log(2)
+		await delay(20);
+		console.log(3)
 		
-		//what would even save?
-		//the scenario needs a saver
-		//
-		//
-		//
-		
+		x.run.complete();
+		console.log(4)
+
+		const heads = await gatheringHeads;
+		// console.log(heads)
+
+		// //ABOVE IS NOT COMPLETING!!!
+		// //
+		// //MachineSpace needs to complete when all machines are done
+		// //but isn't that more of a Run?
+
+		// await x.saver.save(store, Set(heads))
+
+		// console.log(store.saved)
 	})
 })

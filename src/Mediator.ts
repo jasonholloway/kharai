@@ -1,5 +1,6 @@
 import { Exchange, Lock } from './Locks'
 import { Set } from 'immutable'
+const log = console.log;
 
 export interface Peer {
   chat(m: any): false|[any]
@@ -17,7 +18,9 @@ export class Mediator {
   private locks = new Exchange<Peer>();
 
   async convene<R>(convener: Convener<R>, others: Set<object>): Promise<R> {
+    log('claiming', others.first(undefined))
     const claim = await this.locks.claim(...others);
+    log('claimed', others)
     try {
       const peers = claim.offers(); //peer interface needs to be wrapped here, to remove special messages
       const answer = convener.convene(peers);
@@ -41,6 +44,7 @@ export class Mediator {
     
     const handle = await new Promise<Lock>((resolve, reject) => {
       let _go = true;
+      // log('offering', item)
       const _handle = this.locks.offer([item],
         {
           chat(m: false|[any]) {

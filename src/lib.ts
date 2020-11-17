@@ -20,6 +20,7 @@ type PathVal<T, E> = { [K in keyof T]: [K, T[K] extends E ? T[K] : PathVal<T[K],
 export type Phase<P extends PhaseMap> = PathVal<P, any[]>
 
 export interface MachineContext {
+	readonly id: Id
 	watch(ids: Id[]): Observable<Data>
 	attach<R>(attend: Attendee<R>): Promise<false|[R]>
 	convene<R>(ids: Id[], convener: Convener<R>): Promise<R>

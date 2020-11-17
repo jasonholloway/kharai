@@ -16,6 +16,7 @@ export default class FakeStore extends Store<Data> {
     return v.count() <= this._maxBatch
       && {
         save: () => {
+          console.log('saving', v)
           this.saved = this.saved.merge(v);
           return Promise.resolve();
         }

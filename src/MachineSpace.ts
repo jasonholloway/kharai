@@ -1,65 +1,17 @@
 import { Id, Data, WorldImpl, PhaseMap, Phase, MachineContext } from './lib'
 import { Head } from './AtomSpace'
 import { Mediator, Convener, Attendee, Peer } from './Mediator'
-import { Observable, Subject, from, merge, ReplaySubject } from 'rxjs'
-import { flatMap, skipWhile, startWith, mergeAll, endWith, scan, takeWhile, finalize, publish, toArray, map, mergeMap, tap } from 'rxjs/operators'
+import { Observable, Subject, from, merge, ReplaySubject, BehaviorSubject } from 'rxjs'
+import { toArray, map, mergeMap, tap } from 'rxjs/operators'
 import Commit, { AtomEmit } from './Committer'
 import { Map, Set } from 'immutable'
 import { Dispatch } from './dispatch'
 import { isArray } from 'util'
 import MonoidData from './MonoidData'
-import { AtomRef, Atom } from './atoms'
+import { AtomRef } from './atoms'
 
 export type Emit<P = any> =
 		readonly [Id, P] | AtomEmit<Data>
-
-export class Run<W extends PhaseMap, X extends MachineContext, P> {
-  private readonly space: MachineSpace<W, X, P>
-  private readonly mediator: Mediator
-  private readonly log$$: Subject<Observable<Emit<P>>>
-
-  log$: Observable<Emit<P>>
-
-  constructor(space: MachineSpace<W, X, P>, mediator: Mediator) {
-    this.space = space;
-    this.mediator = mediator;
-    this.log$$ = new Subject();
-    this.log$ = this.log$$.pipe(mergeAll());
-
-		const count$ = this.log$$.pipe(
-			flatMap(l => l.pipe(
-				skipWhile<any>(_ => true),
-				startWith<number>(1),
-			  endWith<number>(-1),
-				)),
-			scan((c, n) => c + n, 0));
-
-		count$.pipe(
-			takeWhile(c => c > 0),
-			finalize(() => this.log$$.complete())
-		).subscribe();
-  }
-  
-  async meet<R = any>(ids: Id[], convener: Convener<R>): Promise<R> {
-    const machine$ = publish<IMachine<P>>()(this.space.summon(Set(ids)));
-
-    this.log$$.next(machine$.pipe(flatMap(m => m.log$)))
-    const gathering = machine$.pipe(toArray()).toPromise();
-    machine$.connect();
-
-    return await this.mediator
-      .convene(convener, Set(await gathering));
-  }
-
-  tell(id: Id, m: any) {
-    return this.meet([id], { convene([p]) { return p.chat([m]) } });
-  }
-
-  boot(id: Id, p: Phase<W>) {
-    return this.tell(id, p);
-  }
-}
-
 
 export type DataLoader<P> = (ids: Set<Id>) => Promise<Map<Id, [Head<Data>, P?]>>
 export type MachineLoader<P> = (id: Id) => Promise<[Head<Data>, P]>
@@ -69,28 +21,27 @@ export class MachineSpace<W extends PhaseMap = {}, X extends MachineContext = Ma
   private readonly loader: MachineLoader<P>
   private readonly mediator: Mediator
   private readonly dispatch: Dispatch<X, P>
+
   private machines: Map<Id, Promise<Machine<X, P>>>
+  private _machine$: Subject<IMachine<P>>
+  readonly machine$: Observable<IMachine<P>>
 
-  private _log$$: Subject<Observable<Emit<P>>>
-  readonly log$: Observable<Emit<P>>
+  private _signal$: Observable<Signal>
 
-  constructor(world: WorldImpl<W, X>, loader: MachineLoader<P>, dispatch: Dispatch<X, P>) {
+  constructor(world: WorldImpl<W, X>, loader: MachineLoader<P>, dispatch: Dispatch<X, P>, mediator: Mediator, signal$: Observable<Signal>) {
     this.world = world;
     this.loader = loader;
     this.dispatch = dispatch;
-    this.mediator = new Mediator();
+    this.mediator = mediator;
+
     this.machines = Map();
+    this._machine$ = new Subject();
+    this.machine$ = this._machine$;
 
-    this._log$$ = new Subject();
-    this.log$ = this._log$$.pipe(mergeAll());
-  }
-
-	complete() {
-		this._log$$.complete();
-	}
-
-  newRun(): Run<W, X, P> {
-    return new Run(this, this.mediator);
+    this._signal$ = signal$;
+    signal$.subscribe(s => {
+      if(s.stop) this._machine$.complete();
+    })
   }
 
   summon(ids: Set<Id>): Observable<IMachine<P>> {
@@ -110,16 +61,13 @@ export class MachineSpace<W extends PhaseMap = {}, X extends MachineContext = Ma
               this.asSpace(),
 							this.dispatch,
 							this.world.contextFac,
-						  h => new Commit<Data>(new MonoidData(), h)
+						  h => new Commit<Data>(new MonoidData(), h),
+              this._signal$
 						);
 
-            this._log$$.next(machine.log$);
+            this._machine$.next({ id, ...machine });
 
             machine.begin(id, head, phase);
-
-            //head needs to be property on machine, not just closure thing
-            //and exposed too via IMachine
-            //...
 
             return machine;
           })
@@ -133,8 +81,13 @@ export class MachineSpace<W extends PhaseMap = {}, X extends MachineContext = Ma
     
     this.machines = this.machines.merge(Map(toAdd));
 
+    //MACHINES SHOULD IMPLEMENT IMACHINE DIRECTLY!!!
+    //or IMACHINE should have a root() method that returns an object
+
     return merge(...(summoned.map(
-      ([,, loading]) => from(loading))
+      ([, id, loading]) =>
+        from(loading).pipe(
+          map(m => ({ id, ...m, _getMachine() { return m; } }))))
     ));
   }
 
@@ -167,55 +120,81 @@ interface ISpace {
   convene<R>(ids: Id[], convene: Convener<R>): Promise<R>
 }
 
-
-
 type CommitFac = (h: Head<Data>) => Commit<Data>
 
-export class Machine<X, P> implements IMachine<P> {
+export type Signal = {
+  stop: boolean
+}
+
+export class Machine<X, P> {
   private _log$: Subject<Emit<P>>
   private _atom$: Subject<AtomRef<Data>>
+  private _head$: Subject<Head<Data>>
   private space: ISpace
   private dispatch: Dispatch<X, P>
   private modContext: (x: MachineContext) => X
 	private commitFac: CommitFac
+  private signal$: Observable<Signal>
 
   readonly log$: Observable<Emit<P>>
   readonly atom$: Observable<AtomRef<Data>>
+  readonly head$: Observable<Head<Data>>
   
-  constructor(space: ISpace, dispatch: Dispatch<X, P>, modContext: (x: MachineContext) => X, commitFac: CommitFac) {
+  constructor(
+    space: ISpace,
+    dispatch: Dispatch<X, P>,
+    modContext: (x: MachineContext) => X,
+    commitFac: CommitFac,
+    signal$: Observable<Signal>)
+  {
     this._log$ = new ReplaySubject(1);
     this.log$ = this._log$;
 
     this._atom$ = new ReplaySubject(1);
     this.atom$ = this._atom$;
 
+    this._head$ = new ReplaySubject(1);
+    this.head$ = this._head$;
+
     this.space = space;
     this.dispatch = dispatch;
     this.modContext = modContext;
 		this.commitFac = commitFac;
+
+    this.signal$ = signal$;
   }
 
   begin(id: Id, head: Head<Data>, phase: P) {
     const log$ = this._log$;
     const atom$ = this._atom$;
+    const head$ = this._head$;
     const dispatch = this.dispatch.bind(this);
     const buildContext = this.buildContext.bind(this);
+    const signal = new BehaviorSubject<Signal>({ stop: false })
+    const signalSub = this.signal$.subscribe(signal);
 
     head.refs().forEach(r => atom$.next(r));
     //AND NOW! special root atom should be marked as already-persisted, otherwise will incur unnecessary overwrite
 
+    head$.next(head);
+
     setImmediate(() => (async () => {     
-        while(true) {
+
+      
+        while(!signal.getValue().stop) {
           log$.next([id, phase]);
 
           const committer = this.commitFac(head);
-          const context = buildContext(committer);
+          const context = buildContext(id, committer);
+          console.log('DISPATCHING', id)
           const out = await dispatch(context)(phase);
+          console.log('DISPATCHED', id)
 
           if(out) {
             let atom: AtomRef<Data>;
             [head, atom] = await committer.complete(Map({ [id]: out }));
             atom$.next(atom);
+            head$.next(head);
             phase = out;
           }
           else {
@@ -225,18 +204,21 @@ export class Machine<X, P> implements IMachine<P> {
       })()
       .catch(log$.error.bind(log$))
       .finally(() => {
+        signalSub.unsubscribe();
         atom$.complete();
+        head$.complete();
         log$.complete();
       }));
   }
 
 	private static $Internal = Symbol('CommitCtx')
   
-  private buildContext(commit: Commit<Data>): X {
+  private buildContext(id: Id, commit: Commit<Data>): X {
     const me = this;
     const space = this.space;;
 
     return this.modContext({
+      id: id,
       watch(ids: Id[]): Observable<Data> {
         return space.watch(ids)
           .pipe(
@@ -280,7 +262,9 @@ export class Machine<X, P> implements IMachine<P> {
 }
 
 
-interface IMachine<P> {
+export interface IMachine<P> {
+  readonly id: Id
   readonly log$: Observable<Emit<P>>
   readonly atom$: Observable<AtomRef<Data>>
+  readonly head$: Observable<Head<Data>>
 }
