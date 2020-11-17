@@ -18,9 +18,9 @@ export class Mediator {
   private locks = new Exchange<Peer>();
 
   async convene<R>(convener: Convener<R>, others: Set<object>): Promise<R> {
-    log('claiming', others.first(undefined))
+    // log('claiming', others.first(undefined))
     const claim = await this.locks.claim(...others);
-    log('claimed', others)
+    // log('claimed', others)
     try {
       const peers = claim.offers(); //peer interface needs to be wrapped here, to remove special messages
       const answer = convener.convene(peers);

@@ -23,8 +23,8 @@ export class MachineSpace<W extends PhaseMap = {}, X extends MachineContext = Ma
   private readonly dispatch: Dispatch<X, P>
 
   private machines: Map<Id, Promise<Machine<X, P>>>
-  private _machine$: Subject<IMachine<P>>
-  readonly machine$: Observable<IMachine<P>>
+  private _machine$: Subject<Machine<X, P>>
+  readonly machine$: Observable<Machine<X, P>>
 
   private _signal$: Observable<Signal>
 
@@ -44,7 +44,7 @@ export class MachineSpace<W extends PhaseMap = {}, X extends MachineContext = Ma
     })
   }
 
-  summon(ids: Set<Id>): Observable<IMachine<P>> {
+  summon(ids: Set<Id>): Observable<Machine<X, P>> {
     const summoned = ids.map(id => {
       const found = this.machines.get(id);
       if(found) {
@@ -58,6 +58,7 @@ export class MachineSpace<W extends PhaseMap = {}, X extends MachineContext = Ma
           id,
           loading.then(([head, phase]) => {
             const machine: Machine<X, P> = new Machine<X, P>(
+              id,
               this.asSpace(),
 							this.dispatch,
 							this.world.contextFac,
@@ -65,9 +66,9 @@ export class MachineSpace<W extends PhaseMap = {}, X extends MachineContext = Ma
               this._signal$
 						);
 
-            this._machine$.next({ id, ...machine });
+            this._machine$.next(machine);
 
-            machine.begin(id, head, phase);
+            machine.begin(head, phase);
 
             return machine;
           })
@@ -81,14 +82,9 @@ export class MachineSpace<W extends PhaseMap = {}, X extends MachineContext = Ma
     
     this.machines = this.machines.merge(Map(toAdd));
 
-    //MACHINES SHOULD IMPLEMENT IMACHINE DIRECTLY!!!
-    //or IMACHINE should have a root() method that returns an object
-
     return merge(...(summoned.map(
-      ([, id, loading]) =>
-        from(loading).pipe(
-          map(m => ({ id, ...m, _getMachine() { return m; } }))))
-    ));
+      ([,, loading]) => from(loading)
+    )));
   }
 
   private asSpace(): ISpace {
@@ -136,17 +132,21 @@ export class Machine<X, P> {
 	private commitFac: CommitFac
   private signal$: Observable<Signal>
 
+  readonly id: Id
   readonly log$: Observable<Emit<P>>
   readonly atom$: Observable<AtomRef<Data>>
   readonly head$: Observable<Head<Data>>
   
   constructor(
+    id: Id,
     space: ISpace,
     dispatch: Dispatch<X, P>,
     modContext: (x: MachineContext) => X,
     commitFac: CommitFac,
     signal$: Observable<Signal>)
   {
+    this.id = id;
+    
     this._log$ = new ReplaySubject(1);
     this.log$ = this._log$;
 
@@ -164,7 +164,8 @@ export class Machine<X, P> {
     this.signal$ = signal$;
   }
 
-  begin(id: Id, head: Head<Data>, phase: P) {
+  begin(head: Head<Data>, phase: P) {
+    const id = this.id;
     const log$ = this._log$;
     const atom$ = this._atom$;
     const head$ = this._head$;
@@ -186,9 +187,9 @@ export class Machine<X, P> {
 
           const committer = this.commitFac(head);
           const context = buildContext(id, committer);
-          console.log('DISPATCHING', id)
+          // console.log('DISPATCHING', id)
           const out = await dispatch(context)(phase);
-          console.log('DISPATCHED', id)
+          // console.log('DISPATCHED', id)
 
           if(out) {
             let atom: AtomRef<Data>;
@@ -259,12 +260,4 @@ export class Machine<X, P> {
       }
     });
   }
-}
-
-
-export interface IMachine<P> {
-  readonly id: Id
-  readonly log$: Observable<Emit<P>>
-  readonly atom$: Observable<AtomRef<Data>>
-  readonly head$: Observable<Head<Data>>
 }

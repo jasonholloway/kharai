@@ -3,7 +3,7 @@ import { Mediator, Convener } from './Mediator'
 import { Observable, Subject } from 'rxjs'
 import { flatMap, skipWhile, startWith, mergeAll, endWith, scan, takeWhile, finalize, map, toArray } from 'rxjs/operators'
 import { Set } from 'immutable'
-import { MachineSpace, Emit, MachineLoader, IMachine, Signal, Machine } from './MachineSpace'
+import { MachineSpace, Emit, MachineLoader, Signal, Machine } from './MachineSpace'
 import { buildDispatch } from './dispatch'
 const log = console.log;
 
@@ -12,7 +12,7 @@ export class Run<W extends PhaseMap, X extends MachineContext, P = Phase<W>> {
   private readonly space: MachineSpace<W, X, P>
 	private readonly signal$: Subject<Signal>
 
-	readonly machine$: Observable<IMachine<P>>
+	readonly machine$: Observable<Machine<X, P>>
   readonly log$: Observable<Emit<P>>
 
   constructor(world: WorldImpl<W, X>, loader: MachineLoader<P>) {
@@ -41,11 +41,11 @@ export class Run<W extends PhaseMap, X extends MachineContext, P = Phase<W>> {
 	complete() {
 		this.signal$.next({ stop: true });
 	}
-  
+
   async meet<R = any>(ids: Id[], convener: Convener<R>): Promise<R> {
 		const machines = await gather(
-			this.space.summon(Set(ids)).pipe(
-				map(m => <Machine<W, X>>((<any>m)._getMachine()))));
+			this.space.summon(Set(ids))
+		);
 
     return await this.mediator
       .convene(convener, Set(machines));
