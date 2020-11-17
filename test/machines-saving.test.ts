@@ -89,23 +89,23 @@ describe('machines - saving', () => {
 
 		x.run.log$.subscribe(console.log)
 
-		// await Promise.all([
+		await Promise.all([
 		// 	x.atoms('jeremy'),
 		// 	x.atoms('jessica'),
 			x.run.boot('jeremy', ['gerbil', ['spawn', [[], 0]]]),
 			x.run.boot('jessica', ['gerbil', ['spawn', [[], 0]]])
-		// ]);
+		]);
 
-		//the spawned machines aren't waited of course
-		//we need to somehow wait for all machines to quieten...
-		//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		//signals need to break waits as well
+		//mediator must respond to signals
 
 		console.log(1)
 		const gatheringHeads = gather(x.run.machine$
 			.pipe(flatMap(m => m.head$)))
 
 		console.log(2)
-		await delay(20);
+		await delay(200);
 		console.log(3)
 		
 		x.run.complete();

@@ -91,9 +91,12 @@ export class MachineSpace<W extends PhaseMap = {}, X extends MachineContext = Ma
     const _this = this;
     return {
       watch(ids: Id[]): Observable<AtomRef<Data>> {
+        //this doesn't seem right - where's the merging of atoms?
+        //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         return _this.summon(Set(ids))
           .pipe(
-            mergeMap(m => m.atom$)
+            mergeMap(m => m.head$),
+            mergeMap(h => h.refs())
           );
       },
 
@@ -124,7 +127,7 @@ export type Signal = {
 
 export class Machine<X, P> {
   private _log$: Subject<Emit<P>>
-  private _atom$: Subject<AtomRef<Data>>
+  // private _atom$: Subject<AtomRef<Data>>
   private _head$: Subject<Head<Data>>
   private space: ISpace
   private dispatch: Dispatch<X, P>
@@ -134,7 +137,7 @@ export class Machine<X, P> {
 
   readonly id: Id
   readonly log$: Observable<Emit<P>>
-  readonly atom$: Observable<AtomRef<Data>>
+  // readonly atom$: Observable<AtomRef<Data>>
   readonly head$: Observable<Head<Data>>
   
   constructor(
@@ -150,8 +153,8 @@ export class Machine<X, P> {
     this._log$ = new ReplaySubject(1);
     this.log$ = this._log$;
 
-    this._atom$ = new ReplaySubject(1);
-    this.atom$ = this._atom$;
+    // this._atom$ = new ReplaySubject(1);
+    // this.atom$ = this._atom$;
 
     this._head$ = new ReplaySubject(1);
     this.head$ = this._head$;
@@ -167,34 +170,31 @@ export class Machine<X, P> {
   begin(head: Head<Data>, phase: P) {
     const id = this.id;
     const log$ = this._log$;
-    const atom$ = this._atom$;
+    // const atom$ = this._atom$;
     const head$ = this._head$;
     const dispatch = this.dispatch.bind(this);
     const buildContext = this.buildContext.bind(this);
     const signal = new BehaviorSubject<Signal>({ stop: false })
     const signalSub = this.signal$.subscribe(signal);
 
-    head.refs().forEach(r => atom$.next(r));
+    // head.refs().forEach(r => atom$.next(r));
     //AND NOW! special root atom should be marked as already-persisted, otherwise will incur unnecessary overwrite
 
     head$.next(head);
 
     setImmediate(() => (async () => {     
-
       
         while(!signal.getValue().stop) {
           log$.next([id, phase]);
 
           const committer = this.commitFac(head);
           const context = buildContext(id, committer);
-          // console.log('DISPATCHING', id)
           const out = await dispatch(context)(phase);
-          // console.log('DISPATCHED', id)
 
           if(out) {
-            let atom: AtomRef<Data>;
-            [head, atom] = await committer.complete(Map({ [id]: out }));
-            atom$.next(atom);
+            // let atom: AtomRef<Data>;
+            [head] = await committer.complete(Map({ [id]: out }));
+            // atom$.next(atom);
             head$.next(head);
             phase = out;
           }
@@ -206,7 +206,7 @@ export class Machine<X, P> {
       .catch(log$.error.bind(log$))
       .finally(() => {
         signalSub.unsubscribe();
-        atom$.complete();
+        // atom$.complete();
         head$.complete();
         log$.complete();
       }));
