@@ -3,6 +3,7 @@ import AtomSpace, { Head } from './AtomSpace'
 import Store from './Store'
 import { Set } from 'immutable'
 import { Atom } from './atoms'
+const log = console.log;
 
 export default class AtomSaver<V> {
 	private _monoidV: _Monoid<V>;

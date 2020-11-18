@@ -6,6 +6,7 @@ import MonoidData from '../src/MonoidData';
 import { Set } from 'immutable'
 import { flatMap, take, map } from 'rxjs/operators';
 import { gather, delay } from './helpers';
+const log = console.log;
 
 describe('machines - saving', () => {
 	const fac = scenario(rodents());
@@ -84,43 +85,42 @@ describe('machines - saving', () => {
 
 	it('further saving', async () => {
 		x = fac();
+		x.run.log$.subscribe(log)
 
 		const store = new FakeStore(new MonoidData(), 2);
 
-		x.run.log$.subscribe(console.log)
-
 		await Promise.all([
-		// 	x.atoms('jeremy'),
-		// 	x.atoms('jessica'),
-			x.run.boot('jeremy', ['gerbil', ['spawn', [[], 0]]]),
-			x.run.boot('jessica', ['gerbil', ['spawn', [[], 0]]])
+			x.run.boot('mm', ['gerbil', ['spawn', [0]]]),
+			x.run.boot('aa', ['gerbil', ['spawn', [0]]]),
 		]);
 
-		//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-		//signals need to break waits as well
-		//mediator must respond to signals
+		//!!!
+		//BOOTS are without parents and get gobbled up straight away by the saver
+		//
+		//in symettry with unnecessary saving of boots...
+		//(should be flag to stop saver consuming them)
+		//!!!
 
-		console.log(1)
+
+		log(1)
 		const gatheringHeads = gather(x.run.machine$
 			.pipe(flatMap(m => m.head$)))
 
-		console.log(2)
-		await delay(200);
-		console.log(3)
+		await delay(250);
 		
 		x.run.complete();
-		console.log(4)
+		log(2)
 
 		const heads = await gatheringHeads;
-		// console.log(heads)
+		log(3)
+		// log.log(heads)
 
 		// //ABOVE IS NOT COMPLETING!!!
 		// //
 		// //MachineSpace needs to complete when all machines are done
 		// //but isn't that more of a Run?
 
-		// await x.saver.save(store, Set(heads))
-
-		// console.log(store.saved)
+		await x.saver.save(store, Set(heads))
+		log(store.saved)
 	})
 })

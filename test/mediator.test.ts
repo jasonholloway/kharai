@@ -1,12 +1,13 @@
 import { Set } from 'immutable'
 import { Mediator, Convener, Attendee } from '../src/Mediator'
 import { delay } from '../src/util'
+import { empty } from 'rxjs/internal/observable/empty'
 
 describe('mediator', () => {
 	let space: Mediator
 
 	beforeEach(() => {
-		space = new Mediator();
+		space = new Mediator(empty());
 	})
 
 	it('simplest convene/attach', async () => {

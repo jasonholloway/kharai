@@ -89,7 +89,8 @@ export function scenario<W extends PhaseMap, X extends MachineContext, P = Phase
         return gather(
           run.machine$.pipe(
             filter(m => m.id == id),
-            mergeMap(m => m.atom$),
+            mergeMap(m => m.head$),
+            mergeMap(h => h.refs()),
             mergeMap(r => r.resolve())
           )
         )

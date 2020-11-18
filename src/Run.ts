@@ -1,6 +1,6 @@
 import { Id, PhaseMap, Phase, MachineContext, WorldImpl } from './lib'
 import { Mediator, Convener } from './Mediator'
-import { Observable, Subject } from 'rxjs'
+import { Observable, Subject, ReplaySubject } from 'rxjs'
 import { flatMap, skipWhile, startWith, mergeAll, endWith, scan, takeWhile, finalize, map, toArray } from 'rxjs/operators'
 import { Set } from 'immutable'
 import { MachineSpace, Emit, MachineLoader, Signal, Machine } from './MachineSpace'
@@ -16,8 +16,8 @@ export class Run<W extends PhaseMap, X extends MachineContext, P = Phase<W>> {
   readonly log$: Observable<Emit<P>>
 
   constructor(world: WorldImpl<W, X>, loader: MachineLoader<P>) {
-		this.signal$ = new Subject<Signal>();
-    this.mediator = new Mediator();		
+		this.signal$ = new ReplaySubject<Signal>(1);
+    this.mediator = new Mediator(this.signal$);		
     this.space = new MachineSpace(world, loader, buildDispatch(world.phases), this.mediator, this.signal$);
 
 		this.machine$ = this.space.machine$;

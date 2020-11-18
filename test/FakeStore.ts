@@ -6,6 +6,7 @@ import { Map } from 'immutable'
 export default class FakeStore extends Store<Data> {
   saved: Data = Map()
   private _maxBatch: number;
+  private _i = 0;
 
   constructor(monoid: _Monoid<Data>, batchSize: number) {
     super(monoid);
@@ -16,7 +17,7 @@ export default class FakeStore extends Store<Data> {
     return v.count() <= this._maxBatch
       && {
         save: () => {
-          console.log('saving', v)
+          console.log('saving', this._i++, v)
           this.saved = this.saved.merge(v);
           return Promise.resolve();
         }

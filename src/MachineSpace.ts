@@ -2,13 +2,14 @@ import { Id, Data, WorldImpl, PhaseMap, Phase, MachineContext } from './lib'
 import { Head } from './AtomSpace'
 import { Mediator, Convener, Attendee, Peer } from './Mediator'
 import { Observable, Subject, from, merge, ReplaySubject, BehaviorSubject } from 'rxjs'
-import { toArray, map, mergeMap, tap } from 'rxjs/operators'
+import { toArray, map, mergeMap, tap, filter } from 'rxjs/operators'
 import Commit, { AtomEmit } from './Committer'
 import { Map, Set } from 'immutable'
 import { Dispatch } from './dispatch'
 import { isArray } from 'util'
 import MonoidData from './MonoidData'
 import { AtomRef } from './atoms'
+const log = console.log;
 
 export type Emit<P = any> =
 		readonly [Id, P] | AtomEmit<Data>
@@ -39,9 +40,8 @@ export class MachineSpace<W extends PhaseMap = {}, X extends MachineContext = Ma
     this.machine$ = this._machine$;
 
     this._signal$ = signal$;
-    signal$.subscribe(s => {
-      if(s.stop) this._machine$.complete();
-    })
+    signal$.pipe(filter(s => s.stop))
+      .subscribe(() => this._machine$.complete());
   }
 
   summon(ids: Set<Id>): Observable<Machine<X, P>> {
@@ -106,8 +106,10 @@ export class MachineSpace<W extends PhaseMap = {}, X extends MachineContext = Ma
 
       async convene<R>(ids: Id[], convene: Convener<R>): Promise<R> {
         const machine$ = _this.summon(Set(ids));
-        return await _this.mediator
+        const result = await _this.mediator
           .convene(convene, Set(await machine$.pipe(toArray()).toPromise()));
+
+        return result;
       }
     }
   }
@@ -199,6 +201,7 @@ export class Machine<X, P> {
             phase = out;
           }
           else {
+            log(id, 'FIN.')
             break;
           }
         }
