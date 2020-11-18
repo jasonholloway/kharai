@@ -1,4 +1,5 @@
 import {Set, OrderedMap} from 'immutable'
+import CancellablePromise from './CancellablePromise';
 
 type Token = object
 type Waiter = () => ((()=>void) | false);
@@ -31,33 +32,37 @@ interface ClaimHandle<X> extends Lock {
 }
 
 export class Exchange<X> {
-  private readonly _inner = new Allocator<[X?, boolean?]>([]);
+  private readonly _inner: Allocator<[X?, boolean?]>
+
+  constructor() {
+    this._inner = new Allocator<[X?, boolean?]>([]);
+  }
   
-  async claim(...items: object[]): Promise<ClaimHandle<X>> {
+  claim(...items: object[]): CancellablePromise<ClaimHandle<X>> {
     let offers = Set<X>();
     
-    const h = await this._inner.app(items, {
-      canApp: ([x, b]) => (!!x && !b),
-      app: ([x]) => {
-        offers = offers.add(<X>x);
-        return [x, true];
-      },
-      reverse: () => ({
-        canApp: ([x, b]) => (!!x && !!b),
+    return this._inner.app(items,
+      {
+        canApp: ([x, b]) => (!!x && !b),
         app: ([x]) => {
-          offers = offers.remove(<X>x);
-          return [x];
-        }
+          offers = offers.add(<X>x);
+          return [x, true];
+        },
+        reverse: () => ({
+          canApp: ([x, b]) => (!!x && !!b),
+          app: ([x]) => {
+            offers = offers.remove(<X>x);
+            return [x];
+          }
+        })
       })
-    });
-
-    return {
-      ...h,
-      offers: () => offers
-    };
+      .map(h => ({
+        ...h,
+        offers: () => offers
+      }));
   }
 
-  offer(items: object[], context: X): Promise<Lock> {
+  offer(items: object[], context: X): CancellablePromise<Lock> {
     return this._inner.app(items, {
       canApp: ([x]) => !x,
       app: _ => [context],
@@ -91,12 +96,13 @@ export class Semaphores {
 }
 
 
+
 export interface Lock {
   release(): Promise<void>
   extend(extras: Set<object>): void
 }
 
-export default class Allocator<X> {
+class Allocator<X> {
   private readonly _default: X
   private readonly _entries: WeakMap<object, Entry<X>>
 
@@ -105,84 +111,91 @@ export default class Allocator<X> {
     this._entries = new WeakMap<object, Entry<X>>();
   }
 
-  app(items: object[], c: Claim<X>): Promise<Lock> {
-    return new Promise<Lock>(resolve => {
-      const token = new Object();
+  app(items: object[], c: Claim<X>): CancellablePromise<Lock> {
+    return CancellablePromise.create<Lock>(
+      (resolve, _, onCancel) => {
+        const token = new Object();
 
-      const incAll: (items: Set<object>) => void =
-        (items) => {
-          if(tryIncAllNow(items)) {
-            resolve(handle(items));
-          }
-          else {
-            const answers = items.map(i => [i, tryIncOne(i)] as const);
-            answers.forEach(([i, ans]) => {
-              if(ans[0] == 'mustWait') ans[1](adoptOneIncAll(i, items));
-            });
-          }
-        };
-
-      const tryIncAllNow: (items: Set<object>) => boolean =
-        (items) => {
-          const answers = items.map(tryIncOne);
-          if(answers.every(([m]) => m == 'canAdd')) {
-            answers.forEach(([,fn]) => (<DoTheInc>fn)());
-            return true;
-          }
-          else {
-            return false;
-          }
-        };
-
-      const adoptOneIncAll: ((item: object, allItems: Set<object>) => Waiter) =
-        (item, allItems) => () => {
-          const answers = allItems.subtract([item]).map(i => [i, tryIncOne(i)] as const);
-
-          if(answers.every(([,[m]]) => m === 'canAdd')) {
-            answers.forEach(([,[,fn]]) => (<DoTheInc>fn)());
-            return () => resolve(handle(allItems));
-          }
-          else {
-            answers.forEach(([i, ans]) => {
-              if(ans[0] == 'mustWait') ans[1](adoptOneIncAll(i, allItems));
-            })
-
-            return false;
-          }
-        }
-
-      const tryIncOne =
-        (item: object) => this.summonEntry(item).tryApp(token, c);
-
-      const handle: (items: Set<object>) => Lock =
-        (items) => ({
-          release: async () => {
-            const entries = items.map(i => this.summonEntry(i));
-            
-            await Promise.all(entries.map(entry => {
-              return new Promise(resolve => {
-                const ans = entry.tryApp(token, c.reverse());
-                if(ans[0] == 'canAdd') {
-                  ans[1]();
-                  resolve();
-                }
-                else if(ans[0] == 'mustWait') {
-                  ans[1](() => resolve);
-                }
-              })
-            }))
-          },
-
-          extend(extras) {
-            if(tryIncAllNow(extras.subtract(items))) {
-              items = items.union(extras);
-            }
-            else throw 'can\'t extend onto locked items!';
-          }
+        onCancel(() => {
+          //TODO
+          //nicely drop the lock too, whether held or just waiting for it
+          //as is, we just reject the promise but the lock stays - just enough for general shutdown
         });
 
-      incAll(Set(items));
-    })
+        const incAll: (items: Set<object>) => void =
+          (items) => {
+            if(tryIncAllNow(items)) {
+              resolve(handle(items));
+            }
+            else {
+              const answers = items.map(i => [i, tryIncOne(i)] as const);
+              answers.forEach(([i, ans]) => {
+                if(ans[0] == 'mustWait') ans[1](adoptOneIncAll(i, items));
+              });
+            }
+          };
+
+        const tryIncAllNow: (items: Set<object>) => boolean =
+          (items) => {
+            const answers = items.map(tryIncOne);
+            if(answers.every(([m]) => m == 'canAdd')) {
+              answers.forEach(([,fn]) => (<DoTheInc>fn)());
+              return true;
+            }
+            else {
+              return false;
+            }
+          };
+
+        const adoptOneIncAll: ((item: object, allItems: Set<object>) => Waiter) =
+          (item, allItems) => () => {
+            const answers = allItems.subtract([item]).map(i => [i, tryIncOne(i)] as const);
+
+            if(answers.every(([,[m]]) => m === 'canAdd')) {
+              answers.forEach(([,[,fn]]) => (<DoTheInc>fn)());
+              return () => resolve(handle(allItems));
+            }
+            else {
+              answers.forEach(([i, ans]) => {
+                if(ans[0] == 'mustWait') ans[1](adoptOneIncAll(i, allItems));
+              })
+
+              return false;
+            }
+          }
+
+        const tryIncOne =
+          (item: object) => this.summonEntry(item).tryApp(token, c);
+
+        const handle: (items: Set<object>) => Lock =
+          (items) => ({
+            release: async () => {
+              const entries = items.map(i => this.summonEntry(i));
+
+              await Promise.all(entries.map(entry => {
+                return new Promise(resolve => {
+                  const ans = entry.tryApp(token, c.reverse());
+                  if(ans[0] == 'canAdd') {
+                    ans[1]();
+                    resolve();
+                  }
+                  else if(ans[0] == 'mustWait') {
+                    ans[1](() => resolve);
+                  }
+                })
+              }))
+            },
+
+            extend(extras) {
+              if(tryIncAllNow(extras.subtract(items))) {
+                items = items.union(extras);
+              }
+              else throw 'can\'t extend onto locked items!';
+            }
+          });
+
+        incAll(Set(items));
+      });
   }
 
   private summonEntry(i: object): Entry<X> {
