@@ -30,9 +30,11 @@ export class Atom<V> {
 	readonly _type = 'Atom'
 	readonly parents: Set<AtomRef<V>>
 	readonly val: V
+	readonly saved: boolean
 
-	constructor(parents: Set<AtomRef<V>>, val: V) {
+	constructor(parents: Set<AtomRef<V>>, val: V, saved: boolean = false) {
 		this.parents = parents;
 		this.val = val;
+		this.saved = saved;
 	}
 }

@@ -24,7 +24,7 @@ export type TRodents<Me extends World = World> = SpecWorld<{
   }
 
   gerbil: {
-    spawn: [number]
+    spawn: [number, number]
   }
 }>
 
@@ -97,24 +97,24 @@ export function rodents() {
 
       gerbil: {
         spawn: x => ({
-          guard(d): d is [number] { return true; },
-          async run([step]) {
+          guard(d): d is [number, number] { return true; },
+          async run([step, max]) {
             const base = x.id.charCodeAt(0);
             const gen = x.id.charCodeAt(1) - base;
 
-            console.log(x.id, step)
+            // console.log(x.id, step)
 
-            if(gen < 3 && step < 2) {
+            if(gen < max && step < max) {
 
               const gen2 = gen + 1;
 
               await x.convene([`${String.fromCharCode(base)}${String.fromCharCode(base + gen2)}`], {
                 convene([p]) {
-                  p.chat([['gerbil', ['spawn', [0]]]])
+                  p.chat([['gerbil', ['spawn', [0, max]]]])
                 }
               })
 
-              return ['spawn', [step + 1]]
+              return ['spawn', [step + 1, max]]
             }
 
             return false;

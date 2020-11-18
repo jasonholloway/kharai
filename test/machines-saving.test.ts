@@ -3,7 +3,7 @@ import { scenario, getAtoms } from './shared'
 import { rodents } from './worlds/rodents'
 import FakeStore from './FakeStore';
 import MonoidData from '../src/MonoidData';
-import { Set } from 'immutable'
+import { Set, List } from 'immutable'
 import { flatMap, take, map } from 'rxjs/operators';
 import { gather, delay } from './helpers';
 const log = console.log;
@@ -61,26 +61,26 @@ describe('machines - saving', () => {
 		expect(getAtoms(lozAtoms[2].parents)).toContain(bazAtoms[1]);
 	})
 
-	it('saving', async () => {
+	it('doesn\'t save $boots', async () => {
 		x = fac();
 
-		const [bazAtoms, lozAtoms] = await Promise.all([
-			x.atoms('baz'),
-			x.atoms('loz'),
-			x.run.boot('baz', ['guineaPig', ['runAbout', []]]),
-			x.run.boot('loz', ['guineaPig', ['gruntAt', ['baz']]])
-		]);
+		const store = new FakeStore(new MonoidData(), 2);
 
-		const store = new FakeStore(new MonoidData(), 5);
-		
-		//where to find the heads?
-		//they will only be available within the MachineSpace
+		await x.run.boot('aa', ['gerbil', ['spawn', [0, 4]]]);
 
-		const heads = await gather(x.space
-			.summon(Set(['baz', 'loz']))
-		  .pipe(flatMap(m => m.head$.pipe(take(1)))))
+		const gatheringHeads = gather(x.run.machine$
+		  .pipe(flatMap(m => m.head$)));
 
+		await delay(400);
+		x.run.complete();
+
+		const heads = await gatheringHeads;
 		await x.saver.save(store, Set(heads))
+
+		expect([...List(store.batches)
+			.flatMap(b => b.valueSeq())
+			.map(a => a[0])])
+			.not.toContain('$boot')
 	})
 
 	it('further saving', async () => {
@@ -94,12 +94,21 @@ describe('machines - saving', () => {
 			x.run.boot('aa', ['gerbil', ['spawn', [0]]]),
 		]);
 
-		//!!!
+		//TODO
+		//far far too many heads...
+		//
+
+		//TODO
 		//BOOTS are without parents and get gobbled up straight away by the saver
 		//
 		//in symettry with unnecessary saving of boots...
 		//(should be flag to stop saver consuming them)
 		//!!!
+
+		//TODO
+		//when batch size is not big enough...
+		//gets stuck in endless loop
+		//
 
 
 		log(1)

@@ -5,6 +5,8 @@ import { Map } from 'immutable'
 
 export default class FakeStore extends Store<Data> {
   saved: Data = Map()
+  readonly batches: Data[] = []
+  
   private _maxBatch: number;
   private _i = 0;
 
@@ -17,7 +19,8 @@ export default class FakeStore extends Store<Data> {
     return v.count() <= this._maxBatch
       && {
         save: () => {
-          console.log('saving', this._i++, v)
+          // console.log('saving', this._i++, v)
+          this.batches.push(v);
           this.saved = this.saved.merge(v);
           return Promise.resolve();
         }

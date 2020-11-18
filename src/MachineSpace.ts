@@ -201,7 +201,6 @@ export class Machine<X, P> {
             phase = out;
           }
           else {
-            log(id, 'FIN.')
             break;
           }
         }

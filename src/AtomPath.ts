@@ -29,8 +29,11 @@ export default class AtomPath<V> {
 		return plumbDepth(this._tips, 0).max() || 0;
 	}
 
-	hasAtoms(): boolean {
-		return this._tips.some(r => !!r.resolve().length);
+	hasAtoms(pred?: (a: Atom<V>) => boolean): boolean {
+		return this._tips.some(r => {
+			const [a] = r.resolve()
+			return !!a && (!pred || pred(a));
+		});
 	}	
 
 	rewrite(fn: (self: (a: AtomRef<V>) => AtomRef<V>) => AtomVisitor<V>): AtomPatch {

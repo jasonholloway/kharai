@@ -61,12 +61,13 @@ export function scenario<W extends PhaseMap, X extends MachineContext, P = Phase
     const atomSpace = new AtomSpace<Data>();
 
     const loader: MachineLoader<P> = async id => {
-      const p = phases?.get(id) || <P><unknown>(['$boot', []]); //zero phase should be well-known
+      const found = phases?.get(id);
+      const p = found || <P><unknown>(['$boot', []]);
 
       const h = atomSpace.head()
         .write(Map({
           [isArray(id) ? id[0] : id]: p
-        }));
+        }), !found);
 
       return [h, p];
     };

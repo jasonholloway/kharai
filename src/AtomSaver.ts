@@ -28,47 +28,52 @@ export default class AtomSaver<V> {
 
 		try {
 			//save and rewrite locked path till all done
-			while(path.hasAtoms()) {
+			while(path.hasAtoms(a => !a.saved)) {
 				let mode: 'gather'|'copy' = 'gather';
 				let bagged = M.zero;
 				let save = () => Promise.resolve();
 
 				const patch = path
-					.rewrite(self => (ref, atom) => {
-						const parents = atom.parents.map(self);
+					.rewrite(recurse => (ref, atom) => {
+						const parents = atom.parents.map(recurse); //depth-first (will blow stack if too big...)
 						switch(mode) {
 							case 'gather':
 								const upstreamCombo = M.add(
 									bagged,
 									parents
 										.flatMap(r => r.resolve())
+									  .filter(a => !a.saved)
 										.map(a => a.val)
 										.reduce(M.add, M.zero)
 								);
 								const canSave1 = store.prepare(upstreamCombo);
 								if(canSave1) {
+									//stage parents
 									bagged = upstreamCombo;
 									save = () => canSave1.save();
 								}
 								else {
+									//parents exceed batch
 									mode = 'copy'
-									return [[ref], new Atom(parents, atom.val)];
+									return [[ref], new Atom(parents, atom.val, atom.saved)];
 								}
 
-								const combo = M.add(bagged, atom.val);
+								const combo = atom.saved ? bagged : M.add(bagged, atom.val);
 								const canSave2 = store.prepare(combo);
 								if(canSave2) {
+									//save everything
 									bagged = combo;
 									save = () => canSave2.save();
-									return [[...parents, ref], null];
+									return [[...parents, ref], new Atom(Set(), atom.val, true)];
 								}
 								else {
+									//saved parents, but not the local atom
 									mode = 'copy'
 									return [[...parents, ref], new Atom(Set(), atom.val)];
 								}
 
 							case 'copy':
-								return [[ref], new Atom(parents, atom.val)];
+								return [[ref], new Atom(parents, atom.val, atom.saved)];
 						}
 					});
 
