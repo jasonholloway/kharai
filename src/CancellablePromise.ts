@@ -60,10 +60,17 @@ export default class CancellablePromise<A> extends Promise<A> implements Cancell
           if(!_cancelled) {
             _cancelled = true;
             _hooks.forEach(h => h());
-						if(_reject) _reject(Error('Cancelled'))
+						if(_reject) _reject(new CancelledError())
           }
         }
       }]
     );
   }
+}
+
+export class CancelledError extends Error {
+	constructor() {
+		super('Cancelled')
+		this.name = 'CancelledError'
+	}
 }

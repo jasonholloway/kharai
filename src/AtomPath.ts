@@ -1,6 +1,7 @@
-import { Set, Map } from 'immutable'
+import { Set, Map, Seq, OrderedSet, List } from 'immutable'
 import { Atom, AtomRef } from './atoms'
 import { Lock } from './Locks'
+import { inspect } from 'util'
 
 export type AtomVisitor<V> = (ref: AtomRef<V>, atom: Atom<V>) => readonly [AtomRef<V>[], Atom<V>|null]
 
@@ -125,10 +126,6 @@ export class Path<V> {
 	map<Y>(fn: (v:V) => Y): Path<Y> {
 		return new Path(this.nodes.map(n => n.map(fn)))
 	}
-
-	render() {
-		return this.nodes.map(n => n.render()).toArray()
-	}
 }
 
 export class PathNode<V> {
@@ -144,8 +141,27 @@ export class PathNode<V> {
 		const parents = this.parents.map(p => p.map(fn))
 		return new PathNode(parents, fn(this.value))
 	}
+}
 
-	render(): any {
-		return [[...this.parents.map(p => p.render())], this.value];
+
+
+export function renderPath<V>(p: Path<V>) {
+	const log = (l: string = '') => process.stdout.write(l + '\n');
+	
+	var set = visit(OrderedSet(), p.nodes);
+
+	log('--PATH--')
+	set.forEach(l => log(inspect(l.value)))
+	log()
+
+	function visit(set: OrderedSet<PathNode<V>>, nodes: Set<PathNode<V>>): OrderedSet<PathNode<V>> {
+		return nodes.reduce(
+			(ac, n) => {
+				const ac2 = visit(ac, n.parents);
+				return ac.add(n);
+			},
+			set);
 	}
+
+
 }

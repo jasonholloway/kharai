@@ -9,6 +9,7 @@ import { Dispatch } from './dispatch'
 import { isArray } from 'util'
 import MonoidData from './MonoidData'
 import { AtomRef } from './atoms'
+import { CancelledError } from './CancellablePromise'
 const log = console.log;
 
 export type Emit<P = any> =
@@ -185,7 +186,6 @@ export class Machine<X, P> {
     head$.next(head);
 
     setImmediate(() => (async () => {     
-      
         while(!signal.getValue().stop) {
           log$.next([id, phase]);
 
@@ -205,7 +205,9 @@ export class Machine<X, P> {
           }
         }
       })()
-      .catch(log$.error.bind(log$))
+      .catch(e => {
+        log$.next(e);
+      })
       .finally(() => {
         signalSub.unsubscribe();
         // atom$.complete();

@@ -85,13 +85,13 @@ describe('machines - saving', () => {
 
 	it('further saving', async () => {
 		x = fac();
-		x.run.log$.subscribe(log)
+		// x.run.log$.subscribe(log)
 
 		const store = new FakeStore(new MonoidData(), 2);
 
 		await Promise.all([
-			x.run.boot('mm', ['gerbil', ['spawn', [0]]]),
-			x.run.boot('aa', ['gerbil', ['spawn', [0]]]),
+			x.run.boot('mm', ['gerbil', ['spawn', [0, 2]]]),
+			x.run.boot('aa', ['gerbil', ['spawn', [0, 2]]]),
 		]);
 
 		//TODO
@@ -111,17 +111,17 @@ describe('machines - saving', () => {
 		//
 
 
-		log(1)
+		// log(1)
 		const gatheringHeads = gather(x.run.machine$
 			.pipe(flatMap(m => m.head$)))
 
-		await delay(250);
+		await delay(200);
 		
 		x.run.complete();
-		log(2)
+		// log(2)
 
 		const heads = await gatheringHeads;
-		log(3)
+		// log(3)
 		// log.log(heads)
 
 		// //ABOVE IS NOT COMPLETING!!!

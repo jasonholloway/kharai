@@ -3,7 +3,11 @@ import AtomSpace, { Head } from './AtomSpace'
 import Store from './Store'
 import { Set } from 'immutable'
 import { Atom } from './atoms'
-const log = console.log;
+import { inspect } from 'util'
+import { renderPath } from './AtomPath'
+
+inspect.defaultOptions.depth = 10;
+const log = (...r: any[]) => console.dir(...r);
 
 export default class AtomSaver<V> {
 	private _monoidV: _Monoid<V>;
@@ -64,7 +68,7 @@ export default class AtomSaver<V> {
 									//save everything
 									bagged = combo;
 									save = () => canSave2.save();
-									return [[...parents, ref], new Atom(Set(), atom.val, true)];
+									return [[...parents, ref], null] // new Atom(Set(), atom.val, true)];
 								}
 								else {
 									//saved parents, but not the local atom
@@ -77,10 +81,14 @@ export default class AtomSaver<V> {
 						}
 					});
 
+				renderPath(path.path());
+
 				await save();
 
 				patch.complete();
 			}
+
+			renderPath(path.path());
 		}
 		finally {
 			path.release();
