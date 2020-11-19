@@ -1,4 +1,4 @@
-import { Set, Map, Seq, OrderedSet, List } from 'immutable'
+import { Set, Map, Seq, OrderedSet } from 'immutable'
 import { Atom, AtomRef } from './atoms'
 import { Lock } from './Locks'
 import { inspect } from 'util'
@@ -143,22 +143,28 @@ export class PathNode<V> {
 	}
 }
 
-
+//TODO
+//looks like $boot nodesi the path appear separately, like they're not linked in 
+//** try rendering atoms instead of paths! **
+//
 
 export function renderPath<V>(p: Path<V>) {
-	const log = (l: string = '') => process.stdout.write(l + '\n');
+	const log = (indent: number = 0, l: string = '') => {
+		for(let i = 0; i < indent; i++) process.stdout.write('  ');
+		process.stdout.write(l + '\n')
+	};
 	
-	var set = visit(OrderedSet(), p.nodes);
+	const set = visit(OrderedSet(), p.nodes, 0);
 
-	log('--PATH--')
-	set.forEach(l => log(inspect(l.value)))
+	log(0, '--PATH--')
+	set.forEach(([d, l]) => log(d, inspect(l.value)))
 	log()
 
-	function visit(set: OrderedSet<PathNode<V>>, nodes: Set<PathNode<V>>): OrderedSet<PathNode<V>> {
+	function visit(set: OrderedSet<[number, PathNode<V>]>, nodes: Set<PathNode<V>>, d: number): OrderedSet<[number, PathNode<V>]> {
 		return nodes.reduce(
 			(ac, n) => {
-				const ac2 = visit(ac, n.parents);
-				return ac.add(n);
+				const ac2 = visit(ac, n.parents, d + 1);
+				return ac2.add([d, n]);
 			},
 			set);
 	}
