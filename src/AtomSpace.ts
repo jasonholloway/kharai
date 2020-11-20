@@ -18,6 +18,12 @@ export default class AtomSpace<V> {
 		this.head$ = this._head$;
 	}
 
+	newAtom(parents: Set<AtomRef<V>>, val: V, weight: number = 1) {
+		//and add weight here
+		const atom = new Atom(parents, val, weight);
+		return new AtomRef(atom);
+	}
+
 	lock<V>(atoms: Set<Atom<V>>): Promise<Lock> {
 		return this._locks.lock(...atoms);
 	}
@@ -51,14 +57,14 @@ export default class AtomSpace<V> {
 
 
 export class Head<V> {
-	private readonly _space: AtomSpace<V>
+	readonly space: AtomSpace<V>
 	private _refs: Set<AtomRef<V>>
 
 	private readonly _atom$: Subject<AtomRef<V>>
 	readonly atom$: Observable<AtomRef<V>>
 
 	constructor(space: AtomSpace<V>, refs: Set<AtomRef<V>>) {
-		this._space = space;
+		this.space = space;
 		this._refs = refs;
 
 		this._atom$ = new ReplaySubject<AtomRef<V>>(1);
@@ -77,8 +83,7 @@ export class Head<V> {
 
 	//BELOW SHOULD BE ONLY WAY TO CREATE AN ATOM!!!
 	write(val: V, weight: number = 1): AtomRef<V> {
-		const atom = new Atom(this._refs, val, weight);
-		const ref = new AtomRef(atom);
+		const ref = this.space.newAtom(this._refs, val, weight);
 		return this.move(ref);
 	}
 
@@ -106,7 +111,7 @@ export class Head<V> {
 	}
 
 	fork(): Head<V> {
-		return this._space.head(...this._refs);
+		return this.space.head(...this._refs);
 	}
 
 	refs() {

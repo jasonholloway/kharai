@@ -37,4 +37,8 @@ export class Atom<V> {
 		this.val = val;
 		this.weight = weight;
 	}
+
+	asRef(): AtomRef<V> {
+		return new AtomRef(this);
+	}
 }

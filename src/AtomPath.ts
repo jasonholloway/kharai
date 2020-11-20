@@ -3,7 +3,7 @@ import { Atom, AtomRef } from './atoms'
 import { Lock } from './Locks'
 import { inspect } from 'util'
 
-export type AtomVisitor<V> = (ref: AtomRef<V>, atom: Atom<V>) => readonly [AtomRef<V>[], Atom<V>|null]
+export type AtomVisitor<V> = (ref: AtomRef<V>, atom: Atom<V>) => readonly [AtomRef<V>[], AtomRef<V>]
 
 export type AtomPatch = { complete(): void }
 
@@ -49,10 +49,10 @@ export default class AtomPath<V> {
 				const [atom] = ref.resolve();
 				if(!atom) return ref;
 				else {
-					const [sources, newAtom] = visitor(ref, atom);
-					const newRef = new AtomRef(newAtom);
+					const [sources, newRef] = visitor(ref, atom);
 
-					redirects = redirects.merge(Set(sources).map(r => [r, newRef]));
+					redirects = redirects.merge(
+						Set(sources).map(r => [r, newRef]));
 
 					return newRef;
 				}
@@ -62,10 +62,10 @@ export default class AtomPath<V> {
 		const newRefs = this.tips.flatMap(ref => {
 			const [atom] = ref.resolve();
 			if(atom) {
-				const [sources, newAtom] = visitor(ref, atom);
-				const newRef = new AtomRef(newAtom);
+				const [sources, newRef] = visitor(ref, atom);
 
-				redirects = redirects.merge(Set(sources).map(r => [r, newRef]));
+				redirects = redirects.merge(
+					Set(sources).map(r => [r, newRef]));
 
 				return [newRef];
 			}

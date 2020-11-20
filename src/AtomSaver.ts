@@ -20,6 +20,7 @@ export default class AtomSaver<V> {
 
 	async save(store: Store<V>, heads: Set<Head<V>>): Promise<void> {
 		const M = this._monoidV;
+		const newAtom = this._space.newAtom.bind(this._space);
 
 		const tips = heads.flatMap(h => h.refs());
 
@@ -43,6 +44,12 @@ export default class AtomSaver<V> {
 					.rewrite(recurse => (ref, atom) => {
 						const parents = atom.parents.map(recurse); //depth-first (will blow stack if too big...)
 						//TODO SHOULDN'T EVEN COPY NON-PENDING!!!!!
+						//...
+
+
+						//TODO
+						//need to remove weight of removed atoms somehow
+						//...
 						
 						switch(mode) {
 							case 'gather':
@@ -63,7 +70,7 @@ export default class AtomSaver<V> {
 								else {
 									//parents exceed batch
 									mode = 'copy'
-									return [[ref], new Atom(parents, atom.val, atom.weight)];
+									return [[ref], newAtom(parents, atom.val, atom.weight)];
 								}
 
 								const combo = atom.weight ? M.add(bagged, atom.val) : bagged; //TODO this would be better cutting off recursion
@@ -72,16 +79,16 @@ export default class AtomSaver<V> {
 									//save everything
 									bagged = combo;
 									save = () => canSave2.save();
-									return [[...parents, ref], new Atom(Set(), atom.val, 0)];
+									return [[...parents, ref], newAtom(Set(), atom.val, 0)];
 								}
 								else {
 									//saved parents, but not the local atom
 									mode = 'copy'
-									return [[...parents, ref], new Atom(Set(), atom.val)];
+									return [[...parents, ref], newAtom(Set(), atom.val)];
 								}
 
 							case 'copy':
-								return [[ref], new Atom(parents, atom.val, atom.weight)];
+								return [[ref], newAtom(parents, atom.val, atom.weight)];
 						}
 					});
 

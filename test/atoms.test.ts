@@ -66,7 +66,7 @@ describe('atoms and stuff', () => {
 
 		path.rewrite(fn => (ref, atom) => {
 			const newParents = atom.parents.map(fn)
-			return [[ref], new Atom(newParents, atom.val)]
+			return [[ref], new Atom(newParents, atom.val).asRef()]
 		}).complete();
 
 		const after = path.path().render()
@@ -89,7 +89,7 @@ describe('atoms and stuff', () => {
 
 		path1.rewrite(fn => (ref, atom) => {
 			const newParents = atom.parents.map(fn)
-			return [[ref], new Atom(newParents, atom.val)]
+			return [[ref], new Atom(newParents, atom.val).asRef()]
 		}).complete();
 
 		path1.release();
@@ -113,7 +113,7 @@ describe('atoms and stuff', () => {
 		let i = 0;
 		path.rewrite(fn => (ref, atom) => {
 			const upstreams = atom.parents.map(fn);
-			return [[ref], new Atom(upstreams, atom.val.slice(0, 1) + (i++))];
+			return [[ref], new Atom(upstreams, atom.val.slice(0, 1) + (i++)).asRef()];
 		}).complete();
 		path.release();
 		const after = path.path().render();
@@ -131,7 +131,7 @@ describe('atoms and stuff', () => {
 		let i = 0;
 		path.rewrite(fn => (ref, atom) => {
 			const ups = atom.parents.map(fn);
-			return [[ref], new Atom(ups, atom.val.slice(0, 1).toUpperCase() + (i++))];
+			return [[ref], new Atom(ups, atom.val.slice(0, 1).toUpperCase() + (i++)).asRef()];
 		}).complete();
 		path.release();
 
@@ -194,7 +194,7 @@ describe('atoms and stuff', () => {
 
 		path.rewrite(visit => (ref, atom) => {
 			const parents = atom.parents.map(visit)
-			return [[ref], new Atom(parents, atom.val)]
+			return [[ref], new Atom(parents, atom.val).asRef()]
 		}).complete(); 
 
 		await delay(50);
@@ -241,7 +241,7 @@ describe('atoms and stuff', () => {
 		const path1 = await locking1;
 
 		path1.rewrite(_ => (ref, _) => {
-			return [[ref], new Atom(Set(), '1')];
+			return [[ref], new Atom(Set(), '1').asRef()];
 		}).complete();
 		
 		path1.release();

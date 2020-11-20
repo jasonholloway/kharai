@@ -1,5 +1,5 @@
 import _Monoid from './_Monoid'
-import { Head } from'./AtomSpace'
+import { Head, AtomCreator } from'./AtomSpace'
 import { AtomRef, Atom } from './atoms'
 import { Set } from 'immutable'
 
@@ -57,8 +57,10 @@ class Inner<V> {
 		this.value = this.mv.add(this.value, v);
 		
 		if(this.todo.isEmpty()) {			
-			const atom = new Atom(this.heads.flatMap(h => h.refs()), this.value);
-			const ref = new AtomRef(atom);
+			//TODO below needs to add weights
+			const ref = head.space.newAtom(
+				this.heads.flatMap(h => h.refs()),
+				this.value);
 
 			this.waiters.forEach(fn => fn(ref));
 			this.done = true;

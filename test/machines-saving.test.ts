@@ -95,10 +95,6 @@ describe('machines - saving', () => {
 		]);
 
 		//TODO
-		//far far too many heads...
-		//
-
-		//TODO
 		//BOOTS are without parents and get gobbled up straight away by the saver
 		//
 		//in symettry with unnecessary saving of boots...
