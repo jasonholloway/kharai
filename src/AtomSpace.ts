@@ -73,15 +73,12 @@ export class Head<V> {
 
 	release() {
 		//TODO state machine here - three states thereof
+		//machine releases, then space releases
+		//...
 		
-		//tell AtomSpace to be rid of me here
-		//tho can only do so when saved fully
-		//machine releases, then space releases too,
-		//but only after machine has released
 		this._atom$.complete();
 	}
 
-	//BELOW SHOULD BE ONLY WAY TO CREATE AN ATOM!!!
 	write(val: V, weight: number = 1): AtomRef<V> {
 		const ref = this.space.newAtom(this._refs, val, weight);
 		return this.move(ref);
@@ -98,11 +95,10 @@ export class Head<V> {
 		//for efficiency: simply superseded atoms eagerly purged
 		//imperfect, but catches common case
 
-		//so, new atoms are being merged in here
-		//this is merge as opposed to move-to
-		//and we're keeping the head as small as possible
-		//though here we're not adding a new atom
-		//so there's no new weight to report
+		//but is this purging?
+		//all the upstreams are still there...
+		//just not in the head
+		//but if they're not in the head, they can be rewritten (by some other process)
 		const newRefs = this._refs
 			.subtract(refs.flatMap(r => r.resolve()).flatMap(a => a.parents))
 			.union(refs);
