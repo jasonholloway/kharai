@@ -49,8 +49,8 @@ export class Head<V> {
 		return new Head(this._space, Set([ref]))
 	}
 
-	write(val: V, saved: boolean = false): Head<V> {
-		const atom = new Atom(this._refs, val, saved);
+	write(val: V, weight: number = 1): Head<V> {
+		const atom = new Atom(this._refs, val, weight);
 		const ref = new AtomRef(atom);
 		return new Head(this._space, Set([ref]));
 	}

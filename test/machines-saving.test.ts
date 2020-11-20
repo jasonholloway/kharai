@@ -3,7 +3,7 @@ import { scenario, getAtoms } from './shared'
 import { rodents } from './worlds/rodents'
 import FakeStore from './FakeStore';
 import MonoidData from '../src/MonoidData';
-import { Set, List } from 'immutable'
+import { Set, List, OrderedSet } from 'immutable'
 import { flatMap, take, map } from 'rxjs/operators';
 import { gather, delay } from './helpers';
 const log = console.log;
@@ -121,15 +121,31 @@ describe('machines - saving', () => {
 		// log(2)
 
 		const heads = await gatheringHeads;
-		// log(3)
-		// log.log(heads)
 
-		// //ABOVE IS NOT COMPLETING!!!
-		// //
-		// //MachineSpace needs to complete when all machines are done
-		// //but isn't that more of a Run?
+		//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		//all heads, including previous ones, are being gathered
+		//they should be, what? scanned for the last one? 
+		//or maybe made mutable again
+		//tho the idea with streaming them was to ease aggregating a sorted list
+		//this 'sorted list' should though be of weighted atoms, not heads
+		//though this atom weight gathers and is measured at the head
+		//
 
+		//all atoms will then have a weight (zero means not pending)
+		//this weight would be both local and total/projected
+		//though we have a messy late-addition method on the atom I believe
+		//
+		
 		await x.saver.save(store, Set(heads))
 		log(store.saved)
+	})
+
+	it('flump', () => {
+		let set = OrderedSet();
+		set = set.add(1)
+		set = set.add(2)
+		set = set.add(1)
+
+		log(set)
 	})
 })

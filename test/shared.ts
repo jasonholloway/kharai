@@ -67,7 +67,7 @@ export function scenario<W extends PhaseMap, X extends MachineContext, P = Phase
       const h = atomSpace.head()
         .write(Map({
           [isArray(id) ? id[0] : id]: p
-        }), !found);
+        }), found ? 1 : 0);
 
       return [h, p];
     };

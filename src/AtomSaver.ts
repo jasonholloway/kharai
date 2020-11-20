@@ -4,7 +4,7 @@ import Store from './Store'
 import { Set } from 'immutable'
 import { Atom } from './atoms'
 import { inspect } from 'util'
-import { renderPath } from './AtomPath'
+import { renderAtoms } from './AtomPath'
 
 inspect.defaultOptions.depth = 10;
 const log = (...r: any[]) => console.dir(...r);
@@ -21,8 +21,10 @@ export default class AtomSaver<V> {
 	async save(store: Store<V>, heads: Set<Head<V>>): Promise<void> {
 		const M = this._monoidV;
 
+		const tips = heads.flatMap(h => h.refs());
+
 		//lock everything all at once, until stable; with risk of contention
-		const path = await this._space.lockTips(...heads.flatMap(h => h.refs()));
+		const path = await this._space.lockTips(...tips);
 
 		//TODO
 		//lockTips ensures we have the latest reformed roots locked
@@ -32,7 +34,7 @@ export default class AtomSaver<V> {
 
 		try {
 			//save and rewrite locked path till all done
-			while(path.hasAtoms(a => !a.saved)) {
+			while(path.hasPendingAtoms()) {
 				let mode: 'gather'|'copy' = 'gather';
 				let bagged = M.zero;
 				let save = () => Promise.resolve();
@@ -40,13 +42,15 @@ export default class AtomSaver<V> {
 				const patch = path
 					.rewrite(recurse => (ref, atom) => {
 						const parents = atom.parents.map(recurse); //depth-first (will blow stack if too big...)
+						//TODO SHOULDN'T EVEN COPY NON-PENDING!!!!!
+						
 						switch(mode) {
 							case 'gather':
 								const upstreamCombo = M.add(
 									bagged,
 									parents
 										.flatMap(r => r.resolve())
-									  .filter(a => !a.saved)
+									  .filter(a => a.weight)
 										.map(a => a.val)
 										.reduce(M.add, M.zero)
 								);
@@ -59,16 +63,16 @@ export default class AtomSaver<V> {
 								else {
 									//parents exceed batch
 									mode = 'copy'
-									return [[ref], new Atom(parents, atom.val, atom.saved)];
+									return [[ref], new Atom(parents, atom.val, atom.weight)];
 								}
 
-								const combo = atom.saved ? bagged : M.add(bagged, atom.val);
+								const combo = atom.weight ? M.add(bagged, atom.val) : bagged; //TODO this would be better cutting off recursion
 								const canSave2 = store.prepare(combo);
 								if(canSave2) {
 									//save everything
 									bagged = combo;
 									save = () => canSave2.save();
-									return [[...parents, ref], null] // new Atom(Set(), atom.val, true)];
+									return [[...parents, ref], new Atom(Set(), atom.val, 0)];
 								}
 								else {
 									//saved parents, but not the local atom
@@ -77,18 +81,18 @@ export default class AtomSaver<V> {
 								}
 
 							case 'copy':
-								return [[ref], new Atom(parents, atom.val, atom.saved)];
+								return [[ref], new Atom(parents, atom.val, atom.weight)];
 						}
 					});
 
-				renderPath(path.path());
+				renderAtoms(path.tips);
 
 				await save();
 
 				patch.complete();
 			}
 
-			renderPath(path.path());
+			renderAtoms(path.tips);
 		}
 		finally {
 			path.release();
