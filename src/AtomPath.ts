@@ -130,6 +130,10 @@ export class Path<V> {
 	map<Y>(fn: (v:V) => Y): Path<Y> {
 		return new Path(this.nodes.map(n => n.map(fn)))
 	}
+
+	render(): any {
+		return this.nodes.map(n => n.render()).toArray();
+	}
 }
 
 export class PathNode<V> {
@@ -144,6 +148,10 @@ export class PathNode<V> {
 	map<Y>(fn: (v: V) => Y): PathNode<Y> {
 		const parents = this.parents.map(p => p.map(fn))
 		return new PathNode(parents, fn(this.value))
+	}
+
+	render(): any {
+		return [[...this.parents.map(p => p.render())], this.value];
 	}
 }
 

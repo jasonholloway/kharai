@@ -7,7 +7,7 @@ export const $Commit = Symbol('Commit');
 export type AtomEmit<V> = readonly [typeof $Commit, AtomRef<V>]
 
 export default class Commit<V> {
-	private head: Head<V>
+	private readonly head: Head<V>
 	private inner: Inner<V>
 
 	constructor(mv: _Monoid<V>, h: Head<V>) {
@@ -16,15 +16,15 @@ export default class Commit<V> {
 	}
 
 	add(rs: Set<AtomRef<V>>) {
-		this.head = this.head.addUpstreams(rs);
+		this.head.addUpstreams(rs);
 	}
 
 	//and abandon?
 
-	async complete(v: V): Promise<[Head<V>, AtomRef<V>]> {
+	async complete(v: V): Promise<AtomRef<V>> {
 		const ref = await this.inner.complete(this, this.head, v);
-		const head = this.head.move(ref);
-		return [head, ref];
+		this.head.move(ref);
+		return ref;
 	}
 
 	static combine<V>(mv: _Monoid<V>, cs: Commit<V>[]) {

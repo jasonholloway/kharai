@@ -3,7 +3,7 @@ import _Monoid from '../src/_Monoid'
 import AtomSpace from '../src/AtomSpace'
 import { Id, Data, World, MachineContext, Phase, PhaseMap, WorldImpl, PhaseImpl } from '../src/lib'
 import { OperatorFunction } from 'rxjs'
-import { flatMap, mergeMap, filter } from 'rxjs/operators'
+import { flatMap, mergeMap, filter, tap } from 'rxjs/operators'
 import { delay } from '../src/util'
 import { AtomRef } from '../src/atoms'
 import { isString, isArray } from 'util'
@@ -64,10 +64,10 @@ export function scenario<W extends PhaseMap, X extends MachineContext, P = Phase
       const found = phases?.get(id);
       const p = found || <P><unknown>(['$boot', []]);
 
-      const h = atomSpace.head()
-        .write(Map({
-          [isArray(id) ? id[0] : id]: p
-        }), found ? 1 : 0);
+      const h = atomSpace.head();
+      h.write(Map({
+        [isArray(id) ? id[0] : id]: p
+      }), found ? 1 : 0);
 
       return [h, p];
     };
@@ -90,9 +90,8 @@ export function scenario<W extends PhaseMap, X extends MachineContext, P = Phase
         return gather(
           run.machine$.pipe(
             filter(m => m.id == id),
-            mergeMap(m => m.head$),
-            mergeMap(h => h.refs()),
-            mergeMap(r => r.resolve())
+            flatMap(m => m.head.atom$),
+            flatMap(r => r.resolve())
           )
         )
       }

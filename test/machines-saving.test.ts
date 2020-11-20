@@ -4,7 +4,7 @@ import { rodents } from './worlds/rodents'
 import FakeStore from './FakeStore';
 import MonoidData from '../src/MonoidData';
 import { Set, List, OrderedSet } from 'immutable'
-import { flatMap, take, map } from 'rxjs/operators';
+import { map } from 'rxjs/operators';
 import { gather, delay } from './helpers';
 const log = console.log;
 
@@ -69,7 +69,7 @@ describe('machines - saving', () => {
 		await x.run.boot('aa', ['gerbil', ['spawn', [0, 4]]]);
 
 		const gatheringHeads = gather(x.run.machine$
-		  .pipe(flatMap(m => m.head$)));
+		  .pipe(map(m => m.head)));
 
 		await delay(400);
 		x.run.complete();
@@ -113,7 +113,7 @@ describe('machines - saving', () => {
 
 		// log(1)
 		const gatheringHeads = gather(x.run.machine$
-			.pipe(flatMap(m => m.head$)))
+			.pipe(map(m => m.head)))
 
 		await delay(200);
 		

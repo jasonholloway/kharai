@@ -26,8 +26,8 @@ describe('atoms and stuff', () => {
 	})
 
 	it('writing creates atom', () => {
-		const head = space.head()
-		  .write('1');
+		const head = space.head();
+		head.write('1');
 		
 		const [atom] = getAtoms(head.refs())
 		expect(atom).not.toBeUndefined();
@@ -36,10 +36,10 @@ describe('atoms and stuff', () => {
 	})
 
 	it('writing several times appends many atoms', async () => {
-		const head = space.head()
-		  .write('1')
-			.write('2')
-			.write('3');
+		const head = space.head();
+		head.write('1')
+		head.write('2')
+		head.write('3');
 
 		const [atom3] = getAtoms(head.refs());
 		expect(atom3?.val).toBe('3');
@@ -54,10 +54,10 @@ describe('atoms and stuff', () => {
 	})
 
 	it('like-for-like rewrite', async () => {
-		const head = space.head()
-		  .write('1')
-			.write('2')
-			.write('3');
+		const head = space.head();
+		head.write('1');
+		head.write('2');
+		head.write('3');
 
 		const path = await space.lockTips(...head.refs());
 		expect(path.maxDepth()).toBe(3)
@@ -74,16 +74,15 @@ describe('atoms and stuff', () => {
 	})
 
 	it('two heads rewrite', async () => {
-		const head11 = space.head()
-			.write('1:1');
+		const head1 = space.head();
+		head1.write('1:1');
 
-		const head21 = head11
-			.write('2:1');
+		const head2 = head1.fork();
+		head2.write('2:1');
 
-		const head12 = head11
-		  .write('1:2');
+		head1.write('1:2');
 
-		const path1 = await space.lockTips(...head12.refs());
+		const path1 = await space.lockTips(...head1.refs());
 		expect(path1.maxDepth()).toBe(2)
 
 		const before = path1.path().render()
@@ -98,7 +97,7 @@ describe('atoms and stuff', () => {
 		const after1 = path1.path().render()
 		expect(after1).toEqual(before)
 
-		const path2 = await space.lockTips(...head21.refs());
+		const path2 = await space.lockTips(...head2.refs());
 		const after2 = path2.path().render();
 	})
 
@@ -155,16 +154,15 @@ describe('atoms and stuff', () => {
 	})
 	
 	it('locking', async () => {
-		const head11 = space.head()
-			.write('1:1');
+		const head1 = space.head();
+		head1.write('1:1');
 
-		const head2 = head11
-			.write('2:1');
+		const head2 = head1.fork();
+		head2.write('2:1');
 
-		const head12 = head11
-			.write('1:2');
+		head1.write('1:2');
 
-		const path1 = await space.lockTips(...head12.refs());
+		const path1 = await space.lockTips(...head1.refs());
 
 		let locked2 = false;
 		space.lockTips(...head2.refs()).then(() => locked2 = true);
@@ -178,16 +176,15 @@ describe('atoms and stuff', () => {
 	})
 
 	it('path -> patch -> path lock', async () => {
-		const head11 = space.head()
-			.write('1:1');
+		const head1 = space.head();
+		head1.write('1:1');
 
-		const head2 = head11
-			.write('2:1');
+		const head2 = head1.fork();
+		head2.write('2:1');
 
-		const head12 = head11
-			.write('1:2');
+		head1.write('1:2');
 
-		const path = await space.lockTips(...head12.refs());
+		const path = await space.lockTips(...head1.refs());
 
 		let head2Activated = false;
 		space.lockTips(...head2.refs()).then(() => head2Activated = true);
@@ -209,10 +206,10 @@ describe('atoms and stuff', () => {
 	})
 
 	it('saving simple combination', async () => {
-		const head = space.head()
-			.write('1')
-			.write('2')
-			.write('3');
+		const head = space.head();
+		head.write('1');
+		head.write('2');
+		head.write('3');
 
 		await saver.save(store, Set([head]));
 
@@ -220,12 +217,12 @@ describe('atoms and stuff', () => {
 	});
 
 	it('saving in multiple transactions', async () => {
-		const head = space.head()
-			.write('1')
-			.write('2')
-			.write('3')
-			.write('4')
-			.write('5');
+		const head = space.head();
+		head.write('1');
+		head.write('2');
+		head.write('3');
+		head.write('4');
+		head.write('5');
 
 		await saver.save(store, Set([head]));
 
@@ -233,8 +230,8 @@ describe('atoms and stuff', () => {
 	});
 
 	it('locking tips gets latest roots', async () => {
-		const head = space.head()
-			.write('0');
+		const head = space.head();
+		head.write('0');
 
 		const refs = head.refs();
 

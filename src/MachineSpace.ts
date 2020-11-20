@@ -2,14 +2,13 @@ import { Id, Data, WorldImpl, PhaseMap, Phase, MachineContext } from './lib'
 import { Head } from './AtomSpace'
 import { Mediator, Convener, Attendee, Peer } from './Mediator'
 import { Observable, Subject, from, merge, ReplaySubject, BehaviorSubject } from 'rxjs'
-import { toArray, map, mergeMap, tap, filter } from 'rxjs/operators'
+import { toArray, map, mergeMap, tap, filter, flatMap } from 'rxjs/operators'
 import Commit, { AtomEmit } from './Committer'
 import { Map, Set } from 'immutable'
 import { Dispatch } from './dispatch'
 import { isArray } from 'util'
 import MonoidData from './MonoidData'
 import { AtomRef } from './atoms'
-import { CancelledError } from './CancellablePromise'
 const log = console.log;
 
 export type Emit<P = any> =
@@ -60,6 +59,7 @@ export class MachineSpace<W extends PhaseMap = {}, X extends MachineContext = Ma
           loading.then(([head, phase]) => {
             const machine: Machine<X, P> = new Machine<X, P>(
               id,
+              head,
               this.asSpace(),
 							this.dispatch,
 							this.world.contextFac,
@@ -69,7 +69,7 @@ export class MachineSpace<W extends PhaseMap = {}, X extends MachineContext = Ma
 
             this._machine$.next(machine);
 
-            machine.begin(head, phase);
+            machine.begin(phase);
 
             return machine;
           })
@@ -95,10 +95,7 @@ export class MachineSpace<W extends PhaseMap = {}, X extends MachineContext = Ma
         //this doesn't seem right - where's the merging of atoms?
         //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         return _this.summon(Set(ids))
-          .pipe(
-            mergeMap(m => m.head$),
-            mergeMap(h => h.refs())
-          );
+          .pipe(flatMap(m => m.head.atom$));
       },
 
       async attach<R>(me: any, attend: Attendee<R>): Promise<false|[R]> {
@@ -130,8 +127,6 @@ export type Signal = {
 
 export class Machine<X, P> {
   private _log$: Subject<Emit<P>>
-  // private _atom$: Subject<AtomRef<Data>>
-  private _head$: Subject<Head<Data>>
   private space: ISpace
   private dispatch: Dispatch<X, P>
   private modContext: (x: MachineContext) => X
@@ -139,12 +134,12 @@ export class Machine<X, P> {
   private signal$: Observable<Signal>
 
   readonly id: Id
+  readonly head: Head<Data>
   readonly log$: Observable<Emit<P>>
-  // readonly atom$: Observable<AtomRef<Data>>
-  readonly head$: Observable<Head<Data>>
   
   constructor(
     id: Id,
+    head: Head<Data>,
     space: ISpace,
     dispatch: Dispatch<X, P>,
     modContext: (x: MachineContext) => X,
@@ -156,11 +151,7 @@ export class Machine<X, P> {
     this._log$ = new ReplaySubject(1);
     this.log$ = this._log$;
 
-    // this._atom$ = new ReplaySubject(1);
-    // this.atom$ = this._atom$;
-
-    this._head$ = new ReplaySubject(1);
-    this.head$ = this._head$;
+    this.head = head;
 
     this.space = space;
     this.dispatch = dispatch;
@@ -170,11 +161,10 @@ export class Machine<X, P> {
     this.signal$ = signal$;
   }
 
-  begin(head: Head<Data>, phase: P) {
+  begin(phase: P) {
     const id = this.id;
+    const head = this.head;
     const log$ = this._log$;
-    // const atom$ = this._atom$;
-    const head$ = this._head$;
     const dispatch = this.dispatch.bind(this);
     const buildContext = this.buildContext.bind(this);
     const signal = new BehaviorSubject<Signal>({ stop: false })
@@ -183,7 +173,7 @@ export class Machine<X, P> {
     // head.refs().forEach(r => atom$.next(r));
     //AND NOW! special root atom should be marked as already-persisted, otherwise will incur unnecessary overwrite
 
-    head$.next(head);
+    // head$.next(head);
 
     setImmediate(() => (async () => {     
         while(!signal.getValue().stop) {
@@ -194,10 +184,7 @@ export class Machine<X, P> {
           const out = await dispatch(context)(phase);
 
           if(out) {
-            // let atom: AtomRef<Data>;
-            [head] = await committer.complete(Map({ [id]: out }));
-            // atom$.next(atom);
-            head$.next(head);
+            await committer.complete(Map({ [id]: out }));
             phase = out;
           }
           else {
@@ -210,8 +197,7 @@ export class Machine<X, P> {
       })
       .finally(() => {
         signalSub.unsubscribe();
-        // atom$.complete();
-        head$.complete();
+        head.release();
         log$.complete();
       }));
   }
