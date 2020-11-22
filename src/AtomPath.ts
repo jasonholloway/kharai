@@ -42,43 +42,34 @@ export default class AtomPath<V> {
 		return this.hasAtoms(a => a.isActive());
 	}
 
-	rewrite<Ac>(fn: (rewriteParents: (a: Ac) => [Ac, Set<AtomRef<V>>]) => AtomVisitor<Ac, V>, MAc: _Monoid<Ac>): AtomPatch {
+	rewrite<Ac>(fn: (self: (ac: Ac, ref: AtomRef<V>) => [Ac, AtomRef<V>, true?]) => AtomVisitor<Ac, V>, M: _Monoid<Ac>): AtomPatch {
 		let redirects = Map<AtomRef<V>, [Ac, AtomRef<V>]>();
 
-		const visitor: (r:AtomRef<V>) => AtomVisitor<Ac, V> =
-			(ref) => fn(ac0 => {
+		const visitor: AtomVisitor<Ac, V> =
+			fn((ac, ref) => {
+				const found = redirects.get(ref);
+				if(found) {
+					const [ac2, ref2] = found;
+					return [M.add(ac, ac2), ref2, true];
+				}
 
-				const refs = Set([ref]);
+				const [atom] = ref.resolve();
+				if(!atom) return [ac, ref];
 
-				
-				return refs.reduce<[Ac, Set<AtomRef<V>>]>(
-					([ac, refs], ref) => {
+				const [ac2, [sources, a]] = visitor(ac, [ref, atom]);
+				const newRef = (a instanceof Atom) ? new AtomRef(a) : a;
 
-						const found = redirects.get(ref);
-						if(found) {
-							const [ac2, ref2] = found;
-							return [MAc.add(ac, ac2), refs.add(ref2)]
-						}
+				redirects = redirects.merge(
+					Set(sources).map(r => [r, [ac2,newRef]]));
 
-						const [atom] = ref.resolve();
-						if(!atom) return [ac, refs]; //just purge empty refs
-
-						const [ac2, [sources, a]] = visitor(ref)(ac, [ref, atom]);
-						const newRef = (a instanceof Atom) ? new AtomRef(a) : a;
-
-						redirects = redirects.merge(
-							Set(sources).map(r => [r, [ac2,newRef]]));
-
-						return [MAc.add(ac, ac2), refs.add(newRef)];
-
-					}, [ac0, Set()]);
+					return [M.add(ac, ac2), newRef];
 			});
 
 		const newRefs = this.tips.flatMap(ref => {
 			const [atom] = ref.resolve();
 			if(!atom) return [];
 			
-			const [ac2, [sources, a]] = visitor(ref)(MAc.zero, [ref, atom]);
+			const [ac2, [sources, a]] = visitor(M.zero, [ref, atom]);
 			const newRef = (a instanceof Atom) ? new AtomRef(a) : a;
 
 			redirects = redirects.merge(

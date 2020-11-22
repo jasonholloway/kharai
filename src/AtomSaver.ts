@@ -4,7 +4,7 @@ import Store from './Store'
 import { Map, Set } from 'immutable'
 import { inspect } from 'util'
 import { renderAtoms, renderPath } from './AtomPath'
-import { Atom } from './atoms'
+import { Atom, AtomRef } from './atoms'
 
 inspect.defaultOptions.depth = 10;
 const log = (...r: any[]) => console.dir(...r);
@@ -41,7 +41,7 @@ export default class AtomSaver<V> {
 		//we need to keep tabs on weight created, weight being saved, and weight saved
 		//we don't then need to destroy weight on rewrites - we just need to keep the accounting straight
 
-		log(space.weights())
+		// log(space.weights())
 		renderAtoms(heads.flatMap(h => h.refs()));
 
 		while(space.weights().pending > 0) {
@@ -49,66 +49,52 @@ export default class AtomSaver<V> {
 				.lockPath(...heads.flatMap(h => h.refs()));
 
 			try {
-				let mode: 'gatherFromRoots'|'zipToTips' = 'gatherFromRoots';
+				let mode: 'gather'|'zipUp' = 'gather';
 				let bagged = M.zero;
 				let save = () => Promise.resolve();
 
-				path.rewrite<number>(visitParents => (ac0, [ref, atom]) => {
-					//TODO should only delve if 
-					const [ac1,parents] = visitParents(ac0); //will blow stack
-					const parentAtoms = parents.flatMap(r => r.resolve());
+				path.rewrite<number>(recurse => (ac0, [ref, atom]) => {
 
-					//TODO SHOULDN'T EVEN COPY NON-PENDING!!!!!
-					//...
+					if(!atom.isActive()) {
+						return [ac0, [[ref], atom]]; //would be nice to have special 'false' case here
+					}
 
-					//TODO reuse untouched root fragments
-					//...
+					const [ac1, parents] = atom.parents
+						.reduce<[number, Set<AtomRef<V>>]>(
+							([ac,rs], r) => {
+								switch(mode) {
+									case 'zipUp':
+										return [ac, rs.add(r)];
 
-					//so on first rewrite, we are consolidating an atom to 'claim' it
-					//we lock to the root ()
-					//
+									case 'gather':
+										const [ac2, r2, stale] = recurse(ac, r); //will blow stack
+										return [ac + ac2, rs.add(r2)];
+								}
+							}, [ac0, Set()]);
 
+					//and now consider myself
 					switch(mode) {
-						case 'gatherFromRoots':
-							const upstreamCombo = M.add(
-								bagged,
-								parentAtoms
-									.filter(a => a.isActive())
-									.map(a => a.val)
-									.reduce(M.add, M.zero)
-							);
-							const canSave1 = store.prepare(upstreamCombo);
-							if(canSave1) {
-								bagged = upstreamCombo;
-								save = () => canSave1.save();
+						case 'zipUp':
+							return [ac1, [[ref], atom.with({ parents })]];
+
+						case 'gather':
+							const combo = M.add(bagged, atom.val);
+							const canSave = store.prepare(combo);
+
+							if(!canSave) {
+								mode = 'zipUp';
+								return [ac1, [[...parents, ref], atom.with({ parents: Set() })]];
 							}
 							else {
-								mode = 'zipToTips'
-								return [0, [[ref], atom.with({ parents })]];
-							}
-
-							const combo = atom.isActive() ? M.add(bagged, atom.val) : bagged; //TODO this would be better cutting off recursion
-							const canSave2 = store.prepare(combo);
-							if(canSave2) {
 								bagged = combo;
-								save = () => canSave2.save();
+								save = () => canSave.save(); //but what about saves that sit in other branches? should be passed as ac
 								space.incStaged(atom.weight)
 								//add weight of parents here
-								return [0, [[...parents, ref], atom.with({ parents: Set(), state: 'taken' })]];
+								return [ac1, [[...parents, ref], atom.with({ parents: Set(), state: 'taken' })]];
 							}
-							else {
-								mode = 'zipToTips'
-								//add weight of parents here
-								return [0, [[...parents, ref], atom.with({ parents: Set() })]];
-							}
-
-						case 'zipToTips':
-							return [0, [[ref], atom.with({ parents })]];
 					}
-				}, new _MonoidNumber()).complete();
 
-				//THE ABOVE DOESN'T WORK WITH MULTIPLE HEADS... as the one winning 'save' won't cover its siblings
-				//!!!!!!!1
+				}, new _MonoidNumber()).complete();
 
 				await save();
 
