@@ -53,9 +53,9 @@ export default class AtomSaver<V> {
 				let bagged = M.zero;
 				let save = () => Promise.resolve();
 
-				path.rewrite<number>(recurse => (ac, [ref, atom]) => {
+				path.rewrite<number>(visitParents => (ac0, [ref, atom]) => {
 					//TODO should only delve if 
-					const parents = atom.parents.map(recurse); //depth-first (will blow stack if too big...)
+					const [ac1,parents] = visitParents(ac0); //will blow stack
 					const parentAtoms = parents.flatMap(r => r.resolve());
 
 					//TODO SHOULDN'T EVEN COPY NON-PENDING!!!!!
@@ -84,7 +84,7 @@ export default class AtomSaver<V> {
 							}
 							else {
 								mode = 'zipToTips'
-								return [[ref], atom.with({ parents })];
+								return [0, [[ref], atom.with({ parents })]];
 							}
 
 							const combo = atom.isActive() ? M.add(bagged, atom.val) : bagged; //TODO this would be better cutting off recursion
@@ -94,16 +94,16 @@ export default class AtomSaver<V> {
 								save = () => canSave2.save();
 								space.incStaged(atom.weight)
 								//add weight of parents here
-								return [[...parents, ref], atom.with({ parents: Set(), state: 'taken' })];
+								return [0, [[...parents, ref], atom.with({ parents: Set(), state: 'taken' })]];
 							}
 							else {
 								mode = 'zipToTips'
 								//add weight of parents here
-								return [[...parents, ref], atom.with({ parents: Set() })];
+								return [0, [[...parents, ref], atom.with({ parents: Set() })]];
 							}
 
 						case 'zipToTips':
-							return [[ref], atom.with({ parents })];
+							return [0, [[ref], atom.with({ parents })]];
 					}
 				}, new _MonoidNumber()).complete();
 
