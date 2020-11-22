@@ -25,9 +25,6 @@ describe('machines - saving', () => {
 		expect(bazAtoms.map(a => a.val.toObject()))
 			.toEqual([
 				{
-					baz: ['$boot', []]
-				},
-				{
 					baz: ['guineaPig', ['runAbout', []]]
 				},
 				{
@@ -37,15 +34,11 @@ describe('machines - saving', () => {
 			]);
 
 		expect(bazAtoms[0].parents.isEmpty).toBeTruthy();
-		expect(getAtoms(bazAtoms[1].parents)).toEqual([bazAtoms[0]]);
-		expect(getAtoms(bazAtoms[2].parents)).toContain(bazAtoms[1]);
-		expect(getAtoms(bazAtoms[2].parents)).toContain(lozAtoms[1]);
+		expect(getAtoms(bazAtoms[1].parents)).toContain(bazAtoms[0]);
+		expect(getAtoms(bazAtoms[1].parents)).toContain(lozAtoms[0]);
 
 		expect(lozAtoms.map(a => a.val.toObject()))
 			.toEqual([
-				{
-					loz: ['$boot', []]
-				},
 				{
 					loz: ['guineaPig', ['gruntAt', ['baz']]]
 				},
@@ -56,9 +49,8 @@ describe('machines - saving', () => {
 			]);
 
 		expect(lozAtoms[0].parents.isEmpty).toBeTruthy();
-		expect(getAtoms(lozAtoms[1].parents)).toEqual([lozAtoms[0]]);
-		expect(getAtoms(lozAtoms[2].parents)).toContain(lozAtoms[1]);
-		expect(getAtoms(lozAtoms[2].parents)).toContain(bazAtoms[1]);
+		expect(getAtoms(lozAtoms[1].parents)).toContain(lozAtoms[0]);
+		expect(getAtoms(lozAtoms[1].parents)).toContain(bazAtoms[0]);
 	})
 
 	it('doesn\'t save $boots', async () => {
@@ -83,11 +75,18 @@ describe('machines - saving', () => {
 			.not.toContain('$boot')
 	})
 
+	it('too small batch size throws error', async () => {
+		throw 'todo'
+	})
+
 	it('further saving', async () => {
 		x = fac();
-		// x.run.log$.subscribe(log)
 
-		const store = new FakeStore(new MonoidData(), 2);
+		//TODO
+		//it breaks when we save in batches over three (wrong weighting)
+		//also a batch of 6 should give us one single atom...
+
+		const store = new FakeStore(new MonoidData(), 6);
 
 		await Promise.all([
 			x.run.boot('mm', ['gerbil', ['spawn', [0, 2]]]),
@@ -95,16 +94,11 @@ describe('machines - saving', () => {
 		]);
 
 		//TODO
-		//BOOTS are without parents and get gobbled up straight away by the saver
-		//
-		//in symettry with unnecessary saving of boots...
-		//(should be flag to stop saver consuming them)
-		//!!!
-
-		//TODO
 		//when batch size is not big enough...
 		//gets stuck in endless loop
-		//
+
+		//TODO
+		//ordering of savables
 
 
 		// log(1)
@@ -117,15 +111,6 @@ describe('machines - saving', () => {
 		// log(2)
 
 		const heads = await gatheringHeads;
-
-		//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-		//all heads, including previous ones, are being gathered
-		//they should be, what? scanned for the last one? 
-		//or maybe made mutable again
-		//tho the idea with streaming them was to ease aggregating a sorted list
-		//this 'sorted list' should though be of weighted atoms, not heads
-		//though this atom weight gathers and is measured at the head
-		//
 
 		//all atoms will then have a weight (zero means not pending)
 		//this weight would be both local and total/projected

@@ -49,14 +49,16 @@ export default class AtomSaver<V> {
 			zero: {
 				mode: 'gather',
 				bagged: MV.zero,
-				weight: 0
+				weight: 0,
+				roots: Set()
 			},
 			add(a1, a2) {
 				return {
 					mode: [a1.mode, a2.mode].includes('zipUp') ? 'zipUp' : 'gather',
 					bagged: MV.add(a1.bagged, a2.bagged),
 					weight: a1.weight + a2.weight,
-					save: a2.save || a1.save || undefined
+					save: a2.save || a1.save || undefined,
+					roots: a1.roots.union(a2.roots)
 				};
 			}
 		} 
@@ -73,7 +75,10 @@ export default class AtomSaver<V> {
 					recurse => (ac0, [ref, atom]) => {
 
 						if(!atom.isActive()) {
-							return [ac0];
+							return [{
+								...ac0,
+								roots: ac0.roots.add(ref)
+							}];
 						}
 
 						const [ac1, parents] = atom.parents
@@ -115,16 +120,6 @@ export default class AtomSaver<V> {
 								}
 
 								const weight = ac1.weight + atom.weight;
-								const takenParents = parents
-										.filter(r => r.resolve().some(a => !a.isActive()));
-								//TODO above would be better specially accumulated
-								//or rather, Gatherables should be accumulated
-
-								//THIS DOESN'T WORK!
-								//because upstream atoms are being set as 'taken', and the downstream
-								//visitor misrecognises them as 'already taken'
-								//...
-
 								return [
 									{
 										...ac1,
@@ -133,9 +128,9 @@ export default class AtomSaver<V> {
 										save: () => canSave.save()
 									},
 									[
-										[...parents.subtract(takenParents), ref], //should only be claiming active atoms
+										[...parents.subtract(ac1.roots), ref],
 										atom.with({
-											parents: takenParents,
+											parents: ac1.roots,
 											state: 'taken',
 											weight
 										})
@@ -163,6 +158,7 @@ export default class AtomSaver<V> {
 			bagged: V
 			weight: number
 			save?: () => Promise<void>
+			roots: Set<AtomRef<V>>
 		}
 
 		//plus we could 'top up' our current transaction till full here
