@@ -42,44 +42,50 @@ export default class AtomPath<V> {
 		return this.hasAtoms(a => a.isActive());
 	}
 
-	rewrite<Ac>(fn: (rewriteParents: (a: [Ac, AtomRef<V>]) => [Ac, AtomRef<V>]) => AtomVisitor<Ac, V>, MAc: _Monoid<Ac>): AtomPatch {
-		let redirects = Map<AtomRef<V>, AtomRef<V>>();
+	rewrite<Ac>(fn: (rewriteParents: (a: [Ac, Set<AtomRef<V>>]) => [Ac, Set<AtomRef<V>>]) => AtomVisitor<Ac, V>, MAc: _Monoid<Ac>): AtomPatch {
+		let redirects = Map<AtomRef<V>, [Ac, AtomRef<V>]>();
 
 		const visitor: AtomVisitor<Ac, V> =
-			fn(([ac, ref]) => {
-				const foundRedirect = redirects.get(ref);
-				if(foundRedirect) {
-					return [ac, foundRedirect]
-				}
+			fn(([ac0, refs]) => {
+				return refs.reduce<[Ac, Set<AtomRef<V>>]>(
+					([ac, refs], ref) => {
 
-				const [atom] = ref.resolve();
-				if(!atom) return [ac, ref];
+						const found = redirects.get(ref);
+						if(found) {
+							const [ac2, ref2] = found;
+							return [MAc.add(ac, ac2), refs.add(ref2)]
+						}
 
-				const [ac2, [sources, a]] = visitor(ac, [ref, atom]);
-				const newRef = (a instanceof Atom) ? new AtomRef(a) : a;
+						const [atom] = ref.resolve();
+						if(!atom) return [ac, refs]; //just purge empty refs
 
-				redirects = redirects.merge(
-					Set(sources).map(r => [r, newRef]));
+						const [ac2, [sources, a]] = visitor(ac, [ref, atom]);
+						const newRef = (a instanceof Atom) ? new AtomRef(a) : a;
 
-				return [ac2, newRef];
+						redirects = redirects.merge(
+							Set(sources).map(r => [r, [ac2,newRef]]));
+
+						return [MAc.add(ac, ac2), refs.add(newRef)];
+
+					}, [ac0, Set()]);
 			});
 
 		const newRefs = this.tips.flatMap(ref => {
 			const [atom] = ref.resolve();
 			if(!atom) return [];
 			
-			const [, [sources, a]] = visitor(MAc.zero, [ref, atom]); //ac2 is thrown away here - potentially useful though it is
+			const [ac2, [sources, a]] = visitor(MAc.zero, [ref, atom]);
 			const newRef = (a instanceof Atom) ? new AtomRef(a) : a;
 
 			redirects = redirects.merge(
-				Set(sources).map(r => [r, newRef]));
+				Set(sources).map(r => [r, [ac2,newRef]]));
 
 			return [newRef];
 		})
 
 		return {
 			complete: () => {
-				for (const [from, to] of redirects) {
+				for (const [from, [,to]] of redirects) {
 					from.redirect(to);
 				}
 
