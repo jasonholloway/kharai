@@ -41,7 +41,7 @@ export default class AtomPath<V> {
 	hasPendingAtoms(): boolean {
 		return this.hasAtoms(a => a.isActive());
 	}
-
+	
 	rewrite<Ac>(fn: (self: (ac: Ac, ref: AtomRef<V>) => [Ac, AtomRef<V>, true?]) => AtomVisitor<Ac, V>, M: _Monoid<Ac>): AtomPatch<Ac> {
 		let redirects = Map<AtomRef<V>, [Ac, AtomRef<V>]>();
 
@@ -68,6 +68,7 @@ export default class AtomPath<V> {
 				return [ac2, newRef]; //ac2 threaded not combined
 			});
 
+		//TODO
 		//below will double-count top-level dupes
 		//...
 

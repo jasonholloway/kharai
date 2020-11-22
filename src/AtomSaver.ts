@@ -52,19 +52,12 @@ export default class AtomSaver<V> {
 				weight: 0
 			},
 			add(a1, a2) {
-
-				// log('MAc.add', a1.weight, a2.weight, a1.mode, a2.mode)
-				
-				const r = <Acc>{
+				return {
 					mode: [a1.mode, a2.mode].includes('zipUp') ? 'zipUp' : 'gather',
 					bagged: MV.add(a1.bagged, a2.bagged),
 					weight: a1.weight + a2.weight,
 					save: a2.save || a1.save || undefined
 				};
-
-				// log('merged', r.mode)
-
-				return r;
 			}
 		} 
 
@@ -122,9 +115,15 @@ export default class AtomSaver<V> {
 								}
 
 								const weight = ac1.weight + atom.weight;
-								const inactiveParents = parents
+								const takenParents = parents
 										.filter(r => r.resolve().some(a => !a.isActive()));
 								//TODO above would be better specially accumulated
+								//or rather, Gatherables should be accumulated
+
+								//THIS DOESN'T WORK!
+								//because upstream atoms are being set as 'taken', and the downstream
+								//visitor misrecognises them as 'already taken'
+								//...
 
 								return [
 									{
@@ -134,9 +133,9 @@ export default class AtomSaver<V> {
 										save: () => canSave.save()
 									},
 									[
-										[...parents.subtract(inactiveParents), ref], //should only be claiming active atoms
+										[...parents.subtract(takenParents), ref], //should only be claiming active atoms
 										atom.with({
-											parents: inactiveParents,
+											parents: takenParents,
 											state: 'taken',
 											weight
 										})
@@ -148,6 +147,7 @@ export default class AtomSaver<V> {
 				space.incStaged(result.weight);
 
 				if(result.save) {
+					log(result.bagged)
 					await result.save();
 				}
 
@@ -170,5 +170,9 @@ export default class AtomSaver<V> {
 		//...
 	}
 
+	//TODO
+	//upstreams of takens aren't disappearing...
+	//ie consolidation isn't happening
+	//
 
 }
