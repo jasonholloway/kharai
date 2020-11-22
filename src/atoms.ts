@@ -50,7 +50,7 @@ export class Atom<V> {
 		return new Atom<V>(
 			props.parents || this.parents,
 			props.val || this.val,
-			props.weight || this.weight,
+			props.weight !== undefined ? props.weight : this.weight,
 			props.state || this.state
 		);
 	}

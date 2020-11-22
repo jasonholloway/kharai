@@ -23,8 +23,10 @@ export default class AtomSaver<V> {
 	//TODO
 	//saving should skip if there's already a save in progress with <= weight threshold
 
+
+
 	async save(store: Store<V>, heads: Set<Head<V>>): Promise<void> {
-		const M = this._monoidV;
+		const MV = this._monoidV;
 		const space = this._space;
 
 		//TODO
@@ -42,61 +44,99 @@ export default class AtomSaver<V> {
 		//we don't then need to destroy weight on rewrites - we just need to keep the accounting straight
 
 		// log(space.weights())
+
+		const MAc: _Monoid<Acc> = {
+			zero: {
+				mode: 'gather',
+				bagged: MV.zero,
+				weight: 0
+			},
+			add(a1, a2) {
+				return {
+					mode: [a1.mode, a2.mode].includes('zipUp') ? 'zipUp' : 'gather',
+					bagged: MV.add(a1.bagged, a2.bagged),
+					weight: a1.weight + a2.weight,
+					save: a2.save || a1.save || undefined
+				};
+			}
+		} 
+
 		renderAtoms(heads.flatMap(h => h.refs()));
 
 		while(space.weights().pending > 0) {
+
 			const path = await space
 				.lockPath(...heads.flatMap(h => h.refs()));
 
+			//TODO
+			//when consolidating, we're not totting up weight...
+
 			try {
-				let mode: 'gather'|'zipUp' = 'gather';
-				let bagged = M.zero;
-				let save = () => Promise.resolve();
+				const result = path.rewrite<Acc>(
+					recurse => (ac0, [ref, atom]) => {
 
-				path.rewrite<number>(recurse => (ac0, [ref, atom]) => {
+						if(!atom.isActive()) {
+							return [ac0, [[ref], atom]]; //would be nice to have special 'false' case here
+						}
 
-					if(!atom.isActive()) {
-						return [ac0, [[ref], atom]]; //would be nice to have special 'false' case here
-					}
+						const [ac1, parents] = atom.parents
+							.reduce<[Acc, Set<AtomRef<V>>]>(
+								([ac,rs], r) => {
+									switch(ac.mode) {
+										case 'zipUp':
+											return [ac, rs.add(r)];
 
-					const [ac1, parents] = atom.parents
-						.reduce<[number, Set<AtomRef<V>>]>(
-							([ac,rs], r) => {
-								switch(mode) {
-									case 'zipUp':
-										return [ac, rs.add(r)];
+										case 'gather':
+											const [ac2, r2, stale] = recurse(ac, r); //will blow stack
+											return [
+												!stale ? MAc.add(ac, ac2) : ac,
+												rs.add(r2)
+											];
+									}
+								}, [ac0, Set()]);
 
-									case 'gather':
-										const [ac2, r2, stale] = recurse(ac, r); //will blow stack
-										return [ac + ac2, rs.add(r2)];
+						//and now consider myself
+						switch(ac1.mode) {
+							case 'zipUp':
+								return [
+									ac1,
+									[[ref], atom.with({ parents })]
+								];
+
+							case 'gather':
+								const combo = MV.add(ac1.bagged, atom.val);
+								const canSave = store.prepare(combo);
+
+								if(!canSave) {
+									return [
+										{
+											...ac1,
+											mode: 'zipUp'
+										},
+										[[ref], atom.with({ parents })]
+									];
 								}
-							}, [ac0, Set()]);
 
-					//and now consider myself
-					switch(mode) {
-						case 'zipUp':
-							return [ac1, [[ref], atom.with({ parents })]];
+								return [
+									{
+										...ac1,
+										bagged: combo,
+										weight: ac1.weight + atom.weight,
+										save: () => canSave.save()
+									},
+									[[...parents, ref], atom.with({ parents: Set(), state: 'taken', weight: ac1.weight + atom.weight })]
+								];
+						}
+					}, MAc).complete();
 
-						case 'gather':
-							const combo = M.add(bagged, atom.val);
-							const canSave = store.prepare(combo);
+				// console.log('result', result)
 
-							if(!canSave) {
-								mode = 'zipUp';
-								return [ac1, [[...parents, ref], atom.with({ parents: Set() })]];
-							}
-							else {
-								bagged = combo;
-								save = () => canSave.save(); //but what about saves that sit in other branches? should be passed as ac
-								space.incStaged(atom.weight)
-								//add weight of parents here
-								return [ac1, [[...parents, ref], atom.with({ parents: Set(), state: 'taken' })]];
-							}
-					}
+				space.incStaged(result.weight);
 
-				}, new _MonoidNumber()).complete();
 
-				await save();
+				if(result.save) {
+					await result.save();
+				}
 
 				log(space.weights())
 				renderAtoms(path.tips);
@@ -106,8 +146,17 @@ export default class AtomSaver<V> {
 			}
 		}
 
+		type Acc = {
+			mode: 'gather'|'zipUp'
+			bagged: V
+			weight: number
+			save?: () => Promise<void>
+		}
+
 		//plus we could 'top up' our current transaction till full here
 		//by taking latest refs from head
 		//...
 	}
+
+
 }

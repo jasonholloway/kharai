@@ -4,9 +4,9 @@ import { Lock } from './Locks'
 import { inspect } from 'util'
 import _Monoid from './_Monoid'
 
-export type AtomVisitor<A, V> = (ac: A, atom: [AtomRef<V>, Atom<V>]) => readonly [A, [AtomRef<V>[], Atom<V>|AtomRef<V>]]
+export type AtomVisitor<Ac, V> = (ac: Ac, atom: [AtomRef<V>, Atom<V>]) => readonly [Ac, [AtomRef<V>[], Atom<V>|AtomRef<V>]]
 
-export type AtomPatch = { complete(): void }
+export type AtomPatch<Ac> = { complete(): Ac }
 
 export default class AtomPath<V> {
 	readonly tips: Set<AtomRef<V>>
@@ -42,7 +42,7 @@ export default class AtomPath<V> {
 		return this.hasAtoms(a => a.isActive());
 	}
 
-	rewrite<Ac>(fn: (self: (ac: Ac, ref: AtomRef<V>) => [Ac, AtomRef<V>, true?]) => AtomVisitor<Ac, V>, M: _Monoid<Ac>): AtomPatch {
+	rewrite<Ac>(fn: (self: (ac: Ac, ref: AtomRef<V>) => [Ac, AtomRef<V>, true?]) => AtomVisitor<Ac, V>, M: _Monoid<Ac>): AtomPatch<Ac> {
 		let redirects = Map<AtomRef<V>, [Ac, AtomRef<V>]>();
 
 		const visitor: AtomVisitor<Ac, V> =
@@ -62,21 +62,26 @@ export default class AtomPath<V> {
 				redirects = redirects.merge(
 					Set(sources).map(r => [r, [ac2,newRef]]));
 
-					return [M.add(ac, ac2), newRef];
+				return [M.add(ac, ac2), newRef];
 			});
 
-		const newRefs = this.tips.flatMap(ref => {
-			const [atom] = ref.resolve();
-			if(!atom) return [];
-			
-			const [ac2, [sources, a]] = visitor(M.zero, [ref, atom]);
-			const newRef = (a instanceof Atom) ? new AtomRef(a) : a;
+		//below will double-count top-level dupes
+		//...
 
-			redirects = redirects.merge(
-				Set(sources).map(r => [r, [ac2,newRef]]));
+		const [ac, newRefs] = this.tips
+			.reduce<[Ac, AtomRef<V>[]]>(
+				([ac1, refs], ref) => {
+					const [atom] = ref.resolve();
+					if(!atom) return [ac1, refs];
 
-			return [newRef];
-		})
+					const [ac2, [sources, a]] = visitor(ac1, [ref, atom]);
+					const newRef = (a instanceof Atom) ? new AtomRef(a) : a;
+
+					redirects = redirects.merge(
+						Set(sources).map(r => [r, [ac2,newRef]]));
+
+					return [ac2, [...refs, newRef]];
+				}, [M.zero, []]);
 
 		return {
 			complete: () => {
@@ -96,8 +101,10 @@ export default class AtomPath<V> {
 				//any other atoms still to be saved will be necessarily rooted still
 				//******
 
-				const newRoots = newRefs.flatMap(AtomPath.findRoots);
+				const newRoots = Set(newRefs).flatMap(AtomPath.findRoots);
 				this._lock.extend(newRoots);
+
+				return ac;
 			}
 		};
 	}
