@@ -59,7 +59,7 @@ describe('atoms and stuff', () => {
 		head.write('2');
 		head.write('3');
 
-		const path = await space.lockTips(...head.refs());
+		const path = await space.lockPath(...head.refs());
 		expect(path.maxDepth()).toBe(3)
 
 		const before = path.path().render()
@@ -82,7 +82,7 @@ describe('atoms and stuff', () => {
 
 		head1.write('1:2');
 
-		const path1 = await space.lockTips(...head1.refs());
+		const path1 = await space.lockPath(...head1.refs());
 		expect(path1.maxDepth()).toBe(2)
 
 		const before = path1.path().render()
@@ -97,7 +97,7 @@ describe('atoms and stuff', () => {
 		const after1 = path1.path().render()
 		expect(after1).toEqual(before)
 
-		const path2 = await space.lockTips(...head2.refs());
+		const path2 = await space.lockPath(...head2.refs());
 		const after2 = path2.path().render();
 	})
 
@@ -107,7 +107,7 @@ describe('atoms and stuff', () => {
 		const ref3 = new AtomRef(new Atom(Set([ref1]), 'B2'));
 		const ref4 = new AtomRef(new Atom(Set([ref2, ref3]), 'c3'));
 
-		const path = await space.lockTips(ref4);
+		const path = await space.lockPath(ref4);
 		const before = path.path().render();
 
 		let i = 0;
@@ -126,7 +126,7 @@ describe('atoms and stuff', () => {
 		const ref2 = new AtomRef(new Atom(Set([ref1]), 'b1'));
 		const ref3 = new AtomRef(new Atom(Set([ref1]), 'c2'));
 
-		const path = await space.lockTips(ref2, ref3);
+		const path = await space.lockPath(ref2, ref3);
 
 		let i = 0;
 		path.rewrite(fn => (ref, atom) => {
@@ -162,10 +162,10 @@ describe('atoms and stuff', () => {
 
 		head1.write('1:2');
 
-		const path1 = await space.lockTips(...head1.refs());
+		const path1 = await space.lockPath(...head1.refs());
 
 		let locked2 = false;
-		space.lockTips(...head2.refs()).then(() => locked2 = true);
+		space.lockPath(...head2.refs()).then(() => locked2 = true);
 
 		await delay(100);
 		expect(locked2).toBeFalsy();
@@ -184,10 +184,10 @@ describe('atoms and stuff', () => {
 
 		head1.write('1:2');
 
-		const path = await space.lockTips(...head1.refs());
+		const path = await space.lockPath(...head1.refs());
 
 		let head2Activated = false;
-		space.lockTips(...head2.refs()).then(() => head2Activated = true);
+		space.lockPath(...head2.refs()).then(() => head2Activated = true);
 
 		await delay(50);
 		expect(head2Activated).toBeFalsy();
@@ -235,8 +235,8 @@ describe('atoms and stuff', () => {
 
 		const refs = head.refs();
 
-		const locking1 = space.lockTips(...refs);
-		const locking2 = space.lockTips(...refs);
+		const locking1 = space.lockPath(...refs);
+		const locking2 = space.lockPath(...refs);
 
 		const path1 = await locking1;
 
@@ -249,7 +249,7 @@ describe('atoms and stuff', () => {
 		await delay(50);
 
 		let locked3 = false;
-		const locking3 = space.lockTips(...refs);
+		const locking3 = space.lockPath(...refs);
 		locking3.then(() => locked3 = true);
 
 		await delay(50);
@@ -262,7 +262,28 @@ describe('atoms and stuff', () => {
 
 		expect(locked3).toBeTruthy();
 	});
+
+
+	describe('weights', () => {
+		it('space starts weightless', () => {
+			expect(space.weights().created).toBe(0);
+		});
+
+		
+		it('writing gathers weight', async () => {
+			const h1 = space.head();
+			h1.write('a', 2);
+			h1.write('b', 3);
+
+			const h2 = h1.fork();
+			h2.write('c', 4);
+			h1.write('d', 5);
+
+			expect(space.weights().created).toBe(14);
+		});
+	})
 });
+
 
 
 //---------------------------------

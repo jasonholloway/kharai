@@ -65,9 +65,12 @@ export function scenario<W extends PhaseMap, X extends MachineContext, P = Phase
       const p = found || <P><unknown>(['$boot', []]);
 
       const h = atomSpace.head();
-      h.write(Map({
-        [isArray(id) ? id[0] : id]: p
-      }), found ? 1 : 0);
+
+      if(found) {
+        h.write(Map({
+          [isArray(id) ? id[0] : id]: p
+        }));
+      }
 
       return [h, p];
     };

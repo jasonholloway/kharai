@@ -26,19 +26,37 @@ export class AtomRef<V> {
 	}
 }
 
+type AtomState = 'active'|'taken'|'done'
+
 export class Atom<V> {
 	readonly _type = 'Atom'
 	readonly parents: Set<AtomRef<V>>
 	readonly val: V
 	readonly weight: number
+	readonly state: AtomState
 
-	constructor(parents: Set<AtomRef<V>>, val: V, weight: number = 1) {
+	constructor(parents: Set<AtomRef<V>>, val: V, weight: number = 1, state: AtomState = 'active') {
 		this.parents = parents;
 		this.val = val;
 		this.weight = weight;
+		this.state = state;
 	}
 
 	asRef(): AtomRef<V> {
 		return new AtomRef(this);
 	}
+
+	with(props: { parents?: Set<AtomRef<V>>, val?: V, weight?: number, state?: AtomState }): Atom<V> {
+		return new Atom<V>(
+			props.parents || this.parents,
+			props.val || this.val,
+			props.weight || this.weight,
+			props.state || this.state
+		);
+	}
+
+	isActive(): boolean {
+		return this.state == 'active';
+	}
+
 }

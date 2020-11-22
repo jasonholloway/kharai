@@ -2,8 +2,9 @@ import { Set, Map, OrderedSet } from 'immutable'
 import { Atom, AtomRef } from './atoms'
 import { Lock } from './Locks'
 import { inspect } from 'util'
+import _Monoid from './_Monoid'
 
-export type AtomVisitor<V> = (ref: AtomRef<V>, atom: Atom<V>) => readonly [AtomRef<V>[], AtomRef<V>]
+export type AtomVisitor<A, V> = (ac: A, atom: [AtomRef<V>, Atom<V>]) => readonly [A, [AtomRef<V>[], Atom<V>|AtomRef<V>]]
 
 export type AtomPatch = { complete(): void }
 
@@ -38,40 +39,42 @@ export default class AtomPath<V> {
 	}	
 
 	hasPendingAtoms(): boolean {
-		return this.hasAtoms(a => !!a.weight);
+		return this.hasAtoms(a => a.isActive());
 	}
 
-	rewrite(fn: (self: (a: AtomRef<V>) => AtomRef<V>) => AtomVisitor<V>): AtomPatch {
+	rewrite<Ac>(fn: (rewriteParents: (a: [Ac, AtomRef<V>]) => [Ac, AtomRef<V>]) => AtomVisitor<Ac, V>, MAc: _Monoid<Ac>): AtomPatch {
 		let redirects = Map<AtomRef<V>, AtomRef<V>>();
 
-		const visitor: AtomVisitor<V> = fn(ref => {
-			return redirects.get(ref) || (() => {
-				const [atom] = ref.resolve();
-				if(!atom) return ref;
-				else {
-					const [sources, newRef] = visitor(ref, atom);
-
-					redirects = redirects.merge(
-						Set(sources).map(r => [r, newRef]));
-
-					return newRef;
+		const visitor: AtomVisitor<Ac, V> =
+			fn(([ac, ref]) => {
+				const foundRedirect = redirects.get(ref);
+				if(foundRedirect) {
+					return [ac, foundRedirect]
 				}
-			})();
-		});
 
-		const newRefs = this.tips.flatMap(ref => {
-			const [atom] = ref.resolve();
-			if(atom) {
-				const [sources, newRef] = visitor(ref, atom);
+				const [atom] = ref.resolve();
+				if(!atom) return [ac, ref];
+
+				const [ac2, [sources, a]] = visitor(ac, [ref, atom]);
+				const newRef = (a instanceof Atom) ? new AtomRef(a) : a;
 
 				redirects = redirects.merge(
 					Set(sources).map(r => [r, newRef]));
 
-				return [newRef];
-			}
-			else {
-				return [];
-			}
+				return [ac2, newRef];
+			});
+
+		const newRefs = this.tips.flatMap(ref => {
+			const [atom] = ref.resolve();
+			if(!atom) return [];
+			
+			const [, [sources, a]] = visitor(MAc.zero, [ref, atom]); //ac2 is thrown away here - potentially useful though it is
+			const newRef = (a instanceof Atom) ? new AtomRef(a) : a;
+
+			redirects = redirects.merge(
+				Set(sources).map(r => [r, newRef]));
+
+			return [newRef];
 		})
 
 		return {
@@ -206,7 +209,8 @@ export function renderAtoms<V>(refs: Set<AtomRef<V>>) {
 		log(0,
 				'\x1b[39m'
 			+ (tips.contains(l) ? '+ ' : '  ')
-			+ (l.weight > 0 ? (l.weight + ' \x1b[31m') : '  \x1b[34m')
+			+ (l.weight + ' ')
+			+ (l.state == 'active' ? '\x1b[31m' : '\x1b[34m')
 			+ inspect(l.val)))
 	log()
 

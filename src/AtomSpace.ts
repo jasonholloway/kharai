@@ -8,6 +8,7 @@ export default class AtomSpace<V> {
 	private _locks: Locks
   private _heads: List<Head<V>>
 	private _head$: Subject<Head<V>>
+	private _weights: { created: number, staged: number, saved: number }
 
 	readonly head$: Observable<Head<V>>
 
@@ -16,17 +17,31 @@ export default class AtomSpace<V> {
 		this._heads = List();
 		this._head$ = new Subject<Head<V>>();
 		this.head$ = this._head$;
+		this._weights = { created: 0, staged: 0, saved: 0 };
 	}
 
-	newAtom(parents: Set<AtomRef<V>>, val: V, weight: number = 1) {
-		//and add weight here
-		const atom = new Atom(parents, val, weight);
+	newAtom(parents: Set<AtomRef<V>>, val: V, weight: number = 1): AtomRef<V> {
+		const atom = new Atom<V>(parents, val, weight);
+		this._weights.created += weight;
 		return new AtomRef(atom);
 	}
+
+	incStaged(weight: number) {
+		this._weights.staged += weight;
+	}
+
+	incSaved(weight: number) {
+		this._weights.saved += weight;
+	}
+	
 
 	lock<V>(atoms: Set<Atom<V>>): Promise<Lock> {
 		return this._locks.lock(...atoms);
 	}
+
+	//shouldn't need heads to reach into atom graph
+	//every atom needs saving, head or not...
+	//which would take the pressure off releasing heads too
 
 	head(...refs: AtomRef<V>[]): Head<V> {
 		const head = new Head(this, Set(refs));
@@ -35,7 +50,7 @@ export default class AtomSpace<V> {
 		return head;
 	}
 
-	async lockTips(...tips: AtomRef<V>[]): Promise<AtomPath<V>> {
+	async lockPath(...tips: AtomRef<V>[]): Promise<AtomPath<V>> {
 		const _tips = Set(tips);
 		let roots1 = _tips.flatMap(AtomPath.findRoots);
 
@@ -52,6 +67,14 @@ export default class AtomSpace<V> {
 				lock.release();
 			}
 		}
+	}
+
+	weights() {
+		const w = this._weights;
+		return {
+			...w,
+			pending: w.created - (w.staged + w.saved)
+		};
 	}
 }
 
@@ -92,13 +115,8 @@ export class Head<V> {
 	}
 
 	addUpstreams(refs: Set<AtomRef<V>>): void {
-		//for efficiency: simply superseded atoms eagerly purged
-		//imperfect, but catches common case
-
-		//but is this purging?
-		//all the upstreams are still there...
-		//just not in the head
-		//but if they're not in the head, they can be rewritten (by some other process)
+		//for efficiency: simply superseded atoms purged from head
+		//stops loads of refs accumulating without compaction
 		const newRefs = this._refs
 			.subtract(refs.flatMap(r => r.resolve()).flatMap(a => a.parents))
 			.union(refs);
