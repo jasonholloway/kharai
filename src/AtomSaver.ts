@@ -52,12 +52,19 @@ export default class AtomSaver<V> {
 				weight: 0
 			},
 			add(a1, a2) {
-				return {
+
+				// log('MAc.add', a1.weight, a2.weight, a1.mode, a2.mode)
+				
+				const r = <Acc>{
 					mode: [a1.mode, a2.mode].includes('zipUp') ? 'zipUp' : 'gather',
 					bagged: MV.add(a1.bagged, a2.bagged),
 					weight: a1.weight + a2.weight,
 					save: a2.save || a1.save || undefined
 				};
+
+				// log('merged', r.mode)
+
+				return r;
 			}
 		} 
 
@@ -68,15 +75,12 @@ export default class AtomSaver<V> {
 			const path = await space
 				.lockPath(...heads.flatMap(h => h.refs()));
 
-			//TODO
-			//when consolidating, we're not totting up weight...
-
 			try {
 				const result = path.rewrite<Acc>(
 					recurse => (ac0, [ref, atom]) => {
 
 						if(!atom.isActive()) {
-							return [ac0, [[ref], atom]]; //would be nice to have special 'false' case here
+							return [ac0];
 						}
 
 						const [ac1, parents] = atom.parents
@@ -87,9 +91,9 @@ export default class AtomSaver<V> {
 											return [ac, rs.add(r)];
 
 										case 'gather':
-											const [ac2, r2, stale] = recurse(ac, r); //will blow stack
+											const [ac2, r2, dupe] = recurse(ac, r); //will blow stack
 											return [
-												!stale ? MAc.add(ac, ac2) : ac,
+												!dupe ? ac2 : ac,
 												rs.add(r2)
 											];
 									}
@@ -117,28 +121,36 @@ export default class AtomSaver<V> {
 									];
 								}
 
+								const weight = ac1.weight + atom.weight;
+								const inactiveParents = parents
+										.filter(r => r.resolve().some(a => !a.isActive()));
+								//TODO above would be better specially accumulated
+
 								return [
 									{
 										...ac1,
 										bagged: combo,
-										weight: ac1.weight + atom.weight,
+										weight,
 										save: () => canSave.save()
 									},
-									[[...parents, ref], atom.with({ parents: Set(), state: 'taken', weight: ac1.weight + atom.weight })]
+									[
+										[...parents.subtract(inactiveParents), ref], //should only be claiming active atoms
+										atom.with({
+											parents: inactiveParents,
+											state: 'taken',
+											weight
+										})
+									]
 								];
 						}
 					}, MAc).complete();
 
-				// console.log('result', result)
-
 				space.incStaged(result.weight);
-
 
 				if(result.save) {
 					await result.save();
 				}
 
-				log(space.weights())
 				renderAtoms(path.tips);
 			}
 			finally {

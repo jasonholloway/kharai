@@ -4,7 +4,7 @@ import { Lock } from './Locks'
 import { inspect } from 'util'
 import _Monoid from './_Monoid'
 
-export type AtomVisitor<Ac, V> = (ac: Ac, atom: [AtomRef<V>, Atom<V>]) => readonly [Ac, [AtomRef<V>[], Atom<V>|AtomRef<V>]]
+export type AtomVisitor<Ac, V> = (ac: Ac, atom: [AtomRef<V>, Atom<V>]) => readonly [Ac, [AtomRef<V>[], Atom<V>|AtomRef<V>]?]
 
 export type AtomPatch<Ac> = { complete(): Ac }
 
@@ -54,15 +54,18 @@ export default class AtomPath<V> {
 				}
 
 				const [atom] = ref.resolve();
-				if(!atom) return [ac, ref];
+				if(!atom) return [ac, ref]; //would be nice to purge ref here
 
-				const [ac2, [sources, a]] = visitor(ac, [ref, atom]);
+				const [ac2, res] = visitor(ac, [ref, atom]);
+				if(!res) return [ac2, ref];
+				
+				const [sources, a] = res;
 				const newRef = (a instanceof Atom) ? new AtomRef(a) : a;
 
 				redirects = redirects.merge(
 					Set(sources).map(r => [r, [ac2,newRef]]));
 
-				return [M.add(ac, ac2), newRef];
+				return [ac2, newRef]; //ac2 threaded not combined
 			});
 
 		//below will double-count top-level dupes
@@ -74,13 +77,16 @@ export default class AtomPath<V> {
 					const [atom] = ref.resolve();
 					if(!atom) return [ac1, refs];
 
-					const [ac2, [sources, a]] = visitor(ac1, [ref, atom]);
+					const [ac2, res] = visitor(ac1, [ref, atom]);
+					if(!res) return [ac2, refs];
+					
+					const [sources, a] = res;
 					const newRef = (a instanceof Atom) ? new AtomRef(a) : a;
 
 					redirects = redirects.merge(
 						Set(sources).map(r => [r, [ac2,newRef]]));
 
-					return [ac2, [...refs, newRef]];
+					return [ac2, [...refs, newRef]]; //ac is threaded not combined
 				}, [M.zero, []]);
 
 		return {
