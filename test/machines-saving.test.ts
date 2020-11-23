@@ -4,7 +4,7 @@ import { rodents } from './worlds/rodents'
 import FakeStore from './FakeStore';
 import MonoidData from '../src/MonoidData';
 import { Set, List, OrderedSet } from 'immutable'
-import { map } from 'rxjs/operators';
+import { map, bufferTime, finalize, first } from 'rxjs/operators';
 import { gather, delay } from './helpers';
 const log = console.log;
 
@@ -79,6 +79,87 @@ describe('machines - saving', () => {
 		throw 'todo'
 	})
 
+	it('big enough batch saves once', async () => {
+		x = fac();
+
+		const store = new FakeStore(new MonoidData(), 6);
+
+		await Promise.all([
+			x.run.boot('mm', ['gerbil', ['spawn', [0, 2]]]),
+			x.run.boot('aa', ['gerbil', ['spawn', [0, 2]]]),
+		]);
+
+		const heads = await x.run.machine$
+			.pipe(
+				map(m => m.head),
+				bufferTime(200),
+				first(),
+				finalize(() => x.run.complete()),
+			).toPromise();
+
+		await x.saver.save(store, Set(heads))
+		log(store.saved);
+
+		expect(store.batches).toHaveLength(1)
+	})
+
+	it('big enough batch, heads resolve to same atom', async () => {
+		x = fac();
+
+		const store = new FakeStore(new MonoidData(), 6);
+
+		await Promise.all([
+			x.run.boot('mm', ['gerbil', ['spawn', [0, 5]]]),
+		]);
+
+		const heads = await x.run.machine$
+			.pipe(
+				map(m => m.head),
+				bufferTime(200),
+				first(),
+				finalize(() => x.run.complete()),
+			).toPromise();
+
+		await x.saver.save(store, Set(heads))
+
+		const atoms = Set(heads)
+			.flatMap(h => h.refs())
+			.flatMap(r => r.resolve())
+			.map(a => a.val.toObject())
+		  .toArray();
+
+		expect(atoms).toHaveLength(1);
+	})
+
+	it('big enough batch, atom weights consolidated', async () => {
+		x = fac();
+
+		const store = new FakeStore(new MonoidData(), 6);
+
+		await Promise.all([
+			x.run.boot('mm', ['gerbil', ['spawn', [0, 2]]]),
+			x.run.boot('aa', ['gerbil', ['spawn', [0, 2]]]),
+		]);
+
+		const heads = await x.run.machine$
+			.pipe(
+				map(m => m.head),
+				bufferTime(200),
+				first(),
+				finalize(() => x.run.complete()),
+			).toPromise();
+
+		await x.saver.save(store, Set(heads))
+
+		const atomWeights = Set(heads)
+			.flatMap(h => h.refs())
+			.flatMap(r => r.resolve())
+			.map(a => a.weight)
+		  .toArray();
+
+		expect(atomWeights).toBe([3, 3]);
+	})
+
 	it('further saving', async () => {
 		x = fac();
 
@@ -118,7 +199,7 @@ describe('machines - saving', () => {
 		//
 		
 		await x.saver.save(store, Set(heads))
-		log(store.saved)
+		// log(store.saved)
 	})
 
 	it('flump', () => {
