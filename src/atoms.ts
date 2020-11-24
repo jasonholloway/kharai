@@ -1,4 +1,4 @@
-import { Set } from 'immutable'
+import { List } from 'immutable'
 
 export type AtomLike<V> = Atom<V> | AtomRef<V> | null;
 
@@ -30,12 +30,12 @@ type AtomState = 'active'|'taken'|'done'
 
 export class Atom<V> {
 	readonly _type = 'Atom'
-	readonly parents: Set<AtomRef<V>>
+	readonly parents: List<AtomRef<V>>
 	readonly val: V
 	readonly weight: number
 	readonly state: AtomState
 
-	constructor(parents: Set<AtomRef<V>>, val: V, weight: number = 1, state: AtomState = 'active') {
+	constructor(parents: List<AtomRef<V>>, val: V, weight: number = 1, state: AtomState = 'active') {
 		this.parents = parents;
 		this.val = val;
 		this.weight = weight;
@@ -46,7 +46,7 @@ export class Atom<V> {
 		return new AtomRef(this);
 	}
 
-	with(props: { parents?: Set<AtomRef<V>>, val?: V, weight?: number, state?: AtomState }): Atom<V> {
+	with(props: { parents?: List<AtomRef<V>>, val?: V, weight?: number, state?: AtomState }): Atom<V> {
 		return new Atom<V>(
 			props.parents || this.parents,
 			props.val || this.val,

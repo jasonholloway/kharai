@@ -1,4 +1,4 @@
-import { Set, Map, OrderedSet } from 'immutable'
+import { Set, Map, OrderedSet, Seq, List } from 'immutable'
 import { Atom, AtomRef } from './atoms'
 import { Lock } from './Locks'
 import { inspect } from 'util'
@@ -9,11 +9,11 @@ export type AtomVisitor<Ac, V> = (atom: [AtomRef<V>, Atom<V>]) => readonly [Ac, 
 export type AtomPatch<Ac> = { complete(): Ac }
 
 export default class AtomPath<V> {
-	readonly tips: Set<AtomRef<V>>
+	readonly tips: List<AtomRef<V>>
 	private readonly _lock: Lock
 
 	constructor(tips: AtomRef<V>[], lock: Lock) {
-		this.tips = Set(tips);
+		this.tips = List(tips);
 		this._lock = lock;
 	}
 
@@ -22,7 +22,7 @@ export default class AtomPath<V> {
 	}
 
 	maxDepth(): number {
-		const plumbDepth = (refs: Set<AtomRef<V>>, d: number): Set<number> =>
+		const plumbDepth = (refs: List<AtomRef<V>>, d: number): List<number> =>
 			refs
 				.flatMap(r => r.resolve())
 				.flatMap(a => plumbDepth(a.parents, d + 1))
@@ -82,11 +82,11 @@ export default class AtomPath<V> {
 					const ac3 = M.add(ac1, ac2);
 					if(!res) return [ac3, refs];
 					
-					const [sources, a] = res;
+					const [sources, a] = res; //???????????????????????????????
 					const newRef = (a instanceof Atom) ? new AtomRef(a) : a;
 
-					// redirects = redirects.merge(
-					// 	Set(sources).map(r => [r, [ac3,newRef]]));
+					redirects = redirects.merge(
+						Set(sources).map(r => [r, [ac3,newRef]]));
 
 					return [ac3, [...refs, newRef]];
 				}, [M.zero, []]);
@@ -129,20 +129,20 @@ export default class AtomPath<V> {
 		return new Path(this.tips.flatMap(_map));
 	}
 
-	static findRoots<V>(ref: AtomRef<V>): Set<Atom<V>> {
+	static findRoots<V>(ref: AtomRef<V>): List<Atom<V>> {
 		const [atom] = ref.resolve();
-		if(!atom) return Set();
+		if(!atom) return List();
 		else {
 			const above = atom.parents.flatMap(AtomPath.findRoots);
-			return above.isEmpty() ? Set([atom]) : above;
+			return above.isEmpty() ? List([atom]) : above;
 		}
 	}
 }
 
 export class Path<V> {
-	readonly nodes: Set<PathNode<V>>
+	readonly nodes: List<PathNode<V>>
 
-	constructor(nodes: Set<PathNode<V>>) {
+	constructor(nodes: List<PathNode<V>>) {
 		this.nodes = nodes;
 	}
 
@@ -156,10 +156,10 @@ export class Path<V> {
 }
 
 export class PathNode<V> {
-	readonly parents: Set<PathNode<V>>
+	readonly parents: List<PathNode<V>>
 	readonly value: V
 
-	constructor(parents: Set<PathNode<V>>, val: V) {
+	constructor(parents: List<PathNode<V>>, val: V) {
 		this.parents = parents;
 		this.value = val;
 	}
@@ -200,7 +200,7 @@ export function renderPath<V>(p: Path<V>) {
 	set.forEach((l) => log(1, inspect(l.value)))
 	log()
 
-	function visit(set: OrderedSet<PathNode<V>>, nodes: Set<PathNode<V>>, d: number): OrderedSet<PathNode<V>> {
+	function visit(set: OrderedSet<PathNode<V>>, nodes: List<PathNode<V>>, d: number): OrderedSet<PathNode<V>> {
 		return nodes.reduce(
 			(ac, n) => {
 				const ac2 = visit(ac, n.parents, d + 1);
@@ -210,7 +210,7 @@ export function renderPath<V>(p: Path<V>) {
 	}
 }
 
-export function renderAtoms<V>(refs: Set<AtomRef<V>>) {
+export function renderAtoms<V>(refs: List<AtomRef<V>>) {
 	const log = (indent: number = 0, l: string = '') => {
 		for(let i = 0; i < indent; i++) process.stdout.write('  ');
 		process.stdout.write(l + '\n')
@@ -230,7 +230,7 @@ export function renderAtoms<V>(refs: Set<AtomRef<V>>) {
 			+ inspect(l.val)))
 	log()
 
-	function visit(zero: OrderedSet<Atom<V>>, refs: Set<Atom<V>>, d: number): OrderedSet<Atom<V>> {
+	function visit(zero: OrderedSet<Atom<V>>, refs: List<Atom<V>>, d: number): OrderedSet<Atom<V>> {
 		return refs.reduce(
 			(ac, a) => {
 				const ac2 = visit(ac, a.parents.flatMap(r => r.resolve()), d + 1);

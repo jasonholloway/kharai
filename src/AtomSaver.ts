@@ -1,7 +1,7 @@
 import _Monoid, { _MonoidNumber } from './_Monoid'
 import AtomSpace, { Head } from './AtomSpace'
 import Store from './Store'
-import { Map, Set } from 'immutable'
+import { Map, Set, List } from 'immutable'
 import { inspect } from 'util'
 import { renderAtoms, renderPath } from './AtomPath'
 import { Atom, AtomRef } from './atoms'
@@ -56,20 +56,18 @@ export default class AtomSaver<V> {
 
 		const MAc: _Monoid<Acc> = {
 			zero: {
-				parents: Set(),
 				gatherables: Set(),
 				roots: Set()
 			},
 			add(a1, a2) {
 				return {
-					parents: a1.roots.union(a2.parents),
 					gatherables: a1.roots.union(a2.gatherables),
 					roots: a1.roots.union(a2.roots)
 				};
 			}
 		} 
 
-		renderAtoms(heads.flatMap(h => h.refs()));
+		renderAtoms(heads.flatMap(h => h.refs()).toList());
 
 		while(space.weights().pending > 0) {
 
@@ -86,42 +84,27 @@ export default class AtomSaver<V> {
 
 						if(!atom.isActive()) {
 							return [{
-								parents: Set([ref]),
 								roots: Set([ref]),
 								gatherables: Set()
 							}];
 						}
 
-						const ac = atom.parents
-							.reduce<Acc>((ac1, r) => {
+						const [ac, parents] = atom.parents
+							.reduce<[Acc,List<AtomRef<V>>]>(([ac1,rs], r) => {
 								switch(mode) {
 									case 'zipUp':
-										return {
-											...ac1,
-											parents: ac1.parents.add(r)
-										};
+										return [ac1, rs.push(r)];
 
 									case 'gather':
-										const [ac2, r2, dupe] = recurse(r); //will blow stack
-										return {
-											...ac2,
-											parents: ac1.parents.union(ac2.parents),                         //are any of these affected by dupe?
-											gatherables: ac1.gatherables.union(ac2.gatherables),
-											roots: ac1.roots.union(ac2.roots)
-										};
+										const [ac2, r2] = recurse(r); //will blow stack
+										return [MAc.add(ac1, ac2), rs.push(r2)];
 								}
-							}, MAc.zero);
+							}, [MAc.zero,List()]);
 
 						//and now consider myself
 						switch(mode) {
 							case 'zipUp':
-								return [
-									{
-										...ac,
-										parents: Set([ref])
-									},
-									[[ref], atom.with({ parents: ac.parents })]
-								];
+								return [ac, [[ref], atom.with({ parents })]]
 
 							case 'gather':
 								const combo = MV.add(bagged, atom.val);
@@ -129,16 +112,10 @@ export default class AtomSaver<V> {
 
 								if(!canSave) {
 									mode = 'zipUp';
-									return [
-										{
-											...ac,
-											parents: Set([ref])
-										},
-										[[ref], atom.with({ parents: ac.parents })]
-									];
+									return [ac, [[ref], atom.with({ parents })]];
 								}
 
-								log('gathering', atom.val, 'plus', ac.gatherables.count());
+								log('gathering', atom.val, atom.weight);
 
 								bagged = combo;
 								save = () => canSave.save();
@@ -146,13 +123,12 @@ export default class AtomSaver<V> {
 								return [
 									{
 										...ac,
-										parents: Set([ref]),
 										gatherables: ac.gatherables.add(ref)
 									},
 									[
 										[...ac.gatherables, ref],
 										atom.with({
-											parents: ac.roots,
+											parents: ac.roots.toList(),
 											state: 'taken',
 											weight: ac.gatherables
 												.flatMap(r => r.resolve())
@@ -180,7 +156,6 @@ export default class AtomSaver<V> {
 		}
 
 		type Acc = {
-			parents: Set<AtomRef<V>>
 			roots: Set<AtomRef<V>>
 			gatherables: Set<AtomRef<V>>
 		}
