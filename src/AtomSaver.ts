@@ -57,12 +57,14 @@ export default class AtomSaver<V> {
 		const MAc: _Monoid<Acc> = {
 			zero: {
 				gatherables: Set(),
-				roots: Set()
+				roots: Set(),
+				weight: 0
 			},
 			add(a1, a2) {
 				return {
 					gatherables: a1.roots.union(a2.gatherables),
-					roots: a1.roots.union(a2.roots)
+					roots: a1.roots.union(a2.roots),
+					weight: a1.weight + a2.weight
 				};
 			}
 		} 
@@ -79,13 +81,14 @@ export default class AtomSaver<V> {
 				let bagged = MV.zero;
 				let save = () => Promise.resolve();
 
-				const result = path.rewrite<Acc>(
+				const {weight} = path.rewrite<Acc>(
 					recurse => ([ref, atom]) => {
 
 						if(!atom.isActive()) {
 							return [{
 								roots: Set([ref]),
-								gatherables: Set()
+								gatherables: Set(),
+								weight: 0
 							}];
 						}
 
@@ -97,7 +100,8 @@ export default class AtomSaver<V> {
 
 									case 'gather':
 										const [ac2, r2] = recurse(r); //will blow stack
-										return [MAc.add(ac1, ac2), rs.push(r2)];
+										if(ac2) return [MAc.add(ac1, ac2), rs.push(r2)];     //would be much more pleasant underneath...
+										else return [ac1, rs.push(r2)];
 								}
 							}, [MAc.zero,List()]);
 
@@ -123,25 +127,20 @@ export default class AtomSaver<V> {
 								return [
 									{
 										...ac,
-										gatherables: ac.gatherables.add(ref)
+										gatherables: ac.gatherables.add(ref),
+										weight: ac.weight + atom.weight
 									},
 									[
 										[...ac.gatherables, ref],
 										atom.with({
-											parents: ac.roots.toList(),
 											state: 'taken',
-											weight: ac.gatherables
-												.flatMap(r => r.resolve())
-												.reduce((w, a) => a.weight + w, atom.weight) //cripes - should gather in ac (except for dupe problem)
+											parents: ac.roots.toList(),
+											weight: ac.weight + atom.weight
 										})
 									]
 								];
 						}
 					}, MAc).complete();
-
-				const weight = result.gatherables
-					.flatMap(r => r.resolve())
-					.reduce((w, a) => w + a.weight, 0); //except - we have just rewritten, and redirected
 
 				space.incStaged(weight);
 
@@ -158,6 +157,7 @@ export default class AtomSaver<V> {
 		type Acc = {
 			roots: Set<AtomRef<V>>
 			gatherables: Set<AtomRef<V>>
+			weight: number
 		}
 
 		//plus we could 'top up' our current transaction till full here

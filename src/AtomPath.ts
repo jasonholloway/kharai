@@ -42,19 +42,28 @@ export default class AtomPath<V> {
 		return this.hasAtoms(a => a.isActive());
 	}
 	
-	rewrite<Ac>(fn: (self: (ref: AtomRef<V>) => [Ac, AtomRef<V>, true?]) => AtomVisitor<Ac, V>, M: _Monoid<Ac>): AtomPatch<Ac> {
-		let redirects = Map<AtomRef<V>, [Ac, AtomRef<V>]>();
+	rewrite<Ac>(fn: (self: (ref: AtomRef<V>) => [Ac|false, AtomRef<V>, true?]) => AtomVisitor<Ac, V>, M: _Monoid<Ac>): AtomPatch<Ac> {
+		const MM: _Monoid<Ac|false> = {
+			zero: false,
+			add(a1, a2) {
+				if(a1 && a2) return M.add(a1, a2);
+				if(a1) return a1;
+				if(a2) return a2;
+				return false;
+			}
+		};
+
+		let redirects = Map<AtomRef<V>, AtomRef<V>>();
 
 		const visitor: AtomVisitor<Ac, V> =
 			fn(ref => {
 				const found = redirects.get(ref);
 				if(found) {
-					const [ac, ref2] = found;
-					return [ac, ref2, true];
+					return [MM.zero, found];
 				}
 
 				const [atom] = ref.resolve();
-				if(!atom) return [M.zero, ref]; //would be nice to purge ref here
+				if(!atom) return [MM.zero, ref]; //would be nice to purge ref here
 
 				const [ac, res] = visitor([ref, atom]);
 				if(!res) return [ac, ref]; //SURELY THIS NEEDS TO BE REDIRECTED TOO? ****
@@ -63,7 +72,7 @@ export default class AtomPath<V> {
 				const newRef = (a instanceof Atom) ? new AtomRef(a) : a;
 
 				redirects = redirects.merge(
-					Set(sources).map(r => [r, [ac, newRef]]));
+					Set(sources).map(r => [r, newRef]));
 
 				return [ac, newRef];
 			});
@@ -73,27 +82,27 @@ export default class AtomPath<V> {
 		//...
 
 		const [ac, newRefs] = this.tips
-			.reduce<[Ac, AtomRef<V>[]]>(
+			.reduce<[Ac|false, AtomRef<V>[]]>(
 				([ac1, refs], ref) => {
 					const [atom] = ref.resolve();
 					if(!atom) return [ac1, refs];
 
 					const [ac2, res] = visitor([ref, atom]);
-					const ac3 = M.add(ac1, ac2);
+					const ac3 = MM.add(ac1, ac2);
 					if(!res) return [ac3, refs];
 					
 					const [sources, a] = res; //???????????????????????????????
 					const newRef = (a instanceof Atom) ? new AtomRef(a) : a;
 
 					redirects = redirects.merge(
-						Set(sources).map(r => [r, [ac3,newRef]]));
+						Set(sources).map(r => [r, newRef]));
 
 					return [ac3, [...refs, newRef]];
-				}, [M.zero, []]);
+				}, [MM.zero, []]);
 
 		return {
 			complete: () => {
-				for (const [from, [,to]] of redirects) {
+				for (const [from, to] of redirects) {
 					from.redirect(to);
 				}
 
@@ -112,7 +121,7 @@ export default class AtomPath<V> {
 				const newRoots = Set(newRefs).flatMap(AtomPath.findRoots);
 				this._lock.extend(newRoots);
 
-				return ac;
+				return ac || M.zero;
 			}
 		};
 	}
