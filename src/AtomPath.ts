@@ -42,7 +42,7 @@ export default class AtomPath<V> {
 		return this.hasAtoms(a => a.isActive());
 	}
 	
-	rewrite<Ac>(fn: (self: (ref: AtomRef<V>) => [Ac|false, AtomRef<V>]) => AtomVisitor<Ac, V>, M: _Monoid<Ac>): AtomPatch<Ac> {
+	rewrite<Ac>(fn: (self: (refs: List<AtomRef<V>>) => [Ac, List<AtomRef<V>>]) => AtomVisitor<Ac, V>, M: _Monoid<Ac>): AtomPatch<Ac> {
 		const MM: _Monoid<Ac|false> = {
 			zero: false,
 			add(a1, a2) {
@@ -55,19 +55,20 @@ export default class AtomPath<V> {
 
 		let redirects = Map<AtomRef<V>, AtomRef<V>>();
 
-		const visitor: AtomVisitor<Ac, V> =
-			fn(ref => {
+		type VisitRef<V> = (ref: AtomRef<V>) => [Ac|false, AtomRef<V>?]; 
+		type VisitRefs<V> = (refs: List<AtomRef<V>>) => [Ac, List<AtomRef<V>>]
+
+		const inner: (getVisitor: ()=>AtomVisitor<Ac,V>) => VisitRef<V> =
+			getVisitor => ref => {
 				const found = redirects.get(ref);
-				if(found) {
-					return [MM.zero, found];
-				}
+				if(found) return [MM.zero, found];
 
 				const [atom] = ref.resolve();
-				if(!atom) return [MM.zero, ref]; //would be nice to purge ref here
+				if(!atom) return [MM.zero]; //ignore empty ref
 
-				const [ac, res] = visitor([ref, atom]);
-				if(!res) return [ac, ref]; //SURELY THIS NEEDS TO BE REDIRECTED TOO? ****
-				
+				const [ac, res] = getVisitor()([ref, atom]);
+				if(!res) return [ac, ref];
+
 				const [sources, a] = res;
 				const newRef = (a instanceof Atom) ? new AtomRef(a) : a;
 
@@ -75,30 +76,25 @@ export default class AtomPath<V> {
 					Set(sources).map(r => [r, newRef]));
 
 				return [ac, newRef];
-			});
+			}
+		
+		const outer: (visitRef: VisitRef<V>) => VisitRefs<V> =
+			visitRef => refs => {
+				const [_ac, _refs] = refs.reduce<[Ac|false, List<AtomRef<V>>]>(
+					([ac1,rs], ref) => {
+						const [ac2, r] = visitRef(ref);
+						const ac3 = MM.add(ac1, ac2);
+						return [ac3, r ? rs.push(r) : rs];
 
-		//TODO
-		//below will double-count top-level dupes
-		//...
+					}, [MM.zero,List()]);
 
-		const [ac, newRefs] = this.tips
-			.reduce<[Ac|false, AtomRef<V>[]]>(
-				([ac1, refs], ref) => {
-					const [atom] = ref.resolve();
-					if(!atom) return [ac1, refs];
+				if(_ac) return [_ac, _refs];
+				else return [M.zero, _refs];
+			};
 
-					const [ac2, res] = visitor([ref, atom]);
-					const ac3 = MM.add(ac1, ac2);
-					if(!res) return [ac3, refs];
-					
-					const [sources, a] = res; //???????????????????????????????
-					const newRef = (a instanceof Atom) ? new AtomRef(a) : a;
+		const visit = outer(inner(() => fn(visit)));
 
-					redirects = redirects.merge(
-						Set(sources).map(r => [r, newRef]));
-
-					return [ac3, [...refs, newRef]];
-				}, [MM.zero, []]);
+		const [ac, newRefs] = visit(this.tips);
 
 		return {
 			complete: () => {

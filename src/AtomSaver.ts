@@ -82,31 +82,23 @@ export default class AtomSaver<V> {
 				let save = () => Promise.resolve();
 
 				const { weight } = path.rewrite<Acc>(
-					recurse => ([ref, atom]) => {
+					self => ([ref, atom]) => {
+
+						if(mode == 'zipUp') {
+							return [MAc.zero];
+						}
 
 						if(!atom.isActive()) {
 							return [{
+								...MAc.zero,
 								roots: Set([ref]),
-								gatherables: Set(),
-								weight: 0
 							}];
 						}
 
-						const [ac, parents] = atom.parents
-							.reduce<[Acc,List<AtomRef<V>>]>(([ac1,rs], r) => {
-								switch(mode) {
-									case 'zipUp':
-										return [ac1, rs.push(r)];
-
-									case 'gather':
-										const [ac2, r2] = recurse(r); //will blow stack
-										if(ac2) return [MAc.add(ac1, ac2), rs.push(r2)];     //would be much more pleasant underneath...
-										else return [ac1, rs.push(r2)];
-								}
-							}, [MAc.zero,List()]);
+						const [ac, parents] = self(atom.parents);
 
 						//and now consider myself
-						switch(mode) {
+						switch(<'gather'|'zipUp'>mode) {                            //cast cos ts mucks up mutable closed-over vars
 							case 'zipUp':
 								return [ac, [[ref], atom.with({ parents })]]
 
