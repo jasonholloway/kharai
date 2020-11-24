@@ -4,7 +4,7 @@ import { Lock } from './Locks'
 import { inspect } from 'util'
 import _Monoid from './_Monoid'
 
-export type AtomVisitor<Ac, V> = (ac: Ac, atom: [AtomRef<V>, Atom<V>]) => readonly [Ac, [AtomRef<V>[], Atom<V>|AtomRef<V>]?]
+export type AtomVisitor<Ac, V> = (atom: [AtomRef<V>, Atom<V>]) => readonly [Ac, [AtomRef<V>[], Atom<V>|AtomRef<V>]?]
 
 export type AtomPatch<Ac> = { complete(): Ac }
 
@@ -42,30 +42,30 @@ export default class AtomPath<V> {
 		return this.hasAtoms(a => a.isActive());
 	}
 	
-	rewrite<Ac>(fn: (self: (ac: Ac, ref: AtomRef<V>) => [Ac, AtomRef<V>, true?]) => AtomVisitor<Ac, V>, M: _Monoid<Ac>): AtomPatch<Ac> {
+	rewrite<Ac>(fn: (self: (ref: AtomRef<V>) => [Ac, AtomRef<V>, true?]) => AtomVisitor<Ac, V>, M: _Monoid<Ac>): AtomPatch<Ac> {
 		let redirects = Map<AtomRef<V>, [Ac, AtomRef<V>]>();
 
 		const visitor: AtomVisitor<Ac, V> =
-			fn((ac, ref) => {
+			fn(ref => {
 				const found = redirects.get(ref);
 				if(found) {
-					const [ac2, ref2] = found;
-					return [M.add(ac, ac2), ref2, true];
+					const [ac, ref2] = found;
+					return [ac, ref2, true];
 				}
 
 				const [atom] = ref.resolve();
-				if(!atom) return [ac, ref]; //would be nice to purge ref here
+				if(!atom) return [M.zero, ref]; //would be nice to purge ref here
 
-				const [ac2, res] = visitor(ac, [ref, atom]);
-				if(!res) return [ac2, ref];
+				const [ac, res] = visitor([ref, atom]);
+				if(!res) return [ac, ref]; //SURELY THIS NEEDS TO BE REDIRECTED TOO? ****
 				
 				const [sources, a] = res;
 				const newRef = (a instanceof Atom) ? new AtomRef(a) : a;
 
 				redirects = redirects.merge(
-					Set(sources).map(r => [r, [ac2,newRef]]));
+					Set(sources).map(r => [r, [ac, newRef]]));
 
-				return [ac2, newRef]; //ac2 threaded not combined
+				return [ac, newRef];
 			});
 
 		//TODO
@@ -78,16 +78,17 @@ export default class AtomPath<V> {
 					const [atom] = ref.resolve();
 					if(!atom) return [ac1, refs];
 
-					const [ac2, res] = visitor(ac1, [ref, atom]);
-					if(!res) return [ac2, refs];
+					const [ac2, res] = visitor([ref, atom]);
+					const ac3 = M.add(ac1, ac2);
+					if(!res) return [ac3, refs];
 					
 					const [sources, a] = res;
 					const newRef = (a instanceof Atom) ? new AtomRef(a) : a;
 
-					redirects = redirects.merge(
-						Set(sources).map(r => [r, [ac2,newRef]]));
+					// redirects = redirects.merge(
+					// 	Set(sources).map(r => [r, [ac3,newRef]]));
 
-					return [ac2, [...refs, newRef]]; //ac is threaded not combined
+					return [ac3, [...refs, newRef]];
 				}, [M.zero, []]);
 
 		return {

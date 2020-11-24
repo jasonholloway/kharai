@@ -36,24 +36,34 @@ export default class AtomSaver<V> {
 		//(as is we'll always be saving out-of-date state)
 		//the crap approach would give us a free path too to tackling the totting-up approach to weight management
 
-		//TODO
+		//PROBLEM
+		//so threading ac doesn't work so well with monoids
+		//monoids do work with bottom-up aggregation, complete with special rule
+		//for not claiming dupes
+
+		//we want weights to be selectively added, ie not from dupes
+		//but bagged and save and mode are part of a threaded context
+		//for which we can use the closure
+
+		//weights and roots in fact
+		//roots are an aggregation like parents
+		//so each atom offers itself via monoidal ac as parent or root
+
+		//parent, root and gatherable via ac
+		//mode, save and bagged by closure
 		//
-		//
-		//
+		//weight is a function of gatherable of course, so maybe we can ignore it until we do the final merge
 
 		const MAc: _Monoid<Acc> = {
 			zero: {
-				mode: 'gather',
-				bagged: MV.zero,
-				weight: 0,
+				parents: Set(),
+				gatherables: Set(),
 				roots: Set()
 			},
 			add(a1, a2) {
 				return {
-					mode: [a1.mode, a2.mode].includes('zipUp') ? 'zipUp' : 'gather',
-					bagged: MV.add(a1.bagged, a2.bagged),
-					weight: a1.weight + a2.weight,
-					save: a2.save || a1.save || undefined,
+					parents: a1.roots.union(a2.parents),
+					gatherables: a1.roots.union(a2.gatherables),
 					roots: a1.roots.union(a2.roots)
 				};
 			}
@@ -67,95 +77,99 @@ export default class AtomSaver<V> {
 				.lockPath(...heads.flatMap(h => h.refs()));
 
 			try {
+				let mode: 'gather'|'zipUp' = 'gather';
+				let bagged = MV.zero;
+				let save = () => Promise.resolve();
+
 				const result = path.rewrite<Acc>(
-					recurse => (ac0, [ref, atom]) => {
+					recurse => ([ref, atom]) => {
 
 						if(!atom.isActive()) {
 							return [{
-								...ac0,
-								roots: ac0.roots.add(ref)
+								parents: Set([ref]),
+								roots: Set([ref]),
+								gatherables: Set()
 							}];
 						}
 
-						const [ac1, parents] = atom.parents
-							.reduce<[Acc, Set<AtomRef<V>>]>(
-								([ac,rs], r) => {
-									switch(ac.mode) {
-										case 'zipUp':
-											return [ac, rs.add(r)];
+						const ac = atom.parents
+							.reduce<Acc>((ac1, r) => {
+								switch(mode) {
+									case 'zipUp':
+										return {
+											...ac1,
+											parents: ac1.parents.add(r)
+										};
 
-										case 'gather':
-											const [ac2, r2, dupe] = recurse(ac, r); //will blow stack
-											return [
-												!dupe ? ac2 : ac,
-												rs.add(r2)
-											];
-									}
-								}, [ac0, Set()]);
+									case 'gather':
+										const [ac2, r2, dupe] = recurse(r); //will blow stack
+										return {
+											...ac2,
+											parents: ac1.parents.union(ac2.parents),                         //are any of these affected by dupe?
+											gatherables: ac1.gatherables.union(ac2.gatherables),
+											roots: ac1.roots.union(ac2.roots)
+										};
+								}
+							}, MAc.zero);
 
 						//and now consider myself
-						switch(ac1.mode) {
+						switch(mode) {
 							case 'zipUp':
 								return [
-									ac1,
-									[[ref], atom.with({ parents })]
+									{
+										...ac,
+										parents: Set([ref])
+									},
+									[[ref], atom.with({ parents: ac.parents })]
 								];
 
 							case 'gather':
-								const combo = MV.add(ac1.bagged, atom.val);
+								const combo = MV.add(bagged, atom.val);
 								const canSave = store.prepare(combo);
 
 								if(!canSave) {
+									mode = 'zipUp';
 									return [
 										{
-											...ac1,
-											mode: 'zipUp'
+											...ac,
+											parents: Set([ref])
 										},
-										[[ref], atom.with({ parents })]
+										[[ref], atom.with({ parents: ac.parents })]
 									];
 								}
 
-								log('merging into', atom.val, 'parents', parents.count());
+								log('gathering', atom.val, 'plus', ac.gatherables.count());
 
-								//PROBLEM
-								//we are assigning the full basket weight to
-								//the last consolidated atom
-								//
-								//assign only the weight of the parents!
-								//so, not threaded
-								//bagged and saved are threaded
-								//weight is added
-								//bagged and saved could be done by closure
+								bagged = combo;
+								save = () => canSave.save();
 
-								//and the problem with any kind of adding 
-								//
-								//
-
-								const weight = ac1.weight + atom.weight;
 								return [
 									{
-										...ac1,
-										bagged: combo,
-										weight,
-										save: () => canSave.save()
+										...ac,
+										parents: Set([ref]),
+										gatherables: ac.gatherables.add(ref)
 									},
 									[
-										[...parents.subtract(ac1.roots), ref],
+										[...ac.gatherables, ref],
 										atom.with({
-											parents: ac1.roots,
+											parents: ac.roots,
 											state: 'taken',
-											weight
+											weight: ac.gatherables
+												.flatMap(r => r.resolve())
+												.reduce((w, a) => a.weight + w, atom.weight) //cripes - should gather in ac (except for dupe problem)
 										})
 									]
 								];
 						}
 					}, MAc).complete();
 
-				space.incStaged(result.weight);
+				const weight = result.gatherables
+					.flatMap(r => r.resolve())
+					.reduce((w, a) => w + a.weight, 0); //except - we have just rewritten, and redirected
 
-				if(result.save) {
-					await result.save();
-				}
+				space.incStaged(weight);
+
+				await save();
 
 				// renderAtoms(heads.flatMap(f => f.refs()));
 				renderAtoms(path.tips);
@@ -166,11 +180,9 @@ export default class AtomSaver<V> {
 		}
 
 		type Acc = {
-			mode: 'gather'|'zipUp'
-			bagged: V
-			weight: number
-			save?: () => Promise<void>
+			parents: Set<AtomRef<V>>
 			roots: Set<AtomRef<V>>
+			gatherables: Set<AtomRef<V>>
 		}
 
 		//plus we could 'top up' our current transaction till full here

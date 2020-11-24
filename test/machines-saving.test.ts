@@ -167,7 +167,7 @@ describe('machines - saving', () => {
 		//it breaks when we save in batches over three (wrong weighting)
 		//also a batch of 6 should give us one single atom...
 
-		const store = new FakeStore(new MonoidData(), 6);
+		const store = new FakeStore(new MonoidData(), 2);
 
 		await Promise.all([
 			x.run.boot('mm', ['gerbil', ['spawn', [0, 2]]]),
