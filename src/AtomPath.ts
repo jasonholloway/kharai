@@ -4,7 +4,11 @@ import { Lock } from './Locks'
 import { inspect } from 'util'
 import _Monoid from './_Monoid'
 
-export type AtomVisitor<Ac, V> = (atom: [AtomRef<V>, Atom<V>]) => readonly [Ac, [AtomRef<V>[], Atom<V>|AtomRef<V>]?]
+
+type VisitRef<Ac,V> = (ref: AtomRef<V>) => [Ac, AtomRef<V>?]; 
+type VisitRefs<Ac,V> = (refs: List<AtomRef<V>>) => [Ac, List<AtomRef<V>>]
+
+export type VisitAtom<Ac, V> = (atom: [AtomRef<V>, Atom<V>]) => readonly [Ac, [AtomRef<V>[], Atom<V>|AtomRef<V>]?]
 
 export type AtomPatch<Ac> = { complete(): Ac }
 
@@ -41,56 +45,39 @@ export default class AtomPath<V> {
 	hasPendingAtoms(): boolean {
 		return this.hasAtoms(a => a.isActive());
 	}
-	
-	rewrite<Ac>(fn: (self: (refs: List<AtomRef<V>>) => [Ac, List<AtomRef<V>>]) => AtomVisitor<Ac, V>, M: _Monoid<Ac>): AtomPatch<Ac> {
-		const MM: _Monoid<Ac|false> = {
-			zero: false,
-			add(a1, a2) {
-				if(a1 && a2) return M.add(a1, a2);
-				if(a1) return a1;
-				if(a2) return a2;
-				return false;
-			}
-		};
 
+	
+	rewrite<Ac>(fn: (visitRefs: VisitRefs<Ac,V>) => VisitAtom<Ac, V>, M: _Monoid<Ac>): AtomPatch<Ac> {
 		let redirects = Map<AtomRef<V>, AtomRef<V>>();
 
-		type VisitRef<V> = (ref: AtomRef<V>) => [Ac|false, AtomRef<V>?]; 
-		type VisitRefs<V> = (refs: List<AtomRef<V>>) => [Ac, List<AtomRef<V>>]
+		const inner: (visitAtom: ()=>VisitAtom<Ac,V>) => VisitRef<Ac,V> =
+      visitAtom => ref => {
+        const found = redirects.get(ref);
+        if(found) return [M.zero, found];
 
-		const inner: (getVisitor: ()=>AtomVisitor<Ac,V>) => VisitRef<V> =
-			getVisitor => ref => {
-				const found = redirects.get(ref);
-				if(found) return [MM.zero, found];
+        const [atom] = ref.resolve();
+        if(!atom) return [M.zero]; //ignore empty ref
 
-				const [atom] = ref.resolve();
-				if(!atom) return [MM.zero]; //ignore empty ref
+        const [ac, res] = visitAtom()([ref, atom]);
+        if(!res) return [ac, ref];
 
-				const [ac, res] = getVisitor()([ref, atom]);
-				if(!res) return [ac, ref];
+        const [sources, a] = res;
+        const newRef = (a instanceof Atom) ? new AtomRef(a) : a;
 
-				const [sources, a] = res;
-				const newRef = (a instanceof Atom) ? new AtomRef(a) : a;
+        redirects = redirects.merge(
+          Set(sources).map(r => [r, newRef]));
 
-				redirects = redirects.merge(
-					Set(sources).map(r => [r, newRef]));
-
-				return [ac, newRef];
-			}
-		
-		const outer: (visitRef: VisitRef<V>) => VisitRefs<V> =
-			visitRef => refs => {
-				const [_ac, _refs] = refs.reduce<[Ac|false, List<AtomRef<V>>]>(
-					([ac1,rs], ref) => {
-						const [ac2, r] = visitRef(ref);
-						const ac3 = MM.add(ac1, ac2);
-						return [ac3, r ? rs.push(r) : rs];
-
-					}, [MM.zero,List()]);
-
-				if(_ac) return [_ac, _refs];
-				else return [M.zero, _refs];
-			};
+        return [ac, newRef];
+      };
+    
+    const outer: (visitRef: VisitRef<Ac,V>) => VisitRefs<Ac,V> =
+      visitRef => refs =>
+        refs.reduce<[Ac, List<AtomRef<V>>]>(
+          ([ac1,rs], ref) => {
+            const [ac2, r] = visitRef(ref);
+            const ac3 = M.add(ac1, ac2);
+            return [ac3, r ? rs.push(r) : rs];
+          }, [M.zero,List()]);
 
 		const visit = outer(inner(() => fn(visit)));
 
@@ -117,7 +104,7 @@ export default class AtomPath<V> {
 				const newRoots = Set(newRefs).flatMap(AtomPath.findRoots);
 				this._lock.extend(newRoots);
 
-				return ac || M.zero;
+				return ac;
 			}
 		};
 	}
