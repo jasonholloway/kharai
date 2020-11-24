@@ -42,7 +42,7 @@ export default class AtomPath<V> {
 		return this.hasAtoms(a => a.isActive());
 	}
 	
-	rewrite<Ac>(fn: (self: (ref: AtomRef<V>) => [Ac|false, AtomRef<V>, true?]) => AtomVisitor<Ac, V>, M: _Monoid<Ac>): AtomPatch<Ac> {
+	rewrite<Ac>(fn: (self: (ref: AtomRef<V>) => [Ac|false, AtomRef<V>]) => AtomVisitor<Ac, V>, M: _Monoid<Ac>): AtomPatch<Ac> {
 		const MM: _Monoid<Ac|false> = {
 			zero: false,
 			add(a1, a2) {

@@ -81,7 +81,7 @@ export default class AtomSaver<V> {
 				let bagged = MV.zero;
 				let save = () => Promise.resolve();
 
-				const {weight} = path.rewrite<Acc>(
+				const { weight } = path.rewrite<Acc>(
 					recurse => ([ref, atom]) => {
 
 						if(!atom.isActive()) {
@@ -143,6 +143,9 @@ export default class AtomSaver<V> {
 					}, MAc).complete();
 
 				space.incStaged(weight);
+
+				//and now we can queue up a save on the tails of the roots
+				//...
 
 				await save();
 
