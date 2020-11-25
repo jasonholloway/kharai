@@ -56,15 +56,9 @@ export default class AtomSaver<V> {
 
 		const MAc: _Monoid<Acc> = {
 			zero: {
-				gatherables: Set(),
-				roots: Set(),
-				weight: 0
 			},
 			add(a1, a2) {
 				return {
-					gatherables: a1.roots.union(a2.gatherables),
-					roots: a1.roots.union(a2.roots),
-					weight: a1.weight + a2.weight
 				};
 			}
 		} 
@@ -80,8 +74,11 @@ export default class AtomSaver<V> {
 				let mode: 'gather'|'zipUp' = 'gather';
 				let bagged = MV.zero;
 				let save = () => Promise.resolve();
+				let gatherables: Set<AtomRef<V>> = Set();
+				let roots: Set<AtomRef<V>> = Set();
+				let weight = 0;
 
-				const { weight } = path.rewrite<Acc>(
+				path.rewrite<Acc>(
 					self => ([ref, atom]) => {
 
 						if(mode == 'zipUp') {
@@ -89,16 +86,13 @@ export default class AtomSaver<V> {
 						}
 
 						if(!atom.isActive()) {
-							return [{
-								...MAc.zero,
-								roots: Set([ref]),
-							}];
+							roots = roots.add(ref);
+							return [MAc.zero];
 						}
 
 						const [ac, parents] = self(atom.parents);
 
-						//and now consider myself
-						switch(<'gather'|'zipUp'>mode) {                            //cast cos ts mucks up mutable closed-over vars
+						switch(<'gather'|'zipUp'>mode) { //ts mucks up closed-over lets
 							case 'zipUp':
 								return [ac, [[ref], atom.with({ parents })]]
 
@@ -111,37 +105,38 @@ export default class AtomSaver<V> {
 									return [ac, [[ref], atom.with({ parents })]];
 								}
 
-								log('gathering', atom.val, atom.weight);
-
 								bagged = combo;
 								save = () => canSave.save();
+								gatherables = gatherables.add(ref);
+								weight += atom.weight;
 
-								return [
-									{
-										...ac,
-										gatherables: ac.gatherables.add(ref),
-										weight: ac.weight + atom.weight
-									},
+								return [ac,
 									[
-										[...ac.gatherables, ref],
+										[...gatherables, ref],
 										atom.with({
 											state: 'taken',
-											parents: ac.roots.toList(),
-											weight: ac.weight + atom.weight
+											parents: roots.toList(),
+											weight,
+											val: bagged
 										})
 									]
 								];
 						}
 					}, MAc).complete();
 
+				if(!weight) {
+					throw Error('AtomSaver is stuck! No way to progress');
+				}
+
 				space.incStaged(weight);
+				// log('weights', space.weights())
 
 				//and now we can queue up a save on the tails of the roots
 				//...
 
 				await save();
 
-				renderAtoms(path.tips);
+				renderAtoms(heads.flatMap(h => h.refs()).toList())
 			}
 			finally {
 				path.release();
@@ -149,9 +144,6 @@ export default class AtomSaver<V> {
 		}
 
 		type Acc = {
-			roots: Set<AtomRef<V>>
-			gatherables: Set<AtomRef<V>>
-			weight: number
 		}
 
 		//plus we could 'top up' our current transaction till full here

@@ -26,7 +26,7 @@ export class AtomRef<V> {
 	}
 }
 
-type AtomState = 'active'|'taken'|'done'
+type AtomState = 'active'|'taken'|'done'|'pseudo'
 
 export class Atom<V> {
 	readonly _type = 'Atom'

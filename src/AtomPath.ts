@@ -47,16 +47,16 @@ export default class AtomPath<V> {
 	}
 
 	
-	rewrite<Ac>(fn: (visitRefs: VisitRefs<Ac,V>) => VisitAtom<Ac, V>, M: _Monoid<Ac>): AtomPatch<Ac> {
+	rewrite<Ac>(fn: (visitRefs: VisitRefs<Ac,V>) => VisitAtom<Ac, V>, MA: _Monoid<Ac>): AtomPatch<Ac> {
 		let redirects = Map<AtomRef<V>, AtomRef<V>>();
 
 		const inner: (visitAtom: ()=>VisitAtom<Ac,V>) => VisitRef<Ac,V> =
       visitAtom => ref => {
         const found = redirects.get(ref);
-        if(found) return [M.zero, found];
+        if(found) return [MA.zero, found];
 
         const [atom] = ref.resolve();
-        if(!atom) return [M.zero]; //ignore empty ref
+        if(!atom) return [MA.zero]; //ignore empty ref
 
         const [ac, res] = visitAtom()([ref, atom]);
         if(!res) return [ac, ref];
@@ -75,16 +75,21 @@ export default class AtomPath<V> {
         refs.reduce<[Ac, List<AtomRef<V>>]>(
           ([ac1,rs], ref) => {
             const [ac2, r] = visitRef(ref);
-            const ac3 = M.add(ac1, ac2);
+            const ac3 = MA.add(ac1, ac2);
             return [ac3, r ? rs.push(r) : rs];
-          }, [M.zero,List()]);
+          }, [MA.zero,List()]);
 
-		const visit = outer(inner(() => fn(visit)));
+		const visitRefs = outer(inner(() => fn(visitRefs)));
+		const [ac, newRefs] = visitRefs(this.tips);
 
-		const [ac, newRefs] = visit(this.tips);
+		// const visit = fn(outer(inner(() => visit)));
+		// const [ac] = visit([new AtomRef(), new Atom(this.tips, MV.zero, 0)]);//, 'pseudo')])
+
 
 		return {
 			complete: () => {
+				// console.log('redirects', ...redirects.valueSeq().flatMap(r => r.resolve()));
+				
 				for (const [from, to] of redirects) {
 					from.redirect(to);
 				}
@@ -101,7 +106,10 @@ export default class AtomPath<V> {
 				//any other atoms still to be saved will be necessarily rooted still
 				//******
 
-				const newRoots = Set(newRefs).flatMap(AtomPath.findRoots);
+				// const newRoots = Set(newRefs).flatMap(AtomPath.findRoots);
+				// this._lock.extend(newRoots);
+
+				const newRoots = Set(this.tips).flatMap(AtomPath.findRoots);
 				this._lock.extend(newRoots);
 
 				return ac;

@@ -3,6 +3,7 @@ import { Set, List } from 'immutable'
 import { Atom, AtomRef } from './atoms'
 import AtomPath from './AtomPath'
 import { Subject, Observable, ReplaySubject } from 'rxjs';
+import _Monoid from './_Monoid';
 
 export default class AtomSpace<V> {
 	private _locks: Locks
@@ -12,7 +13,7 @@ export default class AtomSpace<V> {
 
 	readonly head$: Observable<Head<V>>
 
-	constructor() {
+	constructor(mv: _Monoid<V>) {
 		this._locks = new Locks();
 		this._heads = List();
 		this._head$ = new Subject<Head<V>>();

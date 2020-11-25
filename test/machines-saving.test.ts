@@ -3,7 +3,7 @@ import { scenario, getAtoms } from './shared'
 import { rodents } from './worlds/rodents'
 import FakeStore from './FakeStore';
 import MonoidData from '../src/MonoidData';
-import { Set, List, OrderedSet } from 'immutable'
+import { Map, Set, List, OrderedSet } from 'immutable'
 import { map, bufferTime, finalize, first } from 'rxjs/operators';
 import { gather, delay } from './helpers';
 const log = console.log;
@@ -76,7 +76,27 @@ describe('machines - saving', () => {
 	})
 
 	it('too small batch size throws error', async () => {
-		throw 'todo'
+		x = fac();
+		
+		const store = new FakeStore(new MonoidData(), 1);
+
+		await Promise.all([
+			x.run.boot('mm', ['gerbil', ['spawn', [0, 2]]]),
+			x.run.boot('aa', ['gerbil', ['spawn', [0, 2]]]),
+		]);
+
+		const heads = await x.run.machine$
+			.pipe(
+				map(m => m.head),
+				bufferTime(200),
+				first(),
+				finalize(() => x.run.complete()),
+			).toPromise();
+
+		expect.assertions(1);
+
+		await expect(x.saver.save(store, Set(heads)))
+		  .rejects.toEqual(Error('AtomSaver is stuck! No way to progress'));
 	})
 
 	it('big enough batch saves once', async () => {
@@ -102,23 +122,6 @@ describe('machines - saving', () => {
 
 		expect(store.batches).toHaveLength(1)
 	})
-
-
-	//BELOW
-	//all gets saved in one batch happily, but the atom does not get merged
-	//bagged is distinct from gatherable
-	//should it be?
-	//
-	//possibly not...
-	//it would simplify saving
-	//though the loss of structure seems a bit sad
-	//gatherables would no longer be part of the monoid then
-	//and nor would weight
-
-	//we'd be back at all being scoped
-	//roots too would be scoped
-	//
-	//
 	
 	it('big enough batch, heads resolve to same atom', async () => {
 		x = fac();
@@ -142,40 +145,16 @@ describe('machines - saving', () => {
 		const atoms = Set(heads)
 			.flatMap(h => h.refs())
 			.flatMap(r => r.resolve())
-			.map(a => a.val.toObject())
-		  .toArray();
+			.toArray();
 
 		expect(atoms).toHaveLength(1);
+
+		expect(Map(atoms[0].val).keySeq().toSet())
+			.toStrictEqual(Set(['mm', 'mn', 'mo', 'mp', 'mq', 'mr']));
+
+		expect(atoms[0]).toHaveProperty('weight', 6);
 	})
 
-	it('big enough batch, atom weights consolidated', async () => {
-		x = fac();
-
-		const store = new FakeStore(new MonoidData(), 6);
-
-		await Promise.all([
-			x.run.boot('mm', ['gerbil', ['spawn', [0, 2]]]),
-			x.run.boot('aa', ['gerbil', ['spawn', [0, 2]]]),
-		]);
-
-		const heads = await x.run.machine$
-			.pipe(
-				map(m => m.head),
-				bufferTime(200),
-				first(),
-				finalize(() => x.run.complete()),
-			).toPromise();
-
-		await x.saver.save(store, Set(heads))
-
-		const atomWeights = Set(heads)
-			.flatMap(h => h.refs())
-			.flatMap(r => r.resolve())
-			.map(a => a.weight)
-		  .toArray();
-
-		expect(atomWeights).toBe([3, 3]);
-	})
 
 	it('further saving', async () => {
 		x = fac();
@@ -184,7 +163,7 @@ describe('machines - saving', () => {
 		//it breaks when we save in batches over three (wrong weighting)
 		//also a batch of 6 should give us one single atom...
 
-		const store = new FakeStore(new MonoidData(), 2);
+		const store = new FakeStore(new MonoidData(), 4);
 
 		await Promise.all([
 			x.run.boot('mm', ['gerbil', ['spawn', [0, 2]]]),
