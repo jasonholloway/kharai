@@ -2,8 +2,8 @@ import { Map, Set, Seq, List } from 'immutable'
 import _Monoid from '../src/_Monoid'
 import AtomSpace from '../src/AtomSpace'
 import { Id, Data, World, MachineContext, Phase, PhaseMap, WorldImpl, PhaseImpl } from '../src/lib'
-import { OperatorFunction } from 'rxjs'
-import { flatMap, mergeMap, filter, tap } from 'rxjs/operators'
+import { OperatorFunction, concat, of, combineLatest } from 'rxjs'
+import { flatMap, mergeMap, filter, tap, map, first, concatMap, takeWhile, expand } from 'rxjs/operators'
 import { delay } from '../src/util'
 import { AtomRef } from '../src/atoms'
 import { isString, isArray } from 'util'
@@ -12,7 +12,8 @@ import { gather } from './helpers'
 import { Emit, MachineLoader } from '../src/MachineSpace'
 import AtomSaver from '../src/AtomSaver'
 import MonoidData from '../src/MonoidData'
-import { Run } from '../src/Run'
+import { Run, LoaderFac } from '../src/Run'
+import FakeStore from './FakeStore'
 
 export const bootPhase = <W extends World>(): PhaseImpl<W, MachineContext, []> =>
   (x => ({
@@ -57,30 +58,57 @@ export const watchPhase = <W extends World>(): PhaseImpl<W, MachineContext, [Id,
 
 
 export function scenario<W extends PhaseMap, X extends MachineContext, P = Phase<W>>(world: WorldImpl<W, X>) {
-  return (phases?: Map<Id, P>) => {
-    const atomSpace = new AtomSpace<Data>();
+  return (opts?: { phases?: Map<Id, P>, batchSize?: number, threshold?: number }) => {
 
-    const loader: MachineLoader<P> = async id => {
-      const found = phases?.get(id);
-      const p = found || <P><unknown>(['$boot', []]);
+    const M = new MonoidData();
 
-      const h = atomSpace.head();
+    const store = new FakeStore(M, opts?.batchSize || 4);
 
-      if(found) {
-        h.write(Map({
-          [isArray(id) ? id[0] : id]: p
-        }));
-      }
+    const loaderFac: LoaderFac<P> =
+      atoms => async id => {
+        const found = opts?.phases?.get(id);
+        const p = found || <P><unknown>(['$boot', []]);
 
-      return [h, p];
-    };
+        const h = atoms.head();
 
-    const saver = new AtomSaver(new MonoidData(), atomSpace);
+        if(found) {
+          h.write(Map({
+            [isArray(id) ? id[0] : id]: p
+          }));
+        }
 
-    const run = new Run<W, X, P>(world, loader);
+        return [h, p];
+      };
+
+    const run = new Run<W, X, P>(world, loaderFac);
+
+    const saver = new AtomSaver(M, run.atoms);
+
+		const threshold$ = concat(
+			of(opts?.threshold || 3),
+			run.signal$.pipe(
+				filter(s => s.stop),
+				map(() => 0),
+				first()
+			));
+
+		combineLatest(
+      run.atoms.state$,
+      threshold$
+    ).pipe(
+			concatMap(([s,t]) =>
+				of(s.weights.pending()).pipe(
+					takeWhile(p => p > t),
+					expand(async p => {
+						const w = await saver.save(store, s.heads);
+						return p - w;
+					}),
+					takeWhile(p => p > t)
+				))
+		).subscribe()
 
     return {
-      loader,
+      store,
       saver,
       run,
 

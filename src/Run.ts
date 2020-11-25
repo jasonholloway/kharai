@@ -1,24 +1,31 @@
-import { Id, PhaseMap, Phase, MachineContext, WorldImpl } from './lib'
+import { Id, PhaseMap, Phase, MachineContext, WorldImpl, Data } from './lib'
 import { Mediator, Convener } from './Mediator'
 import { Observable, Subject, ReplaySubject } from 'rxjs'
 import { flatMap, skipWhile, startWith, mergeAll, endWith, scan, takeWhile, finalize, map, toArray } from 'rxjs/operators'
 import { Set } from 'immutable'
 import { MachineSpace, Emit, MachineLoader, Signal, Machine } from './MachineSpace'
 import { buildDispatch } from './dispatch'
+import AtomSpace from './AtomSpace'
 const log = console.log;
 
+export type LoaderFac<P> = (s: AtomSpace<Data>) => MachineLoader<P>
+
 export class Run<W extends PhaseMap, X extends MachineContext, P = Phase<W>> {
-  private readonly mediator: Mediator
-  private readonly space: MachineSpace<W, X, P>
-	private readonly signal$: Subject<Signal>
+  readonly mediator: Mediator
+	readonly atoms: AtomSpace<Data>
+  readonly space: MachineSpace<W, X, P>
+	readonly loader: MachineLoader<P>
+	readonly signal$: Subject<Signal>
 
 	readonly machine$: Observable<Machine<X, P>>
   readonly log$: Observable<Emit<P>>
 
-  constructor(world: WorldImpl<W, X>, loader: MachineLoader<P>) {
+  constructor(world: WorldImpl<W, X>, loaderFac: LoaderFac<P>) {
 		this.signal$ = new ReplaySubject<Signal>(1);
     this.mediator = new Mediator(this.signal$);		
-    this.space = new MachineSpace(world, loader, buildDispatch(world.phases), this.mediator, this.signal$);
+		this.atoms = new AtomSpace(this.signal$);
+		this.loader = loaderFac(this.atoms);
+    this.space = new MachineSpace(world, this.loader, buildDispatch(world.phases), this.mediator, this.signal$);
 
 		this.machine$ = this.space.machine$;
     this.log$ = this.machine$

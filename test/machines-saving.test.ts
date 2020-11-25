@@ -3,9 +3,9 @@ import { scenario, getAtoms } from './shared'
 import { rodents } from './worlds/rodents'
 import FakeStore from './FakeStore';
 import MonoidData from '../src/MonoidData';
-import { Map, Set, List, OrderedSet } from 'immutable'
+import { Map, Set, List } from 'immutable'
 import { map, bufferTime, finalize, first } from 'rxjs/operators';
-import { gather, delay } from './helpers';
+import { delay } from '../src/util';
 const log = console.log;
 
 describe('machines - saving', () => {
@@ -54,79 +54,50 @@ describe('machines - saving', () => {
 	})
 
 	it('doesn\'t save $boots', async () => {
-		x = fac();
-
-		const store = new FakeStore(new MonoidData(), 2);
+		x = fac({ batchSize: 2 });
 
 		await x.run.boot('aa', ['gerbil', ['spawn', [0, 4]]]);
-
-		const gatheringHeads = gather(x.run.machine$
-		  .pipe(map(m => m.head)));
 
 		await delay(400);
 		x.run.complete();
 
-		const heads = await gatheringHeads;
-		await x.saver.save(store, Set(heads))
-
-		expect([...List(store.batches)
+		expect([...List(x.store.batches)
 			.flatMap(b => b.valueSeq())
 			.map(a => a[0])])
 			.not.toContain('$boot')
 	})
 
-	it('too small batch size throws error', async () => {
-		x = fac();
-		
-		const store = new FakeStore(new MonoidData(), 1);
+	xit('too small batch size throws error', async () => {
+		x = fac({ batchSize: 1 });
 
 		await Promise.all([
 			x.run.boot('mm', ['gerbil', ['spawn', [0, 2]]]),
 			x.run.boot('aa', ['gerbil', ['spawn', [0, 2]]]),
 		]);
 
-		const heads = await x.run.machine$
-			.pipe(
-				map(m => m.head),
-				bufferTime(200),
-				first(),
-				finalize(() => x.run.complete()),
-			).toPromise();
+		await delay(400);
+		x.run.complete();
 
-		expect.assertions(1);
-
-		await expect(x.saver.save(store, Set(heads)))
-		  .rejects.toEqual(Error('AtomSaver is stuck! No way to progress'));
+		throw 'TODO where will error appear?'
 	})
 
 	it('big enough batch saves once', async () => {
-		x = fac();
-
-		const store = new FakeStore(new MonoidData(), 6);
+		x = fac({ batchSize: 6, threshold: 6 });
 
 		await Promise.all([
 			x.run.boot('mm', ['gerbil', ['spawn', [0, 2]]]),
 			x.run.boot('aa', ['gerbil', ['spawn', [0, 2]]]),
 		]);
 
-		const heads = await x.run.machine$
-			.pipe(
-				map(m => m.head),
-				bufferTime(200),
-				first(),
-				finalize(() => x.run.complete()),
-			).toPromise();
+		await delay(300);
+		x.run.complete();
+		await delay(200);
 
-		await x.saver.save(store, Set(heads))
-		log(store.saved);
-
-		expect(store.batches).toHaveLength(1)
+		expect(x.store.batches).toHaveLength(1)
 	})
 	
 	it('big enough batch, heads resolve to same atom', async () => {
-		x = fac();
-
-		const store = new FakeStore(new MonoidData(), 6);
+		x = fac({ batchSize: 6, threshold: 6 });
 
 		await Promise.all([
 			x.run.boot('mm', ['gerbil', ['spawn', [0, 5]]]),
@@ -139,8 +110,6 @@ describe('machines - saving', () => {
 				first(),
 				finalize(() => x.run.complete()),
 			).toPromise();
-
-		await x.saver.save(store, Set(heads))
 
 		const atoms = Set(heads)
 			.flatMap(h => h.refs())
@@ -155,15 +124,8 @@ describe('machines - saving', () => {
 		expect(atoms[0]).toHaveProperty('weight', 6);
 	})
 
-
 	it('further saving', async () => {
-		x = fac();
-
-		//TODO
-		//it breaks when we save in batches over three (wrong weighting)
-		//also a batch of 6 should give us one single atom...
-
-		const store = new FakeStore(new MonoidData(), 4);
+		x = fac({ batchSize: 5, threshold: 4 });
 
 		await Promise.all([
 			x.run.boot('mm', ['gerbil', ['spawn', [0, 2]]]),
@@ -171,39 +133,10 @@ describe('machines - saving', () => {
 		]);
 
 		//TODO
-		//when batch size is not big enough...
-		//gets stuck in endless loop
-
-		//TODO
 		//ordering of savables
 
-
-		// log(1)
-		const gatheringHeads = gather(x.run.machine$
-			.pipe(map(m => m.head)))
-
-		await delay(200);
+		await delay(500);
 		
 		x.run.complete();
-		// log(2)
-
-		const heads = await gatheringHeads;
-
-		//all atoms will then have a weight (zero means not pending)
-		//this weight would be both local and total/projected
-		//though we have a messy late-addition method on the atom I believe
-		//
-		
-		await x.saver.save(store, Set(heads))
-		// log(store.saved)
-	})
-
-	it('flump', () => {
-		let set = OrderedSet();
-		set = set.add(1)
-		set = set.add(2)
-		set = set.add(1)
-
-		log(set)
 	})
 })

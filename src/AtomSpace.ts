@@ -2,37 +2,82 @@ import { Lock, Locks } from './Locks'
 import { Set, List } from 'immutable'
 import { Atom, AtomRef } from './atoms'
 import AtomPath from './AtomPath'
-import { Subject, Observable, ReplaySubject } from 'rxjs';
+import { Subject, Observable, ReplaySubject, BehaviorSubject } from 'rxjs';
 import _Monoid from './_Monoid';
+import { scan, filter } from 'rxjs/operators';
+import { Signal } from './MachineSpace';
+
+type Weights = { created: number, staged: number, saved: number, pending(): number }
+type State<V> = { heads: List<Head<V>>, weights: Weights }
+type Change<V> = (s: State<V>) => State<V>
 
 export default class AtomSpace<V> {
 	private _locks: Locks
   private _heads: List<Head<V>>
 	private _head$: Subject<Head<V>>
-	private _weights: { created: number, staged: number, saved: number }
+	private _weights: Weights
+	private _change$: Subject<Change<V>>
 
 	readonly head$: Observable<Head<V>>
+	readonly state$: Observable<State<V>>
 
-	constructor() {
+	constructor(signal$: Observable<Signal>) {
 		this._locks = new Locks();
 		this._heads = List();
-		this._head$ = new Subject<Head<V>>();
+		this._head$ = new Subject();
 		this.head$ = this._head$;
 		this._weights = { created: 0, staged: 0, saved: 0 };
+		this._change$ = new Subject();
+
+		this.state$ = this._change$.pipe(scan<Change<V>, State<V>>(
+			(ac, c) => c(ac),
+			{
+				heads: List(),
+				weights: { created: 0, staged: 0, saved: 0, pending() { return this.created - this.staged } }
+			}));
+
+    signal$.pipe(filter(s => s.stop))
+      .subscribe(() => {
+				this._head$.complete();
+				this._change$.complete();
+			});
 	}
 
 	newAtom(parents: List<AtomRef<V>>, val: V, weight: number = 1): AtomRef<V> {
 		const atom = new Atom<V>(parents, val, weight);
+
 		this._weights.created += weight;
+		this._change$.next(s => ({
+			...s,
+			weights: {
+				...s.weights,
+				created: s.weights.created + weight
+			}
+		}));
+
 		return new AtomRef(atom);
 	}
 
 	incStaged(weight: number) {
 		this._weights.staged += weight;
+		this._change$.next(s => ({
+			...s,
+			weights: {
+				...s.weights,
+				staged: s.weights.staged + weight
+			}
+		}));
 	}
 
 	incSaved(weight: number) {
 		this._weights.saved += weight;
+		this._change$.next(s => ({
+			...s,
+			weights: {
+				...s.weights,
+				saved: s.weights.saved + weight
+			}
+		}));
 	}
 	
 
@@ -40,14 +85,14 @@ export default class AtomSpace<V> {
 		return this._locks.lock(...atoms);
 	}
 
-	//shouldn't need heads to reach into atom graph
-	//every atom needs saving, head or not...
-	//which would take the pressure off releasing heads too
-
 	head(...refs: AtomRef<V>[]): Head<V> {
 		const head = new Head(this, List(refs));
 		this._heads = this._heads.push(head);
 		this._head$.next(head);
+		this._change$.next(s => ({
+			...s,
+			heads: this._heads
+		}));
 		return head;
 	}
 

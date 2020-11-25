@@ -1,31 +1,33 @@
 import _Monoid, { _MonoidNumber } from './_Monoid'
 import AtomSpace, { Head } from './AtomSpace'
 import Store from './Store'
-import { Map, Set, List } from 'immutable'
+import { Set, List } from 'immutable'
 import { inspect } from 'util'
-import { renderAtoms, renderPath } from './AtomPath'
-import { Atom, AtomRef } from './atoms'
+import { renderAtoms } from './AtomPath'
+import { AtomRef } from './atoms'
 
 inspect.defaultOptions.depth = 10;
 const log = (...r: any[]) => console.dir(...r);
 
+type Acc = {}
+
+const MAc: _Monoid<Acc> = {
+	zero: {},
+	add() {
+		return {};
+	}
+} 
+
 export default class AtomSaver<V> {
 	private _monoidV: _Monoid<V>;
 	private _space: AtomSpace<V>;
-	private _saves: Map<Atom<V>, Promise<void>>
 	
 	constructor(monoidV: _Monoid<V>, space: AtomSpace<V>) {
 		this._monoidV = monoidV;
 		this._space = space;
-		this._saves = Map();
 	}
 
-	//TODO
-	//saving should skip if there's already a save in progress with <= weight threshold
-
-
-
-	async save(store: Store<V>, heads: Set<Head<V>>): Promise<void> {
+	async save(store: Store<V>, heads: List<Head<V>>): Promise<number> {
 		const MV = this._monoidV;
 		const space = this._space;
 
@@ -36,124 +38,82 @@ export default class AtomSaver<V> {
 		//(as is we'll always be saving out-of-date state)
 		//the crap approach would give us a free path too to tackling the totting-up approach to weight management
 
-		//PROBLEM
-		//so threading ac doesn't work so well with monoids
-		//monoids do work with bottom-up aggregation, complete with special rule
-		//for not claiming dupes
+		log('weights', space.weights())
 
-		//we want weights to be selectively added, ie not from dupes
-		//but bagged and save and mode are part of a threaded context
-		//for which we can use the closure
+		const path = await space
+			.lockPath(...heads.flatMap(h => h.refs()));
 
-		//weights and roots in fact
-		//roots are an aggregation like parents
-		//so each atom offers itself via monoidal ac as parent or root
+		let mode: 'gather'|'zipUp' = 'gather';
+		let bagged = MV.zero;
+		let save = () => Promise.resolve();
+		let gatherables: Set<AtomRef<V>> = Set();
+		let roots: Set<AtomRef<V>> = Set();
+		let weight = 0;
 
-		//parent, root and gatherable via ac
-		//mode, save and bagged by closure
-		//
-		//weight is a function of gatherable of course, so maybe we can ignore it until we do the final merge
+		try {
+			path.rewrite<Acc>(
+				self => ([ref, atom]) => {
 
-		const MAc: _Monoid<Acc> = {
-			zero: {
-			},
-			add(a1, a2) {
-				return {
-				};
-			}
-		} 
+					if(mode == 'zipUp') {
+						return [MAc.zero];
+					}
 
-		renderAtoms(heads.flatMap(h => h.refs()).toList());
+					if(!atom.isActive()) {
+						roots = roots.add(ref);
+						return [MAc.zero];
+					}
 
-		while(space.weights().pending > 0) {
+					const [ac, parents] = self(atom.parents);
 
-			const path = await space
-				.lockPath(...heads.flatMap(h => h.refs()));
+					switch(<'gather'|'zipUp'>mode) { //ts mucks up closed-over lets
+						case 'zipUp':
+							return [ac, [[ref], atom.with({ parents })]]
 
-			try {
-				let mode: 'gather'|'zipUp' = 'gather';
-				let bagged = MV.zero;
-				let save = () => Promise.resolve();
-				let gatherables: Set<AtomRef<V>> = Set();
-				let roots: Set<AtomRef<V>> = Set();
-				let weight = 0;
+						case 'gather':
+							const combo = MV.add(bagged, atom.val);
+							const canSave = store.prepare(combo);
 
-				path.rewrite<Acc>(
-					self => ([ref, atom]) => {
+							if(!canSave) {
+								mode = 'zipUp';
+								return [ac, [[ref], atom.with({ parents })]];
+							}
 
-						if(mode == 'zipUp') {
-							return [MAc.zero];
-						}
+							bagged = combo;
+							save = () => canSave.save();
+							gatherables = gatherables.add(ref);
+							weight += atom.weight;
 
-						if(!atom.isActive()) {
-							roots = roots.add(ref);
-							return [MAc.zero];
-						}
+							return [ac,
+								[
+									[...gatherables, ref],
+									atom.with({
+										state: 'taken',
+										parents: roots.toList(),
+										weight,
+										val: bagged
+									})
+								]
+							];
+					}
+				}, MAc).complete();
 
-						const [ac, parents] = self(atom.parents);
+			space.incStaged(weight);
 
-						switch(<'gather'|'zipUp'>mode) { //ts mucks up closed-over lets
-							case 'zipUp':
-								return [ac, [[ref], atom.with({ parents })]]
-
-							case 'gather':
-								const combo = MV.add(bagged, atom.val);
-								const canSave = store.prepare(combo);
-
-								if(!canSave) {
-									mode = 'zipUp';
-									return [ac, [[ref], atom.with({ parents })]];
-								}
-
-								bagged = combo;
-								save = () => canSave.save();
-								gatherables = gatherables.add(ref);
-								weight += atom.weight;
-
-								return [ac,
-									[
-										[...gatherables, ref],
-										atom.with({
-											state: 'taken',
-											parents: roots.toList(),
-											weight,
-											val: bagged
-										})
-									]
-								];
-						}
-					}, MAc).complete();
-
-				if(!weight) {
-					throw Error('AtomSaver is stuck! No way to progress');
-				}
-
-				space.incStaged(weight);
-				// log('weights', space.weights())
-
-				//and now we can queue up a save on the tails of the roots
-				//...
-
-				await save();
-
-				renderAtoms(heads.flatMap(h => h.refs()).toList())
-			}
-			finally {
-				path.release();
-			}
+			renderAtoms(heads.flatMap(h => h.refs()).toList())
+		}
+		finally {
+			path.release();
 		}
 
-		type Acc = {
-		}
+		//and now we can queue up a save on the tails of the roots
+		//...
+
+		await save();
+
+		return weight;
 
 		//plus we could 'top up' our current transaction till full here
 		//by taking latest refs from head
 		//...
 	}
-
-	//TODO
-	//upstreams of takens aren't disappearing...
-	//ie consolidation isn't happening
-	//
-
 }
