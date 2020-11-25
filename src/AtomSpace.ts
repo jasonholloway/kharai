@@ -13,7 +13,7 @@ export default class AtomSpace<V> {
 
 	readonly head$: Observable<Head<V>>
 
-	constructor(mv: _Monoid<V>) {
+	constructor() {
 		this._locks = new Locks();
 		this._heads = List();
 		this._head$ = new Subject<Head<V>>();
@@ -21,7 +21,7 @@ export default class AtomSpace<V> {
 		this._weights = { created: 0, staged: 0, saved: 0 };
 	}
 
-	newAtom(parents: Set<AtomRef<V>>, val: V, weight: number = 1): AtomRef<V> {
+	newAtom(parents: List<AtomRef<V>>, val: V, weight: number = 1): AtomRef<V> {
 		const atom = new Atom<V>(parents, val, weight);
 		this._weights.created += weight;
 		return new AtomRef(atom);
@@ -45,7 +45,7 @@ export default class AtomSpace<V> {
 	//which would take the pressure off releasing heads too
 
 	head(...refs: AtomRef<V>[]): Head<V> {
-		const head = new Head(this, Set(refs));
+		const head = new Head(this, List(refs));
 		this._heads = this._heads.push(head);
 		this._head$.next(head);
 		return head;
@@ -82,12 +82,12 @@ export default class AtomSpace<V> {
 
 export class Head<V> {
 	readonly space: AtomSpace<V>
-	private _refs: Set<AtomRef<V>>
+	private _refs: List<AtomRef<V>>
 
 	private readonly _atom$: Subject<AtomRef<V>>
 	readonly atom$: Observable<AtomRef<V>>
 
-	constructor(space: AtomSpace<V>, refs: Set<AtomRef<V>>) {
+	constructor(space: AtomSpace<V>, refs: List<AtomRef<V>>) {
 		this.space = space;
 		this._refs = refs;
 
@@ -110,7 +110,7 @@ export class Head<V> {
 
 	move(ref: AtomRef<V>): AtomRef<V> {
 		//should make sure child here(?)
-		this._refs = Set([ref]);
+		this._refs = List([ref]);
     this._atom$.next(ref);
 		return ref;
 	}
@@ -118,9 +118,10 @@ export class Head<V> {
 	addUpstreams(refs: Set<AtomRef<V>>): void {
 		//for efficiency: simply superseded atoms purged from head
 		//stops loads of refs accumulating without compaction
-		const newRefs = this._refs
+		const newRefs = Set(this._refs)
 			.subtract(refs.flatMap(r => r.resolve()).flatMap(a => a.parents))
-			.union(refs);
+			.union(refs)
+			.toList();
 
 		this._refs = newRefs;
 	}

@@ -1,4 +1,4 @@
-import { Map, Set } from 'immutable'
+import { Set, List } from 'immutable'
 import { delay } from './helpers'
 import _Monoid from '../src/_Monoid'
 import Store from '../src/Store'
@@ -6,7 +6,21 @@ import { Atom, AtomRef } from '../src/atoms'
 import AtomSpace from '../src/AtomSpace'
 import AtomSaver from '../src/AtomSaver'
 
-const getAtoms = <V>(rs: Set<AtomRef<V>>) => rs.flatMap(r => r.resolve())
+const getAtoms = <V>(rs: List<AtomRef<V>>) => rs.flatMap(r => r.resolve())
+
+const MU: _Monoid<undefined> = {
+	zero: undefined,
+	add(a, b) {
+		return undefined;
+	}
+}
+
+const MS: _Monoid<string> = {
+  zero: '',
+	add(a, b) {
+		return a + b;
+  }
+}
 
 describe('atoms and stuff', () => {
 
@@ -15,9 +29,9 @@ describe('atoms and stuff', () => {
 	let saver: AtomSaver<string>
 
 	beforeEach(() => {
-		store = new FakeStore(new MonoidString(), 3);
+		store = new FakeStore(MS, 3);
 		space = new AtomSpace();
-		saver = new AtomSaver(new MonoidString(), space);
+		saver = new AtomSaver(MS, space);
 	})
 
 	it('pristine head has no atom', () => {
@@ -64,10 +78,10 @@ describe('atoms and stuff', () => {
 
 		const before = path.path().render()
 
-		path.rewrite(fn => (ref, atom) => {
-			const newParents = atom.parents.map(fn)
-			return [[ref], new Atom(newParents, atom.val).asRef()]
-		}).complete();
+		path.rewrite(fn => ([ref, atom]) => {
+			const [,newParents] = fn(atom.parents);
+			return [,[[ref], new Atom(newParents, atom.val).asRef()]]
+		}, MU).complete();
 
 		const after = path.path().render()
 		expect(after).toEqual(before)
@@ -87,10 +101,10 @@ describe('atoms and stuff', () => {
 
 		const before = path1.path().render()
 
-		path1.rewrite(fn => (ref, atom) => {
-			const newParents = atom.parents.map(fn)
-			return [[ref], new Atom(newParents, atom.val).asRef()]
-		}).complete();
+		path1.rewrite(fn => ([ref, atom]) => {
+			const [,newParents] = fn(atom.parents)
+			return [,[[ref], new Atom(newParents, atom.val).asRef()]]
+		}, MU).complete();
 
 		path1.release();
 
@@ -102,19 +116,19 @@ describe('atoms and stuff', () => {
 	})
 
 	it('upstream joins visited once only', async () => {
-		const ref1 = new AtomRef(new Atom(Set(), 'a0'));
-		const ref2 = new AtomRef(new Atom(Set([ref1]), 'b1'));
-		const ref3 = new AtomRef(new Atom(Set([ref1]), 'B2'));
-		const ref4 = new AtomRef(new Atom(Set([ref2, ref3]), 'c3'));
+		const ref1 = new AtomRef(new Atom(List(), 'a0'));
+		const ref2 = new AtomRef(new Atom(List([ref1]), 'b1'));
+		const ref3 = new AtomRef(new Atom(List([ref1]), 'B2'));
+		const ref4 = new AtomRef(new Atom(List([ref2, ref3]), 'c3'));
 
 		const path = await space.lockPath(ref4);
 		const before = path.path().render();
 
 		let i = 0;
-		path.rewrite(fn => (ref, atom) => {
-			const upstreams = atom.parents.map(fn);
-			return [[ref], new Atom(upstreams, atom.val.slice(0, 1) + (i++)).asRef()];
-		}).complete();
+		path.rewrite(fn => ([ref, atom]) => {
+			const [,upstreams] = fn(atom.parents);
+			return [,[[ref], new Atom(upstreams, atom.val.slice(0, 1) + (i++)).asRef()]];
+		}, MU).complete();
 		path.release();
 		const after = path.path().render();
 
@@ -122,17 +136,17 @@ describe('atoms and stuff', () => {
 	})
 
 	it('paths can have multiple tips', async () => {
-		const ref1 = new AtomRef(new Atom(Set(), 'a0'));
-		const ref2 = new AtomRef(new Atom(Set([ref1]), 'b1'));
-		const ref3 = new AtomRef(new Atom(Set([ref1]), 'c2'));
+		const ref1 = new AtomRef(new Atom(List(), 'a0'));
+		const ref2 = new AtomRef(new Atom(List([ref1]), 'b1'));
+		const ref3 = new AtomRef(new Atom(List([ref1]), 'c2'));
 
 		const path = await space.lockPath(ref2, ref3);
 
 		let i = 0;
-		path.rewrite(fn => (ref, atom) => {
-			const ups = atom.parents.map(fn);
-			return [[ref], new Atom(ups, atom.val.slice(0, 1).toUpperCase() + (i++)).asRef()];
-		}).complete();
+		path.rewrite(fn => ([ref, atom]) => {
+			const [,ups] = fn(atom.parents);
+			return [,[[ref], new Atom(ups, atom.val.slice(0, 1).toUpperCase() + (i++)).asRef()]];
+		}, MU).complete();
 		path.release();
 
 		const after = path.path().render();
@@ -192,10 +206,10 @@ describe('atoms and stuff', () => {
 		await delay(50);
 		expect(head2Activated).toBeFalsy();
 
-		path.rewrite(visit => (ref, atom) => {
-			const parents = atom.parents.map(visit)
-			return [[ref], new Atom(parents, atom.val).asRef()]
-		}).complete(); 
+		path.rewrite(visit => ([ref, atom]) => {
+			const [,parents] = visit(atom.parents);
+			return [,[[ref], new Atom(parents, atom.val).asRef()]]
+		},MU).complete(); 
 
 		await delay(50);
 		expect(head2Activated).toBeFalsy();
@@ -240,9 +254,9 @@ describe('atoms and stuff', () => {
 
 		const path1 = await locking1;
 
-		path1.rewrite(_ => (ref, _) => {
-			return [[ref], new Atom(Set(), '1').asRef()];
-		}).complete();
+		path1.rewrite(_ => ([ref]) => {
+			return [,[[ref], new Atom(List(), '1').asRef()]];
+		}, MU).complete();
 		
 		path1.release();
 
@@ -284,25 +298,6 @@ describe('atoms and stuff', () => {
 	})
 });
 
-
-
-//---------------------------------
-
-type Table<V> = Map<string, V>
-
-class MonoidTable<V> implements _Monoid<Table<V>> {
-  zero: Table<V> = Map()
-	add(a: Table<V>, b: Table<V>): Table<V> {
-		return a.merge(b);
-  }
-}
-
-class MonoidString implements _Monoid<string> {
-  zero: string = ''
-	add(a: string, b: string): string {
-		return a + b;
-  }
-}
 
 //---------------------------------
 

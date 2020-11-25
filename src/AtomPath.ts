@@ -4,7 +4,6 @@ import { Lock } from './Locks'
 import { inspect } from 'util'
 import _Monoid from './_Monoid'
 
-
 type VisitRef<Ac,V> = (ref: AtomRef<V>) => [Ac, AtomRef<V>?]; 
 type VisitRefs<Ac,V> = (refs: List<AtomRef<V>>) => [Ac, List<AtomRef<V>>]
 
@@ -47,7 +46,7 @@ export default class AtomPath<V> {
 	}
 
 	
-	rewrite<Ac>(fn: (visitRefs: VisitRefs<Ac,V>) => VisitAtom<Ac, V>, MA: _Monoid<Ac>): AtomPatch<Ac> {
+	rewrite<Ac=undefined>(fn: (visitRefs: VisitRefs<Ac,V>) => VisitAtom<Ac, V>, MA: _Monoid<Ac>): AtomPatch<Ac> {
 		let redirects = Map<AtomRef<V>, AtomRef<V>>();
 
 		const inner: (visitAtom: ()=>VisitAtom<Ac,V>) => VisitRef<Ac,V> =
