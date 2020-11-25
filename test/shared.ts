@@ -1,4 +1,4 @@
-import { Map, Set } from 'immutable'
+import { Map, Set, Seq, List } from 'immutable'
 import _Monoid from '../src/_Monoid'
 import AtomSpace from '../src/AtomSpace'
 import { Id, Data, World, MachineContext, Phase, PhaseMap, WorldImpl, PhaseImpl } from '../src/lib'
@@ -102,7 +102,7 @@ export function scenario<W extends PhaseMap, X extends MachineContext, P = Phase
   }
 }
 
-export const getAtoms = (rs: Set<AtomRef<Data>>) => rs.flatMap(r => r.resolve()).toArray()
+export const getAtoms = (rs: List<AtomRef<Data>>) => rs.flatMap(r => r.resolve()).toArray()
 
 export function phasesOnly(): OperatorFunction<Emit<any>, readonly [Id, any]> {
   return flatMap(l => {

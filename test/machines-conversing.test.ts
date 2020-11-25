@@ -18,30 +18,27 @@ describe('machines - conversing', () => {
 		]);
 
 		expect(priscilla[0].val.toObject())
-			.toEqual({ Priscilla: ['$boot', []] })
-
-		expect(priscilla[1].val.toObject())
 			.toEqual({ Priscilla: ['listen', []] })
 
-		expect(priscilla[2].val.toObject())
+		expect(priscilla[1].val.toObject())
 			.toEqual({
 				Polly: ['$end', ['chirped!']],
 				Priscilla: ['chirp', [[], 'hello!']]
 			})
 
-		expect(getAtoms(priscilla[2].parents))
-			.toContain(priscilla[1])
+		expect(getAtoms(priscilla[1].parents))
+			.toContain(priscilla[0])
 
-		expect(getAtoms(priscilla[2].parents))
-			.toContain(polly[2])
+		expect(getAtoms(priscilla[1].parents))
+			.toContain(polly[1])
 
-		expect(priscilla[3].val.toObject())
+		expect(priscilla[2].val.toObject())
 			.toEqual({
 				Priscilla: ['$end', ['no-one to chirp to!']]
 			})
 
-		expect(getAtoms(priscilla[3].parents))
-			.toContain(priscilla[2])
+		expect(getAtoms(priscilla[2].parents))
+			.toContain(priscilla[1])
 	})
 })
 
