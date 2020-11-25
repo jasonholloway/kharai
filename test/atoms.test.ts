@@ -1,18 +1,17 @@
-import { Set, List } from 'immutable'
+import { List } from 'immutable'
 import { delay } from './helpers'
 import _Monoid from '../src/_Monoid'
 import Store from '../src/Store'
 import { Atom, AtomRef } from '../src/atoms'
 import AtomSpace from '../src/AtomSpace'
 import AtomSaver from '../src/AtomSaver'
+import { empty } from 'rxjs'
 
 const getAtoms = <V>(rs: List<AtomRef<V>>) => rs.flatMap(r => r.resolve())
 
 const MU: _Monoid<undefined> = {
 	zero: undefined,
-	add(a, b) {
-		return undefined;
-	}
+	add: () => undefined
 }
 
 const MS: _Monoid<string> = {
@@ -30,7 +29,7 @@ describe('atoms and stuff', () => {
 
 	beforeEach(() => {
 		store = new FakeStore(MS, 3);
-		space = new AtomSpace();
+		space = new AtomSpace(empty());
 		saver = new AtomSaver(MS, space);
 	})
 
@@ -225,7 +224,7 @@ describe('atoms and stuff', () => {
 		head.write('2');
 		head.write('3');
 
-		await saver.save(store, Set([head]));
+		await saver.save(store, List([head]));
 
 		expect(store.saved).toEqual(['123']);
 	});
@@ -238,7 +237,8 @@ describe('atoms and stuff', () => {
 		head.write('4');
 		head.write('5');
 
-		await saver.save(store, Set([head]));
+		await saver.save(store, List([head]));
+		await saver.save(store, List([head]));
 
 		expect(store.saved).toEqual(['123', '45']);
 	});

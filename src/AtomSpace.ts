@@ -2,7 +2,7 @@ import { Lock, Locks } from './Locks'
 import { Set, List } from 'immutable'
 import { Atom, AtomRef } from './atoms'
 import AtomPath from './AtomPath'
-import { Subject, Observable, ReplaySubject, BehaviorSubject } from 'rxjs';
+import { Subject, Observable, ReplaySubject } from 'rxjs';
 import _Monoid from './_Monoid';
 import { scan, filter, shareReplay } from 'rxjs/operators';
 import { Signal } from './MachineSpace';
