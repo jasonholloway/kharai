@@ -103,6 +103,23 @@ describe('machines - saving', () => {
 		expect(store.batches).toHaveLength(1)
 	})
 
+
+	//BELOW
+	//all gets saved in one batch happily, but the atom does not get merged
+	//bagged is distinct from gatherable
+	//should it be?
+	//
+	//possibly not...
+	//it would simplify saving
+	//though the loss of structure seems a bit sad
+	//gatherables would no longer be part of the monoid then
+	//and nor would weight
+
+	//we'd be back at all being scoped
+	//roots too would be scoped
+	//
+	//
+	
 	it('big enough batch, heads resolve to same atom', async () => {
 		x = fac();
 

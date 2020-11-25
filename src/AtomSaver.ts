@@ -141,7 +141,6 @@ export default class AtomSaver<V> {
 
 				await save();
 
-				// renderAtoms(heads.flatMap(f => f.refs()));
 				renderAtoms(path.tips);
 			}
 			finally {
