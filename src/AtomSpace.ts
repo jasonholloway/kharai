@@ -14,18 +14,14 @@ type Change<V> = (s: State<V>) => State<V>
 export default class AtomSpace<V> {
 	private _locks: Locks
   private _heads: List<Head<V>>
-	private _head$: Subject<Head<V>>
 	private _weights: Weights
 	private _change$: Subject<Change<V>>
 
-	readonly head$: Observable<Head<V>>
 	readonly state$: Observable<State<V>>
 
 	constructor(signal$: Observable<Signal>) {
 		this._locks = new Locks();
 		this._heads = List();
-		this._head$ = new Subject();
-		this.head$ = this._head$;
 		this._weights = { created: 0, staged: 0, saved: 0, pending() { return this.created - this.staged } };
 		this._change$ = new Subject();
 
@@ -41,7 +37,6 @@ export default class AtomSpace<V> {
 
     signal$.pipe(filter(s => s.stop))
       .subscribe(() => {
-				this._head$.complete();
 				this._change$.complete();
 			});
 	}
@@ -91,7 +86,6 @@ export default class AtomSpace<V> {
 	head(...refs: AtomRef<V>[]): Head<V> {
 		const head = new Head(this, List(refs));
 		this._heads = this._heads.push(head);
-		this._head$.next(head);
 		this._change$.next(s => ({
 			...s,
 			heads: this._heads
