@@ -103,13 +103,13 @@ describe('machines - saving', () => {
 			x.run.boot('mm', ['gerbil', ['spawn', [0, 5]]]),
 		]);
 
-		const heads = await x.run.machine$
-			.pipe(
-				map(m => m.head),
-				bufferTime(200),
-				first(),
-				finalize(() => x.run.complete()),
-			).toPromise();
+		await delay(200);
+
+		const {heads} = await x.run.atoms.state$
+			.pipe(first()).toPromise();
+
+		x.run.complete();
+		await delay(200);
 
 		const atoms = Set(heads)
 			.flatMap(h => h.refs())

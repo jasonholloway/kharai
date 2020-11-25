@@ -4,7 +4,7 @@ import { Atom, AtomRef } from './atoms'
 import AtomPath from './AtomPath'
 import { Subject, Observable, ReplaySubject, BehaviorSubject } from 'rxjs';
 import _Monoid from './_Monoid';
-import { scan, filter } from 'rxjs/operators';
+import { scan, filter, shareReplay } from 'rxjs/operators';
 import { Signal } from './MachineSpace';
 
 type Weights = { created: number, staged: number, saved: number, pending(): number }
@@ -26,15 +26,18 @@ export default class AtomSpace<V> {
 		this._heads = List();
 		this._head$ = new Subject();
 		this.head$ = this._head$;
-		this._weights = { created: 0, staged: 0, saved: 0 };
+		this._weights = { created: 0, staged: 0, saved: 0, pending() { return this.created - this.staged } };
 		this._change$ = new Subject();
 
-		this.state$ = this._change$.pipe(scan<Change<V>, State<V>>(
-			(ac, c) => c(ac),
-			{
-				heads: List(),
-				weights: { created: 0, staged: 0, saved: 0, pending() { return this.created - this.staged } }
-			}));
+		this.state$ = this._change$.pipe(
+			scan<Change<V>, State<V>>(
+				(ac, c) => c(ac),
+				{
+					heads: List(),
+					weights: { created: 0, staged: 0, saved: 0, pending() { return this.created - this.staged } }
+				}),
+			shareReplay(1)
+		);
 
     signal$.pipe(filter(s => s.stop))
       .subscribe(() => {
