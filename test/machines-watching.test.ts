@@ -90,12 +90,6 @@ describe('machines - watching', () => {
 			x.run.boot('Ed', ['track', [['Gord'], 1]])
 		]);
 
-		expect(getAtoms(gordAtoms[0].parents))
-			.toEqual([])
-
-		expect(getAtoms(edAtoms[0].parents))
-			.toEqual([])
-
 		expect(getAtoms(gordAtoms[1].parents))
 			.toEqual([
 				gordAtoms[0]
@@ -103,18 +97,8 @@ describe('machines - watching', () => {
 
 		expect(getAtoms(edAtoms[1].parents))
 			.toEqual([
-				edAtoms[0]
-			])
-
-		expect(getAtoms(gordAtoms[2].parents))
-			.toEqual([
-				gordAtoms[1]
-			])
-
-		expect(getAtoms(edAtoms[2].parents))
-			.toEqual([
-				edAtoms[1],
-				gordAtoms[1]
+				edAtoms[0],
+				gordAtoms[0]
 			])
 	})
 
