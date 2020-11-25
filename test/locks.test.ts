@@ -2,12 +2,9 @@ import { Locks, Semaphores, Exchange } from '../src/Locks'
 import {delay} from './helpers'
 import { Chooser, many, seedChooser, gen, pick, integer} from '../src/genau'
 import { List, Set } from 'immutable'
-import { Subject } from 'rxjs/internal/Subject'
-import Bluebird from 'bluebird'
 
 describe('locks', () => {
 	let run: Chooser;
-	let kill$: Subject<boolean>
 
 	const _1 = [1];
 	const _2 = [2];
@@ -15,14 +12,13 @@ describe('locks', () => {
 
 	beforeEach(() => {
 		run = seedChooser(820);
-		kill$ = new Subject();
 	})
 
 	describe('Exchange, instances offered/claimed', () => {
 		let exchange: Exchange<{}>
 
 		beforeEach(() => {
-			exchange = new Exchange(kill$)
+			exchange = new Exchange()
 		})
 
 		it('nothing claimable before offer', async () => {
@@ -93,7 +89,7 @@ describe('locks', () => {
 			claiming.cancel();
 			offering.cancel();
 			
-			await Bluebird.all([
+			await Promise.all([
 				claiming
 					.catch(e => expect(e).toEqual(Error('Cancelled'))),
 
