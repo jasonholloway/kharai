@@ -58,11 +58,6 @@ export default class AtomSaver<V> {
 						return [MAc.zero];
 					}
 
-					if(!atom.isActive()) {
-						roots = roots.add(ref);
-						return [MAc.zero];
-					}
-
 					const [ac, parents] = self(atom.parents);
 
 					switch(<'gather'|'zipUp'>mode) { //ts mucks up closed-over lets

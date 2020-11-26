@@ -1,13 +1,18 @@
 import { List } from 'immutable'
-import { delay } from './helpers'
+import { delay, gather } from './helpers'
 import _Monoid from '../src/_Monoid'
 import Store from '../src/Store'
 import { Atom, AtomRef } from '../src/atoms'
 import AtomSpace from '../src/AtomSpace'
 import AtomSaver from '../src/AtomSaver'
-import { empty } from 'rxjs'
+import { Subject } from 'rxjs'
+import { Signal } from '../src/MachineSpace'
+import { concatMap, tap, bufferTime } from 'rxjs/operators'
+import { renderAtoms, tracePath, renderPath } from '../src/AtomPath'
 
 const getAtoms = <V>(rs: List<AtomRef<V>>) => rs.flatMap(r => r.resolve())
+
+const log = (...args: any[]) => console.log(...args);
 
 const MU: _Monoid<undefined> = {
 	zero: undefined,
@@ -21,15 +26,26 @@ const MS: _Monoid<string> = {
   }
 }
 
+const MMax: _Monoid<number> = {
+  zero: 0,
+	add(a, b) {
+		return a > b ? a : b;
+  }
+}
+
 describe('atoms and stuff', () => {
 
 	let store: FakeStore
 	let space: AtomSpace<string>
 	let saver: AtomSaver<string>
+	let kill: () => void
 
 	beforeEach(() => {
+		const killSub = new Subject<Signal>()
+		kill = () => killSub.next({ stop: true });
+		
 		store = new FakeStore(MS, 3);
-		space = new AtomSpace(empty());
+		space = new AtomSpace(killSub);
 		saver = new AtomSaver(MS, space);
 	})
 
@@ -277,6 +293,169 @@ describe('atoms and stuff', () => {
 		expect(locked3).toBeTruthy();
 	});
 
+	it('atoms emitted by space on write', async () => {
+		const gathering = gather(space.atom$);
+		
+		const head = space.head();
+		head.write('1');
+		head.write('2');
+		head.write('3');
+
+		await delay(30);
+		kill();
+		const gathered = await gathering;
+
+		expect(gathered).toHaveLength(3);
+	});
+
+	describe('locking on top of taken', () => {
+
+		it('with lock held', async () => {
+
+			const h1 = space.head();
+			h1.write('a');
+			h1.write('b');
+
+			const p1 = await space.lockPath(...h1.refs());
+			p1.rewrite<1>(fn => ([ref, atom]) => {
+				fn(atom.parents);
+				return [1, [[ref], atom.with({ state: 'taken' })]];
+			}, M1).complete();
+
+			expect(tracePath(p1.tips))
+				.toStrictEqual([
+					['b', [
+						['a', []]
+					]]
+				]);
+
+			//and can lock above here happy enough
+			h1.write('c');
+			h1.write('d');
+			h1.write('e');
+
+			const p2 = await space.lockPath(...h1.refs());
+
+			expect(tracePath(p2.tips))
+				.toStrictEqual([
+					['e', [
+						['d', [
+							['c', [
+								['b', [
+									['a', []]
+								]]
+							]]
+						]]
+					]]
+				]);
+
+			p1.release();
+			p2.release();
+
+			kill();
+		});
+
+		it('with lock released', async () => {
+
+			const h1 = space.head();
+			h1.write('a');
+			h1.write('b');
+
+			const p1 = await space.lockPath(...h1.refs());
+			p1.rewrite<1>(fn => ([ref, atom]) => {
+				fn(atom.parents);
+				return [1, [[ref], atom.with({ state: 'taken' })]];
+			}, M1).complete();
+
+			expect(tracePath(p1.tips))
+				.toStrictEqual([
+					['b', [
+						['a', []]
+					]]
+				]);
+
+			p1.release();
+
+			//and can lock above here happy enough
+			h1.write('c');
+			h1.write('d');
+			h1.write('e');
+
+			const p2 = await space.lockPath(...h1.refs());
+
+			expect(tracePath(p2.tips))
+				.toStrictEqual([
+					['e', [
+						['d', [
+							['c', [
+								['b', [
+									['a', []]
+								]]
+							]]
+						]]
+					]]
+				]);
+
+			p2.release();
+
+			kill();
+		});
+
+		it('rewrite only touches locked path', async () => {
+
+			const h1 = space.head();
+			h1.write('a');
+			h1.write('b');
+
+			const p1 = await space.lockPath(...h1.refs());
+			p1.rewrite<1>(fn => ([ref, atom]) => {
+				fn(atom.parents);
+				return [1, [[ref], atom.with({ state: 'taken' })]];
+			}, M1).complete();
+
+			expect(tracePath(p1.tips))
+				.toStrictEqual([
+					['b', [
+						['a', []]
+					]]
+				]);
+
+			//and can lock above here happy enough
+			h1.write('c');
+			h1.write('d');
+			h1.write('e');
+
+			const p2 = await space.lockPath(...h1.refs());
+
+			const ac = p2.rewrite<string>(
+				fn => ([ref, atom]) => {
+					const [s, parents] = fn(atom.parents);
+					return [s + atom.val, [[ref], atom.with({ parents })]];
+				}, MS).complete();
+
+			expect(ac).toBe('cde');
+
+			expect(tracePath(p2.tips))
+				.toStrictEqual([
+					['e', [
+						['d', [
+							['c', [
+								['b', [
+									['a', []]
+								]]
+							]]
+						]]
+					]]
+				]);
+
+			p1.release();
+			p2.release();
+
+			kill();
+		});
+
+	})
+
 
 	describe('weights', () => {
 		it('space starts weightless', () => {
@@ -296,6 +475,89 @@ describe('atoms and stuff', () => {
 			expect(space.weights().created).toBe(14);
 		});
 	})
+
+	const M1: _Monoid<1> = {
+		zero: 1,
+		add: () => 1
+	}
+
+	describe('rewriting', () => {
+		it('can rewrite', async () => {
+			const c = [0, 0, 0];
+
+			space.atom$.pipe(
+				concatMap(r => space.lockPath(r)),
+				tap(path => {
+					try {
+						path.rewrite<1>(_ => ([ref, atom]) => {
+							c[0]++;
+							return [1, [[ref], atom.with({ val: atom.val.toUpperCase() })]]; 
+						}, M1).complete();
+					}
+					finally {
+						path.release();
+					}
+				})
+			).subscribe();
+
+			space.atom$.pipe(
+				concatMap(r => space.lockPath(r)),
+				tap(path => {
+					try {
+						path.rewrite<1>(_ => ([ref, atom]) => {
+							c[1]++;
+							return [1, [[ref], atom.with({ val: atom.val + atom.val })]]; 
+						}, M1).complete();
+					}
+					finally {
+						path.release();
+					}
+				})
+			).subscribe();
+
+			space.atom$.pipe(
+				concatMap(r => space.lockPath(r)),
+				tap(path => {
+					try {
+						path.rewrite<number>(fn => ([ref, atom]) => {
+							c[2]++;
+							const [ac, parents] = fn(atom.parents);
+							const ac2 = ac + 1;
+							return [ac2, [[ref], atom.with({ val: atom.val + ac2, parents })]]; 
+						}, MMax).complete();
+					}
+					finally {
+						path.release();
+					}
+				})
+			).subscribe();
+			
+			const h1 = space.head();
+			h1.write('a');
+			h1.write('b');
+			h1.write('c');
+
+			await delay(500);
+			kill();
+
+			// renderAtoms(h1.refs());
+
+			expect(c[0]).toBe(1 + 1 + 1);
+			expect(c[1]).toBe(1 + 1 + 1);
+			expect(c[2]).toBe(1 + 2 + 3);
+
+			expect(tracePath(h1.refs()))
+				.toStrictEqual([
+					['C3C3', [
+						['BB22', [
+							['AA111', [
+							]]
+						]]
+					]]
+				]);
+		})
+		
+	})
 });
 
 
@@ -304,10 +566,12 @@ describe('atoms and stuff', () => {
 class FakeStore extends Store<string> {
 	saved: string[] = []
 	private _maxBatch: number;
+	private _delay: number;
 
-	constructor(monoid: _Monoid<string>, batchSize: number) {
+	constructor(monoid: _Monoid<string>, batchSize: number, delay: number = 15) {
 		super(monoid);
 		this._maxBatch = batchSize;
+		this._delay = delay;
 	}
 
 	prepare(v: string): {save():Promise<void>}|false {
@@ -315,7 +579,7 @@ class FakeStore extends Store<string> {
 			&& {
 				save: () => {
 					this.saved.push(v);
-					return Promise.resolve();
+					return delay(this._delay);
 				}
 			};
 	}

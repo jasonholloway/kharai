@@ -4,7 +4,7 @@ import { Atom, AtomRef } from './atoms'
 import AtomPath from './AtomPath'
 import { Subject, Observable, ReplaySubject } from 'rxjs';
 import _Monoid from './_Monoid';
-import { scan, filter, shareReplay } from 'rxjs/operators';
+import { scan, filter, shareReplay, first, tap } from 'rxjs/operators';
 import { Signal } from './MachineSpace';
 
 type Weights = { created: number, staged: number, saved: number, pending(): number }
@@ -16,15 +16,20 @@ export default class AtomSpace<V> {
   private _heads: List<Head<V>>
 	private _weights: Weights
 	private _change$: Subject<Change<V>>
+	private _atom$: Subject<AtomRef<V>>
 
 	readonly state$: Observable<State<V>>
+	readonly atom$: Observable<AtomRef<V>>
 
 	constructor(signal$: Observable<Signal>) {
 		this._locks = new Locks();
 		this._heads = List();
 		this._weights = { created: 0, staged: 0, saved: 0, pending() { return this.created - this.staged } };
-		this._change$ = new Subject();
 
+		this._atom$ = new Subject();
+		this.atom$ = this._atom$;
+
+		this._change$ = new Subject();
 		this.state$ = this._change$.pipe(
 			scan<Change<V>, State<V>>(
 				(ac, c) => c(ac),
@@ -35,10 +40,14 @@ export default class AtomSpace<V> {
 			shareReplay(1)
 		);
 
-    signal$.pipe(filter(s => s.stop))
-      .subscribe(() => {
+    signal$.pipe(
+			filter(s => s.stop),
+			first(),
+			tap(() => {
+				this._atom$.complete();
 				this._change$.complete();
-			});
+			})
+		).subscribe();
 	}
 
 	newAtom(parents: List<AtomRef<V>>, val: V, weight: number = 1): AtomRef<V> {
@@ -53,7 +62,10 @@ export default class AtomSpace<V> {
 			}
 		}));
 
-		return new AtomRef(atom);
+		const ref = new AtomRef(atom);
+		this._atom$.next(ref);
+
+		return ref;
 	}
 
 	incStaged(weight: number) {

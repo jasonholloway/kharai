@@ -57,6 +57,8 @@ export default class AtomPath<V> {
         const [atom] = ref.resolve();
         if(!atom) return [MA.zero]; //ignore empty ref
 
+				if(!atom.isActive()) return [MA.zero, ref];
+
         const [ac, res] = visitAtom()([ref, atom]);
         if(!res) return [ac, ref];
 
@@ -130,7 +132,7 @@ export default class AtomPath<V> {
 
 	static findRoots<V>(ref: AtomRef<V>): List<Atom<V>> {
 		const [atom] = ref.resolve();
-		if(!atom) return List();
+		if(!atom || atom.state == 'taken') return List();
 		else {
 			const above = atom.parents.flatMap(AtomPath.findRoots);
 			return above.isEmpty() ? List([atom]) : above;
@@ -207,6 +209,25 @@ export function renderPath<V>(p: Path<V>) {
 			},
 			set);
 	}
+}
+
+
+type Traced<V> = [V, Traced<V>[]] 
+
+export function tracePath<V>(refs: List<AtomRef<V>>): Traced<V>[] {
+
+	function visitAtom(a: Atom<V>): Traced<V> {
+		return [a.val, visitList(a.parents)];
+	}
+
+	function visitList(rs: List<AtomRef<V>>) {
+		return rs
+			.flatMap(r => r.resolve())
+			.map(visitAtom)
+			.toArray();
+	}
+
+	return visitList(refs);	
 }
 
 export function renderAtoms<V>(refs: List<AtomRef<V>>) {
