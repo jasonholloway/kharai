@@ -99,22 +99,20 @@ export function rodents() {
         spawn: x => ({
           guard(d): d is [number, number] { return true; },
           async run([step, max]) {
-            const base = x.id.charCodeAt(0);
-            const gen = x.id.charCodeAt(1) - base;
+            if(step < max) {
+              const appendage = String.fromCharCode('a'.charCodeAt(0) + step);
 
-            // console.log(x.id, step)
+              if(x.id.length < max) {
+                const other = `${x.id}${appendage}`;
 
-            if(gen < max && step < max) {
+                await x.convene([other], {
+                  convene([p]) {
+                    p.chat([['gerbil', ['spawn', [0, max]]]])
+                  }
+                })
 
-              const gen2 = gen + 1;
-
-              await x.convene([`${String.fromCharCode(base)}${String.fromCharCode(base + gen2)}`], {
-                convene([p]) {
-                  p.chat([['gerbil', ['spawn', [0, max]]]])
-                }
-              })
-
-              return ['spawn', [step + 1, max]]
+                return ['spawn', [step + 1, max]]
+              }
             }
 
             return false;

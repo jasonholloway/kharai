@@ -15,11 +15,9 @@ describe('machines - watching', () => {
 		const [logs] = await Promise.all([
 			x.logs(),
 			x.run.boot('Kes', ['track', [['Stu'], 100]]),
-			x.run.boot('Stu', ['runAround', [3]])
+			x.run.boot('Stu', ['runAround', [3]]),
+			x.run.log$.toPromise()
 		]);
-
-		await delay(100);
-		x.run.complete();
 
 		const seen = List(logs)
 			.flatMap(([id, [p, [d]]]) =>
@@ -46,10 +44,8 @@ describe('machines - watching', () => {
 		const [logs] = await Promise.all([
 			x.logs(),
 			x.run.boot('Gareth', ['track', [['Gwen'], 2]]),
+			x.run.log$.toPromise()
 		]);
-
-		await delay(100);
-		x.run.complete();
 
 		const seen = List(logs)
 			.flatMap(([id, [p, [d]]]) =>
@@ -66,17 +62,13 @@ describe('machines - watching', () => {
 	it('can watch several at once', async () => {
 		x = fac({ runSaver: false });
 
-		// x.run.log$.subscribe(l => console.log(l))
-
 		const [logs] = await Promise.all([
 			x.logs(),
 			x.run.boot('Kes', ['track', [['Biff', 'Kipper'], 4]]),
 			x.run.boot('Biff', ['runAround', [11]]),
-			x.run.boot('Kipper', ['runAround', [22]])
+			x.run.boot('Kipper', ['runAround', [22]]),
+			x.run.log$.toPromise()
 		]);
-
-		await delay(200)
-		x.run.complete();
 
 		const seen = List(logs)
 			.flatMap(([id, [p, [d]]]) =>
@@ -98,15 +90,12 @@ describe('machines - watching', () => {
 
 		await Promise.all([
 			x.run.boot('Gord', ['runAround', [1]]),
-			x.run.boot('Ed', ['track', [['Gord'], 1]])
+			x.run.boot('Ed', ['track', [['Gord'], 1]]),
+			x.run.log$.toPromise()
 		]);
-
-		await delay(200);
 
 		const gord =	x.view('Gord');
 		const ed = x.view('Ed');
-
-		x.run.complete();
 
 		expect(gord[1].parents())
 			.toEqual([
@@ -132,9 +121,6 @@ describe('machines - watching', () => {
 			x.logs(),
 			x.run.boot('Ed', ['track', [['Gord'], 1]]),
 		]);
-
-		await delay(200);
-		x.run.complete();
 
 		expect(logs[2]).toEqual(
 			['Ed', ['$end', [[ Map({ Gord: ['runAround', [0]] }) ]] ]]

@@ -15,11 +15,9 @@ describe('machines - saving', () => {
 
 		await Promise.all([
 			x.run.boot('baz', ['guineaPig', ['runAbout', []]]),
-			x.run.boot('loz', ['guineaPig', ['gruntAt', ['baz']]])
+			x.run.boot('loz', ['guineaPig', ['gruntAt', ['baz']]]),
+			x.run.log$.toPromise()
 		]);
-		
-		await delay(100);
-		x.run.complete();
 
 		const baz = x.view('baz');
 		const loz = x.view('loz');
@@ -60,11 +58,9 @@ describe('machines - saving', () => {
 
 		await Promise.all([
 			x.run.boot('baz', ['guineaPig', ['runAbout', []]]),
-			x.run.boot('loz', ['guineaPig', ['gruntAt', ['baz']]])
+			x.run.boot('loz', ['guineaPig', ['gruntAt', ['baz']]]),
+			x.run.log$.toPromise()
 		]);
-
-		await delay(100)
-		x.run.complete(); //should be self-closing really
 
 		const baz = x.view('baz');
 		const loz = x.view('loz');
@@ -87,10 +83,10 @@ describe('machines - saving', () => {
 	it('doesn\'t save $boots', async () => {
 		x = fac({ batchSize: 2 });
 
-		await x.run.boot('aa', ['gerbil', ['spawn', [0, 4]]]);
-
-		await delay(400);
-		x.run.complete();
+		await Promise.all([
+			x.run.boot('a', ['gerbil', ['spawn', [0, 2]]]),
+			x.run.log$.toPromise()
+		]);
 
 		expect([...List(x.store.batches)
 			.flatMap(b => b.valueSeq())
@@ -102,45 +98,36 @@ describe('machines - saving', () => {
 		x = fac({ batchSize: 1 });
 
 		await Promise.all([
-			x.run.boot('mm', ['gerbil', ['spawn', [0, 2]]]),
-			x.run.boot('aa', ['gerbil', ['spawn', [0, 2]]]),
+			x.run.boot('m', ['gerbil', ['spawn', [0, 2]]]),
+			x.run.boot('a', ['gerbil', ['spawn', [0, 2]]]),
+			x.run.log$.toPromise()
 		]);
-
-		await delay(400);
-		x.run.complete();
 
 		throw 'TODO where will error appear?'
 	})
 
 	it('big enough batch saves once', async () => {
-		x = fac({ batchSize: 6, threshold: 6 });
+		x = fac({ batchSize: 24, threshold: 6 });
 
 		await Promise.all([
-			x.run.boot('mm', ['gerbil', ['spawn', [0, 2]]]),
-			x.run.boot('aa', ['gerbil', ['spawn', [0, 2]]]),
+			x.run.boot('m', ['gerbil', ['spawn', [0, 2]]]),
+			x.run.boot('a', ['gerbil', ['spawn', [0, 2]]]),
+			x.run.log$.toPromise()
 		]);
-
-		await delay(300);
-		x.run.complete();
-		await delay(200);
 
 		expect(x.store.batches).toHaveLength(1)
 	})
 	
 	it('big enough batch, heads resolve to same atom', async () => {
-		x = fac({ batchSize: 6, threshold: 6 });
+		x = fac({ batchSize: 24, threshold: 6 });
 
 		await Promise.all([
-			x.run.boot('mm', ['gerbil', ['spawn', [0, 5]]]),
+			x.run.boot('a', ['gerbil', ['spawn', [0, 2]]]),
+			x.run.log$.toPromise()
 		]);
-
-		await delay(200);
 
 		const {heads} = await x.run.atoms.state$
 			.pipe(first()).toPromise();
-
-    x.run.complete();
-    await delay(200);
 
 		const atoms = Set(heads)
 			.flatMap(h => h.refs())
@@ -150,24 +137,21 @@ describe('machines - saving', () => {
 		expect(atoms).toHaveLength(1);
 
 		expect(Map(atoms[0].val).keySeq().toSet())
-			.toStrictEqual(Set(['mm', 'mn', 'mo', 'mp', 'mq', 'mr']));
+			.toStrictEqual(Set(['a', 'aa', 'ab']));
 
-		expect(atoms[0]).toHaveProperty('weight', 6);
+		expect(atoms[0]).toHaveProperty('weight', 3);
 	})
 
-	it('further saving', async () => {
+	xit('further saving', async () => {
 		x = fac({ batchSize: 5, threshold: 4 });
 
 		await Promise.all([
-			x.run.boot('mm', ['gerbil', ['spawn', [0, 2]]]),
-			x.run.boot('aa', ['gerbil', ['spawn', [0, 2]]]),
+			x.run.boot('m', ['gerbil', ['spawn', [0, 2]]]),
+			x.run.boot('a', ['gerbil', ['spawn', [0, 2]]]),
+			x.run.log$.toPromise()
 		]);
 
 		//TODO
 		//ordering of savables
-
-		await delay(500);
-		
-		x.run.complete();
 	})
 })

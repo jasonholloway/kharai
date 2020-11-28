@@ -2,7 +2,7 @@ import { Id, Data, WorldImpl, PhaseMap, Phase, MachineContext } from './lib'
 import { Head } from './AtomSpace'
 import { Mediator, Convener, Attendee, Peer } from './Mediator'
 import { Observable, Subject, from, merge, of } from 'rxjs'
-import { toArray, map, mergeMap, tap, filter, flatMap, expand, takeUntil, takeWhile, finalize, startWith, shareReplay, share } from 'rxjs/operators'
+import { toArray, map, mergeMap, tap, filter, flatMap, expand, takeUntil, takeWhile, finalize, startWith, shareReplay, share, catchError } from 'rxjs/operators'
 import Commit, { AtomEmit } from './Committer'
 import { Map, Set, List } from 'immutable'
 import { Dispatch } from './dispatch'
@@ -101,9 +101,11 @@ export class MachineSpace<W extends PhaseMap = {}, X extends MachineContext = Ma
       },
 
       async convene<R>(ids: Id[], convene: Convener<R>): Promise<R> {
-        const machine$ = _this.summon(Set(ids));
+        const m$ = _this.summon(Set(ids));
+        const ms = await m$.pipe(toArray()).toPromise(); //summoning should be cancellable (from loader?)
+        
         const result = await _this.mediator
-          .convene(convene, Set(await machine$.pipe(toArray()).toPromise()));
+          .convene(convene, Set(ms));
 
         return result;
       }
@@ -146,30 +148,33 @@ function runMachine<X, P>(
 
   const log$ = of(phase).pipe(
     expand(async p => {
-      const committer = commitFac(head);
+      if(p) {
+        const committer = commitFac(head);
 
-      try {
-        const x = buildContext(id, committer);
+        try {
+          const x = buildContext(id, committer);
 
-        const out = await dispatch(x)(p);
+          const out = await dispatch(x)(p);
 
-        if(out) {
-          await committer.complete(Map({ [id]: out }));
+          if(out) {
+            await committer.complete(Map({ [id]: out }));
+          }
+
+          return out;
         }
-
-        return out;
-      }
-      catch(e) {
-        committer.abort();
-        throw e;
+        catch(e) {
+          console.log('ERROR', e)
+          committer.abort();
+          throw e;
+        }
       }
     }),
-    startWith(phase),
     takeWhile(o => !!o),
-    shareReplay(1),
+    startWith(phase),
     takeUntil(kill$),
+    shareReplay(1),
     finalize(() => head.release()),
-    map(o => [id, <P>o] as const)
+    map(o => [id, <P>o] as const),
   );
 
   const machine = {

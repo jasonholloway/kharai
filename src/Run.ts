@@ -1,7 +1,7 @@
 import { Id, PhaseMap, Phase, MachineContext, WorldImpl, Data } from './lib'
 import { Mediator, Convener } from './Mediator'
 import { Observable, Subject, ReplaySubject } from 'rxjs'
-import { flatMap, skipWhile, startWith, mergeAll, endWith, scan, takeWhile, finalize, map, toArray, tap } from 'rxjs/operators'
+import { flatMap, startWith, mergeAll, endWith, scan, takeWhile, finalize, map, toArray, tap, ignoreElements } from 'rxjs/operators'
 import { Set } from 'immutable'
 import { MachineSpace, Emit, MachineLoader, Signal, Machine } from './MachineSpace'
 import { buildDispatch } from './dispatch'
@@ -33,10 +33,11 @@ export class Run<W extends PhaseMap, X extends MachineContext, P = Phase<W>> {
 
 		const count$ = this.space.machine$.pipe(
 			flatMap(m => m.log$.pipe(
-				skipWhile<any>(_ => true),
+				ignoreElements(),
 				startWith<number>(1),
 			  endWith<number>(-1),
-				tap(c => log(m.id, c))
+				// tap(c => log(m.id, c)),
+				// finalize(() => log(m.id, 'finalize'))
 				)),
 			scan((c, n) => c + n, 0));
 

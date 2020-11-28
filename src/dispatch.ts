@@ -13,7 +13,7 @@ export function buildDispatch<X, PM extends PhaseMap>(phases: PhaseMapImpl<X, PM
 
 function _buildDispatch<X, PM extends PhaseMap>(path: Path): Dispatch<X, Phase<PM>> {
 	const [,,phases] = path;
-	
+
 	return x => async ([p, args]) => {
 		const found = phases[p];
 		if(!found) {
