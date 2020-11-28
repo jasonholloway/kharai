@@ -17,7 +17,7 @@ export class Run<W extends PhaseMap, X extends MachineContext, P = Phase<W>> {
 	readonly loader: MachineLoader<P>
 	readonly signal$: Subject<Signal>
 
-	readonly machine$: Observable<Machine<X, P>>
+	readonly machine$: Observable<Machine<P>>
   readonly log$: Observable<Emit<P>>
 
   constructor(world: WorldImpl<W, X>, loaderFac: LoaderFac<P>) {

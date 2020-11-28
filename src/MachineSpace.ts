@@ -1,10 +1,10 @@
 import { Id, Data, WorldImpl, PhaseMap, Phase, MachineContext } from './lib'
 import { Head } from './AtomSpace'
 import { Mediator, Convener, Attendee, Peer } from './Mediator'
-import { Observable, Subject, from, merge, ReplaySubject, BehaviorSubject } from 'rxjs'
-import { toArray, map, mergeMap, tap, filter, flatMap } from 'rxjs/operators'
+import { Observable, Subject, from, merge, of } from 'rxjs'
+import { toArray, map, mergeMap, tap, filter, flatMap, expand, takeUntil, takeWhile, finalize, startWith, shareReplay, share } from 'rxjs/operators'
 import Commit, { AtomEmit } from './Committer'
-import { Map, Set } from 'immutable'
+import { Map, Set, List } from 'immutable'
 import { Dispatch } from './dispatch'
 import { isArray } from 'util'
 import MonoidData from './MonoidData'
@@ -23,9 +23,9 @@ export class MachineSpace<W extends PhaseMap = {}, X extends MachineContext = Ma
   private readonly mediator: Mediator
   private readonly dispatch: Dispatch<X, P>
 
-  private machines: Map<Id, Promise<Machine<X, P>>>
-  private _machine$: Subject<Machine<X, P>>
-  readonly machine$: Observable<Machine<X, P>>
+  private machines: Map<Id, Promise<Machine<P>>>
+  private _machine$: Subject<Machine<P>>
+  readonly machine$: Observable<Machine<P>>
 
   private _signal$: Observable<Signal>
 
@@ -44,7 +44,7 @@ export class MachineSpace<W extends PhaseMap = {}, X extends MachineContext = Ma
       .subscribe(() => this._machine$.complete());
   }
 
-  summon(ids: Set<Id>): Observable<Machine<X, P>> {
+  summon(ids: Set<Id>): Observable<Machine<P>> {
     const summoned = ids.map(id => {
       const found = this.machines.get(id);
       if(found) {
@@ -57,19 +57,17 @@ export class MachineSpace<W extends PhaseMap = {}, X extends MachineContext = Ma
           true,
           id,
           loading.then(([head, phase]) => {
-            const machine: Machine<X, P> = new Machine<X, P>(
+            const machine = runMachine(
               id,
+              phase,
               head,
               this.asSpace(),
-							this.dispatch,
-							this.world.contextFac,
-						  h => new Commit<Data>(new MonoidData(), h),
-              this._signal$
-						);
+              this.dispatch,
+              this.world.contextFac,
+              h => new Commit<Data>(new MonoidData(), h),
+              this._signal$);
 
             this._machine$.next(machine);
-
-            machine.begin(phase);
 
             return machine;
           })
@@ -79,7 +77,7 @@ export class MachineSpace<W extends PhaseMap = {}, X extends MachineContext = Ma
 
     const toAdd = summoned
       .filter(([isNew]) => isNew)
-      .map(([, id, loading]) => <[Id, Promise<Machine<X, P>>]>[id, loading]);
+      .map(([, id, loading]) => <[Id, Promise<Machine<P>>]>[id, loading]);
     
     this.machines = this.machines.merge(Map(toAdd));
 
@@ -125,111 +123,87 @@ export type Signal = {
   stop: boolean
 }
 
-export class Machine<X, P> {
-  private _log$: Subject<Emit<P>>
-  private space: ISpace
-  private dispatch: Dispatch<X, P>
-  private modContext: (x: MachineContext) => X
-	private commitFac: CommitFac
-  private signal$: Observable<Signal>
+const $Ahoy = Symbol('$Ahoy')
 
-  readonly id: Id
-  readonly head: Head<Data>
-  readonly log$: Observable<Emit<P>>
-  
-  constructor(
-    id: Id,
-    head: Head<Data>,
-    space: ISpace,
-    dispatch: Dispatch<X, P>,
-    modContext: (x: MachineContext) => X,
-    commitFac: CommitFac,
-    signal$: Observable<Signal>)
-  {
-    this.id = id;
-    
-    this._log$ = new ReplaySubject(1);
-    this.log$ = this._log$;
+export type Machine<P> = {
+  id: Id,
+  head: Head<Data>,
+  log$: Observable<Emit<P>>
+}
 
-    this.head = head;
+function runMachine<X, P>(
+  id: Id,
+  phase: P,
+  head: Head<Data>,
+  space: ISpace,
+  dispatch: Dispatch<X, P>,
+  modContext: (x: MachineContext) => X,
+  commitFac: CommitFac,
+  signal$: Observable<Signal>
+): Machine<P>
+{
+  const kill$ = signal$.pipe(filter(s => s.stop), share());
 
-    this.space = space;
-    this.dispatch = dispatch;
-    this.modContext = modContext;
-		this.commitFac = commitFac;
+  const log$ = of(phase).pipe(
+    expand(async p => {
+      const committer = commitFac(head);
 
-    this.signal$ = signal$;
-  }
+      try {
+        const x = buildContext(id, committer);
 
-  begin(phase: P) {
-    const id = this.id;
-    const head = this.head;
-    const log$ = this._log$;
-    const dispatch = this.dispatch.bind(this);
-    const buildContext = this.buildContext.bind(this);
-    const signal = new BehaviorSubject<Signal>({ stop: false })
-    const signalSub = this.signal$.subscribe(signal);
+        const out = await dispatch(x)(p);
 
-    // head.refs().forEach(r => atom$.next(r));
-    //AND NOW! special root atom should be marked as already-persisted, otherwise will incur unnecessary overwrite
-
-    // head$.next(head);
-
-    setImmediate(() => (async () => {     
-        while(!signal.getValue().stop) {
-          log$.next([id, phase]);
-
-          const committer = this.commitFac(head);
-          const context = buildContext(id, committer);
-          const out = await dispatch(context)(phase);
-
-          if(out) {
-            await committer.complete(Map({ [id]: out }));
-            phase = out;
-          }
-          else {
-            break;
-          }
+        if(out) {
+          await committer.complete(Map({ [id]: out }));
         }
-      })()
-      .catch(e => {
-        log$.next(e);
-      })
-      .finally(() => {
-        signalSub.unsubscribe();
-        head.release();
-        log$.complete();
-      }));
-  }
 
-	private static $Internal = Symbol('CommitCtx')
-  
-  private buildContext(id: Id, commit: Commit<Data>): X {
-    const me = this;
-    const space = this.space;;
+        return out;
+      }
+      catch(e) {
+        committer.abort();
+        throw e;
+      }
+    }),
+    startWith(phase),
+    takeWhile(o => !!o),
+    shareReplay(1),
+    takeUntil(kill$),
+    finalize(() => head.release()),
+    map(o => [id, <P>o] as const)
+  );
 
-    return this.modContext({
+  const machine = {
+    id,
+    head,
+    log$
+  };
+
+  return machine;
+
+
+  function buildContext(id: Id, commit: Commit<Data>): X {
+    return modContext({
       id: id,
       watch(ids: Id[]): Observable<Data> {
         return space.watch(ids)
           .pipe(
-            tap(r => commit.add(Set([r]))), //gathering all watched atomrefs here into mutable Commit
+            tap(r => commit.add(List([r]))), //gathering all watched atomrefs here into mutable Commit
             mergeMap(r => r.resolve()), //empty refs get gathered too of course (to test for)
             map(a => a.val)
             //todo filter on passed ids
           );
       },
       attach<R>(attend: Attendee<R>) {
-        return space.attach(me, {
+        return space.attach(machine, {
 					chat(m, peers) {
-						if(isArray(m) && m[0] == Machine.$Internal) {
+						if(isArray(m) && m[0] == $Ahoy) {
 							Commit.combine(new MonoidData(), [commit, <Commit<Data>>m[1]]);
 							m = m[2];
 						}
 
 						const proxied = peers.map(p => <Peer>({
 							chat(m) {
-								return p.chat([Machine.$Internal, commit, m]);
+								return p.chat([$Ahoy, commit, m]);
 							}
 						}));
 						return attend.chat(m, proxied);
@@ -241,7 +215,7 @@ export class Machine<X, P> {
 					convene(peers) {
 						const proxied = peers.map(p => <Peer>({
 							chat(m) {
-								return p.chat([Machine.$Internal, commit, m]);
+								return p.chat([$Ahoy, commit, m]);
 							}
 						}));
 						return convene.convene(proxied);

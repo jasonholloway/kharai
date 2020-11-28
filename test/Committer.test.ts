@@ -3,16 +3,23 @@ import Commit from '../src/Committer'
 import _Monoid from '../src/_Monoid'
 import { delay } from '../src/util'
 import { AtomRef, Atom } from '../src/atoms'
-import { Set } from 'immutable'
+import { List } from 'immutable'
+import { Subject } from 'rxjs'
+import { Signal } from './MachineSpace'
 
-const atoms = <V>(rs: Set<AtomRef<V>>) => rs.flatMap(r => r.resolve()).toArray()
+const atoms = <V>(rs: List<AtomRef<V>>) => rs.flatMap(r => r.resolve()).toArray()
 
 describe('committable', () => {
+	let kill$ = new Subject<Signal>();
 	let space: AtomSpace<number>
 	const newCommit = (h: Head<number>) => new Commit(new MonoidNumber(), h);  
 
 	beforeEach(() => {
-		space = new AtomSpace();
+		space = new AtomSpace(kill$);
+	})
+
+	afterEach(() => {
+		kill$.next({ stop: true });
 	})
 
 	it('commits singly', async () => {
@@ -119,20 +126,20 @@ describe('committable', () => {
 		const h = space.head();
 		const c1 = newCommit(h);
 
-		const u1 = new Atom(Set(), 3);
-		const u2 = new Atom(Set(), 4);
+		const u1 = new Atom(List(), 3);
+		const u2 = new Atom(List(), 4);
 
-		c1.add(Set([new AtomRef(u1), new AtomRef(u2)]));
+		c1.add(List([new AtomRef(u1), new AtomRef(u2)]));
 
 		const a2 = await c1.complete(13);
 
-		expect(atoms(Set([a2]))[0].val)
+		expect(atoms(List([a2]))[0].val)
 			.toEqual(13);
 
 		expect(atoms(h.refs())[0].val)
 			.toEqual(13);
 
-		const parents = Set(atoms(h.refs()))
+		const parents = List(atoms(h.refs()))
 			.flatMap(r => r.parents);
 
 		expect(atoms(parents)).toContain(u1);
@@ -160,7 +167,7 @@ describe('committable', () => {
 		expect(upstreams1).toHaveLength(1);
 		expect(upstreams1.map(a => a.val)).toContain(9);
 
-		const upstreams2 = atoms(Set(upstreams1).flatMap(r => r.parents))
+		const upstreams2 = atoms(List(upstreams1).flatMap(r => r.parents))
 		expect(upstreams2).toHaveLength(2);
 		expect(upstreams2.map(a => a.val)).toContain(0);
 		expect(upstreams2.map(a => a.val)).toContain(3);

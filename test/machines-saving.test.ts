@@ -1,10 +1,8 @@
 import _Monoid from '../src/_Monoid'
-import { scenario, getAtoms } from './shared'
+import { scenario } from './shared'
 import { rodents } from './worlds/rodents'
-import FakeStore from './FakeStore';
-import MonoidData from '../src/MonoidData';
 import { Map, Set, List } from 'immutable'
-import { map, bufferTime, finalize, first } from 'rxjs/operators';
+import { first } from 'rxjs/operators';
 import { delay } from '../src/util';
 const log = console.log;
 
@@ -12,17 +10,21 @@ describe('machines - saving', () => {
 	const fac = scenario(rodents());
 	let x: ReturnType<typeof fac>
 
-	it('atoms conjoin', async () => {
-		x = fac();
+	it('atoms conjoin without consolidation (no saver or rewrites)', async () => {
+		x = fac({ runSaver: false });
 
-		const [bazAtoms, lozAtoms] = await Promise.all([
-			x.atoms('baz'),
-			x.atoms('loz'),
+		await Promise.all([
 			x.run.boot('baz', ['guineaPig', ['runAbout', []]]),
 			x.run.boot('loz', ['guineaPig', ['gruntAt', ['baz']]])
 		]);
+		
+		await delay(100);
+		x.run.complete();
 
-		expect(bazAtoms.map(a => a.val.toObject()))
+		const baz = x.view('baz');
+		const loz = x.view('loz');
+
+		expect(baz.map(a => a.val().toObject()))
 			.toEqual([
 				{
 					baz: ['guineaPig', ['runAbout', []]]
@@ -33,11 +35,11 @@ describe('machines - saving', () => {
 				}
 			]);
 
-		expect(bazAtoms[0].parents.isEmpty).toBeTruthy();
-		expect(getAtoms(bazAtoms[1].parents)).toContain(bazAtoms[0]);
-		expect(getAtoms(bazAtoms[1].parents)).toContain(lozAtoms[0]);
+		expect(baz[0].parents()).toHaveLength(0);
+		expect(baz[1].parents()).toContainEqual(baz[0]);
+		expect(baz[1].parents()).toContainEqual(loz[0]);
 
-		expect(lozAtoms.map(a => a.val.toObject()))
+		expect(loz.map(a => a.val().toObject()))
 			.toEqual([
 				{
 					loz: ['guineaPig', ['gruntAt', ['baz']]]
@@ -48,9 +50,38 @@ describe('machines - saving', () => {
 				}
 			]);
 
-		expect(lozAtoms[0].parents.isEmpty).toBeTruthy();
-		expect(getAtoms(lozAtoms[1].parents)).toContain(lozAtoms[0]);
-		expect(getAtoms(lozAtoms[1].parents)).toContain(bazAtoms[0]);
+		expect(loz[0].parents()).toHaveLength(0);
+		expect(loz[1].parents()).toContainEqual(loz[0]);
+		expect(loz[1].parents()).toContainEqual(baz[0]);
+	})
+
+	it('atoms consolidated (via saver)', async () => {
+		x = fac();
+
+		await Promise.all([
+			x.run.boot('baz', ['guineaPig', ['runAbout', []]]),
+			x.run.boot('loz', ['guineaPig', ['gruntAt', ['baz']]])
+		]);
+
+		await delay(100)
+		x.run.complete(); //should be self-closing really
+
+		const baz = x.view('baz');
+		const loz = x.view('loz');
+
+		expect(baz).toHaveLength(1);
+		expect(baz[0].val().toObject()).toEqual({
+			baz: ['$end', ['grunt!']],
+			loz: ['$end', ['squeak!']]
+		});
+		expect(baz[0].parents()).toHaveLength(0);
+
+		expect(loz).toHaveLength(1);
+		expect(loz[0].val().toObject()).toEqual({
+			baz: ['$end', ['grunt!']],
+			loz: ['$end', ['squeak!']]
+		});
+		expect(loz[0].parents()).toHaveLength(0);
 	})
 
 	it('doesn\'t save $boots', async () => {
@@ -108,8 +139,8 @@ describe('machines - saving', () => {
 		const {heads} = await x.run.atoms.state$
 			.pipe(first()).toPromise();
 
-		x.run.complete();
-		await delay(200);
+    x.run.complete();
+    await delay(200);
 
 		const atoms = Set(heads)
 			.flatMap(h => h.refs())

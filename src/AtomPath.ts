@@ -1,5 +1,5 @@
 import { Set, Map, OrderedSet, Seq, List } from 'immutable'
-import { Atom, AtomRef } from './atoms'
+import { Atom, AtomRef, AtomLike } from './atoms'
 import { Lock } from './Locks'
 import { inspect } from 'util'
 import _Monoid from './_Monoid'
@@ -82,10 +82,6 @@ export default class AtomPath<V> {
 
 		const visitRefs = outer(inner(() => fn(visitRefs)));
 		const [ac, newRefs] = visitRefs(this.tips);
-
-		// const visit = fn(outer(inner(() => visit)));
-		// const [ac] = visit([new AtomRef(), new Atom(this.tips, MV.zero, 0)]);//, 'pseudo')])
-
 
 		return {
 			complete: () => {
@@ -214,15 +210,18 @@ export function renderPath<V>(p: Path<V>) {
 
 type Traced<V> = [V, Traced<V>[]] 
 
-export function tracePath<V>(refs: List<AtomRef<V>>): Traced<V>[] {
+export function tracePath<V>(refs: List<AtomLike<V>>): Traced<V>[] {
 
 	function visitAtom(a: Atom<V>): Traced<V> {
 		return [a.val, visitList(a.parents)];
 	}
 
-	function visitList(rs: List<AtomRef<V>>) {
+	function visitList(rs: List<AtomLike<V>>) {
 		return rs
-			.flatMap(r => r.resolve())
+			.flatMap(r =>
+				   (r?._type == 'Atom' && List([r]))
+				|| (r?._type == 'AtomRef' && r.resolve())
+				|| List())
 			.map(visitAtom)
 			.toArray();
 	}
@@ -230,13 +229,17 @@ export function tracePath<V>(refs: List<AtomRef<V>>): Traced<V>[] {
 	return visitList(refs);	
 }
 
-export function renderAtoms<V>(refs: List<AtomRef<V>>) {
+export function renderAtoms<V>(refs: List<AtomLike<V>>) {
 	const log = (indent: number = 0, l: string = '') => {
 		for(let i = 0; i < indent; i++) process.stdout.write('  ');
 		process.stdout.write(l + '\n')
 	};
 
-	const tips = refs.flatMap(r => r.resolve())
+	const tips = refs.flatMap(r =>
+		   (r?._type == 'Atom' && List([r]))
+		|| (r?._type == 'AtomRef' && r.resolve())
+		|| List()
+		).toSet();
 	
 	const ordered = visit(OrderedSet(), tips, 0);
 
@@ -250,10 +253,10 @@ export function renderAtoms<V>(refs: List<AtomRef<V>>) {
 			+ inspect(l.val)))
 	log()
 
-	function visit(zero: OrderedSet<Atom<V>>, refs: List<Atom<V>>, d: number): OrderedSet<Atom<V>> {
+	function visit(zero: OrderedSet<Atom<V>>, refs: Set<Atom<V>>, d: number): OrderedSet<Atom<V>> {
 		return refs.reduce(
 			(ac, a) => {
-				const ac2 = visit(ac, a.parents.flatMap(r => r.resolve()), d + 1);
+				const ac2 = visit(ac, a.parents.flatMap(r => r.resolve()).toSet(), d + 1);
 				return ac2.add(a);
 			},
 			zero);

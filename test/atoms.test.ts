@@ -7,11 +7,9 @@ import AtomSpace from '../src/AtomSpace'
 import AtomSaver from '../src/AtomSaver'
 import { Subject } from 'rxjs'
 import { Signal } from '../src/MachineSpace'
-import { concatMap, tap, bufferTime } from 'rxjs/operators'
-import { renderAtoms, tracePath, renderPath } from '../src/AtomPath'
-
-const getAtoms = <V>(rs: List<AtomRef<V>>) => rs.flatMap(r => r.resolve())
-
+import { concatMap, tap } from 'rxjs/operators'
+import { tracePath } from '../src/AtomPath'
+import { resolveAtoms, viewAtoms } from './shared'
 const log = (...args: any[]) => console.log(...args);
 
 const MU: _Monoid<undefined> = {
@@ -57,11 +55,11 @@ describe('atoms and stuff', () => {
 	it('writing creates atom', () => {
 		const head = space.head();
 		head.write('1');
-		
-		const [atom] = getAtoms(head.refs())
+
+		const [atom] = viewAtoms(head.refs())
 		expect(atom).not.toBeUndefined();
-		expect(atom?.val).toBe('1');
-		expect(getAtoms(atom?.parents).toArray()).toEqual([]);
+		expect(atom.val()).toBe('1');
+		expect(atom.parents()).toEqual([]);
 	})
 
 	it('writing several times appends many atoms', async () => {
@@ -70,16 +68,16 @@ describe('atoms and stuff', () => {
 		head.write('2')
 		head.write('3');
 
-		const [atom3] = getAtoms(head.refs());
-		expect(atom3?.val).toBe('3');
+		const [atom3] = viewAtoms(head.refs());
+		expect(atom3?.val()).toBe('3');
 
-		const [atom2] = getAtoms(atom3.parents);
-		expect(atom2?.val).toBe('2');
+		const [atom2] = atom3.parents();
+		expect(atom2?.val()).toBe('2');
 		
-		const [atom1] = getAtoms(atom2.parents);
-		expect(atom1?.val).toBe('1');
+		const [atom1] = atom2.parents();
+		expect(atom1?.val()).toBe('1');
 
-		expect(getAtoms(atom1?.parents).toArray()).toEqual([]);
+		expect(atom1?.parents()).toEqual([]);
 	})
 
 	it('like-for-like rewrite', async () => {

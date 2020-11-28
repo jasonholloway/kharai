@@ -3,7 +3,7 @@ import AtomSpace, { Head } from './AtomSpace'
 import Store from './Store'
 import { Set, List } from 'immutable'
 import { inspect } from 'util'
-import { renderAtoms } from './AtomPath'
+import { renderAtoms, tracePath } from './AtomPath'
 import { AtomRef } from './atoms'
 
 inspect.defaultOptions.depth = 10;
@@ -38,10 +38,13 @@ export default class AtomSaver<V> {
 		//(as is we'll always be saving out-of-date state)
 		//the crap approach would give us a free path too to tackling the totting-up approach to weight management
 
-		log('weights', space.weights())
+		// log('weights', space.weights())
 
 		const path = await space
 			.lockPath(...heads.flatMap(h => h.refs()));
+
+		// renderAtoms(path.tips)
+		// log(tracePath(path.tips))
 
 		let mode: 'gather'|'zipUp' = 'gather';
 		let bagged = MV.zero;
@@ -93,8 +96,9 @@ export default class AtomSaver<V> {
 				}, MAc).complete();
 
 			space.incStaged(weight);
-
-			renderAtoms(heads.flatMap(h => h.refs()).toList())
+			
+			// renderAtoms(path.tips)
+			// log(tracePath(path.tips))
 		}
 		finally {
 			path.release();

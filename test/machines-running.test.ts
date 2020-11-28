@@ -5,7 +5,7 @@ import { rodents } from './worlds/rodents'
 describe('machines - running', () => {
   const fac = scenario(rodents());
   let x: ReturnType<typeof fac>
-  
+
   beforeEach(() => {
     x = fac();
   })  

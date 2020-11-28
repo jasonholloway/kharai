@@ -1,7 +1,7 @@
 import _Monoid from './_Monoid'
-import { Head, AtomCreator } from'./AtomSpace'
-import { AtomRef, Atom } from './atoms'
-import { Set } from 'immutable'
+import { Head } from'./AtomSpace'
+import { AtomRef } from './atoms'
+import { Set, List } from 'immutable'
 
 export const $Commit = Symbol('Commit');
 export type AtomEmit<V> = readonly [typeof $Commit, AtomRef<V>]
@@ -15,8 +15,8 @@ export default class Commit<V> {
 		this.inner = new Inner(mv, Set([this]));
 	}
 
-	add(rs: Set<AtomRef<V>>) {
-		this.head.addUpstreams(rs);
+	add(rs: List<AtomRef<V>>) {
+		this.head.addUpstreams(rs.toSet());
 	}
 
 	//and abandon?
@@ -25,6 +25,12 @@ export default class Commit<V> {
 		const ref = await this.inner.complete(this, this.head, v);
 		this.head.move(ref);
 		return ref;
+	}
+
+	abort() {
+		//TODO throw errors in all other committers
+		//but only throw if incomplete, otherwise ignore
+		//...
 	}
 
 	static combine<V>(mv: _Monoid<V>, cs: Commit<V>[]) {
@@ -59,7 +65,7 @@ class Inner<V> {
 		if(this.todo.isEmpty()) {			
 			//TODO below needs to add weights
 			const ref = head.space.newAtom(
-				this.heads.flatMap(h => h.refs()),
+				this.heads.flatMap(h => h.refs()).toList(),
 				this.value);
 
 			this.waiters.forEach(fn => fn(ref));
