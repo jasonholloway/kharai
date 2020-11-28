@@ -3,7 +3,7 @@ import Commit from '../src/Committer'
 import _Monoid from '../src/_Monoid'
 import { delay } from '../src/util'
 import { AtomRef, Atom } from '../src/atoms'
-import { List } from 'immutable'
+import { List, Set } from 'immutable'
 import { Subject } from 'rxjs'
 import { Signal } from './MachineSpace'
 
@@ -60,6 +60,22 @@ describe('committable', () => {
 		expect(atoms(h1.refs())[0]?.val).toEqual(15);
 		expect(atoms(h2.refs())[0]?.val).toEqual(15);
 		expect(atoms(h3.refs())[0]?.val).toEqual(15);
+	})
+
+	it('commits twice in one swoop', async () => {
+		const h1 = space.head();
+		const c1 = newCommit(h1);
+
+		const h2 = space.head();
+		const c2 = newCommit(h2);
+
+		Commit.combine(new MonoidNumber(), [c1, c2]);
+
+		const p1 = c1.complete(1);
+		const p2 = c2.complete(2);
+		
+		const refs = await Promise.all([p1, p2]);
+		expect(refs[0]).toEqual(refs[1]);
 	})
 
 	it('completes after all commit', async () => {
@@ -172,6 +188,36 @@ describe('committable', () => {
 		expect(upstreams2.map(a => a.val)).toContain(0);
 		expect(upstreams2.map(a => a.val)).toContain(3);
 	})
+
+	it('abort releases, causing others to error', async () => {
+		expect.assertions(2);
+
+		const h1 = space.head();
+		const h2 = space.head();
+		const h3 = space.head();
+
+		h1.write(1);
+		h2.write(2);
+		h3.write(3);
+
+		const c1 = newCommit(h1);
+		const c2 = newCommit(h2);
+		const c3 = newCommit(h3);
+
+		Commit.combine(new MonoidNumber(), [c1, c2, c3]);
+
+		const p1 = c1.complete(1).catch(e => {
+			expect(e).toEqual('Commit aborted!')
+		});
+
+		c3.abort();
+		
+		const p2 = c2.complete(2).catch(e => {
+			expect(e).toEqual('Commit aborted!')
+		});
+
+		await Promise.all([p1, p2]);
+	})
 })
 
 class MonoidNumber implements _Monoid<number> {
@@ -180,3 +226,13 @@ class MonoidNumber implements _Monoid<number> {
 		return a + b;
   }
 }
+
+//there's a problem here:
+//what to do when one party completes before others are added?
+//it seems that a 'doing' commit should be combinable with a 'done'
+//one
+//
+//extending the commit when it's already yielded a ref for some happy head
+//just can't work - 
+//
+//

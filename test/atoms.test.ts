@@ -9,7 +9,7 @@ import { Subject } from 'rxjs'
 import { Signal } from '../src/MachineSpace'
 import { concatMap, tap } from 'rxjs/operators'
 import { tracePath } from '../src/AtomPath'
-import { resolveAtoms, viewAtoms } from './shared'
+import { viewAtoms } from './shared'
 const log = (...args: any[]) => console.log(...args);
 
 const MU: _Monoid<undefined> = {
