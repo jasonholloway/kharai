@@ -4,7 +4,7 @@ import { Observable, Subject, ReplaySubject } from 'rxjs'
 import { flatMap, startWith, mergeAll, endWith, scan, takeWhile, finalize, map, toArray, ignoreElements } from 'rxjs/operators'
 import { Set } from 'immutable'
 import { MachineSpace, Emit, MachineLoader, Signal, Machine } from './MachineSpace'
-import { buildDispatch } from './dispatch'
+import { buildDispatch, Dispatch } from './dispatch'
 import AtomSpace from './AtomSpace'
 const log = console.log;
 
@@ -25,7 +25,7 @@ export class Run<W extends PhaseMap, X, P = Phase<W>> {
     this.mediator = new Mediator(this.signal$);		
 		this.atoms = new AtomSpace(this.signal$);
 		this.loader = loaderFac(this.atoms);
-    this.space = new MachineSpace(world, this.loader, buildDispatch(world.phases), this.mediator, this.signal$);
+    this.space = new MachineSpace(world, this.loader, <Dispatch<X, P>><unknown>buildDispatch(world.phases), this.mediator, this.signal$);
 
 		this.machine$ = this.space.machine$;
     this.log$ = this.machine$

@@ -7,11 +7,11 @@ type Path = readonly [Path|undefined, Name, Val]
 
 export type Dispatch<X, P> = (x: X) => (inp: P) => Promise<P|false>
 
-	export function buildDispatch<X, PM extends PhaseMap>(phases: PhaseMapImpl<X, PM>): Dispatch<X, Phase<PM>> {
-	return _buildDispatch<X, PM>([,,phases])
+	export function buildDispatch<X, PM extends PhaseMap, P extends Phase<PM>>(phases: PhaseMapImpl<X, PM>): Dispatch<X, P> {
+		return _buildDispatch<X, PM, P>([,,phases])
 }
 
-function _buildDispatch<X, PM extends PhaseMap>(path: Path): Dispatch<X, Phase<PM>> {
+function _buildDispatch<X, PM extends PhaseMap, P extends Phase<PM>>(path: Path): Dispatch<X, P> {
 	const [,,phases] = path;
 
 	return x => async ([p, args]) => {
@@ -31,11 +31,11 @@ function _buildDispatch<X, PM extends PhaseMap>(path: Path): Dispatch<X, Phase<P
 		} 
 		else {
 			const dispatch = _buildDispatch([path, p, found])(x);
-			return <Phase<PM>>await dispatch([args[0], args[1]]);
+			return <P>await dispatch([args[0], args[1]]);
 		}
 	};
 
-	function tryBind(path: Path, curr: any): Phase<PM> {
+	function tryBind(path: Path, curr: any): P {
 		const [parent,, map] = path;
 
 		if(map[curr[0]]) {
@@ -46,7 +46,7 @@ function _buildDispatch<X, PM extends PhaseMap>(path: Path): Dispatch<X, Phase<P
 			return tryBind(parent, curr);
 		}
 
-		function trace(path: Path, curr: any): Phase<PM> {
+		function trace(path: Path, curr: any): P {
 			const [parent, name] = path;
 			return parent
 			  ? trace(parent, [name, curr])
