@@ -1,10 +1,16 @@
 {
   "name": "kharai",
-  "version": "0.2.0",
+  "version": "0.0.1",
   "description": "The versatile beast of burden",
-  "main": "out/index.js",
+  "main": "out/src/index.js",
+  "types": "out/src/index.d.ts",
+  "files": [
+    "out/src"
+  ],
   "scripts": {
-    "test": "jest"
+    "build": "tsc",
+    "test": "jest",
+    "prepare": "npm run build"
   },
   "author": "Jason Holloway",
   "license": "ISC",
