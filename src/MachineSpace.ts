@@ -2,7 +2,7 @@ import { Id, Data, WorldImpl, PhaseMap, Phase, MachineContext, ContextImpl } fro
 import { Head } from './AtomSpace'
 import { Mediator, Convener, Attendee, Peer } from './Mediator'
 import { Observable, Subject, from, merge, of } from 'rxjs'
-import { toArray, map, mergeMap, tap, filter, flatMap, expand, takeUntil, takeWhile, finalize, startWith, shareReplay, share, catchError } from 'rxjs/operators'
+import { toArray, map, mergeMap, tap, filter, flatMap, expand, takeUntil, takeWhile, finalize, startWith, shareReplay, share } from 'rxjs/operators'
 import Commit, { AtomEmit } from './Committer'
 import { Map, Set, List } from 'immutable'
 import { Dispatch } from './dispatch'
@@ -14,12 +14,17 @@ const log = console.log;
 export type Emit<P = any> =
 		readonly [Id, P] | AtomEmit<Data>
 
-export type DataLoader<P> = (ids: Set<Id>) => Promise<Map<Id, [Head<Data>, P?]>>
-export type MachineLoader<P> = (id: Id) => Promise<[Head<Data>, P]>
+  //
+  //TODO
+  //heads shouldn't belong s completely to the AtomSpace
+  //Atoms are emitted in a stream, decoupling the backend from the frontend
+  //
+  
+export type Loader<P> = (ids: Set<Id>) => Promise<Map<Id, [Head<Data>, P]>>
 
 export class MachineSpace<W extends PhaseMap, X, P = Phase<W>> {
   private readonly world: WorldImpl<W, X> & ContextImpl<X>
-  private readonly loader: MachineLoader<P>
+  private readonly loader: Loader<P>
   private readonly mediator: Mediator
   private readonly dispatch: Dispatch<X, P>
 
@@ -31,7 +36,7 @@ export class MachineSpace<W extends PhaseMap, X, P = Phase<W>> {
 
   constructor(
     world: WorldImpl<W, X> & ContextImpl<X>,
-    loader: MachineLoader<P>,
+    loader: Loader<P>,
     dispatch: Dispatch<X, P>,
     mediator: Mediator,
     signal$: Observable<Signal>
@@ -57,12 +62,17 @@ export class MachineSpace<W extends PhaseMap, X, P = Phase<W>> {
         return [false, id, found] as const;
       }
       else {
-        const loading = this.loader(id);
+        const loading = this.loader(Set([id]));
 
         return [
           true,
           id,
-          loading.then(([head, phase]) => {
+          loading.then(loaded => {
+            const t = loaded.get(id);
+            if(!t) throw Error('error unpacking result from loader');
+
+            const [head, phase] = t;
+            
             const machine = runMachine(
               id,
               phase,

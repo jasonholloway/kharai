@@ -3,18 +3,18 @@ import { Mediator, Convener } from './Mediator'
 import { Observable, Subject, ReplaySubject } from 'rxjs'
 import { flatMap, startWith, mergeAll, endWith, scan, takeWhile, finalize, map, toArray, ignoreElements } from 'rxjs/operators'
 import { Set } from 'immutable'
-import { MachineSpace, Emit, MachineLoader, Signal, Machine } from './MachineSpace'
+import { MachineSpace, Emit, Loader, Signal, Machine } from './MachineSpace'
 import { buildDispatch, Dispatch } from './dispatch'
 import AtomSpace from './AtomSpace'
 const log = console.log;
 
-export type LoaderFac<P> = (s: AtomSpace<Data>) => MachineLoader<P>
+export type LoaderFac<P> = (s: AtomSpace<Data>) => Loader<P>
 
 export class Run<W extends PhaseMap, X, P = Phase<W>> {
   readonly mediator: Mediator
 	readonly atoms: AtomSpace<Data>
   readonly space: MachineSpace<W, X, P>
-	readonly loader: MachineLoader<P>
+	readonly loader: Loader<P>
 	readonly signal$: Subject<Signal>
 
 	readonly machine$: Observable<Machine<P>>

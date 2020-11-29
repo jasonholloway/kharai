@@ -13,6 +13,7 @@ import MonoidData from '../src/MonoidData'
 import { Run, LoaderFac } from '../src/Run'
 import FakeStore from './FakeStore'
 import { tracePath, renderAtoms } from '../src/AtomPath'
+import { Head } from './AtomSpace'
 
 export function scenario<W extends PhaseMap, X extends MachineContext, P = Phase<W>>(world: WorldImpl<W, X> & ContextImpl<X>) {
   return (opts?: { phases?: Map<Id, P>, batchSize?: number, threshold?: number, runSaver?: boolean }) => {
@@ -22,20 +23,23 @@ export function scenario<W extends PhaseMap, X extends MachineContext, P = Phase
     const store = new FakeStore(M, opts?.batchSize || 4);
 
     const loaderFac: LoaderFac<P> =
-      atoms => async id => {
-        const found = opts?.phases?.get(id);
-        const p = found || <P><unknown>(['$boot', []]);
+      atoms => ids =>
+        Promise.resolve(
+          ids
+            .reduce<Map<Id, [Head<Data>, P]>>((ac, id) => {
+              const found = opts?.phases?.get(id);
+              const p = found || <P><unknown>(['$boot', []]);
 
-        const h = atoms.head();
+              const h = atoms.head();
 
-        if(found) {
-          h.write(Map({
-            [isArray(id) ? id[0] : id]: p
-          }));
-        }
+              if(found) {
+                h.write(Map({
+                  [isArray(id) ? id[0] : id]: p
+                }));
+              }
 
-        return [h, p];
-      };
+              return ac.set(id, [h, p]);
+            }, Map()));
 
     const run = new Run<W, X, P>(world, loaderFac);
 

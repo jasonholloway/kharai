@@ -1,4 +1,9 @@
-import { Run } from "./Run";
+import { Run, LoaderFac } from "./Run";
+import { Phase } from "./lib";
 
-export default Run;
+export {
+	Run,
+	LoaderFac,
+	Phase
+};
 

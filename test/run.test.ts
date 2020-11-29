@@ -1,7 +1,8 @@
+import { Map } from 'immutable'
 import { rodents, Rodents } from "./worlds/rodents";
 import { LoaderFac, Run } from "../src/Run";
-import { Phase, MachineContext } from "../src/lib";
-import { delay } from "../src/util";
+import { Phase, MachineContext, Data, Id } from "../src/lib";
+import { Head } from './AtomSpace';
 const log = console.log;
 
 describe('running', () => {
@@ -10,9 +11,13 @@ describe('running', () => {
 		const world = rodents();
 
     const loaderFac: LoaderFac<Phase<Rodents>> =
-      x => async id => {
-        return [x.head(), ['$boot', []]];
-      };
+      x => ids => Promise.resolve(
+				ids.reduce<Map<Id, [Head<Data>, Phase<Rodents>]>>(
+					(ac, id) => {
+						return ac.set(id, [x.head(), ['$boot', []]]);
+					},
+					Map()));
+      
 
     const run = new Run<Rodents, MachineContext>(world, loaderFac);
 
