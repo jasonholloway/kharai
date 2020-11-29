@@ -10,10 +10,6 @@ describe('machines - running', () => {
     x = fac();
   })  
 
-  afterEach(() => {
-    x.run.complete();
-  })
-
   it('run through phases', async () => {
     const [logs] = await Promise.all([
       x.logs(),

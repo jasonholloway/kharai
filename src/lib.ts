@@ -42,7 +42,7 @@ export type PhaseMapImpl<X, PCurr extends PhaseMap, PAcc extends PhaseMap = {}> 
 }
 
 export type WorldImpl<P extends PhaseMap, X> = {
-	contextFac: (x: MachineContext) => (X & MachineContext)
+	// contextFac: (x: MachineContext) => (X & MachineContext)
 	phases: PhaseMapImpl<(X & MachineContext), P>
 }
 
@@ -61,7 +61,8 @@ export type ContextImpl<X> = {
 
 export type SpecWorld<W extends World> = W;
 
-export const makeWorld = <P extends PhaseMap>() => <X>(w: WorldImpl<P, X>): WorldImpl<P, X> => w;
+// export const makeWorld = <P extends PhaseMap>() => <X>(w: WorldImpl<P, X>): WorldImpl<P, X> => w;
+export const makeWorld = <P extends PhaseMap>() => <X>(c: ContextImpl<X>, w: WorldImpl<P, X>): WorldImpl<P, X> => ({ ...c, ...w });
 
 
 export type Cons<H, T extends readonly any[]> = ((h: H, ...t: T) => any) extends ((...l: infer L) => any) ? (L extends ReadonlyArray<any> ? L : never) : never;

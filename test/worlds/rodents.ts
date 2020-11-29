@@ -1,7 +1,7 @@
 import _Monoid from '../../src/_Monoid'
 import { Id, SpecWorld, makeWorld, World, Phase } from '../../src/lib'
 import { delay } from '../../src/util'
-import { bootPhase, endPhase, waitPhase } from '../shared'
+import { bootPhase, endPhase, waitPhase } from '../../src/phases'
 
 export type TRodents<Me extends World = World> = SpecWorld<{
   $boot: []
@@ -30,9 +30,11 @@ export type TRodents<Me extends World = World> = SpecWorld<{
 
 export type Rodents = TRodents<TRodents>
 
-export function rodents() {
-  return makeWorld<TRodents<TRodents>>()({
-    contextFac: x => x,
+export const rodents = () => makeWorld<TRodents<TRodents>>()(
+  {
+    contextFac: x => x
+  },
+  {
     phases: {
       $boot: bootPhase(),
       $end: endPhase(),
@@ -121,4 +123,3 @@ export function rodents() {
       },
     }
   })
-}

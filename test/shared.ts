@@ -1,9 +1,8 @@
-import { Map, Set, List, OrderedSet } from 'immutable'
+import { Map, Set, List } from 'immutable'
 import _Monoid from '../src/_Monoid'
-import { Id, Data, World, MachineContext, Phase, PhaseMap, WorldImpl, PhaseImpl } from '../src/lib'
-import { OperatorFunction, concat, of, combineLatest, Observable, ReplaySubject, BehaviorSubject } from 'rxjs'
-import { flatMap, filter, map, first, concatMap, takeWhile, expand, shareReplay, toArray, scan, groupBy } from 'rxjs/operators'
-import { delay } from '../src/util'
+import { Id, Data, MachineContext, Phase, PhaseMap, WorldImpl } from '../src/lib'
+import { OperatorFunction, concat, of, combineLatest, BehaviorSubject } from 'rxjs'
+import { flatMap, filter, map, first, concatMap, takeWhile, expand, shareReplay, scan, groupBy } from 'rxjs/operators'
 import { AtomRef, Atom, AtomLike } from '../src/atoms'
 import { isString, isArray } from 'util'
 import { AtomEmit, $Commit } from '../src/Committer'
@@ -14,48 +13,6 @@ import MonoidData from '../src/MonoidData'
 import { Run, LoaderFac } from '../src/Run'
 import FakeStore from './FakeStore'
 import { tracePath, renderAtoms } from '../src/AtomPath'
-
-export const bootPhase = <W extends World>(): PhaseImpl<W, MachineContext, []> =>
-  (x => ({
-    guard(d: any): d is [] { return true },
-    async run() {
-      while(true) {
-        const answer = await x.attach<Phase<W>>({
-          chat(c) { return c; } //should be checking this here...
-        });
-
-        if(answer) {
-          return answer[0];
-        }
-        else {
-          await delay(30); //when we release properly, this can be removed
-        }
-      }
-    }
-  }));
-
-export const endPhase = <W extends World>(): PhaseImpl<W, MachineContext, [any]> =>
-  (x => ({
-    guard(d: any): d is [any] { return true },
-    async run() { return false as const; }
-  }));
-
-export const waitPhase = <W extends World>(): PhaseImpl<W, MachineContext, [number, Phase<W>]> =>
-  (x => ({
-    guard(d: any): d is [number, Phase<W>] { return true },
-    async run([delay, next]) {
-      return next;
-    }
-  }));
-
-export const watchPhase = <W extends World>(): PhaseImpl<W, MachineContext, [Id, string, Phase<W>]> =>
-  (x => ({
-    guard(d: any): d is [Id, string, Phase<W>] { return true },
-    async run([id, pred, next]) {
-      return next;
-    }
-  }));
-
 
 export function scenario<W extends PhaseMap, X extends MachineContext, P = Phase<W>>(world: WorldImpl<W, X>) {
   return (opts?: { phases?: Map<Id, P>, batchSize?: number, threshold?: number, runSaver?: boolean }) => {
