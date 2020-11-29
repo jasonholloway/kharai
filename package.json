@@ -1,12 +1,12 @@
 {
   "name": "kharai",
   "version": "0.2.0",
-  "description": "",
+  "description": "The versatile beast of burden",
   "main": "out/index.js",
   "scripts": {
     "test": "jest"
   },
-  "author": "",
+  "author": "Jason Holloway",
   "license": "ISC",
   "dependencies": {
     "immutable": "^4.0.0-rc.12",
