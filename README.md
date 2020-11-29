@@ -1,5 +1,5 @@
-# Harpoon
-Little state-machines in space, spanning pauses, skewering stuff, stashing and digesting
+# Kharai
+The versatile beast of burden
 
 [![Build Status](https://travis-ci.org/jasonholloway/harpoon.svg?branch=master)](https://travis-ci.org/jasonholloway/harpoon)
 
