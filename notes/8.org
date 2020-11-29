@@ -1,0 +1,17 @@
+* Locking right to the root means the full graph is frozen whenever a save is happening
+	this is because the parts nearest the root will be in the middle of a rewrite
+	
+
+
+
+
+* The saves should be put in a queue; only on success should they be removed from the graph
+	saves should really be a consolidation into as big an atom as allowed by the store;
+	once this is accepted by the store, the graph is rewritten and it loses its weight
+	the save is then put in a queue and processed in series
+	meanwhile the rewrite is done, the path is released, and the consolidated atom is marked
+	as being specially locked: tipwise locks will continue to work above it, but will leave it alone
+	so rewrites above will be possible, but saves won't be
+  this will be the queue of saves - the graph itself. The graph will even ensure parallel saves are possible.
+	
+* The answer: a special kind of lock

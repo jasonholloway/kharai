@@ -1,7 +1,7 @@
-import { Id, PhaseMap, Phase, MachineContext, WorldImpl, Data } from './lib'
+import { Id, PhaseMap, Phase, WorldImpl, Data, ContextImpl } from './lib'
 import { Mediator, Convener } from './Mediator'
 import { Observable, Subject, ReplaySubject } from 'rxjs'
-import { flatMap, startWith, mergeAll, endWith, scan, takeWhile, finalize, map, toArray, tap, ignoreElements } from 'rxjs/operators'
+import { flatMap, startWith, mergeAll, endWith, scan, takeWhile, finalize, map, toArray, ignoreElements } from 'rxjs/operators'
 import { Set } from 'immutable'
 import { MachineSpace, Emit, MachineLoader, Signal, Machine } from './MachineSpace'
 import { buildDispatch } from './dispatch'
@@ -10,7 +10,7 @@ const log = console.log;
 
 export type LoaderFac<P> = (s: AtomSpace<Data>) => MachineLoader<P>
 
-export class Run<W extends PhaseMap, X extends MachineContext, P = Phase<W>> {
+export class Run<W extends PhaseMap, X, P = Phase<W>> {
   readonly mediator: Mediator
 	readonly atoms: AtomSpace<Data>
   readonly space: MachineSpace<W, X, P>
@@ -20,7 +20,7 @@ export class Run<W extends PhaseMap, X extends MachineContext, P = Phase<W>> {
 	readonly machine$: Observable<Machine<P>>
   readonly log$: Observable<Emit<P>>
 
-  constructor(world: WorldImpl<W, X>, loaderFac: LoaderFac<P>) {
+  constructor(world: WorldImpl<W, X> & ContextImpl<X>, loaderFac: LoaderFac<P>) {
 		this.signal$ = new ReplaySubject<Signal>(1);
     this.mediator = new Mediator(this.signal$);		
 		this.atoms = new AtomSpace(this.signal$);
@@ -36,13 +36,10 @@ export class Run<W extends PhaseMap, X extends MachineContext, P = Phase<W>> {
 				ignoreElements(),
 				startWith<number>(1),
 			  endWith<number>(-1),
-				// tap(c => log(m.id, c)),
-				// finalize(() => log(m.id, 'finalize'))
 				)),
 			scan((c, n) => c + n, 0));
 
 		count$.pipe(
-			// tap(c => log('c', c)),
 			takeWhile(c => c > 0),
 			finalize(() => this.complete())
 		).subscribe();

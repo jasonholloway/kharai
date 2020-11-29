@@ -1,0 +1,24 @@
+{
+  "name": "kharai",
+  "version": "0.2.0",
+  "description": "",
+  "main": "out/index.js",
+  "scripts": {
+    "test": "jest"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "immutable": "^4.0.0-rc.12",
+    "rxjs": "^6.5.4",
+  },
+  "devDependencies": {
+    "@types/immutable": "^3.8.7",
+    "@types/jest": "^24.0.23",
+    "@types/node": "^12.12.5",
+    "jest": "^24.9.0",
+    "ts-jest": "^24.2.0",
+    "ts-node": "^8.4.1",
+    "typescript": "^3.8.3"
+  }
+}

@@ -1,6 +1,6 @@
 import { Map, Set, List } from 'immutable'
 import _Monoid from '../src/_Monoid'
-import { Id, Data, MachineContext, Phase, PhaseMap, WorldImpl } from '../src/lib'
+import { Id, Data, MachineContext, Phase, PhaseMap, WorldImpl, ContextImpl } from '../src/lib'
 import { OperatorFunction, concat, of, combineLatest, BehaviorSubject } from 'rxjs'
 import { flatMap, filter, map, first, concatMap, takeWhile, expand, shareReplay, scan, groupBy } from 'rxjs/operators'
 import { AtomRef, Atom, AtomLike } from '../src/atoms'
@@ -14,7 +14,7 @@ import { Run, LoaderFac } from '../src/Run'
 import FakeStore from './FakeStore'
 import { tracePath, renderAtoms } from '../src/AtomPath'
 
-export function scenario<W extends PhaseMap, X extends MachineContext, P = Phase<W>>(world: WorldImpl<W, X>) {
+export function scenario<W extends PhaseMap, X extends MachineContext, P = Phase<W>>(world: WorldImpl<W, X> & ContextImpl<X>) {
   return (opts?: { phases?: Map<Id, P>, batchSize?: number, threshold?: number, runSaver?: boolean }) => {
 
     const M = new MonoidData();

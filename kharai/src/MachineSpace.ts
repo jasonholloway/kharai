@@ -1,4 +1,4 @@
-import { Id, Data, WorldImpl, PhaseMap, Phase, MachineContext } from './lib'
+import { Id, Data, WorldImpl, PhaseMap, Phase, MachineContext, ContextImpl } from './lib'
 import { Head } from './AtomSpace'
 import { Mediator, Convener, Attendee, Peer } from './Mediator'
 import { Observable, Subject, from, merge, of } from 'rxjs'
@@ -17,8 +17,8 @@ export type Emit<P = any> =
 export type DataLoader<P> = (ids: Set<Id>) => Promise<Map<Id, [Head<Data>, P?]>>
 export type MachineLoader<P> = (id: Id) => Promise<[Head<Data>, P]>
 
-export class MachineSpace<W extends PhaseMap = {}, X extends MachineContext = MachineContext, P = Phase<W>> {
-  private readonly world: WorldImpl<W, X>
+export class MachineSpace<W extends PhaseMap, X, P = Phase<W>> {
+  private readonly world: WorldImpl<W, X> & ContextImpl<X>
   private readonly loader: MachineLoader<P>
   private readonly mediator: Mediator
   private readonly dispatch: Dispatch<X, P>
@@ -29,7 +29,13 @@ export class MachineSpace<W extends PhaseMap = {}, X extends MachineContext = Ma
 
   private _signal$: Observable<Signal>
 
-  constructor(world: WorldImpl<W, X>, loader: MachineLoader<P>, dispatch: Dispatch<X, P>, mediator: Mediator, signal$: Observable<Signal>) {
+  constructor(
+    world: WorldImpl<W, X> & ContextImpl<X>,
+    loader: MachineLoader<P>,
+    dispatch: Dispatch<X, P>,
+    mediator: Mediator,
+    signal$: Observable<Signal>
+  ) {
     this.world = world;
     this.loader = loader;
     this.dispatch = dispatch;

@@ -7,7 +7,7 @@ type Path = readonly [Path|undefined, Name, Val]
 
 export type Dispatch<X, P> = (x: X) => (inp: P) => Promise<P|false>
 
-export function buildDispatch<X, PM extends PhaseMap>(phases: PhaseMapImpl<X, PM>): Dispatch<X, Phase<PM>> {
+	export function buildDispatch<X, PM extends PhaseMap>(phases: PhaseMapImpl<X, PM>): Dispatch<X, Phase<PM>> {
 	return _buildDispatch<X, PM>([,,phases])
 }
 
