@@ -2,4 +2,12 @@ language: node_js
 node_js:
   - 14
 script: scripts/build.sh
-after_success: scripts/push.sh
+
+deploy:
+  on:
+    branch: master
+    tags: true
+  provider: npm
+  email: miceeatnicerice@hotmail.com
+  api_key:
+    secure: "Xj+nZJYsmeM8CphgvimUwYhVZjiLa5yZfRTylXDH1VafMOcbiHAaYxrGLsGY4YvtIwYoMmHrPfBtfKinbBFs8hCyq9nZSg2CB8HgzXmMCrCFmqL4HrEtsoHIuGuohqBfGXAO8PjDnTe2E0mrT6CsbzuwTN9IM0E2WL9XqR1PovHkEPCvOQD8f1xBFh9Q65P8Kc7ZtBg6VTpUCyS9pejoGxSNf+Qn66kPYBFm1H6kUwhdpjnKDprCYl3soMU7cVUHYVB2aW4cR/DXpHoC/hn3QNhmHPYSR3KPA0EwSwhJly6mSP8S8iE9eD6L/mtMxgg+ir4jZV3YzFLMphJkSnDMdDOOszYrkIArx91fBhJESWQnHzUF9qTYgUs7BIPrj6CNfbE5SpY3KQ6Y+QjUjkIdRWEjU8V/dmCVUQQYzmDhbQLkOLM42YgY72aMvbd1ZyYlp2ksdU+P3ljBoKAgEEjvlsG2AIeXjXcklV+l/qD2kk1VNwvtjM6/j/tZ5YFvCZOl6pR4kLxnA6jSL7BgRPLW2qM8t0/1T4dud0q09MhBgKdL4GEd45VWf2lVm69ZJMpAQqoXyF5W+PLBAd60mwk+E9gPOGkVRGIfZpXCn4bbYg+ueyVb+330aoKOA7nxqP0sDaILX1+LDHLt2oJ/5QpPGWy9d+a5I706IY2jhZMwW+M="
