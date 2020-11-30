@@ -1,9 +1,8 @@
 import _Monoid, { _MonoidNumber } from './_Monoid'
-import AtomSpace, { Head } from './AtomSpace'
+import AtomSpace, { Lump } from './AtomSpace'
 import Store from './Store'
 import { Set, List } from 'immutable'
 import { inspect } from 'util'
-import { renderAtoms, tracePath } from './AtomPath'
 import { AtomRef } from './atoms'
 
 inspect.defaultOptions.depth = 10;
@@ -27,7 +26,7 @@ export default class AtomSaver<V> {
 		this._space = space;
 	}
 
-	async save(store: Store<V>, heads: List<Head<V>>): Promise<number> {
+	async save(store: Store<V>, refs: Set<AtomRef<V>>): Promise<Lump<V>> {
 		const MV = this._monoidV;
 		const space = this._space;
 
@@ -38,10 +37,7 @@ export default class AtomSaver<V> {
 		//(as is we'll always be saving out-of-date state)
 		//the crap approach would give us a free path too to tackling the totting-up approach to weight management
 
-		// log('weights', space.weights())
-
-		const path = await space
-			.lockPath(...heads.flatMap(h => h.refs()));
+		const path = await space.lockPath(...refs);
 
 		// renderAtoms(path.tips)
 		// log(tracePath(path.tips))
@@ -95,7 +91,7 @@ export default class AtomSaver<V> {
 					}
 				}, MAc).complete();
 
-			space.incStaged(weight);
+			// space.incStaged(weight);
 			
 			// renderAtoms(path.tips)
 			// log(tracePath(path.tips))
@@ -109,7 +105,7 @@ export default class AtomSaver<V> {
 
 		await save();
 
-		return weight;
+		return [weight, gatherables];
 
 		//plus we could 'top up' our current transaction till full here
 		//by taking latest refs from head

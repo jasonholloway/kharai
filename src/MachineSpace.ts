@@ -1,26 +1,21 @@
 import { Id, Data, WorldImpl, PhaseMap, Phase, MachineContext, ContextImpl } from './lib'
-import { Head } from './AtomSpace'
 import { Mediator, Convener, Attendee, Peer } from './Mediator'
-import { Observable, Subject, from, merge, of } from 'rxjs'
+import { Observable, Subject, from, merge, of, ReplaySubject } from 'rxjs'
 import { toArray, map, mergeMap, tap, filter, flatMap, expand, takeUntil, takeWhile, finalize, startWith, shareReplay, share } from 'rxjs/operators'
-import Commit, { AtomEmit } from './Committer'
+import Committer, { AtomEmit } from './Committer'
 import { Map, Set, List } from 'immutable'
 import { Dispatch } from './dispatch'
 import { isArray } from 'util'
 import MonoidData from './MonoidData'
 import { AtomRef } from './atoms'
+import Head from './Head'
+import { Weight, Commit } from './AtomSpace'
 const log = console.log;
 
 export type Emit<P = any> =
 		readonly [Id, P] | AtomEmit<Data>
-
-  //
-  //TODO
-  //heads shouldn't belong s completely to the AtomSpace
-  //Atoms are emitted in a stream, decoupling the backend from the frontend
-  //
   
-export type Loader<P> = (ids: Set<Id>) => Promise<Map<Id, [Head<Data>, P]>>
+export type Loader<P> = (ids: Set<Id>) => Promise<Map<Id, P>>
 
 export class MachineSpace<W extends PhaseMap, X, P = Phase<W>> {
   private readonly world: WorldImpl<W, X> & ContextImpl<X>
@@ -28,11 +23,16 @@ export class MachineSpace<W extends PhaseMap, X, P = Phase<W>> {
   private readonly mediator: Mediator
   private readonly dispatch: Dispatch<X, P>
 
+  private readonly _commit$ = new ReplaySubject<Commit<Data>>(1)
+  readonly commit$ = this._commit$;
+
   private machines: Map<Id, Promise<Machine<P>>>
   private _machine$: Subject<Machine<P>>
   readonly machine$: Observable<Machine<P>>
 
   private _signal$: Observable<Signal>
+
+  private readonly MD = new MonoidData();
 
   constructor(
     world: WorldImpl<W, X> & ContextImpl<X>,
@@ -52,7 +52,10 @@ export class MachineSpace<W extends PhaseMap, X, P = Phase<W>> {
 
     this._signal$ = signal$;
     signal$.pipe(filter(s => s.stop))
-      .subscribe(() => this._machine$.complete());
+      .subscribe(() => {
+        this._machine$.complete();
+        this._commit$.complete();
+      });
   }
 
   summon(ids: Set<Id>): Observable<Machine<P>> {
@@ -68,19 +71,16 @@ export class MachineSpace<W extends PhaseMap, X, P = Phase<W>> {
           true,
           id,
           loading.then(loaded => {
-            const t = loaded.get(id);
-            if(!t) throw Error('error unpacking result from loader');
-
-            const [head, phase] = t;
+            const phase = loaded.get(id)!;
             
             const machine = runMachine(
               id,
               phase,
-              head,
+              new Head(this._commit$, List()),
+              h => new Committer<Data>(this.MD, h),
               this.asSpace(),
               this.dispatch,
               this.world.contextFac,
-              h => new Commit<Data>(new MonoidData(), h),
               this._signal$);
 
             this._machine$.next(machine);
@@ -135,7 +135,7 @@ interface ISpace {
   convene<R>(ids: Id[], convene: Convener<R>): Promise<R>
 }
 
-type CommitFac = (h: Head<Data>) => Commit<Data>
+type CommitFac = (h: Head<Data>) => Committer<Data>
 
 export type Signal = {
   stop: boolean
@@ -153,10 +153,10 @@ function runMachine<X, P>(
   id: Id,
   phase: P,
   head: Head<Data>,
+  commitFac: CommitFac,
   space: ISpace,
   dispatch: Dispatch<X, P>,
   modContext: (x: MachineContext) => X,
-  commitFac: CommitFac,
   signal$: Observable<Signal>
 ): Machine<P>
 {
@@ -202,7 +202,7 @@ function runMachine<X, P>(
   return machine;
 
 
-  function buildContext(id: Id, commit: Commit<Data>): X {
+  function buildContext(id: Id, commit: Committer<Data>): X {
     return modContext({
       id: id,
       watch(ids: Id[]): Observable<Data> {
@@ -218,7 +218,7 @@ function runMachine<X, P>(
         return space.attach(machine, {
 					chat(m, peers) {
 						if(isArray(m) && m[0] == $Ahoy) {
-							Commit.combine(new MonoidData(), [commit, <Commit<Data>>m[1]]);
+							Committer.combine(new MonoidData(), [commit, <Committer<Data>>m[1]]);
 							m = m[2];
 						}
 

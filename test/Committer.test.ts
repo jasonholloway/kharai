@@ -1,18 +1,20 @@
-import AtomSpace, { Head } from '../src/AtomSpace'
-import Commit from '../src/Committer'
+import AtomSpace from '../src/AtomSpace'
+import Committer from '../src/Committer'
 import _Monoid from '../src/_Monoid'
 import { delay } from '../src/util'
 import { AtomRef, Atom } from '../src/atoms'
-import { List, Set } from 'immutable'
+import { List } from 'immutable'
 import { Subject } from 'rxjs'
 import { Signal } from './MachineSpace'
+import Head from './Head'
 
 const atoms = <V>(rs: List<AtomRef<V>>) => rs.flatMap(r => r.resolve()).toArray()
 
 describe('committable', () => {
 	let kill$ = new Subject<Signal>();
 	let space: AtomSpace<number>
-	const newCommit = (h: Head<number>) => new Commit(new MonoidNumber(), h);  
+	const newHead = () => new Head<number>(new Subject(), List());
+	const newCommit = (h: Head<number>) => new Committer(new MonoidNumber(), h);  
 
 	beforeEach(() => {
 		space = new AtomSpace(kill$);
@@ -23,7 +25,7 @@ describe('committable', () => {
 	})
 
 	it('commits singly', async () => {
-		const head = space.head();
+		const head = newHead();
 		const commit = newCommit(head);
 		expect(atoms(head.refs())).toEqual([]);
 
@@ -34,16 +36,16 @@ describe('committable', () => {
 	})
 
 	it('commits trebly', async () => {
-		const h1 = space.head();
+		const h1 = newHead();
 		const c1 = newCommit(h1);
 
-		const h2 = space.head();
+		const h2 = newHead();
 		const c2 = newCommit(h2);
 
-		const h3 = space.head();
+		const h3 = newHead();
 		const c3 = newCommit(h3);
 
-		Commit.combine(new MonoidNumber(), [c1, c2, c3]);
+		Committer.combine(new MonoidNumber(), [c1, c2, c3]);
 		
 		const committing1 = c1.complete(3);
 		await delay(15);
@@ -63,13 +65,13 @@ describe('committable', () => {
 	})
 
 	it('commits twice in one swoop', async () => {
-		const h1 = space.head();
+		const h1 = newHead();
 		const c1 = newCommit(h1);
 
-		const h2 = space.head();
+		const h2 = newHead();
 		const c2 = newCommit(h2);
 
-		Commit.combine(new MonoidNumber(), [c1, c2]);
+		Committer.combine(new MonoidNumber(), [c1, c2]);
 
 		const p1 = c1.complete(1);
 		const p2 = c2.complete(2);
@@ -79,13 +81,13 @@ describe('committable', () => {
 	})
 
 	it('completes after all commit', async () => {
-		const h1 = space.head();
+		const h1 = newHead();
 		const c1 = newCommit(h1);
 
-		const h2 = space.head();
+		const h2 = newHead();
 		const c2 = newCommit(h2);
 
-		Commit.combine(new MonoidNumber(), [c1, c2]);
+		Committer.combine(new MonoidNumber(), [c1, c2]);
 
 		let commited1 = false;
 		const committing1 = c1.complete(3);
@@ -98,13 +100,13 @@ describe('committable', () => {
 	})
 
 	it('atoms returned from commits', async () => {
-		const h1 = space.head();
+		const h1 = newHead();
 		const c1 = newCommit(h1);
 
-		const h2 = space.head();
+		const h2 = newHead();
 		const c2 = newCommit(h2);
 
-		Commit.combine(new MonoidNumber(), [c1, c2]);
+		Committer.combine(new MonoidNumber(), [c1, c2]);
 		const [a1, a2] = await Promise.all([
 			c1.complete(3),
 			c2.complete(5),
@@ -119,15 +121,15 @@ describe('committable', () => {
 	})
 
 	it('multiple recombinations', async () => {
-		const h1 = space.head();
+		const h1 = newHead();
 		const c1 = newCommit(h1);
 
-		const h2 = space.head();
+		const h2 = newHead();
 		const c2 = newCommit(h2);
 
-		Commit.combine(new MonoidNumber(), [c1, c2]);
-		Commit.combine(new MonoidNumber(), [c1, c2]);
-		Commit.combine(new MonoidNumber(), [c1, c2]);
+		Committer.combine(new MonoidNumber(), [c1, c2]);
+		Committer.combine(new MonoidNumber(), [c1, c2]);
+		Committer.combine(new MonoidNumber(), [c1, c2]);
 
 		const [a1, a2] = await Promise.all([
 			c1.complete(3),
@@ -139,7 +141,7 @@ describe('committable', () => {
 	})
 
 	it('accepts extra upstreams', async () => {
-		const h = space.head();
+		const h = newHead();
 		const c1 = newCommit(h);
 
 		const u1 = new Atom(List(), 3);
@@ -163,11 +165,11 @@ describe('committable', () => {
 	})
 
 	it('upstreams are simplified on addition', async () => {
-		const h1 = space.head();
+		const h1 = newHead();
 		h1.write(0);
 		const c = newCommit(h1);
 
-		const h2 = space.head();
+		const h2 = newHead();
 		h2.write(1);
 		c.add(h2.refs());
 
@@ -192,9 +194,9 @@ describe('committable', () => {
 	it('abort releases, causing others to error', async () => {
 		expect.assertions(2);
 
-		const h1 = space.head();
-		const h2 = space.head();
-		const h3 = space.head();
+		const h1 = newHead();
+		const h2 = newHead();
+		const h3 = newHead();
 
 		h1.write(1);
 		h2.write(2);
@@ -204,7 +206,7 @@ describe('committable', () => {
 		const c2 = newCommit(h2);
 		const c3 = newCommit(h3);
 
-		Commit.combine(new MonoidNumber(), [c1, c2, c3]);
+		Committer.combine(new MonoidNumber(), [c1, c2, c3]);
 
 		const p1 = c1.complete(1).catch(e => {
 			expect(e).toEqual('Commit aborted!')

@@ -1,12 +1,12 @@
 import _Monoid from './_Monoid'
-import { Head } from'./AtomSpace'
-import { AtomRef } from './atoms'
+import { AtomRef, Atom } from './atoms'
 import { Set, List } from 'immutable'
+import Head from './Head';
 
 export const $Commit = Symbol('Commit');
 export type AtomEmit<V> = readonly [typeof $Commit, AtomRef<V>]
 
-export default class Commit<V> {
+export default class Committer<V> {
   private readonly head: Head<V>
   private inner: Inner<V>
 
@@ -19,8 +19,6 @@ export default class Commit<V> {
     this.head.addUpstreams(rs.toSet());
   }
 
-  //and abandon?
-
   async complete(v: V): Promise<AtomRef<V>> {
     const ref = await this.inner.complete(this, this.head, v);
     this.head.move(ref);
@@ -31,7 +29,7 @@ export default class Commit<V> {
     this.inner.abort();
   }
 
-  static combine<V>(mv: _Monoid<V>, cs: Commit<V>[]) {
+  static combine<V>(mv: _Monoid<V>, cs: Committer<V>[]) {
     const mi = new MonoidInner(mv);
 
     const newInner = cs.reduce(
@@ -50,13 +48,14 @@ class Inner<V> {
   private readonly mv: _Monoid<V>
   readonly waiters: ((r?: AtomRef<V>) => void)[] = []
 
+	private ref: AtomRef<V>|undefined
+
   value: V
-	ref: AtomRef<V>|undefined
-  todo: Set<Commit<V>>
+  todo: Set<Committer<V>>
   heads: Set<Head<V>>
   state: State
   
-  constructor(mv: _Monoid<V>, todo: Set<Commit<V>>, heads?: Set<Head<V>>, state?: State) {
+  constructor(mv: _Monoid<V>, todo: Set<Committer<V>>, heads?: Set<Head<V>>, state?: State) {
     this.mv = mv;
     this.todo = todo;
     this.heads = heads || Set();
@@ -64,7 +63,7 @@ class Inner<V> {
     this.state = state || 'doing';
   }
   
-  complete(commit: Commit<V>, head: Head<V>, v: V): Promise<AtomRef<V>> {
+  complete(commit: Committer<V>, head: Head<V>, v: V): Promise<AtomRef<V>> {
     this.todo = this.todo.delete(commit);
     this.heads = this.heads.add(head);
     this.value = this.mv.add(this.value, v);
@@ -77,13 +76,21 @@ class Inner<V> {
 			case 'doing':
 				if(this.todo.isEmpty()) {     
 					//TODO below needs to add weights
-					this.ref = head.space.newAtom(
+          const ref = new Atom<V>(
 						this.heads.flatMap(h => h.refs()).toList(),
-						this.value);
+						this.value
+          ).asRef();
 
-					this.waiters.forEach(fn => fn(this.ref));
+          this.heads
+            .map(h => h.sink)
+            .forEach(s => s.next([1, ref])); //TODO add weights here!!!
+
+					this.waiters.forEach(fn => fn(ref));
+
 					this.state = 'done';
-					return Promise.resolve(this.ref);
+          this.ref = ref;
+          
+					return Promise.resolve(ref);
 				}
 				else {
 					return new Promise((resolve, reject) => {

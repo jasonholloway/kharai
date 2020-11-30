@@ -10,6 +10,7 @@ import { Signal } from '../src/MachineSpace'
 import { concatMap, tap } from 'rxjs/operators'
 import { tracePath } from '../src/AtomPath'
 import { viewAtoms } from './shared'
+import Head from './Head'
 const log = (...args: any[]) => console.log(...args);
 
 const MU: _Monoid<undefined> = {
@@ -31,6 +32,8 @@ const MMax: _Monoid<number> = {
   }
 }
 
+const newHead = () => new Head<string>(new Subject(), List());
+
 describe('atoms and stuff', () => {
 
 	let store: FakeStore
@@ -48,12 +51,12 @@ describe('atoms and stuff', () => {
 	})
 
 	it('pristine head has no atom', () => {
-		const head = space.head();
+		const head = newHead();
 		expect(head.refs().toArray()).toEqual([]);
 	})
 
 	it('writing creates atom', () => {
-		const head = space.head();
+		const head = newHead();
 		head.write('1');
 
 		const [atom] = viewAtoms(head.refs())
@@ -63,7 +66,7 @@ describe('atoms and stuff', () => {
 	})
 
 	it('writing several times appends many atoms', async () => {
-		const head = space.head();
+		const head = newHead();
 		head.write('1')
 		head.write('2')
 		head.write('3');
@@ -81,7 +84,7 @@ describe('atoms and stuff', () => {
 	})
 
 	it('like-for-like rewrite', async () => {
-		const head = space.head();
+		const head = newHead();
 		head.write('1');
 		head.write('2');
 		head.write('3');
@@ -101,7 +104,7 @@ describe('atoms and stuff', () => {
 	})
 
 	it('two heads rewrite', async () => {
-		const head1 = space.head();
+		const head1 = newHead();
 		head1.write('1:1');
 
 		const head2 = head1.fork();
@@ -181,7 +184,7 @@ describe('atoms and stuff', () => {
 	})
 	
 	it('locking', async () => {
-		const head1 = space.head();
+		const head1 = newHead();
 		head1.write('1:1');
 
 		const head2 = head1.fork();
@@ -203,7 +206,7 @@ describe('atoms and stuff', () => {
 	})
 
 	it('path -> patch -> path lock', async () => {
-		const head1 = space.head();
+		const head1 = newHead();
 		head1.write('1:1');
 
 		const head2 = head1.fork();
@@ -233,7 +236,7 @@ describe('atoms and stuff', () => {
 	})
 
 	it('saving simple combination', async () => {
-		const head = space.head();
+		const head = newHead();
 		head.write('1');
 		head.write('2');
 		head.write('3');
@@ -244,7 +247,7 @@ describe('atoms and stuff', () => {
 	});
 
 	it('saving in multiple transactions', async () => {
-		const head = space.head();
+		const head = newHead();
 		head.write('1');
 		head.write('2');
 		head.write('3');
@@ -258,7 +261,7 @@ describe('atoms and stuff', () => {
 	});
 
 	it('locking tips gets latest roots', async () => {
-		const head = space.head();
+		const head = newHead();
 		head.write('0');
 
 		const refs = head.refs();
@@ -294,7 +297,7 @@ describe('atoms and stuff', () => {
 	it('atoms emitted by space on write', async () => {
 		const gathering = gather(space.atom$);
 		
-		const head = space.head();
+		const head = newHead();
 		head.write('1');
 		head.write('2');
 		head.write('3');
@@ -310,7 +313,7 @@ describe('atoms and stuff', () => {
 
 		it('with lock held', async () => {
 
-			const h1 = space.head();
+			const h1 = newHead();
 			h1.write('a');
 			h1.write('b');
 
@@ -355,7 +358,7 @@ describe('atoms and stuff', () => {
 
 		it('with lock released', async () => {
 
-			const h1 = space.head();
+			const h1 = newHead();
 			h1.write('a');
 			h1.write('b');
 
@@ -401,7 +404,7 @@ describe('atoms and stuff', () => {
 
 		it('rewrite only touches locked path', async () => {
 
-			const h1 = space.head();
+			const h1 = newHead();
 			h1.write('a');
 			h1.write('b');
 
@@ -462,7 +465,7 @@ describe('atoms and stuff', () => {
 
 		
 		it('writing gathers weight', async () => {
-			const h1 = space.head();
+			const h1 = newHead();
 			h1.write('a', 2);
 			h1.write('b', 3);
 
@@ -530,7 +533,7 @@ describe('atoms and stuff', () => {
 				})
 			).subscribe();
 			
-			const h1 = space.head();
+			const h1 = newHead();
 			h1.write('a');
 			h1.write('b');
 			h1.write('c');

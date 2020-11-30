@@ -7,43 +7,34 @@ import { AtomRef, Atom, AtomLike } from '../src/atoms'
 import { isString, isArray } from 'util'
 import { AtomEmit, $Commit } from '../src/Committer'
 import { gather } from './helpers'
-import { Emit } from '../src/MachineSpace'
+import { Emit, Loader } from '../src/MachineSpace'
 import AtomSaver from '../src/AtomSaver'
 import MonoidData from '../src/MonoidData'
-import { Run, LoaderFac } from '../src/Run'
+import { Run } from '../src/Run'
 import FakeStore from './FakeStore'
 import { tracePath, renderAtoms } from '../src/AtomPath'
-import { Head } from './AtomSpace'
+import { atomPipeline } from './AtomSpace'
+
+const MD = new MonoidData();
 
 export function scenario<W extends PhaseMap, X extends MachineContext, P = Phase<W>>(world: WorldImpl<W, X> & ContextImpl<X>) {
   return (opts?: { phases?: Map<Id, P>, batchSize?: number, threshold?: number, runSaver?: boolean }) => {
 
-    const M = new MonoidData();
+    const store = new FakeStore(MD, opts?.batchSize || 4);
 
-    const store = new FakeStore(M, opts?.batchSize || 4);
+    const loader: Loader<P> =
+      ids => Promise.resolve(
+        ids
+          .reduce<Map<Id, P>>((ac, id) => {
+            const found = opts?.phases?.get(id);
+            const p = found || <P><unknown>(['$boot', []]);
+            return ac.set(id, p);
+          }, Map()));
 
-    const loaderFac: LoaderFac<P> =
-      atoms => ids =>
-        Promise.resolve(
-          ids
-            .reduce<Map<Id, [Head<Data>, P]>>((ac, id) => {
-              const found = opts?.phases?.get(id);
-              const p = found || <P><unknown>(['$boot', []]);
-
-              const h = atoms.head();
-
-              if(found) {
-                h.write(Map({
-                  [isArray(id) ? id[0] : id]: p
-                }));
-              }
-
-              return ac.set(id, [h, p]);
-            }, Map()));
-
-    const run = new Run<W, X, P>(world, loaderFac);
+    const run = new Run<W, X, P>(world, loader);
 
     const atomSub = new BehaviorSubject<Map<string, AtomRef<Data>[]>>(Map()); 
+
     run.machine$.pipe(
       groupBy(m => m.id),
       flatMap(m$ => m$.pipe(
@@ -56,7 +47,9 @@ export function scenario<W extends PhaseMap, X extends MachineContext, P = Phase
       shareReplay(1),
     ).subscribe(atomSub);
 
-    const saver = new AtomSaver(M, run.atoms);
+    atomPipeline
+
+    const saver = new AtomSaver(MD, run.atoms);
 
 		const threshold$ = concat(
 			of(opts?.threshold || 3),
@@ -173,5 +166,4 @@ class AtomView<V> {
   print() {
     return renderAtoms(List([this._atom]))
   }
-
 }

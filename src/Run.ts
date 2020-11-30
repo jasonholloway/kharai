@@ -5,27 +5,23 @@ import { flatMap, startWith, mergeAll, endWith, scan, takeWhile, finalize, map, 
 import { Set } from 'immutable'
 import { MachineSpace, Emit, Loader, Signal, Machine } from './MachineSpace'
 import { buildDispatch, Dispatch } from './dispatch'
-import AtomSpace from './AtomSpace'
+import { atomPipeline } from './AtomSpace'
 const log = console.log;
-
-export type LoaderFac<P> = (s: AtomSpace<Data>) => Loader<P>
 
 export class Run<W extends PhaseMap, X, P = Phase<W>> {
   readonly mediator: Mediator
-	readonly atoms: AtomSpace<Data>
   readonly space: MachineSpace<W, X, P>
-	readonly loader: Loader<P>
 	readonly signal$: Subject<Signal>
 
 	readonly machine$: Observable<Machine<P>>
   readonly log$: Observable<Emit<P>>
 
-  constructor(world: WorldImpl<W, X> & ContextImpl<X>, loaderFac: LoaderFac<P>) {
+  constructor(world: WorldImpl<W, X> & ContextImpl<X>, loader: Loader<P>) {
 		this.signal$ = new ReplaySubject<Signal>(1);
     this.mediator = new Mediator(this.signal$);		
-		this.atoms = new AtomSpace(this.signal$);
-		this.loader = loaderFac(this.atoms);
-    this.space = new MachineSpace(world, this.loader, <Dispatch<X, P>><unknown>buildDispatch(world.phases), this.mediator, this.signal$);
+    this.space = new MachineSpace(world, loader, <Dispatch<X, P>><unknown>buildDispatch(world.phases), this.mediator, this.signal$);
+
+		const ap = atomPipeline(this.space.commit$, this.signal$);
 
 		this.machine$ = this.space.machine$;
     this.log$ = this.machine$

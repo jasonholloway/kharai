@@ -1,9 +1,10 @@
-import { Run, LoaderFac } from "./Run";
+import { Run } from "./Run";
 import { Phase } from "./lib";
+import { Loader } from "./MachineSpace";
 
 export {
 	Run,
-	LoaderFac,
+	Loader,
 	Phase
 };
 
