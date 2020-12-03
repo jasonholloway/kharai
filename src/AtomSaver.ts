@@ -4,6 +4,7 @@ import Store from './Store'
 import { Set, List } from 'immutable'
 import { inspect } from 'util'
 import { AtomRef } from './atoms'
+import { renderAtoms } from './AtomPath'
 
 inspect.defaultOptions.depth = 10;
 const log = (...r: any[]) => console.dir(...r);
@@ -93,7 +94,7 @@ export default class AtomSaver<V> {
 
 			// space.incStaged(weight);
 			
-			// renderAtoms(path.tips)
+			renderAtoms(path.tips)
 			// log(tracePath(path.tips))
 		}
 		finally {

@@ -2,7 +2,6 @@ import _Monoid from '../src/_Monoid'
 import { scenario } from './shared'
 import { rodents } from './worlds/rodents'
 import { Map, Set, List } from 'immutable'
-import { delay } from '../src/util';
 const log = console.log;
 
 describe('machines - saving', () => {
@@ -61,8 +60,6 @@ describe('machines - saving', () => {
 			x.run.log$.toPromise()
 		]);
 
-		// await delay(400)
-
 		const baz = x.view('baz');
 		const loz = x.view('loz');
 
@@ -120,7 +117,7 @@ describe('machines - saving', () => {
 	})
 	
 	it('big enough batch, heads resolve to same atom', async () => {
-		x = fac({ batchSize: 24, threshold: 6 });
+		x = fac({ batchSize: 24, threshold: 3 });
 
 		await Promise.all([
 			x.run.boot('a', ['gerbil', ['spawn', [0, 2]]]),
@@ -134,7 +131,7 @@ describe('machines - saving', () => {
 		const atoms = Set([a, aa, ab])
 		  .map(v => v.unpack());
 
-		expect(atoms).toHaveLength(1);
+		expect(atoms.toArray()).toHaveLength(1);
 
 		const [atom] = atoms;
 
