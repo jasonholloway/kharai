@@ -1,73 +1,157 @@
 import { Id, PhaseMap, Phase, WorldImpl, Data, ContextImpl } from './lib'
 import { Mediator, Convener } from './Mediator'
-import { Observable, Subject, ReplaySubject } from 'rxjs'
-import { flatMap, startWith, mergeAll, endWith, scan, takeWhile, finalize, map, toArray, ignoreElements } from 'rxjs/operators'
+import { Observable, Subject, ReplaySubject, of, concat } from 'rxjs'
+import { flatMap, startWith, mergeAll, endWith, scan, takeWhile, finalize, map, toArray, ignoreElements, concatMap, filter, takeUntil, shareReplay } from 'rxjs/operators'
 import { Set } from 'immutable'
 import { MachineSpace, Emit, Loader, Signal, Machine } from './MachineSpace'
 import { buildDispatch, Dispatch } from './dispatch'
-import { atomPipeline } from './AtomSpace'
+import { runSaver } from './AtomSpace'
+import MonoidData from './MonoidData'
+import Store from './Store'
+
 const log = console.log;
+const MD = new MonoidData();
+const gather = <V>(v$: Observable<V>) => v$.pipe(toArray()).toPromise();
 
-export class Run<W extends PhaseMap, X, P = Phase<W>> {
-  readonly mediator: Mediator
-  readonly space: MachineSpace<W, X, P>
-	readonly signal$: Subject<Signal>
+export function newRun<W extends PhaseMap, X, P = Phase<W>>(
+	world: WorldImpl<W, X> & ContextImpl<X>,
+	loader: Loader<P>,
+	opts?: { threshold?: number, store?: Store<Data> }
+) {
+	const signal$ = new ReplaySubject<Signal>(1);
+	const kill$ = signal$.pipe(filter(s => s.stop), shareReplay(1));
+	const complete = () => signal$.next({ stop: true });
+	const store = opts?.store;
 
-	readonly machine$: Observable<Machine<P>>
-  readonly log$: Observable<Emit<P>>
+	const mediator = new Mediator(signal$);
+	const space = new MachineSpace(world, loader, <Dispatch<X, P>><unknown>buildDispatch(world.phases), mediator, signal$)
 
-  constructor(world: WorldImpl<W, X> & ContextImpl<X>, loader: Loader<P>) {
-		this.signal$ = new ReplaySubject<Signal>(1);
-    this.mediator = new Mediator(this.signal$);		
-    this.space = new MachineSpace(world, loader, <Dispatch<X, P>><unknown>buildDispatch(world.phases), this.mediator, this.signal$);
+	if(store) {
+		const threshold$ = concat(
+			of(opts?.threshold ?? 5),
+			kill$.pipe(map(_ => 0))
+		).pipe(shareReplay(1));
 
-		const ap = atomPipeline(this.space.commit$, this.signal$);
-
-		this.machine$ = this.space.machine$;
-    this.log$ = this.machine$
-			.pipe(map(m => m.log$), mergeAll());
-
-		const count$ = this.space.machine$.pipe(
-			flatMap(m => m.log$.pipe(
-				ignoreElements(),
-				startWith<number>(1),
-			  endWith<number>(-1),
-				)),
-			scan((c, n) => c + n, 0));
-
-		count$.pipe(
-			takeWhile(c => c > 0),
-			finalize(() => this.complete())
+		space.commit$.pipe(
+			runSaver(signal$, threshold$, MD),
+			concatMap(fn => fn(store)),
+			takeUntil(kill$)
 		).subscribe();
-  }
-
-	complete() {
-		this.signal$.next({ stop: true });
 	}
+	else {
+		space.commit$.pipe(
+			takeUntil(kill$)
+		).subscribe();
+	}
+	
 
-  async meet<R = any>(ids: Id[], convener: Convener<R>): Promise<R> {
-		const machines = await gather(
-			this.space.summon(Set(ids))
-		);
+	const machine$ = space.machine$;
+	const log$ = machine$
+		.pipe(map(m => m.log$), mergeAll());
 
-    return await this.mediator
-      .convene(convener, Set(machines));
-  }
+	const count$ = machine$.pipe(
+		flatMap(m => m.log$.pipe(
+			ignoreElements(),
+			startWith<number>(1),
+			endWith<number>(-1),
+			)),
+		scan((c, n) => c + n, 0));
 
-  tell(id: Id, m: any) {
-    return this.meet([id], {
-			convene([p]) {
-				return p.chat([m])
-			}
-		});
-  }
+	count$.pipe(
+		takeWhile(c => c > 0),
+		finalize(() => complete())
+	).subscribe();
 
-  boot(id: Id, p: Phase<W>) {
-    return this.tell(id, p);
-  }
+	return {
+		machine$,
+		log$,
+		complete,
+
+		async meet<R = any>(ids: Id[], convener: Convener<R>): Promise<R> {
+			const machines = await gather(
+				space.summon(Set(ids))
+			);
+
+			return await mediator
+				.convene(convener, Set(machines));
+		},
+
+		tell(id: Id, m: any) {
+			return this.meet([id], {
+				convene([p]) {
+					return p.chat([m])
+				}
+			});
+		},
+
+		boot(id: Id, p: Phase<W>) {
+			return this.tell(id, p);
+		}
+	};
 }
 
-function gather<V>(v$: Observable<V>): Promise<V[]> {
-	return v$.pipe(toArray()).toPromise();
-}
+
+
+
+// export class Run<W extends PhaseMap, X, P = Phase<W>> {
+//   readonly mediator: Mediator
+//   readonly space: MachineSpace<W, X, P>
+// 	readonly signal$: Subject<Signal>
+
+// 	readonly machine$: Observable<Machine<P>>
+//   readonly log$: Observable<Emit<P>>
+
+//   constructor(world: WorldImpl<W, X> & ContextImpl<X>, loader: Loader<P>, store: Store<Data>) {
+// 		this.signal$ = new ReplaySubject<Signal>(1);
+//     this.mediator = new Mediator(this.signal$);		
+//     this.space = new MachineSpace(world, loader, <Dispatch<X, P>><unknown>buildDispatch(world.phases), this.mediator, this.signal$);
+
+// 		const saveSub = this.space.commit$.pipe(
+// 			prepareSaves(this.signal$, MD),
+// 			concatMap(fn => fn(store))
+//     ).subscribe();
+
+// 		this.machine$ = this.space.machine$;
+//     this.log$ = this.machine$
+// 			.pipe(map(m => m.log$), mergeAll());
+
+// 		const count$ = this.space.machine$.pipe(
+// 			flatMap(m => m.log$.pipe(
+// 				ignoreElements(),
+// 				startWith<number>(1),
+// 			  endWith<number>(-1),
+// 				)),
+// 			scan((c, n) => c + n, 0));
+
+// 		count$.pipe(
+// 			takeWhile(c => c > 0),
+// 			finalize(() => this.complete())
+// 		).subscribe();
+//   }
+
+// 	complete() {
+// 		this.signal$.next({ stop: true });
+// 	}
+
+//   async meet<R = any>(ids: Id[], convener: Convener<R>): Promise<R> {
+// 		const machines = await gather(
+// 			this.space.summon(Set(ids))
+// 		);
+
+//     return await this.mediator
+//       .convene(convener, Set(machines));
+//   }
+
+//   tell(id: Id, m: any) {
+//     return this.meet([id], {
+// 			convene([p]) {
+// 				return p.chat([m])
+// 			}
+// 		});
+//   }
+
+//   boot(id: Id, p: Phase<W>) {
+//     return this.tell(id, p);
+//   }
+// }
 

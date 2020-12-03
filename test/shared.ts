@@ -1,19 +1,17 @@
 import { Map, Set, List } from 'immutable'
 import _Monoid from '../src/_Monoid'
 import { Id, Data, MachineContext, Phase, PhaseMap, WorldImpl, ContextImpl } from '../src/lib'
-import { OperatorFunction, concat, of, combineLatest, BehaviorSubject } from 'rxjs'
-import { flatMap, filter, map, first, concatMap, takeWhile, expand, shareReplay, scan, groupBy } from 'rxjs/operators'
+import { OperatorFunction, BehaviorSubject } from 'rxjs'
+import { flatMap, shareReplay, scan, groupBy } from 'rxjs/operators'
 import { AtomRef, Atom, AtomLike } from '../src/atoms'
 import { isString, isArray } from 'util'
 import { AtomEmit, $Commit } from '../src/Committer'
 import { gather } from './helpers'
 import { Emit, Loader } from '../src/MachineSpace'
-import AtomSaver from '../src/AtomSaver'
 import MonoidData from '../src/MonoidData'
-import { Run } from '../src/Run'
+import { newRun } from '../src/Run'
 import FakeStore from './FakeStore'
 import { tracePath, renderAtoms } from '../src/AtomPath'
-import { atomPipeline } from './AtomSpace'
 
 const MD = new MonoidData();
 
@@ -31,7 +29,8 @@ export function scenario<W extends PhaseMap, X extends MachineContext, P = Phase
             return ac.set(id, p);
           }, Map()));
 
-    const run = new Run<W, X, P>(world, loader);
+    const run = newRun<W, X, P>(world, loader, store, opts);
+
 
     const atomSub = new BehaviorSubject<Map<string, AtomRef<Data>[]>>(Map()); 
 
@@ -47,44 +46,11 @@ export function scenario<W extends PhaseMap, X extends MachineContext, P = Phase
       shareReplay(1),
     ).subscribe(atomSub);
 
-    atomPipeline
-
-    const saver = new AtomSaver(MD, run.atoms);
-
-		const threshold$ = concat(
-			of(opts?.threshold || 3),
-			run.signal$.pipe(
-				filter(s => s.stop),
-				map(() => 0),
-				first()
-			));
-
-    if(!(opts?.runSaver === false)) {
-      combineLatest(
-        run.atoms.state$,
-        threshold$
-      ).pipe(
-        concatMap(([s,t]) =>
-          of(s.weights.pending()).pipe(
-            takeWhile(p => p > t),
-            expand(async p => {
-              const w = await saver.save(store, s.heads);
-              return p - w;
-            }),
-            takeWhile(p => p > t)
-          ))
-      ).subscribe()
-    }
 
     return {
       store,
-      saver,
       run,
-
-      logs() {
-        return gather(run.log$
-          .pipe(phasesOnly()))
-      },
+      logs: () => gather(run.log$.pipe(phasesOnly())),
 
       view(id: Id) {
         return viewAtoms(List(atomSub.getValue()?.get(id) || []));

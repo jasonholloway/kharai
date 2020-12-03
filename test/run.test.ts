@@ -1,6 +1,6 @@
 import { Map } from 'immutable'
 import { rodents, Rodents } from "./worlds/rodents";
-import { Run } from "../src/Run";
+import { newRun } from "../src/Run";
 import { Phase, MachineContext, Id } from "../src/lib";
 import { Loader } from './MachineSpace';
 const log = console.log;
@@ -16,7 +16,7 @@ describe('running', () => {
 					(ac, id) => ac.set(id, ['$boot', []]),
 					Map()));
 
-    const run = new Run<Rodents, MachineContext>(world, loader);
+    const run = newRun<Rodents, MachineContext>(world, loader);
 
 		await Promise.all([
 			run.boot('a', ['gerbil', ['spawn', [0, 3]]]),
