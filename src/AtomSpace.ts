@@ -4,10 +4,12 @@ import { Atom, AtomRef } from './atoms'
 import AtomPath from './AtomPath'
 import { Observable, of, combineLatest, EMPTY } from 'rxjs';
 import _Monoid from './_Monoid';
-import { filter, shareReplay, map, expand, mergeScan, takeUntil, share, concatMap } from 'rxjs/operators';
+import { filter, shareReplay, map, expand, mergeScan, takeUntil, share, concatMap, tap, finalize } from 'rxjs/operators';
 import { Signal } from './MachineSpace';
 import AtomSaver from './AtomSaver';
 import Store from './Store';
+
+const log = console.log;
 
 export type Weight = number;
 export type Threshold = number
@@ -58,11 +60,15 @@ export const runSaver = <V>(signal$: Observable<Signal>, threshold$: Observable<
       mergeScan(([ac]: Tup, l) =>
         combineLatest(of(ML.add(ac, l)), threshold$)
         .pipe(
+          tap(x => log('in', x)),
           expand(([[w, rs], t]) =>
             (w < t)
               ? EMPTY
-              : new Observable<Tup>(sub =>
-                  sub.next([
+            : new Observable<Tup>(sub => {
+
+                  log('subbed')
+              
+                  return sub.next([
                     [w, rs], t,
                     async store => {
                       try {
@@ -73,10 +79,13 @@ export const runSaver = <V>(signal$: Observable<Signal>, threshold$: Observable<
                       catch(e) {
                         sub.error(e);
                       }
-                    }]))
+                    }])
+                })
             ),
+          finalize(() => log('FIN.')),
         ),
         [ML.zero, 0], 1),
+      tap(x => log('out', x)),
       concatMap(([,,fn]) => fn ? [fn] : []),
       share(),
       takeUntil(kill$)

@@ -2,7 +2,6 @@ import _Monoid from '../src/_Monoid'
 import { scenario } from './shared'
 import { rodents } from './worlds/rodents'
 import { Map, Set, List } from 'immutable'
-import { first } from 'rxjs/operators';
 import { delay } from '../src/util';
 const log = console.log;
 
@@ -61,6 +60,8 @@ describe('machines - saving', () => {
 			x.run.boot('loz', ['guineaPig', ['gruntAt', ['baz']]]),
 			x.run.log$.toPromise()
 		]);
+
+		// await delay(400)
 
 		const baz = x.view('baz');
 		const loz = x.view('loz');
@@ -126,20 +127,21 @@ describe('machines - saving', () => {
 			x.run.log$.toPromise()
 		]);
 
-		const {heads} = await x.run.atoms.state$
-			.pipe(first()).toPromise();
+		const [a] = x.view('a');
+		const [aa] = x.view('aa');
+		const [ab] = x.view('ab');
 
-		const atoms = Set(heads)
-			.flatMap(h => h.refs())
-			.flatMap(r => r.resolve())
-			.toArray();
+		const atoms = Set([a, aa, ab])
+		  .map(v => v.unpack());
 
 		expect(atoms).toHaveLength(1);
 
-		expect(Map(atoms[0].val).keySeq().toSet())
+		const [atom] = atoms;
+
+		expect(Map(atom.val).keySeq().toSet())
 			.toStrictEqual(Set(['a', 'aa', 'ab']));
 
-		expect(atoms[0]).toHaveProperty('weight', 3);
+		expect(atom).toHaveProperty('weight', 3);
 	})
 
 	xit('further saving', async () => {

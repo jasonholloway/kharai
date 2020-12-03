@@ -1,7 +1,7 @@
 import { Id, PhaseMap, Phase, WorldImpl, Data, ContextImpl } from './lib'
 import { Mediator, Convener } from './Mediator'
 import { Observable, Subject, ReplaySubject, of, concat } from 'rxjs'
-import { flatMap, startWith, mergeAll, endWith, scan, takeWhile, finalize, map, toArray, ignoreElements, concatMap, filter, takeUntil, shareReplay } from 'rxjs/operators'
+import { flatMap, startWith, mergeAll, endWith, scan, takeWhile, finalize, map, toArray, ignoreElements, concatMap, filter, takeUntil, shareReplay, tap } from 'rxjs/operators'
 import { Set } from 'immutable'
 import { MachineSpace, Emit, Loader, Signal, Machine } from './MachineSpace'
 import { buildDispatch, Dispatch } from './dispatch'
@@ -28,7 +28,7 @@ export function newRun<W extends PhaseMap, X, P = Phase<W>>(
 
 	if(store) {
 		const threshold$ = concat(
-			of(opts?.threshold ?? 5),
+			of(opts?.threshold ?? 3),
 			kill$.pipe(map(_ => 0))
 		).pipe(shareReplay(1));
 
