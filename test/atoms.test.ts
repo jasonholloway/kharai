@@ -5,12 +5,12 @@ import Store from '../src/Store'
 import { Atom, AtomRef } from '../src/atoms'
 import AtomSpace from '../src/AtomSpace'
 import AtomSaver from '../src/AtomSaver'
-import { Subject } from 'rxjs'
+import { Subject, Observer } from 'rxjs'
 import { Signal } from '../src/MachineSpace'
-import { concatMap, tap } from 'rxjs/operators'
+import { concatMap, tap, map } from 'rxjs/operators'
 import { tracePath } from '../src/AtomPath'
 import { viewAtoms } from './shared'
-import Head from './Head'
+import Head from '../src/Head'
 const log = (...args: any[]) => console.log(...args);
 
 const MU: _Monoid<undefined> = {
@@ -32,7 +32,7 @@ const MMax: _Monoid<number> = {
   }
 }
 
-const newHead = () => new Head<string>(new Subject(), List());
+const newHead = (sink?: Observer<[number, AtomRef<string>]>) => new Head<string>(sink ?? new Subject(), List());
 
 describe('atoms and stuff', () => {
 
@@ -46,7 +46,7 @@ describe('atoms and stuff', () => {
 		kill = () => killSub.next({ stop: true });
 		
 		store = new FakeStore(MS, 3);
-		space = new AtomSpace(killSub);
+		space = new AtomSpace();
 		saver = new AtomSaver(MS, space);
 	})
 
@@ -241,7 +241,7 @@ describe('atoms and stuff', () => {
 		head.write('2');
 		head.write('3');
 
-		await saver.save(store, List([head]));
+		await saver.save(store, head.refs());
 
 		expect(store.saved).toEqual(['123']);
 	});
@@ -254,8 +254,8 @@ describe('atoms and stuff', () => {
 		head.write('4');
 		head.write('5');
 
-		await saver.save(store, List([head]));
-		await saver.save(store, List([head]));
+		await saver.save(store, head.refs());
+		await saver.save(store, head.refs());
 
 		expect(store.saved).toEqual(['123', '45']);
 	});
@@ -292,21 +292,6 @@ describe('atoms and stuff', () => {
 		await delay(50);
 
 		expect(locked3).toBeTruthy();
-	});
-
-	it('atoms emitted by space on write', async () => {
-		const gathering = gather(space.atom$);
-		
-		const head = newHead();
-		head.write('1');
-		head.write('2');
-		head.write('3');
-
-		await delay(30);
-		kill();
-		const gathered = await gathering;
-
-		expect(gathered).toHaveLength(3);
 	});
 
 	describe('locking on top of taken', () => {
@@ -457,26 +442,6 @@ describe('atoms and stuff', () => {
 
 	})
 
-
-	describe('weights', () => {
-		it('space starts weightless', () => {
-			expect(space.weights().created).toBe(0);
-		});
-
-		
-		it('writing gathers weight', async () => {
-			const h1 = newHead();
-			h1.write('a', 2);
-			h1.write('b', 3);
-
-			const h2 = h1.fork();
-			h2.write('c', 4);
-			h1.write('d', 5);
-
-			expect(space.weights().created).toBe(14);
-		});
-	})
-
 	const M1: _Monoid<1> = {
 		zero: 1,
 		add: () => 1
@@ -485,8 +450,10 @@ describe('atoms and stuff', () => {
 	describe('rewriting', () => {
 		it('can rewrite', async () => {
 			const c = [0, 0, 0];
+			const sink$ = new Subject<[number, AtomRef<string>]>()
+			const atom$ = sink$.pipe(map(([,r]) => r));
 
-			space.atom$.pipe(
+			atom$.pipe(
 				concatMap(r => space.lockPath(r)),
 				tap(path => {
 					try {
@@ -501,7 +468,7 @@ describe('atoms and stuff', () => {
 				})
 			).subscribe();
 
-			space.atom$.pipe(
+			atom$.pipe(
 				concatMap(r => space.lockPath(r)),
 				tap(path => {
 					try {
@@ -516,7 +483,7 @@ describe('atoms and stuff', () => {
 				})
 			).subscribe();
 
-			space.atom$.pipe(
+			atom$.pipe(
 				concatMap(r => space.lockPath(r)),
 				tap(path => {
 					try {
@@ -533,7 +500,7 @@ describe('atoms and stuff', () => {
 				})
 			).subscribe();
 			
-			const h1 = newHead();
+			const h1 = newHead(sink$);
 			h1.write('a');
 			h1.write('b');
 			h1.write('c');

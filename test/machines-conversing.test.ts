@@ -7,7 +7,7 @@ describe('machines - conversing', () => {
 	const fac = scenario(parakeet);
 
 	it('atom dependencies tracked', async () => {
-		const x = fac({ runSaver: false });
+		const x = fac({ save: false });
 
 		await Promise.all([
 			x.run.boot('Polly', ['listen', []]),

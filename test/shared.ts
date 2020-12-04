@@ -2,7 +2,7 @@ import { Map, Set, List } from 'immutable'
 import _Monoid from '../src/_Monoid'
 import { Id, Data, MachineContext, Phase, PhaseMap, WorldImpl, ContextImpl } from '../src/lib'
 import { OperatorFunction, BehaviorSubject } from 'rxjs'
-import { flatMap, shareReplay, scan, groupBy } from 'rxjs/operators'
+import { flatMap, shareReplay, scan, groupBy, tap } from 'rxjs/operators'
 import { AtomRef, Atom, AtomLike } from '../src/atoms'
 import { isString, isArray } from 'util'
 import { AtomEmit, $Commit } from '../src/Committer'
@@ -13,11 +13,14 @@ import { newRun } from '../src/Run'
 import FakeStore from './FakeStore'
 import { tracePath, renderAtoms } from '../src/AtomPath'
 
+const log = console.log;
 const MD = new MonoidData();
 
 export function scenario<W extends PhaseMap, X extends MachineContext, P = Phase<W>>(world: WorldImpl<W, X> & ContextImpl<X>) {
-  return (opts?: { phases?: Map<Id, P>, batchSize?: number, threshold?: number, runSaver?: boolean }) => {
+  return (opts?: { phases?: Map<Id, P>, batchSize?: number, threshold?: number, save?: boolean }) => {
 
+    const save = opts?.save === undefined || opts?.save;
+    
     const store = new FakeStore(MD, opts?.batchSize || 4);
 
     const loader: Loader<P> =
@@ -29,7 +32,7 @@ export function scenario<W extends PhaseMap, X extends MachineContext, P = Phase
             return ac.set(id, p);
           }, Map()));
 
-    const run = newRun<W, X, P>(world, loader, { ...opts, store });
+    const run = newRun<W, X, P>(world, loader, { ...opts, store: (save ? store : undefined) });
 
     const atomSub = new BehaviorSubject<Map<string, AtomRef<Data>[]>>(Map()); 
 

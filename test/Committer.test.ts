@@ -6,7 +6,7 @@ import { AtomRef, Atom } from '../src/atoms'
 import { List } from 'immutable'
 import { Subject } from 'rxjs'
 import { Signal } from './MachineSpace'
-import Head from './Head'
+import Head from '../src/Head'
 
 const atoms = <V>(rs: List<AtomRef<V>>) => rs.flatMap(r => r.resolve()).toArray()
 
@@ -17,7 +17,7 @@ describe('committable', () => {
 	const newCommit = (h: Head<number>) => new Committer(new MonoidNumber(), h);  
 
 	beforeEach(() => {
-		space = new AtomSpace(kill$);
+		space = new AtomSpace();
 	})
 
 	afterEach(() => {

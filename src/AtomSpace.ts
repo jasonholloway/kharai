@@ -23,14 +23,14 @@ export type Commit<V> = [Weight, AtomRef<V>]
 export type Lump<V> = [Weight, Set<AtomRef<V>>]
 export type Storer<V> = (s: Store<V>) => Promise<any>
 
-export const runSaver = <V>(signal$: Observable<Signal>, threshold$: Observable<Threshold>, mv: _Monoid<V>) =>
+export const runSaver = <V>(signal$: Observable<Signal>, threshold$: Observable<Threshold>, MV: _Monoid<V>) =>
   (commit$: Observable<Commit<V>>) => {
 
     const kill$ = signal$.pipe(
       filter(s => s.stop), shareReplay(1));
 
     const space = new AtomSpace<V>();
-    const saver = new AtomSaver<V>(mv, space);
+    const saver = new AtomSaver<V>(MV, space);
     const ML = MonoidLump<V>();
 
     const lump$ = commit$.pipe(
@@ -52,7 +52,7 @@ export const runSaver = <V>(signal$: Observable<Signal>, threshold$: Observable<
                         ML.zero, 0,
                         async store => {
                           try {
-                            const [w2, rs2] = await saver.save(store, rs)
+                            const [w2, rs2] = await saver.save(store, rs.toList())
                             sub.next([[w - w2, rs.subtract(rs2)], t]);
                             sub.complete();
                           }

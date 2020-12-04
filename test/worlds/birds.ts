@@ -1,12 +1,14 @@
 import _Monoid from '../../src/_Monoid'
-import { Id, Data, SpecWorld, makeWorld, World } from '../../src/lib'
-import { toArray, take } from 'rxjs/operators'
+import { Id, SpecWorld, makeWorld, World } from '../../src/lib'
+import { toArray, take, map, tap } from 'rxjs/operators'
 import { delay } from '../../src/util'
 import { bootPhase, endPhase } from '../../src/phases'
 
+const log = console.log;
+
 export type TBirds<Me extends World = World> = SpecWorld<{
 	$boot: []
-	$end: [Data[]]
+	$end: [object[]]
 	// $watch: [Id, string, Phase<Me>]
 
 	track: [Id[], number]
@@ -29,7 +31,7 @@ export const birds = makeWorld<Birds>()(
 				guard(d): d is [Id[], number] { return true },
 				async run([ids, c]) {
 					const frames = await x.watch(ids)
-						.pipe(take(c), toArray())
+						.pipe(take(c), map(m => m.toObject()), toArray())
 						.toPromise();
 
 					return ['$end', [frames]];

@@ -1,21 +1,21 @@
 import { AtomRef, Atom } from "./atoms";
 import { Set, List } from "immutable";
-import { Subject, Observable, ReplaySubject, Observer } from "rxjs";
+import { Subject, Observable, ReplaySubject, Observer, BehaviorSubject } from "rxjs";
 import { Weight, Commit } from "./AtomSpace";
 
 export default class Head<V> {
 	readonly sink: Observer<Commit<V>>
 	private _refs: List<AtomRef<V>>
 
-	private readonly _atom$: Subject<AtomRef<V>>
-	readonly atom$: Observable<AtomRef<V>>
+	// private readonly _atom$: Subject<List<AtomRef<V>>>
+	// readonly atom$: Observable<AtomRef<V>>
 
-	constructor(sink: Observer<[Weight,AtomRef<V>]>, refs: List<AtomRef<V>>) {
+	constructor(sink: Observer<[Weight,AtomRef<V>]>, refs?: List<AtomRef<V>>) {
 		this.sink = sink;
-		this._refs = refs;
+		this._refs = refs ?? List();
 
-		this._atom$ = new ReplaySubject<AtomRef<V>>(1);
-		this.atom$ = this._atom$;
+		// this._atom$ = new BehaviorSubject<List<AtomRef<V>>>(refs);
+		// this.atom$ = this._atom$;
 	}
 
 	release() {
@@ -23,7 +23,7 @@ export default class Head<V> {
 		//machine releases, then space releases
 		//...
 		
-		this._atom$.complete();
+		// this._atom$.complete();
 	}
 
 	write(val: V, weight: number = 1): AtomRef<V> {
@@ -35,7 +35,7 @@ export default class Head<V> {
 	move(ref: AtomRef<V>): AtomRef<V> {
 		//should make sure child here(?)
 		this._refs = List([ref]);
-    this._atom$.next(ref);
+    // this._atom$.next(ref);
 		return ref;
 	}
 

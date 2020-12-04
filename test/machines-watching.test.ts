@@ -5,12 +5,14 @@ import { delay } from '../src/util'
 import { scenario } from './shared'
 import { birds } from './worlds/birds'
 
+const log = console.log;
+
 describe('machines - watching', () => {
 	const fac = scenario(birds);
 	let x: ReturnType<typeof fac>
 
 	it('one can watch the other', async () => {
-		x = fac({ runSaver: false });
+		x = fac({ save: false });
 
 		const [logs] = await Promise.all([
 			x.logs(),
@@ -38,7 +40,7 @@ describe('machines - watching', () => {
 			phases: Map({
 				Gwen: ['runAround', [13]]
 			}),
-			runSaver: false
+			save: false
 		});
 
 		const [logs] = await Promise.all([
@@ -47,20 +49,19 @@ describe('machines - watching', () => {
 			x.run.log$.toPromise()
 		]);
 
-		const seen = List(logs)
-			.flatMap(([id, [p, [d]]]) =>
-				(id == 'Gareth' && p == '$end') ? <Data[]>d : [])
-			.map(m => m.toObject())
-			.toArray()
+		const gareth = x.view('Gareth');
+		const [p, [d]] = gareth[1].val().get('Gareth');
 
-		expect(seen).toEqual([
+		expect(p).toEqual('$end');
+
+		expect(d).toEqual([
 			{ Gwen: ['runAround', [13]] },
 			{ Gwen: ['runAround', [12]] }
 		])
 	})
 
 	it('can watch several at once', async () => {
-		x = fac({ runSaver: false });
+		x = fac({ save: false });
 
 		const [logs] = await Promise.all([
 			x.logs(),
@@ -86,7 +87,7 @@ describe('machines - watching', () => {
 
 
 	it('tracks causality in atom tree', async () => {
-		x = fac({ runSaver: false });
+		x = fac({ save: false });
 
 		await Promise.all([
 			x.run.boot('Gord', ['runAround', [1]]),
@@ -111,7 +112,7 @@ describe('machines - watching', () => {
 	})
 
 	it('past atoms of target aren\'t seen', async () => {
-		x = fac({ runSaver: false });
+		x = fac({ save: false });
 
 		x.run.boot('Gord', ['runAround', [3]]);
 		x.run.boot('Snoozy', ['sleep', [200]]);  // keeps run alive

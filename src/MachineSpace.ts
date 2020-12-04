@@ -1,19 +1,19 @@
 import { Id, Data, WorldImpl, PhaseMap, Phase, MachineContext, ContextImpl } from './lib'
 import { Mediator, Convener, Attendee, Peer } from './Mediator'
-import { Observable, Subject, from, merge, of, ReplaySubject } from 'rxjs'
+import { Observable, Subject, from, merge, of, ReplaySubject, EMPTY, throwError } from 'rxjs'
 import { toArray, map, mergeMap, tap, filter, flatMap, expand, takeUntil, takeWhile, finalize, startWith, shareReplay, share } from 'rxjs/operators'
 import Committer, { AtomEmit } from './Committer'
 import { Map, Set, List } from 'immutable'
 import { Dispatch } from './dispatch'
 import { isArray } from 'util'
 import MonoidData from './MonoidData'
-import { AtomRef } from './atoms'
+import { AtomRef, Atom } from './atoms'
 import Head from './Head'
 import { Weight, Commit } from './AtomSpace'
 const log = console.log;
 
 export type Emit<P = any> =
-		readonly [Id, P] | AtomEmit<Data>
+		readonly [Id, P]// | AtomEmit<Data>
   
 export type Loader<P> = (ids: Set<Id>) => Promise<Map<Id, P>>
 
@@ -76,7 +76,7 @@ export class MachineSpace<W extends PhaseMap, X, P = Phase<W>> {
             const machine = runMachine(
               id,
               phase,
-              new Head(this._commit$, List()),
+              new Head(this._commit$),
               h => new Committer<Data>(this.MD, h),
               this.asSpace(),
               this.dispatch,
@@ -109,7 +109,18 @@ export class MachineSpace<W extends PhaseMap, X, P = Phase<W>> {
         //this doesn't seem right - where's the merging of atoms?
         //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         return _this.summon(Set(ids))
-          .pipe(flatMap(m => m.head.atom$));
+          .pipe(
+            flatMap(m => m.log$));
+
+        //logs need to be emitted with refs
+        //so each frame is [state, ref]
+        //which is something like an atom with parents
+        //reading a log is great, but it must come with dependency context
+        //
+        //I like how this disaggregates state from committable lump
+        //
+        //each log would go out with this context
+        //
       },
 
       async attach<R>(me: any, attend: Attendee<R>): Promise<false|[R]> {
@@ -146,8 +157,10 @@ const $Ahoy = Symbol('$Ahoy')
 export type Machine<P> = {
   id: Id,
   head: Head<Data>,
-  log$: Observable<Emit<P>>
+  log$: Observable<Log<P>>
 }
+
+type Log<P> = [P|false, AtomRef<Data>?]
 
 function runMachine<X, P>(
   id: Id,
@@ -160,11 +173,15 @@ function runMachine<X, P>(
   signal$: Observable<Signal>
 ): Machine<P>
 {
+  type L = Log<P>
+  
   const kill$ = signal$.pipe(filter(s => s.stop), share());
 
-  const log$ = of(phase).pipe(
-    expand(async p => {
-      if(p) {
+  const log$ = of(<L>[phase]).pipe(
+    expand(([p]) => {
+      if(!p) return EMPTY;
+
+      return from((async () => {
         const committer = commitFac(head);
 
         try {
@@ -173,24 +190,23 @@ function runMachine<X, P>(
           const out = await dispatch(x)(p);
 
           if(out) {
-            await committer.complete(Map({ [id]: out }));
+            const ref = await committer.complete(Map({ [id]: out }));
+            return <L>[out, ref];
           }
 
-          return out;
+          return <L>[out];
         }
         catch(e) {
-          console.log('ERROR', e)
+          console.error(e);
           committer.abort();
           throw e;
         }
-      }
+      })())
     }),
-    takeWhile(o => !!o),
-    startWith(phase),
+    startWith(<L>[phase, new AtomRef()]),
     takeUntil(kill$),
-    shareReplay(1),
     finalize(() => head.release()),
-    map(o => [id, <P>o] as const),
+    shareReplay(1),
   );
 
   const machine = {

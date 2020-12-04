@@ -9,7 +9,7 @@ describe('machines - saving', () => {
 	let x: ReturnType<typeof fac>
 
 	it('atoms conjoin without consolidation (no saver or rewrites)', async () => {
-		x = fac({ runSaver: false });
+		x = fac({ save: false });
 
 		await Promise.all([
 			x.run.boot('baz', ['guineaPig', ['runAbout', []]]),

@@ -27,7 +27,7 @@ export default class AtomSaver<V> {
 		this._space = space;
 	}
 
-	async save(store: Store<V>, refs: Set<AtomRef<V>>): Promise<Lump<V>> {
+	async save(store: Store<V>, refs: List<AtomRef<V>>): Promise<Lump<V>> {
 		const MV = this._monoidV;
 		const space = this._space;
 
