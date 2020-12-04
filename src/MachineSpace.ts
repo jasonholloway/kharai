@@ -1,19 +1,18 @@
 import { Id, Data, WorldImpl, PhaseMap, Phase, MachineContext, ContextImpl } from './lib'
 import { Mediator, Convener, Attendee, Peer } from './Mediator'
-import { Observable, Subject, from, merge, of, ReplaySubject, EMPTY, throwError } from 'rxjs'
-import { toArray, map, mergeMap, tap, filter, flatMap, expand, takeUntil, takeWhile, finalize, startWith, shareReplay, share } from 'rxjs/operators'
-import Committer, { AtomEmit } from './Committer'
+import { Observable, Subject, from, merge, of, ReplaySubject, EMPTY } from 'rxjs'
+import { toArray, map, tap, filter, flatMap, expand, takeUntil, finalize, startWith, shareReplay, share } from 'rxjs/operators'
+import Committer from './Committer'
 import { Map, Set, List } from 'immutable'
 import { Dispatch } from './dispatch'
 import { isArray } from 'util'
 import MonoidData from './MonoidData'
-import { AtomRef, Atom } from './atoms'
+import { AtomRef } from './atoms'
 import Head from './Head'
-import { Weight, Commit } from './AtomSpace'
+import { Commit } from './AtomSpace'
 const log = console.log;
 
-export type Emit<P = any> =
-		readonly [Id, P]// | AtomEmit<Data>
+export type Emit<P = any> = readonly [Id, P]
   
 export type Loader<P> = (ids: Set<Id>) => Promise<Map<Id, P>>
 
@@ -102,25 +101,12 @@ export class MachineSpace<W extends PhaseMap, X, P = Phase<W>> {
     )));
   }
 
-  private asSpace(): ISpace {
+  private asSpace(): ISpace<P> {
     const _this = this;
     return {
-      watch(ids: Id[]): Observable<AtomRef<Data>> {
-        //this doesn't seem right - where's the merging of atoms?
-        //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      watch(ids: Id[]): Observable<Log<P>> {
         return _this.summon(Set(ids))
-          .pipe(
-            flatMap(m => m.log$));
-
-        //logs need to be emitted with refs
-        //so each frame is [state, ref]
-        //which is something like an atom with parents
-        //reading a log is great, but it must come with dependency context
-        //
-        //I like how this disaggregates state from committable lump
-        //
-        //each log would go out with this context
-        //
+          .pipe(flatMap(m => m.log$));
       },
 
       async attach<R>(me: any, attend: Attendee<R>): Promise<false|[R]> {
@@ -140,8 +126,8 @@ export class MachineSpace<W extends PhaseMap, X, P = Phase<W>> {
   }
 }
 
-interface ISpace {
-  watch(ids: Id[]): Observable<AtomRef<Data>>
+interface ISpace<P> {
+  watch(ids: Id[]): Observable<Log<P>>
   attach<R>(me: any, attend: Attendee<R>): Promise<false|[R]>
   convene<R>(ids: Id[], convene: Convener<R>): Promise<R>
 }
@@ -167,7 +153,7 @@ function runMachine<X, P>(
   phase: P,
   head: Head<Data>,
   commitFac: CommitFac,
-  space: ISpace,
+  space: ISpace<P>,
   dispatch: Dispatch<X, P>,
   modContext: (x: MachineContext) => X,
   signal$: Observable<Signal>
@@ -221,13 +207,13 @@ function runMachine<X, P>(
   function buildContext(id: Id, commit: Committer<Data>): X {
     return modContext({
       id: id,
-      watch(ids: Id[]): Observable<Data> {
-        return space.watch(ids)
+      watch(ids: Id[]): Observable<any> {
+        return space.watch(ids)                //TODO if the same thing is watched twice, commits will be added doubly
           .pipe(
-            tap(r => commit.add(List([r]))), //gathering all watched atomrefs here into mutable Commit
-            mergeMap(r => r.resolve()), //empty refs get gathered too of course (to test for)
-            map(a => a.val)
-            //todo filter on passed ids
+            tap(([,r]) => { //gathering all watched atomrefs here into mutable Commit
+              if(r) commit.add(List([r]))
+            }),
+            map(([l]) => l)
           );
       },
       attach<R>(attend: Attendee<R>) {
