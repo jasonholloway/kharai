@@ -1,9 +1,13 @@
-import {  } from "./Run";
-import { Phase } from "./lib";
+import { newRun } from "./Run";
+import { Phase, makeWorld, World, MachineContext } from "./lib";
 import { Loader } from "./MachineSpace";
 
 export {
 	Loader,
-	Phase
+	Phase,
+	newRun,
+	makeWorld,
+	World,
+	MachineContext
 };
 
