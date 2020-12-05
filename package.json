@@ -1,6 +1,6 @@
 {
   "name": "kharai",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "The versatile beast of burden",
   "main": "out/src/index.js",
   "types": "out/src/index.d.ts",
@@ -8,8 +8,8 @@
     "out/src"
   ],
   "scripts": {
-    "build": "make out",
-    "test": "make tests.json",
+    "build": "make build",
+    "test": "make test",
     "prepublishOnly": "test -e out/built || exit 1"
   },
   "author": "Jason Holloway",

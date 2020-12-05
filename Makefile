@@ -34,6 +34,7 @@ publish: out tests.json
 	tags=$$(git tag -l --points-at=HEAD)
 
 	if (echo $$tags | grep $$version); then
+	  echo '//registry.npmjs.org/:_authToken=$${NPM_TOKEN}' > .npmrc
 		npm publish
 	fi
 
