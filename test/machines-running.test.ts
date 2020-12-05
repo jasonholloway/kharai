@@ -20,7 +20,8 @@ describe('machines - running', () => {
       ['bob', ['$boot', []]],
       ['bob', ['rat', ['wake', []]]],
       ['bob', ['rat', ['squeak', [123]]]],
-      ['bob', ['$end', ['I have squeaked 123!']]]
+      ['bob', ['$end', ['I have squeaked 123!']]],
+      ['bob', false]
     ]);
   })
 
@@ -38,7 +39,9 @@ describe('machines - running', () => {
       ['bob', ['rat', ['wake', []]]],
       ['bob', ['rat', ['squeak', [123]]]],
       ['bob', ['$end', ['I have squeaked 123!']]],
+      ['bob', false],
       ['nib', ['$end', [77]]],
+      ['nib', false],
     ])
   })
 
@@ -55,7 +58,9 @@ describe('machines - running', () => {
       ['gaz', ['guineaPig', ['runAbout', []]]],
       ['goz', ['guineaPig', ['gruntAt', ['gaz']]]],
       ['goz', ['$end', ['squeak!']]],
-      ['gaz', ['$end', ['grunt!']]]
+      ['gaz', ['$end', ['grunt!']]],
+      ['goz', false],
+      ['gaz', false]
     ])
   })
 })

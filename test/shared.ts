@@ -50,7 +50,10 @@ export function scenario<W extends PhaseMap, P = Phase<W>, X extends MachineCont
     return {
       store,
       run,
-      logs: () => gather(run.log$), //.pipe(phasesOnly())),
+      logs: () => gather(
+        run.log$.pipe(
+          map(([id, p]) => [id, p] as const))
+      ),
 
       view(id: Id) {
         return viewAtoms(List(atomSub.getValue()?.get(id) || []));

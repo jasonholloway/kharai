@@ -8,6 +8,8 @@ import { buildDispatch, Dispatch } from './dispatch'
 import { runSaver } from './AtomSpace'
 import MonoidData from './MonoidData'
 import Store from './Store'
+import { Log } from './runMachine'
+import { AtomRef } from './atoms'
 
 const log = console.log;
 const MD = new MonoidData();
@@ -48,7 +50,8 @@ export function newRun<W extends PhaseMap, P = Phase<W>, X extends MachineContex
 	const machine$ = space.machine$;
 	const log$ = machine$.pipe(
 		flatMap(m => m.log$.pipe(
-			map(l => [m.id, l] as const)
+			map<Log<P>, [Id, P|false, AtomRef<Data>?]>(
+				([p,r]) => r ? [m.id, p, r] : [m.id, p])
 		)));
 
 	const count$ = machine$.pipe(

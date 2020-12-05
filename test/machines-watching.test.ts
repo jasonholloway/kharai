@@ -21,7 +21,7 @@ describe('machines - watching', () => {
 		]);
 
 		const seen = List(logs)
-			.flatMap(([id, [p]]) =>
+			.flatMap(([id, p]) =>
 				(id == 'Kes' && p && p[0] == '$end') ? p[1] : [])
 			.toArray()
 
@@ -107,7 +107,7 @@ describe('machines - watching', () => {
 
 	})
 
-	it('past atoms of target aren\'t seen', async () => {
+	it('past phases of target aren\'t seen', async () => {
 		x = fac({ save: false });
 
 		x.run.boot('Gord', ['runAround', [3]]);
