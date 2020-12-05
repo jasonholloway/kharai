@@ -1,9 +1,9 @@
-import { Id, PhaseMap, Phase, WorldImpl, Data, ContextImpl } from './lib'
+import { Id, PhaseMap, Phase, WorldImpl, Data, ContextImpl, MachineContext } from './lib'
 import { Mediator, Convener } from './Mediator'
-import { Observable, Subject, ReplaySubject, of, concat } from 'rxjs'
-import { flatMap, startWith, mergeAll, endWith, scan, takeWhile, finalize, map, toArray, ignoreElements, concatMap, filter, takeUntil, shareReplay, tap } from 'rxjs/operators'
+import { Observable, ReplaySubject, of, concat } from 'rxjs'
+import { flatMap, startWith, endWith, scan, takeWhile, finalize, map, toArray, ignoreElements, concatMap, filter, takeUntil, shareReplay } from 'rxjs/operators'
 import { Set } from 'immutable'
-import { MachineSpace, Emit, Loader, Signal, Machine } from './MachineSpace'
+import { MachineSpace, Loader, Signal } from './MachineSpace'
 import { buildDispatch, Dispatch } from './dispatch'
 import { runSaver } from './AtomSpace'
 import MonoidData from './MonoidData'
@@ -13,8 +13,8 @@ const log = console.log;
 const MD = new MonoidData();
 const gather = <V>(v$: Observable<V>) => v$.pipe(toArray()).toPromise();
 
-export function newRun<W extends PhaseMap, X, P = Phase<W>>(
-	world: WorldImpl<W, X> & ContextImpl<X>,
+export function newRun<W extends PhaseMap, P = Phase<W>, X extends MachineContext<P> = MachineContext<P>>(
+	world: WorldImpl<W, X> & ContextImpl<P, X>,
 	loader: Loader<P>,
 	opts?: { threshold?: number, store?: Store<Data> }
 ) {
@@ -46,8 +46,10 @@ export function newRun<W extends PhaseMap, X, P = Phase<W>>(
 	
 
 	const machine$ = space.machine$;
-	const log$ = machine$
-		.pipe(map(m => m.log$), mergeAll());
+	const log$ = machine$.pipe(
+		flatMap(m => m.log$.pipe(
+			map(l => [m.id, l] as const)
+		)));
 
 	const count$ = machine$.pipe(
 		flatMap(m => m.log$.pipe(

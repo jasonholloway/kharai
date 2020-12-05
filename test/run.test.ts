@@ -1,7 +1,7 @@
 import { Map } from 'immutable'
 import { rodents, Rodents } from "./worlds/rodents";
 import { newRun } from "../src/Run";
-import { Phase, MachineContext, Id } from "../src/lib";
+import { Phase, Id } from "../src/lib";
 import { Loader } from './MachineSpace';
 const log = console.log;
 
@@ -9,14 +9,15 @@ describe('running', () => {
 
 	it('start and stop', async () => {
 		const world = rodents();
+		type P = Phase<Rodents>;
 
-    const loader: Loader<Phase<Rodents>> =
+    const loader: Loader<P> =
       ids => Promise.resolve(
-				ids.reduce<Map<Id, Phase<Rodents>>>(
+				ids.reduce<Map<Id, P>>(
 					(ac, id) => ac.set(id, ['$boot', []]),
 					Map()));
 
-    const run = newRun<Rodents, MachineContext>(world, loader);
+		const run = newRun(world, loader);
 
 		await Promise.all([
 			run.boot('a', ['gerbil', ['spawn', [0, 3]]]),

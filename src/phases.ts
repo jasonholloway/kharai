@@ -1,7 +1,10 @@
 import { Id, World, PhaseImpl, MachineContext, Phase } from "./lib";
 import { delay } from "./util";
 
-export const bootPhase = <W extends World>(): PhaseImpl<W, MachineContext, []> =>
+//TODO
+//maybe P could be parameterised below...
+
+export const bootPhase = <W extends World, P>(): PhaseImpl<W, MachineContext<P>, []> =>
   (x => ({
     guard(_: any): _ is [] { return true },
     async run() {
@@ -20,24 +23,31 @@ export const bootPhase = <W extends World>(): PhaseImpl<W, MachineContext, []> =
     }
   }));
 
-export const endPhase = <W extends World>(): PhaseImpl<W, MachineContext, [any]> =>
+export const endPhase = <W extends World, P>(): PhaseImpl<W, MachineContext<P>, [any]> =>
   (x => ({
     guard(d: any): d is [any] { return true },
     async run() { return false as const; }
   }));
 
-export const waitPhase = <W extends World>(): PhaseImpl<W, MachineContext, [number, Phase<W>]> =>
+
+//NOTE ***
+//below derive P for themselves
+//might not match the parameterised P approach elsewhere
+
+export const waitPhase = <W extends World, P extends Phase<W>>(): PhaseImpl<W, MachineContext<P>, [number, P]> =>
   (x => ({
-    guard(d: any): d is [number, Phase<W>] { return true },
+    guard(d: any): d is [number, P] { return true },
     async run([delay, next]) {
       return next;
     }
   }));
 
-export const watchPhase = <W extends World>(): PhaseImpl<W, MachineContext, [Id, string, Phase<W>]> =>
+export const watchPhase = <W extends World, P extends Phase<W>>(): PhaseImpl<W, MachineContext<P>, [Id, string, P]> =>
   (x => ({
-    guard(d: any): d is [Id, string, Phase<W>] { return true },
+    guard(d: any): d is [Id, string, P] { return true },
     async run([id, pred, next]) {
       return next;
     }
   }));
+
+//W decides everything

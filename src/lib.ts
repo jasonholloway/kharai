@@ -19,9 +19,9 @@ type PathVal<T, E> = { [K in keyof T]: [K, T[K] extends E ? T[K] : PathVal<T[K],
 
 export type Phase<P extends PhaseMap> = PathVal<P, any[]>
 
-export interface MachineContext {
+export interface MachineContext<P> {
 	readonly id: Id
-	watch(ids: Id[]): Observable<Data>
+	watch(ids: Id[]): Observable<P|false>
 	attach<R>(attend: Attendee<R>): Promise<false|[R]>
 	convene<R>(ids: Id[], convener: Convener<R>): Promise<R>
 }
@@ -32,37 +32,39 @@ export type PhaseMap = {
 
 export type World = PhaseMap
 
-export type PhaseMapImpl<X, PCurr extends PhaseMap, PAcc extends PhaseMap = {}> = {
-	[K in keyof PCurr]:
-		PCurr[K] extends any[]
-			? PhaseImpl<PCurr&PAcc, X, PCurr[K]>
-			: (PCurr[K] extends PhaseMap
-				? PhaseMapImpl<X, PCurr[K], PCurr&PAcc>
+export type PhaseMapImpl<X, MCurr extends PhaseMap, MAcc extends PhaseMap = {}> = {
+	[K in keyof MCurr]:
+		MCurr[K] extends any[]
+			? PhaseImpl<MCurr&MAcc, X, MCurr[K]>
+			: (MCurr[K] extends PhaseMap
+				? PhaseMapImpl<X, MCurr[K], MCurr&MAcc>
 				: never)
 }
 
-export type WorldImpl<P extends PhaseMap, X> = {
+export type WorldImpl<M extends PhaseMap, X> = {
 	// contextFac: (x: MachineContext) => (X & MachineContext)
-	phases: PhaseMapImpl<X, P>
+	phases: PhaseMapImpl<X, M>
 }
 
 export type ViewSegment = (name: string) => any;
 
-export type PhaseImpl<P extends PhaseMap, X, D> = (x: X) => {
+
+//TODO make PhaseImpl take P
+export type PhaseImpl<W extends PhaseMap, X, D> = (x: X) => {
 	guard(d: any): d is D
-	run(d: D, all: any): Promise<Phase<P>|false>
+	run(d: D, all: any): Promise<Phase<W>|false>
 }
 
 
-export type ContextImpl<X> = {
-	contextFac: (x: MachineContext) => X
+export type ContextImpl<P, X extends MachineContext<P>> = {
+	contextFac: (x: MachineContext<P>) => X
 }
 
 
 export type SpecWorld<W extends World> = W;
 
 // export const makeWorld = <P extends PhaseMap>() => <X>(w: WorldImpl<P, X>): WorldImpl<P, X> => w;
-export const makeWorld = <P extends PhaseMap>() => <X>(c: ContextImpl<X>, w: WorldImpl<P, X>): ContextImpl<X> & WorldImpl<P, X> => ({ ...c, ...w });
+export const makeWorld = <M extends PhaseMap, P = Phase<M>>() => <X extends MachineContext<P>>(c: ContextImpl<P, X>, w: WorldImpl<M, X>): WorldImpl<M, X> & ContextImpl<P, X>  => ({ ...c, ...w });
 
 
 export type Cons<H, T extends readonly any[]> = ((h: H, ...t: T) => any) extends ((...l: infer L) => any) ? (L extends ReadonlyArray<any> ? L : never) : never;

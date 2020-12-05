@@ -22,9 +22,8 @@ describe('machines - watching', () => {
 		]);
 
 		const seen = List(logs)
-			.flatMap(([id, [p, [d]]]) =>
-				(id == 'Kes' && p == '$end') ? <Data[]>d : [])
-			.map(m => m.toObject())
+			.flatMap(([id, [p]]) =>
+				(id == 'Kes' && p && p[0] == '$end') ? p[1] : [])
 			.toArray()
 
 		expect(seen).toEqual([
@@ -43,8 +42,7 @@ describe('machines - watching', () => {
 			save: false
 		});
 
-		const [logs] = await Promise.all([
-			x.logs(),
+		await Promise.all([
 			x.run.boot('Gareth', ['track', [['Gwen'], 2]]),
 			x.run.log$.toPromise()
 		]);
@@ -72,9 +70,8 @@ describe('machines - watching', () => {
 		]);
 
 		const seen = List(logs)
-			.flatMap(([id, [p, [d]]]) =>
-				(id == 'Kes' && p == '$end') ? <Data[]>d : [])
-			.map(m => m.toObject())
+			.flatMap(([id, [p]]) =>
+				(id == 'Kes' && p && p[0] == '$end') ? p[1] : [])
 			.toArray()
 
 		expect(seen).toEqual([

@@ -30,7 +30,7 @@ export type TRodents<Me extends World = World> = SpecWorld<{
 
 export type Rodents = TRodents<TRodents>
 
-export const rodents = () => makeWorld<TRodents<TRodents>>()(
+export const rodents = () => makeWorld<Rodents>()(
   {
     contextFac: x => x
   },
