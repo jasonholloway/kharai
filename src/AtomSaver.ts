@@ -94,7 +94,7 @@ export default class AtomSaver<V> {
 
 			// space.incStaged(weight);
 			
-			renderAtoms(path.tips)
+			// renderAtoms(path.tips)
 			// log(tracePath(path.tips))
 		}
 		finally {
