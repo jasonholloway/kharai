@@ -92,7 +92,6 @@ export default class AtomSaver<V> {
 					}
 				}, MAc).complete();
 
-
 			// space.incStaged(weight);
 			
 			// renderAtoms(path.tips)

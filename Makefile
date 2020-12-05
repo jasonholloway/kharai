@@ -2,10 +2,16 @@ PATH	:= node_modules/.bin:$(PATH)
 SHELL := /bin/bash
 
 .ONESHELL:
-.PHONY: clean
+.PHONY: clean test build
 
 
-default: tests.json
+build: out
+
+test: tests.json
+
+clean:
+	rm -rf out
+
 
 node_modules: package.json
 	npm install
@@ -14,8 +20,9 @@ out: $(shell find src tests) tsconfig.json node_modules
 	tsc
 	touch out/built
 
-tests.json: out jest.config.js
-	jest --ci --coverage --json --outputFile=tests.json
+tests.json: out jest-ci.config.js
+	jest -c jest-ci.config.js \
+	  --json --outputFile=tests.json
 
 publish: out tests.json
 	if [ ! -z "$$(git status --porcelain)" ]; then
@@ -29,8 +36,4 @@ publish: out tests.json
 	if (echo $$tags | grep $$version); then
 		npm publish
 	fi
-
-clean:
-	rm -rf out
-
 
