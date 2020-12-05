@@ -8,9 +8,9 @@
     "out/src"
   ],
   "scripts": {
-    "build": "tsc",
-    "test": "jest",
-    "prepare": "npm run build"
+    "build": "make out",
+    "test": "make tests.json",
+    "prepublishOnly": "test -e out/built || exit 1"
   },
   "author": "Jason Holloway",
   "license": "ISC",

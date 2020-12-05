@@ -6,3 +6,5 @@ out
 *#*
 tags
 TAGS
+coverage
+tests.json

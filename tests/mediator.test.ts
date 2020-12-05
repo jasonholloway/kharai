@@ -25,6 +25,7 @@ describe('mediator', () => {
 		const convening = space.convene(p1, Set([p2]));
 		const attaching = space.attach(p2, p2);
 
+
 		// convening.then(console.log)
 		// attaching.then(console.log)
 
