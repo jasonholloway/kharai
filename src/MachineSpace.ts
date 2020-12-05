@@ -65,6 +65,8 @@ export type Loader<P> = (ids: Set<Id>) => Promise<Map<Id, P>>
       else {
         const loading = this.loader(Set([id]));
 
+        //TODO should check loaded phases against schema guards!
+
         return [
           true,
           id,

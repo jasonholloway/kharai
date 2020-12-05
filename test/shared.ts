@@ -30,7 +30,7 @@ export function scenario<W extends PhaseMap, P = Phase<W>, X extends MachineCont
             return ac.set(id, p);
           }, Map()));
 
-    const run = newRun<W, X, P>(world, loader, { ...opts, store: (save ? store : undefined) });
+    const run = newRun(world, loader, { ...opts, store: (save ? store : undefined) });
 
     const atomSub = new BehaviorSubject<Map<string, AtomRef<Data>[]>>(Map()); 
 

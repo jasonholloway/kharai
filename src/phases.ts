@@ -4,12 +4,12 @@ import { delay } from "./util";
 //TODO
 //maybe P could be parameterised below...
 
-export const bootPhase = <W extends World, P>(): PhaseImpl<W, MachineContext<P>, []> =>
+export const bootPhase = <P>(): PhaseImpl<P, MachineContext<P>, []> =>
   (x => ({
     guard(_: any): _ is [] { return true },
     async run() {
       while(true) {
-        const answer = await x.attach<Phase<W>>({
+        const answer = await x.attach<P>({
           chat(c) { return c; } //should be checking this here...
         });
 
@@ -23,7 +23,7 @@ export const bootPhase = <W extends World, P>(): PhaseImpl<W, MachineContext<P>,
     }
   }));
 
-export const endPhase = <W extends World, P>(): PhaseImpl<W, MachineContext<P>, [any]> =>
+export const endPhase = <P>(): PhaseImpl<P, MachineContext<P>, [any]> =>
   (x => ({
     guard(d: any): d is [any] { return true },
     async run() { return false as const; }
@@ -34,7 +34,7 @@ export const endPhase = <W extends World, P>(): PhaseImpl<W, MachineContext<P>, 
 //below derive P for themselves
 //might not match the parameterised P approach elsewhere
 
-export const waitPhase = <W extends World, P extends Phase<W>>(): PhaseImpl<W, MachineContext<P>, [number, P]> =>
+export const waitPhase = <P>(): PhaseImpl<P, MachineContext<P>, [number, P]> =>
   (x => ({
     guard(d: any): d is [number, P] { return true },
     async run([delay, next]) {
@@ -42,7 +42,7 @@ export const waitPhase = <W extends World, P extends Phase<W>>(): PhaseImpl<W, M
     }
   }));
 
-export const watchPhase = <W extends World, P extends Phase<W>>(): PhaseImpl<W, MachineContext<P>, [Id, string, P]> =>
+export const watchPhase = <P>(): PhaseImpl<P, MachineContext<P>, [Id, string, P]> =>
   (x => ({
     guard(d: any): d is [Id, string, P] { return true },
     async run([id, pred, next]) {

@@ -8,7 +8,7 @@ const log = console.log;
 
 export type TBirds<Me extends World = World> = SpecWorld<{
 	$boot: []
-	$end: [object[]]
+	$end: [any[]]
 	// $watch: [Id, string, Phase<Me>]
 
 	track: [Id[], number]
@@ -31,7 +31,7 @@ export const birds = makeWorld<Birds>()(
 				guard(d): d is [Id[], number] { return true },
 				async run([ids, c]) {
 					const frames = await x.watch(ids)
-						.pipe(take(c), map(m => m.toObject()), toArray())
+						.pipe(take(c), toArray())
 						.toPromise();
 
 					return ['$end', [frames]];

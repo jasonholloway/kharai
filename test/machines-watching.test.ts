@@ -1,6 +1,5 @@
 import { List, Map } from 'immutable'
 import _Monoid from '../src/_Monoid'
-import { Data } from '../src/lib'
 import { delay } from '../src/util'
 import { scenario } from './shared'
 import { birds } from './worlds/birds'

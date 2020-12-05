@@ -35,7 +35,7 @@ export type World = PhaseMap
 export type PhaseMapImpl<X, MCurr extends PhaseMap, MAcc extends PhaseMap = {}> = {
 	[K in keyof MCurr]:
 		MCurr[K] extends any[]
-			? PhaseImpl<MCurr&MAcc, X, MCurr[K]>
+			? PhaseImpl<Phase<MCurr&MAcc>, X, MCurr[K]>
 			: (MCurr[K] extends PhaseMap
 				? PhaseMapImpl<X, MCurr[K], MCurr&MAcc>
 				: never)
@@ -49,10 +49,9 @@ export type WorldImpl<M extends PhaseMap, X> = {
 export type ViewSegment = (name: string) => any;
 
 
-//TODO make PhaseImpl take P
-export type PhaseImpl<W extends PhaseMap, X, D> = (x: X) => {
+export type PhaseImpl<P, X, D> = (x: X) => {
 	guard(d: any): d is D
-	run(d: D, all: any): Promise<Phase<W>|false>
+	run(d: D, all: any): Promise<P|false>
 }
 
 
