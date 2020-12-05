@@ -21,7 +21,7 @@ export type Phase<P extends PhaseMap> = PathVal<P, any[]>
 
 export interface MachineContext<P> {
 	readonly id: Id
-	watch(ids: Id[]): Observable<P|false>
+	watch(ids: Id[]): Observable<[Id, P]>
 	attach<R>(attend: Attendee<R>): Promise<false|[R]>
 	convene<R>(ids: Id[], convener: Convener<R>): Promise<R>
 }

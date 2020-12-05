@@ -1,7 +1,7 @@
 import { Id, Data, MachineContext } from './lib'
 import { Convener, Attendee, Peer } from './Mediator'
 import { Observable, from, of, EMPTY } from 'rxjs'
-import { map, tap, filter, expand, takeUntil, finalize, startWith, shareReplay, share } from 'rxjs/operators'
+import { map, tap, filter, expand, takeUntil, finalize, startWith, shareReplay, share, takeWhile, flatMap } from 'rxjs/operators'
 import Committer from './Committer'
 import { Map, List } from 'immutable'
 import { Dispatch } from './dispatch'
@@ -22,7 +22,7 @@ export type Machine<P> = {
 
 export type CommitFac = (h: Head<Data>) => Committer<Data>
 
-export type Log<P> = [P|false, AtomRef<Data>?]
+export type Log<P> = [P, AtomRef<Data>?]
 
 export function runMachine<X, P>(
   id: Id,
@@ -35,7 +35,7 @@ export function runMachine<X, P>(
   signal$: Observable<Signal>
 ): Machine<P>
 {
-  type L = Log<P>
+  type L = Log<P|false>
   
   const kill$ = signal$.pipe(filter(s => s.stop), share());
 
@@ -66,6 +66,7 @@ export function runMachine<X, P>(
       })())
     }),
     startWith(<L>[phase, new AtomRef()]),
+    filter((l): l is Log<P> => !!l[0]),
     takeUntil(kill$),
     finalize(() => head.release()),
     shareReplay(1),
@@ -83,13 +84,13 @@ export function runMachine<X, P>(
   function buildContext(id: Id, commit: Committer<Data>): X {
     return modContext({
       id: id,
-      watch(ids: Id[]): Observable<P|false> {
+      watch(ids: Id[]): Observable<[Id, P]> {
         return space.watch(ids)                //TODO if the same thing is watched twice, commits will be added doubly
           .pipe(
-            tap(([,r]) => { //gathering all watched atomrefs here into mutable Commit
+            tap(([,[,r]]) => { //gathering all watched atomrefs here into mutable Commit
               if(r) commit.add(List([r]))
             }),
-            map(([l]) => l)
+            flatMap(([id, [p]]) => p ? [<[Id, P]>[id, p]] : []),
           );
       },
       attach<R>(attend: Attendee<R>) {

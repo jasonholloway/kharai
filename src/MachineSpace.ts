@@ -1,7 +1,7 @@
 import { Id, Data, WorldImpl, PhaseMap, Phase, ContextImpl, MachineContext } from './lib'
 import { Mediator, Convener, Attendee } from './Mediator'
-import { Observable, Subject, from, merge, ReplaySubject } from 'rxjs'
-import { toArray, filter, flatMap } from 'rxjs/operators'
+import { Observable, Subject, from, merge, ReplaySubject, GroupedObservable } from 'rxjs'
+import { toArray, filter, flatMap, map } from 'rxjs/operators'
 import Committer from './Committer'
 import { Map, Set } from 'immutable'
 import { Dispatch } from './dispatch'
@@ -105,9 +105,11 @@ export type Loader<P> = (ids: Set<Id>) => Promise<Map<Id, P>>
   private asSpace(): ISpace<P> {
     const _this = this;
     return {
-      watch(ids: Id[]): Observable<Log<P>> {
-        return _this.summon(Set(ids))
-          .pipe(flatMap(m => m.log$));
+      watch(ids: Id[]): Observable<[Id, Log<P>]> {
+        return _this.summon(Set(ids)).pipe(
+          flatMap(m => m.log$.pipe(
+            map(l => <[Id, Log<P>]>[m.id, l])
+          )));
       },
 
       async attach<R>(me: any, attend: Attendee<R>): Promise<false|[R]> {
@@ -128,7 +130,7 @@ export type Loader<P> = (ids: Set<Id>) => Promise<Map<Id, P>>
 }
 
 export interface ISpace<P> {
-  watch(ids: Id[]): Observable<Log<P>>
+  watch(ids: Id[]): Observable<[Id, Log<P>]>
   attach<R>(me: any, attend: Attendee<R>): Promise<false|[R]>
   convene<R>(ids: Id[], convene: Convener<R>): Promise<R>
 }

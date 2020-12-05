@@ -1,6 +1,5 @@
 import { List, Map } from 'immutable'
 import _Monoid from '../src/_Monoid'
-import { delay } from '../src/util'
 import { scenario } from './shared'
 import { birds } from './worlds/birds'
 
@@ -22,14 +21,14 @@ describe('machines - watching', () => {
 
 		const seen = List(logs)
 			.flatMap(([id, p]) =>
-				(id == 'Kes' && p && p[0] == '$end') ? p[1] : [])
+				(id == 'Kes' && p && p[0] == '$end') ? p[1][0] : [])
 			.toArray()
 
 		expect(seen).toEqual([
-			{ Stu: ['runAround', [3]] },
-			{ Stu: ['runAround', [2]] },
-			{ Stu: ['runAround', [1]] },
-			{ Stu: ['runAround', [0]] }
+			['Stu', ['runAround', [3]]],
+			['Stu', ['runAround', [2]]],
+			['Stu', ['runAround', [1]]],
+			['Stu', ['runAround', [0]]]
 		])
 	})
 
@@ -52,8 +51,8 @@ describe('machines - watching', () => {
 		expect(p).toEqual('$end');
 
 		expect(d).toEqual([
-			{ Gwen: ['runAround', [13]] },
-			{ Gwen: ['runAround', [12]] }
+			['Gwen', ['runAround', [13]]],
+			['Gwen', ['runAround', [12]]]
 		])
 	})
 
@@ -69,15 +68,15 @@ describe('machines - watching', () => {
 		]);
 
 		const seen = List(logs)
-			.flatMap(([id, [p]]) =>
-				(id == 'Kes' && p && p[0] == '$end') ? p[1] : [])
+			.flatMap(([id, p]) =>
+				(id == 'Kes' && p && p[0] == '$end') ? p[1][0] : [])
 			.toArray()
 
 		expect(seen).toEqual([
-			{ Biff: ['runAround', [11]] },
-			{ Kipper: ['runAround', [22]] },
-			{ Biff: ['runAround', [10]] },
-			{ Kipper: ['runAround', [21]] }
+			['Biff', ['runAround', [11]]],
+			['Kipper', ['runAround', [22]]],
+			['Biff', ['runAround', [10]]],
+			['Kipper', ['runAround', [21]]]
 		])
 	})
 
@@ -104,24 +103,30 @@ describe('machines - watching', () => {
 				ed[0],
 				gord[0]
 			])
-
 	})
 
 	it('past phases of target aren\'t seen', async () => {
 		x = fac({ save: false });
 
-		x.run.boot('Gord', ['runAround', [3]]);
-		x.run.boot('Snoozy', ['sleep', [200]]);  // keeps run alive
-		await delay(100);
-
 		const [logs] = await Promise.all([
 			x.logs(),
-			x.run.boot('Ed', ['track', [['Gord'], 1]]),
+			x.run.boot('Gord', ['runAround', [2]]),
+			x.run.boot('Ed', ['$wait', [100, ['track', [['Gord'], 1]]]])
 		]);
 
-		expect(logs[2]).toEqual(
-			['Ed', ['$end', [[ Map({ Gord: ['runAround', [0]] }) ]] ]]
-		);
+    expect(logs).toEqual([
+			['Gord', ['$boot', []]],
+			['Ed', ['$boot', []]],
+			['Gord', ['runAround', [2]]],
+			['Ed', ['$wait', [100, ['track', [['Gord'], 1]]]]],
+			['Gord', ['runAround', [1]]],
+			['Gord', ['runAround', [0]]],
+			['Ed', ['track', [['Gord'], 1]]],
+
+			['Ed', ['$end', [[
+				['Gord', ['runAround', [0]]]]]
+			]],
+		]);
 	})
 
 })

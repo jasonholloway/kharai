@@ -1,19 +1,20 @@
 import _Monoid from '../../src/_Monoid'
-import { Id, SpecWorld, makeWorld, World } from '../../src/lib'
+import { Id, SpecWorld, makeWorld, World, Phase } from '../../src/lib'
 import { toArray, take, map, tap } from 'rxjs/operators'
 import { delay } from '../../src/util'
-import { bootPhase, endPhase } from '../../src/phases'
+import { bootPhase, endPhase, waitPhase } from '../../src/phases'
 
 const log = console.log;
 
 export type TBirds<Me extends World = World> = SpecWorld<{
 	$boot: []
 	$end: [any[]]
+	$wait: [number, Phase<Me>]
 	// $watch: [Id, string, Phase<Me>]
 
 	track: [Id[], number]
 	runAround: [number]
-	sleep: [number]
+	// sleepThen: [number, Phase<Me>]
 }>
 
 export type Birds = TBirds<TBirds>
@@ -26,6 +27,7 @@ export const birds = makeWorld<Birds>()(
 		phases: {
 			$boot: bootPhase(),
 			$end: endPhase(),
+			$wait: waitPhase(),
 
 			track: x => ({
 				guard(d): d is [Id[], number] { return true },
@@ -45,17 +47,17 @@ export const birds = makeWorld<Birds>()(
 						await delay(20);
 						return ['runAround', [n-1]]
 					}
-
+					
 					return false;
 				}
 			}),
 
-			sleep: x => ({
-				guard(d): d is [number] { return true },
-				async run([timeout]) {
-					await delay(timeout);
-					return ['$end', [[]]]
-				}
-			})
+			// sleepThen: x => ({
+			// 	guard(d): d is [number, Phase<Birds>] { return true },
+			// 	async run([timeout, next]) {
+			// 		await delay(timeout);
+			// 		return next;
+			// 	}
+			// })
 		}
 	});

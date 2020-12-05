@@ -52,7 +52,9 @@ export function scenario<W extends PhaseMap, P = Phase<W>, X extends MachineCont
       run,
       logs: () => gather(
         run.log$.pipe(
-          map(([id, p]) => [id, p] as const))
+          map(([id, p]) => [id, p] as const),
+          // tap(log)
+        )
       ),
 
       view(id: Id) {

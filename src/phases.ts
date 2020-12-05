@@ -37,7 +37,8 @@ export const endPhase = <P>(): PhaseImpl<P, MachineContext<P>, [any]> =>
 export const waitPhase = <P>(): PhaseImpl<P, MachineContext<P>, [number, P]> =>
   (x => ({
     guard(d: any): d is [number, P] { return true },
-    async run([delay, next]) {
+    async run([ms, next]) {
+      await delay(ms);
       return next;
     }
   }));
