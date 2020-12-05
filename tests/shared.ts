@@ -2,7 +2,7 @@ import { Map, Set, List } from 'immutable'
 import _Monoid from '../src/_Monoid'
 import { Id, Data, MachineContext, Phase, PhaseMap, WorldImpl, ContextImpl } from '../src/lib'
 import { BehaviorSubject } from 'rxjs'
-import { flatMap, shareReplay, scan, groupBy, tap, map } from 'rxjs/operators'
+import { flatMap, shareReplay, scan, groupBy, map } from 'rxjs/operators'
 import { AtomRef, Atom, AtomLike } from '../src/atoms'
 import { gather } from './helpers'
 import { Loader } from '../src/MachineSpace'
@@ -14,7 +14,12 @@ import { tracePath, renderAtoms } from '../src/AtomPath'
 const log = console.log;
 const MD = new MonoidData();
 
-export function scenario<W extends PhaseMap, P = Phase<W>, X extends MachineContext<P> = MachineContext<P>>(world: WorldImpl<W, X> & ContextImpl<P, X>) {
+export function scenario<
+  W extends PhaseMap,
+  P = Phase<W>,
+  X extends MachineContext<P> = MachineContext<P>>
+  (world: WorldImpl<W, X> & ContextImpl<P, X>)
+{
   return (opts?: { phases?: Map<Id, P>, batchSize?: number, threshold?: number, save?: boolean }) => {
 
     const save = opts?.save === undefined || opts?.save;

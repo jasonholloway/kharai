@@ -4,7 +4,7 @@ import { Observable, ReplaySubject, of, concat } from 'rxjs'
 import { flatMap, startWith, endWith, scan, takeWhile, finalize, map, toArray, ignoreElements, concatMap, filter, takeUntil, shareReplay } from 'rxjs/operators'
 import { Set } from 'immutable'
 import { MachineSpace, Loader, Signal } from './MachineSpace'
-import { buildDispatch, Dispatch } from './dispatch'
+import { buildDispatch } from './dispatch'
 import { runSaver } from './AtomSpace'
 import MonoidData from './MonoidData'
 import Store from './Store'
@@ -15,7 +15,11 @@ const log = console.log;
 const MD = new MonoidData();
 const gather = <V>(v$: Observable<V>) => v$.pipe(toArray()).toPromise();
 
-export function newRun<W extends PhaseMap, P = Phase<W>, X extends MachineContext<P> = MachineContext<P>>(
+export function newRun<
+	W extends PhaseMap,
+	P = Phase<W>,
+  X extends MachineContext<P> = MachineContext<P>>
+(
 	world: WorldImpl<W, X> & ContextImpl<P, X>,
 	loader: Loader<P>,
 	opts?: { threshold?: number, store?: Store<Data> }
@@ -26,7 +30,7 @@ export function newRun<W extends PhaseMap, P = Phase<W>, X extends MachineContex
 	const store = opts?.store;
 
 	const mediator = new Mediator(signal$);
-	const space = new MachineSpace(world, loader, <Dispatch<X, P>><unknown>buildDispatch(world.phases), mediator, signal$)
+	const space = new MachineSpace(world, loader, buildDispatch(world.phases), mediator, signal$)
 
 	if(store) {
 		const threshold$ = concat(

@@ -17,7 +17,9 @@ export type PhaseSpec = {
 
 type PathVal<T, E> = { [K in keyof T]: [K, T[K] extends E ? T[K] : PathVal<T[K], E>] }[keyof T]
 
-export type Phase<P extends PhaseMap> = PathVal<P, any[]>
+// export type BasePhase = [string, unknown]
+
+export type Phase<P extends PhaseMap = PhaseMap> = PathVal<P, any[]>
 
 export interface MachineContext<P> {
 	readonly id: Id

@@ -19,7 +19,7 @@ export type Loader<P> = (ids: Set<Id>) => Promise<Map<Id, P>>
   private readonly world: WorldImpl<W, X> & ContextImpl<P, X>
   private readonly loader: Loader<P>
   private readonly mediator: Mediator
-  private readonly dispatch: Dispatch<X, P>
+    private readonly dispatch: Dispatch<P, X>
 
   private readonly _commit$ = new ReplaySubject<Commit<Data>>(1)
   readonly commit$ = this._commit$;
@@ -35,7 +35,7 @@ export type Loader<P> = (ids: Set<Id>) => Promise<Map<Id, P>>
   constructor(
     world: WorldImpl<W, X> & ContextImpl<P, X>,
     loader: Loader<P>,
-    dispatch: Dispatch<X, P>,
+    dispatch: Dispatch<P, X>,
     mediator: Mediator,
     signal$: Observable<Signal>
   ) {

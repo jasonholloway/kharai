@@ -30,7 +30,7 @@ export function runMachine<X, P>(
   head: Head<Data>,
   commitFac: CommitFac,
   space: ISpace<P>,
-  dispatch: Dispatch<X, P>,
+  dispatch: Dispatch<P, X>,
   modContext: (x: MachineContext<P>) => X,
   signal$: Observable<Signal>
 ): Machine<P>
