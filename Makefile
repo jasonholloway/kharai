@@ -26,7 +26,7 @@ publish: out tests.json
 	version=$$(awk '/^\W*"version":/ { print gensub(/\"(.+)\",/, "v\\1", "g", $$2) }' package.json)
 	tags=$$(git tag -l --points-at=HEAD)
 
-	if $$(echo $$tags | grep $$version); then
+	if (echo $$tags | grep $$version); then
 		npm publish
 	fi
 
