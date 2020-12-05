@@ -5,9 +5,9 @@ SHELL := /bin/bash
 .PHONY: clean test build
 
 
-build: out
+build: out/built
 
-test: tests.json
+test: out/tested
 
 clean:
 	rm -rf out
@@ -16,15 +16,17 @@ clean:
 node_modules: package.json
 	npm install
 
-out: $(shell find src tests) tsconfig.json node_modules
-	tsc
-	touch out/built
+out/built: $(shell find src tests) tsconfig.json node_modules Makefile
+	tsc \
+	&& touch out/built
 
-tests.json: out jest-ci.config.js
-	jest -c jest-ci.config.js \
-	  --json --outputFile=tests.json
+out/tested: out/built jest.config.js
+	jest \
+	  --collectCoverage=true \
+	  --coverageProvider=v8 \
+	&& touch out/tested
 
-publish: out tests.json
+publish: out/tested
 	if [ ! -z "$$(git status --porcelain)" ]; then
 	  echo "Git not clean!"
 	  exit 1
