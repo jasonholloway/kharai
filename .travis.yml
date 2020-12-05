@@ -1,13 +1,10 @@
 language: node_js
-node_js:
-  - 14
-script: scripts/build.sh
 
-deploy:
-  on:
-    branch: master
-    tags: true
-  provider: npm
-  email: miceeatnicerice@hotmail.com
-  api_key:
-    secure: "Xj+nZJYsmeM8CphgvimUwYhVZjiLa5yZfRTylXDH1VafMOcbiHAaYxrGLsGY4YvtIwYoMmHrPfBtfKinbBFs8hCyq9nZSg2CB8HgzXmMCrCFmqL4HrEtsoHIuGuohqBfGXAO8PjDnTe2E0mrT6CsbzuwTN9IM0E2WL9XqR1PovHkEPCvOQD8f1xBFh9Q65P8Kc7ZtBg6VTpUCyS9pejoGxSNf+Qn66kPYBFm1H6kUwhdpjnKDprCYl3soMU7cVUHYVB2aW4cR/DXpHoC/hn3QNhmHPYSR3KPA0EwSwhJly6mSP8S8iE9eD6L/mtMxgg+ir4jZV3YzFLMphJkSnDMdDOOszYrkIArx91fBhJESWQnHzUF9qTYgUs7BIPrj6CNfbE5SpY3KQ6Y+QjUjkIdRWEjU8V/dmCVUQQYzmDhbQLkOLM42YgY72aMvbd1ZyYlp2ksdU+P3ljBoKAgEEjvlsG2AIeXjXcklV+l/qD2kk1VNwvtjM6/j/tZ5YFvCZOl6pR4kLxnA6jSL7BgRPLW2qM8t0/1T4dud0q09MhBgKdL4GEd45VWf2lVm69ZJMpAQqoXyF5W+PLBAd60mwk+E9gPOGkVRGIfZpXCn4bbYg+ueyVb+330aoKOA7nxqP0sDaILX1+LDHLt2oJ/5QpPGWy9d+a5I706IY2jhZMwW+M="
+node_js:
+- 14
+
+env:
+  global: 
+    - secure: dJBIJY6emNNVaHi/tW103LKhmhpUsYuoWr+QGUk70Q6dQ1Ps25rpbSgg42m3/Rh0TApekwuQ0tJRXtxlcIydPpzS2/rUR29mihE3Y5BKUy+vA/0DwkW1SPP9OU0eFhPYaWhmGmJeoTbjnn1qTsHhb1OOQEFfmewqmPai5hvXAbAAp+NCbtTlFY+6pC9UChNwcvffoi7bEP9fQJs5bQZ4n9Vcb1X4E7Y8nd+srzVAB7KIVy/ESENlH6C1ObQD71wuN0psNF/AUI++lPgaCCmlxVqd11yqSUakT79ItSvT+8nvIJpdHwxqgA4Z7h46gl50/L2Cw1JUNJto+oOjafQkniudCX6L/xGO5LtslT5cO3rYkkC73Pv0DlIFQyYXnHlVxoT7YoAggu/xSiIVyw0oIQd+2itKPIFMDX+ZeweOGDdszppatpxw0tegVNLv9T+Hgt0T6/BSMrGqwGvuipCyDe8NcVBmwTGohkFjR7PszkV7BtYLSbc4qrafAsIU01GBeXM0PIvgkAb8MhaM5pSy1tvlZ12LR3iPOMrDIa2GfFT8MAf3bK3CzhV3sOXy6vunxOHKz00R8nvqhjDE16SRbkpfi+SeuYOlau06ToxK1Y61Pn7JWOlwURCX/Zr7U99S3cPbqaeuThK8cDrRrEU0zC8FYXyS30JXSXrUd0Um4oI=
+
+script: make publish
