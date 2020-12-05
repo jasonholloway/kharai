@@ -8,8 +8,8 @@ import { gather } from './helpers'
 import { Loader } from '../src/MachineSpace'
 import MonoidData from '../src/MonoidData'
 import { newRun } from '../src/Run'
-import FakeStore from './FakeStore'
 import { tracePath, renderAtoms } from '../src/AtomPath'
+import FakeStore from '../src/FakeStore'
 
 const log = console.log;
 const MD = new MonoidData();
