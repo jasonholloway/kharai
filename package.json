@@ -1,6 +1,6 @@
 {
   "name": "kharai",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "The versatile beast of burden",
   "main": "out/src/index.js",
   "types": "out/src/index.d.ts",
