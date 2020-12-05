@@ -1,4 +1,4 @@
-PATH	:= node_modules/.bin:$(PATH)
+PATH  := node_modules/.bin:$(PATH)
 SHELL := /bin/bash
 
 .ONESHELL:
@@ -37,6 +37,6 @@ publish: out/tested
 
 	if (echo $$tags | grep $$version); then
 	  echo '//registry.npmjs.org/:_authToken=$${NPM_TOKEN}' > .npmrc
-		npm publish
+	  npm publish
 	fi
 
