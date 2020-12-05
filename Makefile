@@ -2,7 +2,7 @@ PATH  := node_modules/.bin:$(PATH)
 SHELL := /bin/bash
 
 .ONESHELL:
-.PHONY: clean test build
+.PHONY: clean test build dev
 
 
 build: out/built
@@ -11,6 +11,9 @@ test: out/tested
 
 clean:
 	rm -rf out
+
+dev:
+	tsc --watch
 
 
 node_modules: package.json
