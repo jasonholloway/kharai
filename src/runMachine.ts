@@ -39,6 +39,7 @@ export function runMachine<X, P>(
   
   const kill$ = signal$.pipe(filter(s => s.stop), share());
 
+
   const log$ = of(<L>[phase]).pipe(
     expand(([p]) => {
       if(!p) return EMPTY;
@@ -84,6 +85,7 @@ export function runMachine<X, P>(
   function buildContext(id: Id, commit: Committer<Data>): X {
     return modContext({
       id: id,
+
       watch(ids: Id[]): Observable<[Id, P]> {
         return space.watch(ids)                //TODO if the same thing is watched twice, commits will be added doubly
           .pipe(
@@ -93,6 +95,7 @@ export function runMachine<X, P>(
             flatMap(([id, [p]]) => p ? [<[Id, P]>[id, p]] : []),
           );
       },
+
       attach<R>(attend: Attendee<R>) {
         return space.attach(machine, {
 					chat(m, peers) {
@@ -110,6 +113,7 @@ export function runMachine<X, P>(
 					}
 				});
       },
+
       convene<R>(ids: Id[], convene: Convener<R>) {
         return space.convene(ids, {
 					convene(peers) {

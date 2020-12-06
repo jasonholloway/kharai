@@ -12,17 +12,14 @@ describe('machines - watching', () => {
 	it('one can watch the other', async () => {
 		x = fac({ save: false });
 
-		const [logs] = await Promise.all([
-			x.logs(),
+		await Promise.all([
 			x.run.boot('Kes', ['track', [['Stu'], 100]]),
 			x.run.boot('Stu', ['runAround', [3]]),
 			x.run.log$.toPromise()
 		]);
 
-		const seen = List(logs)
-			.flatMap(([id, p]) =>
-				(id == 'Kes' && p && p[0] == '$end') ? p[1][0] : [])
-			.toArray()
+		const kes = await x.logs('Kes');
+		const seen = kes.find(l => l[0] == '$end')?.[1][0];
 
 		expect(seen).toEqual([
 			['Stu', ['runAround', [3]]],
@@ -59,18 +56,15 @@ describe('machines - watching', () => {
 	it('can watch several at once', async () => {
 		x = fac({ save: false });
 
-		const [logs] = await Promise.all([
-			x.logs(),
+		await Promise.all([
 			x.run.boot('Kes', ['track', [['Biff', 'Kipper'], 4]]),
 			x.run.boot('Biff', ['runAround', [11]]),
 			x.run.boot('Kipper', ['runAround', [22]]),
 			x.run.log$.toPromise()
 		]);
 
-		const seen = List(logs)
-			.flatMap(([id, p]) =>
-				(id == 'Kes' && p && p[0] == '$end') ? p[1][0] : [])
-			.toArray()
+		const kes = await x.logs('Kes');
+		const seen = kes.find(l => l[0] == '$end')?.[1][0];
 
 		expect(seen).toEqual([
 			['Biff', ['runAround', [11]]],
@@ -108,11 +102,12 @@ describe('machines - watching', () => {
 	it('past phases of target aren\'t seen', async () => {
 		x = fac({ save: false });
 
-		const [logs] = await Promise.all([
-			x.logs(),
+		await Promise.all([
 			x.run.boot('Gord', ['runAround', [2]]),
 			x.run.boot('Ed', ['$wait', [100, ['track', [['Gord'], 1]]]])
 		]);
+
+		const logs = await x.allLogs();
 
     expect(logs).toEqual([
 			['Gord', ['$boot', []]],

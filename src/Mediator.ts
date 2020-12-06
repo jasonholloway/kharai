@@ -4,6 +4,7 @@ import { Observable } from 'rxjs';
 import { Signal } from './MachineSpace';
 import { filter, tap, share, shareReplay } from 'rxjs/operators';
 import CancellablePromise from './CancellablePromise';
+import { Preemptable } from './Preemptable';
 const log = console.log;
 
 export interface Peer {
@@ -24,6 +25,32 @@ export class Mediator {
 
   constructor(signal$: Observable<Signal>) {
     this.kill$ = signal$.pipe(filter(s => s.stop), shareReplay(1));
+  }
+
+  convene2<R>(convener: Convener<R>, others: Set<object>): Preemptable<R> {
+    return this.locks
+      .claim(...others)
+      .map(claim => {
+        try {
+          const peers = claim.offers(); //peer interface needs to be wrapped here, to remove special messages
+          const answer = convener.convene(peers);
+
+          //only live peers should be bothered here - maybe its up to the peers themselves; they will return head when done
+          peers.forEach(p => {
+            const a = p.chat(false); //should be better, more inscrutable value here
+            if(a) throw Error('peer responded badly to kill');
+          });
+
+          return answer;
+        }
+        finally {
+          claim.release(); //NOTE async!!!!
+          // await claim.release();
+        }
+      });
+    
+      // .cancelOn(this.kill$);
+
   }
 
   async convene<R>(convener: Convener<R>, others: Set<object>): Promise<R> {

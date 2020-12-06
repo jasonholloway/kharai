@@ -12,7 +12,7 @@ describe('machines - running', () => {
 
   it('run through phases', async () => {
     const [logs] = await Promise.all([
-      x.logs(),
+      x.allLogs(),
       x.run.boot('bob', ['rat', ['wake', []]])
     ]);
 
@@ -26,7 +26,7 @@ describe('machines - running', () => {
 
   it('two run at once', async () => {
     const [logs] = await Promise.all([
-      x.logs(),
+      x.allLogs(),
       x.run.boot('nib', ['hamster', ['wake', [77]]]),
       x.run.boot('bob', ['rat', ['wake', []]])
     ]);
@@ -44,7 +44,7 @@ describe('machines - running', () => {
 
   it('two talk to one another', async () => {
     const [logs] = await Promise.all([
-      x.logs(),
+      x.allLogs(),
       x.run.boot('gaz', ['guineaPig', ['runAbout', []]]),
       x.run.boot('goz', ['guineaPig', ['gruntAt', ['gaz']]])
     ]);

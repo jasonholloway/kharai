@@ -1,8 +1,8 @@
 import { Map, Set, List } from 'immutable'
 import _Monoid from '../src/_Monoid'
 import { Id, Data, MachineContext, Phase, PhaseMap, WorldImpl, ContextImpl } from '../src/lib'
-import { BehaviorSubject } from 'rxjs'
-import { flatMap, shareReplay, scan, groupBy, map } from 'rxjs/operators'
+import { BehaviorSubject, Observable } from 'rxjs'
+import { flatMap, shareReplay, scan, groupBy, map, filter, takeUntil, takeWhile } from 'rxjs/operators'
 import { AtomRef, Atom, AtomLike } from '../src/atoms'
 import { gather } from './helpers'
 import { Loader } from '../src/MachineSpace'
@@ -10,6 +10,7 @@ import MonoidData from '../src/MonoidData'
 import { newRun } from '../src/Run'
 import { tracePath, renderAtoms } from '../src/AtomPath'
 import FakeStore from '../src/FakeStore'
+import { isArray } from 'util'
 
 const log = console.log;
 const MD = new MonoidData();
@@ -53,18 +54,39 @@ export function scenario<
       shareReplay(1),
     ).subscribe(atomSub);
 
+    const log$ = run.log$.pipe(
+      map(([id, p]) => [id, p] as const),
+      shareReplay(1000)
+    );
+
+    log$.subscribe();
+
     return {
       store,
       run,
-      logs: () => gather(
-        run.log$.pipe(
-          map(([id, p]) => [id, p] as const),
-          // tap(log)
-        )
-      ),
+
+      logs: (id: Id) =>
+        gather(log$.pipe(
+          filter(([i]) => i == id),
+          map(([,p]) => p),
+          takeWhile((p): p is P => !!p),
+        )),
+
+      allLogs: () => gather(log$),
 
       view(id: Id) {
         return viewAtoms(List(atomSub.getValue()?.get(id) || []));
+      },
+
+      async session(fn: ()=>Promise<void>) {
+        const release = run.keepAlive();
+        try {
+          await fn();
+        }
+        finally {
+          release();
+          run.complete();
+        }
       }
     }
   }

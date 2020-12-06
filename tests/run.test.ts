@@ -4,13 +4,14 @@ import { newRun } from "../src/Run";
 import { Phase, Id } from "../src/lib";
 import { Loader } from './MachineSpace';
 import { scenario } from './shared';
+import { delay } from '../src//util';
 const log = console.log;
 
 describe('running', () => {
+	type P = Phase<Rodents>;
 
 	it('start and stop', async () => {
 		const world = rodents();
-		type P = Phase<Rodents>;
 
     const loader: Loader<P> =
       ids => Promise.resolve(
@@ -29,9 +30,20 @@ describe('running', () => {
 		await run.machine$.toPromise();
 	})
 
-	xit('starting from an existing state', async () => {
-		type P = Phase<Rodents>;
+	it('starting fresh', async () => {
+		const x = scenario(rodents())(
+			{
+				loader: ids => Promise.resolve(
+					ids.reduce<Map<Id, P>>(
+						(ac, id) => ac.set(id, ['$boot', []]),
+						Map()))
+			});
 
+		const success = await x.run.tryBoot('fresh', ['guineaPig', ['runAbout', []]]);
+		expect(success).toBeTruthy();
+	})
+
+	it('starting existing', async () => {
 		const x = scenario(rodents())(
 			{
 				loader: ids => Promise.resolve(
@@ -40,14 +52,51 @@ describe('running', () => {
 						Map()))
 			});
 
-		const success = await x.run.tryBoot(['a'], ['guineaPig', ['runAbout', []]]);
+		const success = await x.run.tryBoot('existing', ['guineaPig', ['runAbout', []]]);
 		expect(success).toBeFalsy();
-
-		await x.run.log$.toPromise();
-
-		const a = x.view('a');
-
 	})
+
+	it('starting both fresh and existing', async () => {
+		const x = scenario(rodents())(
+			{
+				loader: ids => Promise.resolve(
+					ids.reduce<Map<Id, P>>(
+						(ac, id) => {
+							switch(id) {
+								case 'existing': return ac.set(id, ['rat', ['wake', []]]);
+								default: return ac.set(id, ['$boot', []]);
+							}
+						},
+						Map()))
+			});
+
+		await x.session(async () => {
+			const [bootedExisting, bootedFresh] = await Promise.all([
+				x.run.tryBoot('existing', ['hamster', ['wake', [123]]]),
+				x.run.tryBoot('fresh', ['hamster', ['wake', [123]]])
+			]); 
+
+			expect(bootedExisting).toBeFalsy();
+			expect(bootedFresh).toBeTruthy();
+
+			await delay(300);
+		});
+
+		const existing = await x.logs('existing');
+		expect(existing).toEqual([
+			['rat', ['wake', []]],
+			['rat', ['squeak', [123]]],
+			['$end', ['I have squeaked 123!']]
+		]);
+
+		const fresh = await x.logs('fresh');
+		expect(fresh).toEqual([
+			['$boot', []],
+			['hamster', ['wake', [123]]],
+			['$end', [123]]
+		]);
+	})
+
 
 	xit('graceful ending of deadlocks', async () => {
 		//

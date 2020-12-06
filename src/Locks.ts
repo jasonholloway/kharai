@@ -117,7 +117,7 @@ class Allocator<X> {
 
     if(tryIncAllNow(items)) {
       const locked = handle(items);
-      return Preemptable.value(locked);
+      return Preemptable.lift(locked);
     }
     else {
       return Preemptable.continuable((resolve, _, onCancel)=> {

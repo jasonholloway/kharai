@@ -1,10 +1,15 @@
 import CancellablePromise from './CancellablePromise'
+import { isFunction } from 'util';
 
 type CancellableFn<A> = (resolve: (v:A|PromiseLike<A>)=>void, reject: (r:any)=>void, onCancel: (h:()=>void)=>void ) => void
 
 export namespace Preemptable {
-  export function value<A>(value: A): Preemptable<A> {
-    return new Value(value);
+  export function lift<A>(a: A): Preemptable<A> {
+    return new Value(a);
+  }
+
+  export function liftFn<A>(fn: (()=>Promise<A>)): Preemptable<A> {
+    return new Continuable((resolve, reject, onCancel) => { fn().then(resolve).catch(onCancel) })
   }
 
   export function continuable<A>(fn: CancellableFn<A>): Preemptable<A> {
