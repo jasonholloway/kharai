@@ -39,7 +39,7 @@ describe('running', () => {
 						Map()))
 			});
 
-		const success = await x.run.tryBoot('fresh', ['guineaPig', ['runAbout', []]]);
+		const success = await x.run.boot('fresh', ['guineaPig', ['runAbout', []]]);
 		expect(success).toBeTruthy();
 	})
 
@@ -52,7 +52,7 @@ describe('running', () => {
 						Map()))
 			});
 
-		const success = await x.run.tryBoot('existing', ['guineaPig', ['runAbout', []]]);
+		const success = await x.run.boot('existing', ['guineaPig', ['runAbout', []]]);
 		expect(success).toBeFalsy();
 	})
 
@@ -72,8 +72,8 @@ describe('running', () => {
 
 		await x.session(async () => {
 			const [bootedExisting, bootedFresh] = await Promise.all([
-				x.run.tryBoot('existing', ['hamster', ['wake', [123]]]),
-				x.run.tryBoot('fresh', ['hamster', ['wake', [123]]])
+				x.run.boot('existing', ['hamster', ['wake', [123]]]),
+				x.run.boot('fresh', ['hamster', ['wake', [123]]])
 			]); 
 
 			expect(bootedExisting).toBeFalsy();

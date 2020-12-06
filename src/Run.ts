@@ -110,17 +110,11 @@ export function newRun<
 			}
 		},
 
-		async boot(id: Id, p: Phase<W>) {
-			const ms = await this.summon([id]);
-			return await ms.tell(p).promise();
-		},
-
-		async tryBoot(id: Id, p: Phase<W>): Promise<boolean> {
+		async boot(id: Id, p: Phase<W>): Promise<boolean> {
 			const ms = await this.summon([id]);
 			const [done] = ms.tell(p).preempt();
 			return done;
 		},
-
 
 		keepAlive(): (()=>void) {
 			keepAlive$.next(1);
