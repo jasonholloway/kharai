@@ -1,14 +1,15 @@
 import CancellablePromise, { Cancellable } from './CancellablePromise'
+import { Observable } from 'rxjs';
 
 export namespace Preemptable {
-  function fromValue<A>(value: A) {
+  export function fromValue<A>(value: A): Preemptable<A> {
     return new PreemptableValue(value);
   }
 
-  function fromPromise<A>(
-		fn: (resolve: (v:A|CancellablePromise<A>|PromiseLike<A>)=>void, reject: (r:any)=>void) => void,
+  export function fromPromise<A>(
+		fn: (resolve: (v:A|PromiseLike<A>)=>void, reject: (r:any)=>void, onCancel: (h:()=>void)=>void ) => void,
 		upstreams?: Cancellable[]
-  )
+  ): Preemptable<A>
   {
     return new PreemptablePromise(fn, upstreams);
   }
@@ -17,6 +18,7 @@ export namespace Preemptable {
 export interface Preemptable<A> extends Promise<A>, Cancellable {
   preempt(): [true,A]|[false]
   map<B>(fn: (a:A) => B): Preemptable<B>
+	cancelOn(kill$: Observable<any>): Promise<A>
 }
 
 class PreemptableValue<A> extends CancellablePromise<A> implements Preemptable<A> {
@@ -39,7 +41,7 @@ class PreemptableValue<A> extends CancellablePromise<A> implements Preemptable<A
 class PreemptablePromise<A> extends CancellablePromise<A> implements Preemptable<A> {
 
   constructor(
-		fn: (resolve: (v:A|CancellablePromise<A>|PromiseLike<A>)=>void, reject: (r:any)=>void) => void,
+		fn: (resolve: (v:A|CancellablePromise<A>|PromiseLike<A>)=>void, reject: (r:any)=>void, onCancel: (h:()=>void)=>void ) => void,
 		upstreams?: Cancellable[]
 	) {
     super(fn, upstreams);

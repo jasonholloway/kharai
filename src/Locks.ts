@@ -1,5 +1,5 @@
 import {Set, OrderedMap} from 'immutable'
-import CancellablePromise from './CancellablePromise';
+import { Preemptable } from './Preemptable';
 
 type Token = object
 type Waiter = () => ((()=>void) | false);
@@ -27,42 +27,6 @@ export class Locks {
 }
 
 
-interface Preemptable<A> {
-  map<B>(fn: (a:A) => B): Preemptable<B>
-  toPromise(): CancellablePromise<A>
-}
-
-class PreemptableValue<A> implements Preemptable<A> {
-  map<B>(fn: (a: A) => B): Preemptable<B> {
-    throw new Error("Method not implemented.");
-  }
-  toPromise(): CancellablePromise<A> {
-    throw new Error("Method not implemented.");
-  }
-}
-
-class PreemptablePromise<A> implements Preemptable<A> {
-  map<B>(fn: (a: A) => B): Preemptable<B> {
-    throw new Error("Method not implemented.");
-  }
-  toPromise(): CancellablePromise<A> {
-    throw new Error("Method not implemented.");
-  }
-}
-
-
-//   value(): A { return <A><unknown>undefined; }
-
-//   continue(): CancellablePromise<A> {
-//     throw 123;
-//   }
-
-//   map<B>(fn: (a: A) => B) {
-//     throw 123;
-//   }
-// }
-
-
 interface ClaimHandle<X> extends Lock {
   offers(): Set<X>
 }
@@ -74,7 +38,7 @@ export class Exchange<X> {
     this._inner = new Allocator<[X?, boolean?]>([]);
   }
   
-  claim(...items: object[]): CancellablePromise<ClaimHandle<X>> {
+  claim(...items: object[]): Preemptable<ClaimHandle<X>> {
     let offers = Set<X>();
     
     return this._inner.app(items,
@@ -98,7 +62,7 @@ export class Exchange<X> {
       }));
   }
 
-  offer(items: object[], context: X): CancellablePromise<Lock> {
+  offer(items: object[], context: X): Preemptable<Lock> {
     return this._inner.app(items, {
       canApp: ([x]) => !x,
       app: _ => [context],
@@ -151,8 +115,8 @@ class Allocator<X> {
   //if tryIncAll works straight up, then return that; otherwise return a message with a callback
   //or we could add a flag to the interface with failure case
 
-  app(items: object[], c: Claim<X>): CancellablePromise<Lock> {
-    return CancellablePromise.create<Lock>(
+  app(items: object[], c: Claim<X>): Preemptable<Lock> {
+    return Preemptable.fromPromise<Lock>(
       (resolve, _, onCancel) => {
         const token = new Object();
 

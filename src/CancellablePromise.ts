@@ -7,10 +7,16 @@ export default class CancellablePromise<A> extends Promise<A> implements Cancell
   protected readonly _upstreams: Cancellable[]
 
   constructor(
-		fn: (resolve: (v:A|CancellablePromise<A>|PromiseLike<A>)=>void, reject: (r:any)=>void) => void,
+		fn: (resolve: (v:A|CancellablePromise<A>|PromiseLike<A>)=>void, reject: (r:any)=>void, onCancel: (h: ()=>void) => void) => void,
 		upstreams?: Cancellable[]
 	) {
-    super((resolve, reject) =>
+    let cancelled = false;
+    const hooks: (()=>void)[] = [];
+		let _reject: ((r:any)=>void)|undefined = undefined;
+    
+    super((resolve, reject) => {
+      _reject = reject;
+      
 			fn(
 				(v) => {
 					if(v instanceof CancellablePromise) {
@@ -19,10 +25,29 @@ export default class CancellablePromise<A> extends Promise<A> implements Cancell
 
 					return resolve(v);
 				},
-				reject
-			));
+				reject,
+        h => hooks.push(h)
+      );
+    });
 
-    this._upstreams = upstreams || [];
+    this._upstreams = [
+      ...(upstreams || []),
+      {
+        cancel() {
+          if(!cancelled) {
+            cancelled = true;
+            try {
+              hooks.forEach(h => h());
+              if(_reject) _reject(new CancelledError())
+            }
+            catch(e) {
+              if(_reject) _reject(e);
+              else throw e;
+            }
+          }
+        }
+      }
+    ];
   }
 
   cancel() {
@@ -45,26 +70,9 @@ export default class CancellablePromise<A> extends Promise<A> implements Cancell
 
   static create<V>(
     fn: (resolve: (v:V|PromiseLike<V>)=>void, reject: (r:any)=>void, addCancel: (h: ()=>void) => void) => void
-  ): CancellablePromise<V> {
-    let _cancelled = false;
-		let _reject: ((r:any)=>void)|undefined = undefined;
-    const _hooks: (()=>void)[] = [];
-    
-    return new CancellablePromise<V>(
-      (resolve, reject) => {
-				_reject = reject;
-        fn(resolve, reject, hook => _hooks.push(hook))
-      },
-      [{
-        cancel() {
-          if(!_cancelled) {
-            _cancelled = true;
-            _hooks.forEach(h => h());
-						if(_reject) _reject(new CancelledError())
-          }
-        }
-      }]
-    );
+  ): CancellablePromise<V>
+  {
+    return new CancellablePromise(fn);
   }
 }
 

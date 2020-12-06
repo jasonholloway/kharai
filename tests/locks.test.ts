@@ -246,7 +246,23 @@ describe('locks', () => {
 			await lock.release();
 			expect(locks.canLock(_3)).toBeTruthy();
 		})
+
+		it('can preempt lock', async () =>{
+			const [r, lock] = locks.lock(_1, _2).preempt();
+			expect(r).toBeTruthy();
+
+			expect(locks.canLock(_1)).toBeFalsy();
+			expect(locks.canLock(_2)).toBeFalsy();
+			expect(locks.canLock(_3)).toBeTruthy();
+
+			await lock?.release();
+
+			expect(locks.canLock(_1)).toBeTruthy();
+			expect(locks.canLock(_2)).toBeTruthy();
+			expect(locks.canLock(_3)).toBeTruthy();
+		})
 	})
+
 
 })
 
