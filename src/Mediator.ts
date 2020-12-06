@@ -29,6 +29,7 @@ export class Mediator {
   async convene<R>(convener: Convener<R>, others: Set<object>): Promise<R> {
     const claim = await this.locks
       .claim(...others)
+      .promise()
       .cancelOn(this.kill$);
 
     try {
@@ -80,7 +81,7 @@ export class Mediator {
                 return _go = false;
               }
             }
-          });
+          }).promise();
         })
         .cancelOn(this.kill$);
   

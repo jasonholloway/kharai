@@ -1,31 +1,27 @@
-import CancellablePromise, { Cancellable } from './CancellablePromise'
-import { Observable } from 'rxjs';
+import CancellablePromise from './CancellablePromise'
+
+type CancellableFn<A> = (resolve: (v:A|PromiseLike<A>)=>void, reject: (r:any)=>void, onCancel: (h:()=>void)=>void ) => void
 
 export namespace Preemptable {
-  export function fromValue<A>(value: A): Preemptable<A> {
-    return new PreemptableValue(value);
+  export function value<A>(value: A): Preemptable<A> {
+    return new Value(value);
   }
 
-  export function fromPromise<A>(
-		fn: (resolve: (v:A|PromiseLike<A>)=>void, reject: (r:any)=>void, onCancel: (h:()=>void)=>void ) => void,
-		upstreams?: Cancellable[]
-  ): Preemptable<A>
-  {
-    return new PreemptablePromise(fn, upstreams);
+  export function continuable<A>(fn: CancellableFn<A>): Preemptable<A> {
+    return new Continuable(fn);
   }
 }
 
-export interface Preemptable<A> extends Promise<A>, Cancellable {
-  preempt(): [true,A]|[false]
+export interface Preemptable<A> {
+  preempt(): readonly [true, A] | readonly [false, () => CancellablePromise<A>]
   map<B>(fn: (a:A) => B): Preemptable<B>
-	cancelOn(kill$: Observable<any>): Promise<A>
+  promise(): CancellablePromise<A>
 }
 
-class PreemptableValue<A> extends CancellablePromise<A> implements Preemptable<A> {
+class Value<A> implements Preemptable<A> {
   readonly value: A
 
   constructor(value: A) {
-    super((resolve) => resolve(value));
     this.value = value;
   }
 
@@ -33,30 +29,48 @@ class PreemptableValue<A> extends CancellablePromise<A> implements Preemptable<A
     return [true, this.value];
   }
   
-  map<B>(fn: (a: A) => B): PreemptableValue<B> {
-    return new PreemptableValue(fn(this.value));
+  map<B>(fn: (a: A) => B): Value<B> {
+    return new Value(fn(this.value));
+  }
+
+  promise(): CancellablePromise<A> {
+    return new CancellablePromise(resolve => resolve(this.value));
   }
 }
 
-class PreemptablePromise<A> extends CancellablePromise<A> implements Preemptable<A> {
+class Continuable<A> implements Preemptable<A> {
+	run: CancellableFn<A>
+  private _promise: CancellablePromise<A>|undefined
 
-  constructor(
-		fn: (resolve: (v:A|CancellablePromise<A>|PromiseLike<A>)=>void, reject: (r:any)=>void, onCancel: (h:()=>void)=>void ) => void,
-		upstreams?: Cancellable[]
-	) {
-    super(fn, upstreams);
+  constructor(fn: CancellableFn<A>) {
+    this.run = fn;
   }
 
-  preempt(): [false] {
-    return [false];
+  preempt(): [false, () => CancellablePromise<A>] {
+    return [false, () => this.promise()];
   }
   
-  map<B>(fn: (a: A) => B): PreemptablePromise<B> {
-    return new PreemptablePromise((resolve, reject) => {
-				this
-					.then(a => resolve(fn(a)))
-					.catch(reject);
-			},
-			this._upstreams);
+  map<B>(fn: (a: A) => B): Continuable<B> {
+    return new Continuable((resolve, reject, onCancel) => {
+      this.run(a =>
+        resolve(
+          (isPromiseLike(a) ? a.then(fn) : fn(a))),
+          reject,
+          onCancel
+        );
+			});
   }
+
+  promise(): CancellablePromise<A> {
+    if(this._promise) {
+      return this._promise;
+    }
+    else {
+      return this._promise = new CancellablePromise(this.run);
+    }
+  }
+}
+
+function isPromiseLike<V>(v: any): v is PromiseLike<V> {
+  return !!v.then;
 }

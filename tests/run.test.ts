@@ -29,7 +29,7 @@ describe('running', () => {
 		await run.machine$.toPromise();
 	})
 
-	it('starting from an existing state', async () => {
+	xit('starting from an existing state', async () => {
 		type P = Phase<Rodents>;
 
 		const x = scenario(rodents())(

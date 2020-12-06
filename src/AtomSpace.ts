@@ -98,6 +98,6 @@ export default class AtomSpace<V> {
   }
 
   private lock<V>(atoms: Set<Atom<V>>): Promise<Lock> {
-    return this._locks.lock(...atoms);
+    return this._locks.lock(...atoms).promise();
   }
 }
