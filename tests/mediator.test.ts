@@ -105,6 +105,10 @@ describe('mediator', () => {
 		expect(released).toBeTruthy();
 	})
 
+
+
+
+
 	//but the attendee can only be released when the mediator tells it so
 	//it doesn't unilaterally quit - instead it just skulks until its told to go
 	//the mediator must have the power to do this stuff, as it wrpas both attendee and convener

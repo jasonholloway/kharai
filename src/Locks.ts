@@ -27,6 +27,42 @@ export class Locks {
 }
 
 
+interface Preemptable<A> {
+  map<B>(fn: (a:A) => B): Preemptable<B>
+  toPromise(): CancellablePromise<A>
+}
+
+class PreemptableValue<A> implements Preemptable<A> {
+  map<B>(fn: (a: A) => B): Preemptable<B> {
+    throw new Error("Method not implemented.");
+  }
+  toPromise(): CancellablePromise<A> {
+    throw new Error("Method not implemented.");
+  }
+}
+
+class PreemptablePromise<A> implements Preemptable<A> {
+  map<B>(fn: (a: A) => B): Preemptable<B> {
+    throw new Error("Method not implemented.");
+  }
+  toPromise(): CancellablePromise<A> {
+    throw new Error("Method not implemented.");
+  }
+}
+
+
+//   value(): A { return <A><unknown>undefined; }
+
+//   continue(): CancellablePromise<A> {
+//     throw 123;
+//   }
+
+//   map<B>(fn: (a: A) => B) {
+//     throw 123;
+//   }
+// }
+
+
 interface ClaimHandle<X> extends Lock {
   offers(): Set<X>
 }
@@ -96,7 +132,6 @@ export class Semaphores {
 }
 
 
-
 export interface Lock {
   release(): Promise<void>
   extend(extras: Set<object>): void
@@ -110,6 +145,11 @@ class Allocator<X> {
     this._default = def;
     this._entries = new WeakMap<object, Entry<X>>();
   }
+
+  //instead of a cancellable promise...
+  //we want the below to return an option for continuing with the lock
+  //if tryIncAll works straight up, then return that; otherwise return a message with a callback
+  //or we could add a flag to the interface with failure case
 
   app(items: object[], c: Claim<X>): CancellablePromise<Lock> {
     return CancellablePromise.create<Lock>(

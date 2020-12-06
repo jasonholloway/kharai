@@ -1,7 +1,7 @@
 import { Id, PhaseMap, Phase, WorldImpl, Data, ContextImpl, MachineContext } from './lib'
 import { Mediator, Convener } from './Mediator'
 import { Observable, ReplaySubject, of, concat } from 'rxjs'
-import { flatMap, startWith, endWith, scan, takeWhile, finalize, map, toArray, ignoreElements, concatMap, filter, takeUntil, shareReplay } from 'rxjs/operators'
+import { flatMap, startWith, endWith, scan, takeWhile, finalize, map, toArray, ignoreElements, concatMap, filter, takeUntil, shareReplay, first } from 'rxjs/operators'
 import { Set } from 'immutable'
 import { MachineSpace, Loader, Signal } from './MachineSpace'
 import { buildDispatch } from './dispatch'
@@ -10,6 +10,7 @@ import MonoidData from './MonoidData'
 import Store from './Store'
 import { Log } from './runMachine'
 import { AtomRef } from './atoms'
+import { isArray } from 'util'
 
 const log = console.log;
 const MD = new MonoidData();
@@ -85,16 +86,30 @@ export function newRun<
 				.convene(convener, Set(machines));
 		},
 
-		tell(id: Id, m: any) {
-			return this.meet([id], {
+		tell(ids: Id[], m: any) {
+			return this.meet(ids, {
 				convene([p]) {
 					return p.chat([m])
 				}
 			});
 		},
 
-		boot(id: Id, p: Phase<W>) {
-			return this.tell(id, p);
+		async tryBoot(ids: Id[], p: Phase<W>): Promise<boolean> {
+			//or rather... need to try and boot machines with magic code
+			//on contact, bootable will reply instantly with magic symbol
+			//
+			//anything other than a bootable will reply
+			//with a wait command or some other immediate symbol
+			//in this case we know that booting is impossible,
+			//though we have summoned
+			
+			
+			const result = await this.boot(ids, p);
+			return true;
+		},
+
+		boot(ids: Id|Id[], p: Phase<W>) {
+			return this.tell(isArray(ids) ? ids : [ids], p);
 		}
 	};
 }

@@ -1,10 +1,10 @@
 import { Observable } from "rxjs/internal/Observable";
 
-type Cancellable = { cancel(): void }
+export type Cancellable = { cancel(): void }
 
 export default class CancellablePromise<A> extends Promise<A> implements Cancellable {
 
-  private readonly _upstreams: Cancellable[]
+  protected readonly _upstreams: Cancellable[]
 
   constructor(
 		fn: (resolve: (v:A|CancellablePromise<A>|PromiseLike<A>)=>void, reject: (r:any)=>void) => void,
