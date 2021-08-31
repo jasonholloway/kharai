@@ -298,4 +298,37 @@ describe('match' , () => {
     })
   })
 
+  describe('arrays of specal matchers', () => {
+    test({
+      pattern: Many(Str),
+      yes: [
+        ['plop'],
+        ['plop', 'plop'],
+        []
+      ],
+      no: [
+        [2, 2],
+        'whoompf',
+        true,
+        [1, 1, 1, null]
+      ]
+    })
+  })
+
+  describe('nested arrays of specal matchers', () => {
+    test({
+      pattern: Many(Many(Num)),
+      yes: [
+        [[1], [], [1, 2, 3]],
+        [[]],
+        []
+      ],
+      no: [
+        [2, 2],
+        [[], [1], [true]],
+        [[[]]]
+      ]
+    })
+  })
+
 })

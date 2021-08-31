@@ -22,7 +22,7 @@ export function Many<V>(m: V) : Many<V> {
   return {
     _type: $many,
     inner: m,
-    [$inspect]() { return `${m}[]` }
+    [$inspect]() { return `${inspect(m)}[]` }
   };
 }
 
@@ -34,7 +34,7 @@ type Read<S> =
   : S extends typeof Str ? string
   : S extends typeof Bool ? boolean
   : S extends typeof Never ? never
-  : S extends Many<infer V> ? V[]
+  : S extends Many<infer V> ? Read<V>[]
   : S extends (v:any) => v is (infer V) ? V
   : S extends RegExp ? string
   : S extends string ? S
