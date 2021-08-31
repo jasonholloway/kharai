@@ -21,42 +21,49 @@ describe('Specs', () => {
     const result = w.read(['hello', 123]);
     expect(result.errors).toHaveLength(0);
     expect(result.payload).toBe(123);
+    expect(result.isValid).toBeTruthy();
   });
 
   it('simple fail', () => {
     const result = w.read(['hello', -123]);
     expect(result.errors).toHaveLength(1);
     expect(result.payload).toBe(-123);
+    expect(result.isValid).toBeFalsy();
   });
 
   it('bad path', () => {
     const result = w.read(['hullo', 123]);
     expect(result.errors).toHaveLength(1);
     expect(result.payload).toBeUndefined();
+    expect(result.isValid).toBeFalsy();
   });
 
   it('nested match', () => {
     const result = w.read(['cow', ['talk', ['moo', 123]]])
     expect(result.errors).toHaveLength(0);
     expect(result.payload).toEqual(['moo', 123]);
+    expect(result.isValid).toBeTruthy();
   });
 
   it('nested fail', () => {
     const result = w.read(['cow', ['talk', ['moo', -123]]])
     expect(result.errors).toHaveLength(1);
     expect(result.payload).toEqual(['moo', -123]);
+    expect(result.isValid).toBeFalsy();
   });
 
   it('recursive match', () => {
     const result = w.read(['sheep', ['recurse', ['baa', ['hello', 123]]]])
     expect(result.errors).toHaveLength(0);
     expect(result.payload).toEqual(['baa', ['hello', 123]]);
+    expect(result.isValid).toBeTruthy();
   });
 
   it('recursive fail', () => {
     const result = w.read(['sheep', ['recurse', ['baa', ['hello', -123]]]])
     expect(result.errors).toHaveLength(1);
     expect(result.payload).toEqual(['baa', ['hello', -123]]);
+    expect(result.isValid).toBeFalsy();
   });
 
 });
