@@ -1,5 +1,5 @@
 import { isString } from 'util'
-import { Bool, Guard, match as m, match, Num, Str } from '../../src/guards/Guard'
+import { Bool, Guard, match as m, match, Num, Str, Many } from '../../src/guards/Guard'
 import { tryMatch as test } from './helpers'
 
 describe('Guards', () => {
@@ -279,6 +279,23 @@ describe('match' , () => {
       ]
     })
 
+  })
+
+  describe('arrays', () => {
+    test({
+      pattern: Many(1),
+      yes: [
+        [1],
+        [1, 1],
+        []
+      ],
+      no: [
+        [2, 2],
+        'whoompf',
+        true,
+        [1, 1, 1, null]
+      ]
+    })
   })
 
 })
