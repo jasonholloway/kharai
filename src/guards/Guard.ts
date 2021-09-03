@@ -28,20 +28,21 @@ export function Many<V>(m: V) : Many<V> {
 
 
 
-type Read<S> =
-    S extends typeof Any ? any
+export type Read<S, X=never, Y=never> =
+    S extends X ? Y
+  : S extends typeof Any ? any
   : S extends typeof Num ? number
   : S extends typeof Str ? string
   : S extends typeof Bool ? boolean
   : S extends typeof Never ? never
-  : S extends Many<infer V> ? Read<V>[]
+  : S extends Many<infer V> ? Read<V, X, Y>[]
   : S extends (v:any) => v is (infer V) ? V
   : S extends RegExp ? string
   : S extends string ? S
   : S extends number ? S
   : S extends boolean ? S
-  : S extends readonly any[] ? ({ -readonly [I in keyof S]: Read<S[I]> })
-  : S extends object ? ({ -readonly [I in keyof S]: Read<S[I]> })
+  : S extends readonly any[] ? ({ -readonly [I in keyof S]: Read<S[I], X, Y> })
+  : S extends object ? ({ -readonly [I in keyof S]: Read<S[I], X, Y> })
   : S;
   // : never
 
