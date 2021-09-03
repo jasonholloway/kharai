@@ -1,8 +1,8 @@
 import { isArray } from "util";
-import { Guard } from "../guards/Guard";
+import { Guard, Read } from "../guards/Guard";
 
 const $root = Symbol('root');
-type $Root = typeof $root;
+export type $Root = typeof $root;
 
 
 enum ReadMode {
@@ -21,10 +21,28 @@ export type ReadResult = {
 export function specify<S extends SchemaNode>(fn: (root: $Root)=>S) {
 
   const schema = fn($root);
+  type DataShape = Contracts<S, Contracts<S>>;
   
   return {
-    read(data: any): ReadResult {
+    schema,
+    read(data: DataShape) {
       return _read(schema, data);
+    },
+    readAny(data: any): ReadResult {
+      return _read(schema, data);
+    },
+    contract: <DataShape>undefined,
+
+    withContext<P extends AllPaths<S>, X>(path: P, fac: (upstream:any)=>X) {
+
+      //given P, need to walk through nodes accumulating context
+
+      
+      return this;
+    },
+
+    withPhase<P extends PhasePaths<S>>(path: P, impl: (x:any,d:any)=>Promise<DataShape>) {
+      return this;
     }
   };
 
@@ -88,56 +106,58 @@ export function specify<S extends SchemaNode>(fn: (root: $Root)=>S) {
 }
 
 
-
-
-
-
-
-type Shapify<T, TPath = [], TRoot = any> =
-    T extends Space<infer S> ? ShapifySpace<S, TPath, TRoot>
-  : T extends Data<infer S> ? ShapifyData<S, TPath, TRoot>
-  : never
-
-type ShapifySpace<T, TPath, TRoot> =
-  T extends object
-    ? { [k in keyof T]: [k, Shapify<T[k], [TPath, k], TRoot>] }[keyof T]
-    : never
-
-type ShapifyData<T, TPath, TRoot> =
-  T
-  //as well as actual T, should interpret lazy guards
-  
-
-
-
 enum SchemaType {
   Data,
   Space
 }
 
-type SchemaNode = { _type: SchemaType }
-type Data<S> = { _type: SchemaType.Data, schema: S }
-type Space<S> = { _type: SchemaType.Space, schema: S }
+export type SchemaNode = { _type: SchemaType }
+export type Data<X, S> = { _type: SchemaType.Data, schema: S }
+export type Space<X, S> = { _type: SchemaType.Space, schema: S }
 
-export function data<S>(s: S): Data<S> {
+export function data<S>(s: S): Data<any, S> {
   return {
     _type: SchemaType.Data,
     schema: s
   };
 }
 
-export function space<S extends { [k in keyof S]: SchemaNode }>(s: S): Space<S> {
+export function space<S extends { [k in keyof S]: SchemaNode }>(s: S): Space<any, S> {
   return {
     _type: SchemaType.Space,
     schema: s
   };
 }
 
-function isData(v: SchemaNode): v is Data<any> {
+function isData(v: SchemaNode): v is Data<any, any> {
   return v._type === SchemaType.Data;
 }
 
-function isSpace(v: SchemaNode): v is Space<any> {
+function isSpace(v: SchemaNode): v is Space<any, any> {
   return v._type === SchemaType.Space;
 }
+
+
+type Contracts<T, TRoot = any, P = []> =
+    T extends Space<any, infer I> ? { [k in keyof I]: Contracts<I[k], TRoot, [k, P]> }[keyof I]
+  : T extends Data<any, infer I> ? [RenderPath<P>, Read<I, $Root, TRoot>]
+  : never;
+
+
+
+type AllPaths<S, P = []> =
+    S extends Space<any, infer I> ? { [k in keyof I]: RenderPath<P> | AllPaths<I[k], [k, P]> }[keyof I]
+  : S extends Data<any, any> ? RenderPath<P>
+  : never;
+
+type PhasePaths<S, P = []> =
+    S extends Space<any, infer I> ? { [k in keyof I]: PhasePaths<I[k], [k, P]> }[keyof I]
+  : S extends Data<any, any> ? RenderPath<P>
+  : never;
+
+type RenderPath<P> =
+    P extends [string, never[]] ? P[0]
+  : P extends [string, any[]] ? `${RenderPath<P[1]>}:${P[0]}`
+  : never;
+
 
