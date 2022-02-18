@@ -21,21 +21,21 @@ export function scenario<
   X extends MachineContext<P> = MachineContext<P>>
   (world: WorldImpl<W, X> & ContextImpl<P, X>)
 {
-    return (opts?: { phases?: Map<Id, P>, batchSize?: number, threshold?: number, save?: boolean, loader?: Loader<P> }) => {
+  return (opts?: { phases?: Map<Id, P>, batchSize?: number, threshold?: number, save?: boolean, loader?: Loader<P> }) => {
 
     const save = opts?.save === undefined || opts?.save;
     
     const store = new FakeStore(MD, opts?.batchSize || 4);
 
-      const loader: Loader<P> =
-        opts?.loader ??
-        (ids => Promise.resolve(
-          ids
-            .reduce<Map<Id, P>>((ac, id) => {
-              const found = opts?.phases?.get(id);
-              const p = found || <P><unknown>(['$boot', []]);
-              return ac.set(id, p);
-            }, Map())));
+    const loader: Loader<P> =
+      opts?.loader ??
+      (ids => Promise.resolve(
+        ids
+          .reduce<Map<Id, P>>((ac, id) => {
+            const found = opts?.phases?.get(id);
+            const p = found || <P><unknown>(['$boot', []]);
+            return ac.set(id, p);
+          }, Map())));
 
     const run = newRun(world, loader, { ...opts, store: (save ? store : undefined) });
 

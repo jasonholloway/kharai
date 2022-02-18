@@ -31,7 +31,7 @@ export function specify<S extends SchemaNode>(fn: (root: $Root)=>S) {
     readAny(data: any): ReadResult {
       return _read(schema, data);
     },
-    contract: <DataShape>undefined,
+    contract: <DataShape><unknown>undefined,
 
     withContext<P extends AllPaths<S>, X>(path: P, fac: (upstream:any)=>X) {
 

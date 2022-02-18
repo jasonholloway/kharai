@@ -96,6 +96,7 @@ class Inner<V> {
 					return new Promise((resolve, reject) => {
 						switch(this.state) {
 							case 'done':
+								if(!this.ref) throw 'REF SHOULD NEVER BE UNDEFINED';
 								return resolve(this.ref);
 							case 'aborted':
 								return reject('Commit aborted!');

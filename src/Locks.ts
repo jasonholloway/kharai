@@ -167,7 +167,7 @@ class Allocator<X> {
           const entries = items.map(i => _this.summonEntry(i));
 
           await Promise.all(entries.map(entry => {
-            return new Promise(resolve => {
+            return new Promise<void>(resolve => {
               const ans = entry.tryApp(token, c.reverse());
               if(ans[0] == 'canAdd') {
                 ans[1]();
