@@ -1,9 +1,9 @@
 import { isArray } from "util";
 import { Guard, Read } from "../guards/Guard";
+import { isString } from "../util";
 
 const $root = Symbol('root');
 export type $Root = typeof $root;
-
 
 enum ReadMode {
   Resolving,
@@ -36,8 +36,6 @@ export function specify<S extends SchemaNode>(fn: (root: $Root)=>S) {
     withContext<P extends AllPaths<S>, X>(path: P, fac: (upstream:any)=>X) {
 
       //given P, need to walk through nodes accumulating context
-
-      
       return this;
     },
 
@@ -61,6 +59,8 @@ export function specify<S extends SchemaNode>(fn: (root: $Root)=>S) {
             if(!isArray(data)) return fail('expected tuple');
 
             const [head, tail] = data;
+            if(!isString(head)) return fail('head should be indexer');
+            
             n = n.schema[head];
             data = tail;
             return step();

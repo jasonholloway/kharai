@@ -221,7 +221,7 @@ export function tracePath<V>(refs: List<AtomLike<V>>): Traced<V>[] {
 			.flatMap(r =>
 				   (r?._type == 'Atom' && List([r]))
 				|| (r?._type == 'AtomRef' && r.resolve())
-				|| List())
+				|| List<Atom<V>>())
 			.map(visitAtom)
 			.toArray();
 	}
@@ -238,7 +238,7 @@ export function renderAtoms<V>(refs: List<AtomLike<V>>) {
 	const tips = refs.flatMap(r =>
 		   (r?._type == 'Atom' && List([r]))
 		|| (r?._type == 'AtomRef' && r.resolve())
-		|| List()
+		|| List<Atom<V>>()
 		).toSet();
 	
 	const ordered = visit(OrderedSet(), tips, 0);
