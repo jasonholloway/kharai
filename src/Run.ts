@@ -1,7 +1,7 @@
 import { Id, PhaseMap, Phase, WorldImpl, Data, ContextImpl, MachineContext } from './lib'
 import { Mediator, Convener } from './Mediator'
 import { Observable, ReplaySubject, of, concat, Subject, merge } from 'rxjs'
-import { flatMap, startWith, endWith, scan, takeWhile, finalize, map, toArray, ignoreElements, concatMap, filter, takeUntil, shareReplay  } from 'rxjs/operators'
+import { startWith, endWith, scan, takeWhile, finalize, map, toArray, ignoreElements, concatMap, filter, takeUntil, shareReplay, mergeMap  } from 'rxjs/operators'
 import { Set } from 'immutable'
 import { MachineSpace, Loader, Signal } from './MachineSpace'
 import { buildDispatch } from './dispatch'
@@ -12,7 +12,6 @@ import { Log } from './runMachine'
 import { AtomRef } from './atoms'
 import { Preemptable } from './Preemptable'
 
-const log = console.log;
 const MD = new MonoidData();
 const gather = <V>(v$: Observable<V>) => v$.pipe(toArray()).toPromise();
 
@@ -54,7 +53,7 @@ export function newRun<
 
 	const machine$ = space.machine$;
 	const log$ = machine$.pipe(
-		flatMap(m => m.log$.pipe(
+		mergeMap(m => m.log$.pipe(
 			map<Log<P>, [Id, P|false, AtomRef<Data>?]>(
 				([p,r]) => r ? [m.id, p, r] : [m.id, p])
 		)));
@@ -63,7 +62,7 @@ export function newRun<
 
 	const count$ = merge(
 		machine$.pipe(
-			flatMap(m => m.log$.pipe(
+			mergeMap(m => m.log$.pipe(
 				ignoreElements(),
 				startWith<number>(1),
 				endWith<number>(-1),
@@ -106,7 +105,7 @@ export function newRun<
 				},
 
 				log$: of(...machines).pipe(
-					flatMap(m => m.log$))
+					mergeMap(m => m.log$))
 			}
 		},
 

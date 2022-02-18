@@ -39,8 +39,53 @@ const w2 = w1.withContext('emu', x => ({ moo:123 }));
 
 const w3 = w2.withPhase('emu:runAround', async (x, d) => ['emu:track', [[], 123]]);
 
+w3.withPhase('emu:track', async (x, d) => ['emu:runAround', [123]]);
 
-w3.read(['emu:track', [[], NaN]])
+const result = w3.read(['emu:track', [[], NaN]])
+
+
+
+
+
+const Scraper =
+	space({
+		scrape: data([Num] as const),
+		notify: data([Str] as const)
+	});
+
+const w = specify(me =>
+	space({
+		$boot: data([]),
+		$end: data([Many(Any)] as const),
+		$wait: data([Num, me] as const),
+
+		AO: Scraper,
+		Very: Scraper,
+		Argos: Scraper
+	}));
+
+
+w.withPhase('AO:scrape', async (x, [n]) => {
+
+	console.log(n + 13);
+	
+	//do something here...
+	await Promise.resolve();
+
+	return ['AO:notify', ['https://someurl']]
+})
+
+w.withPhase('AO:notify', async (x, d) => {
+
+	return ['$wait', [1000, ['AO:scrape', [123]]]];
+})
+
+w.withPhase('Very:scrape', async (x, d) => {
+	//do something here...
+	await Promise.resolve();
+
+	return ['$wait', [100000, ['Very:scrape', [123]]]]
+})
 
 
 	
@@ -67,7 +112,9 @@ export const birds = makeWorld<Birds>()(
 
 			runAround: x => ({
 				guard(d): d is [number] { return true },
+
 				async run([n]) {
+					
 					if(n > 0) {
 						await delay(20);
 						return ['runAround', [n-1]]
@@ -86,3 +133,7 @@ export const birds = makeWorld<Birds>()(
 			// })
 		}
 	});
+
+function forEach(forEach: any) {
+  throw new Error('Function not implemented.')
+}

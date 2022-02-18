@@ -1,4 +1,3 @@
-import { isArray } from "util";
 import { Guard, Read } from "../guards/Guard";
 import { isString } from "../util";
 
@@ -24,22 +23,25 @@ export function specify<S extends SchemaNode>(fn: (root: $Root)=>S) {
   type DataShape = Contracts<S, Contracts<S>>;
   
   return {
+    contract: <DataShape><unknown>undefined,
     schema,
-    read(data: DataShape) {
+
+    read(data: DataShape): ReadResult {
       return _read(schema, data);
     },
+
     readAny(data: any): ReadResult {
       return _read(schema, data);
     },
-    contract: <DataShape><unknown>undefined,
 
     withContext<P extends AllPaths<S>, X>(path: P, fac: (upstream:any)=>X) {
-
-      //given P, need to walk through nodes accumulating context
+      // todo build context type
+      // and populate inner bits
       return this;
     },
 
-    withPhase<P extends PhasePaths<S>>(path: P, impl: (x:any,d:any)=>Promise<DataShape>) {
+    withPhase<P extends PhasePaths<S>>(path: P, impl: (x:any,d:PhaseDataShape<DataShape, P>)=>Promise<DataShape>) {
+      // todo populate inner bits
       return this;
     }
   };
@@ -56,7 +58,7 @@ export function specify<S extends SchemaNode>(fn: (root: $Root)=>S) {
       switch(mode) {
         case ReadMode.Resolving:
           if(isSpace(n)) {
-            if(!isArray(data)) return fail('expected tuple');
+            if(!Array.isArray(data)) return fail('expected tuple');
 
             const [head, tail] = data;
             if(!isString(head)) return fail('head should be indexer');
@@ -158,6 +160,10 @@ type PhasePaths<S, P = []> =
 type RenderPath<P> =
     P extends [string, never[]] ? P[0]
   : P extends [string, any[]] ? `${RenderPath<P[1]>}:${P[0]}`
+  : never;
+
+type PhaseDataShape<C, RP> =
+	C extends [RP, infer D] ? D
   : never;
 
 

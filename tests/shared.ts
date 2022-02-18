@@ -1,8 +1,8 @@
 import { Map, Set, List } from 'immutable'
 import _Monoid from '../src/_Monoid'
 import { Id, Data, MachineContext, Phase, PhaseMap, WorldImpl, ContextImpl } from '../src/lib'
-import { BehaviorSubject, Observable } from 'rxjs'
-import { flatMap, shareReplay, scan, groupBy, map, filter, takeUntil, takeWhile } from 'rxjs/operators'
+import { BehaviorSubject } from 'rxjs'
+import { shareReplay, scan, groupBy, map, filter,takeWhile, mergeMap } from 'rxjs/operators'
 import { AtomRef, Atom, AtomLike } from '../src/atoms'
 import { gather } from './helpers'
 import { Loader } from '../src/MachineSpace'
@@ -10,9 +10,7 @@ import MonoidData from '../src/MonoidData'
 import { newRun } from '../src/Run'
 import { tracePath, renderAtoms } from '../src/AtomPath'
 import FakeStore from '../src/FakeStore'
-import { isArray } from 'util'
 
-const log = console.log;
 const MD = new MonoidData();
 
 export function scenario<
@@ -43,9 +41,9 @@ export function scenario<
 
     run.machine$.pipe(
       groupBy(m => m.id),
-      flatMap(m$ => m$.pipe(
-        flatMap(m => m.log$),
-        flatMap(([,r]) => r ? [r] : []),
+      mergeMap(m$ => m$.pipe(
+        mergeMap(m => m.log$),
+        mergeMap(([,r]) => r ? [r] : []),
         scan<AtomRef<Data>, [string, AtomRef<Data>[]]>(([k, rs], r) => [k, [...rs, r]], [m$.key, []])
       )),
       scan((ac: Map<string, AtomRef<Data>[]>, [k, rs]) => {
@@ -94,7 +92,7 @@ export function scenario<
 
 
 // export function phasesOnly(): OperatorFunction<Emit<any>, readonly [Id, any]> {
-//   return flatMap(l => {
+//   return mergeMap(l => {
 //     if(isString(l[0]) || (isArray(l[0]) && isString(l[0][0]) && isString(l[0][1]))) {
 //       return [<[Id, any]>l];
 //     }
@@ -105,7 +103,7 @@ export function scenario<
 // }
 
 // export function commitsOnly(): OperatorFunction<Emit<any>, AtomEmit<Data>> {
-//   return flatMap(l => {
+//   return mergeMap(l => {
 //     if(l[0] == $Commit) {
 //       return [<[typeof $Commit, AtomRef<Data>]>l];
 //     }
