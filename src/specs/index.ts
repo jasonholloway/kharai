@@ -1,3 +1,4 @@
+import { Schema } from "inspector";
 import { Guard, Read } from "../guards/Guard";
 import { isString } from "../util";
 
@@ -17,45 +18,39 @@ export type ReadResult = {
   payload?: any
 }
 
-export function specify<S extends SchemaNode>(fn: (root: $Root)=>S) {
+export class Builder<S extends SchemaNode, C = Contracts<S, Contracts<S>>, P = Paths<S>> {
+  contract: C
+  schema: S
 
-  const schema = fn($root);
-  type DataShape = Contracts<S, Contracts<S>>;
+  constructor(schema: S) {
+    this.contract = <C><unknown>undefined;
+    this.schema = schema;
+  }
+
+  withContext<PP extends P, X>(path: PP, fac: (upstream:any)=>X): Builder<S, C, P> {
+    return this;
+  }
+
+  withPhase<PP extends P>(path: PP, impl: (x:any,d:PhaseDataShape<C, P>)=>Promise<C>): Builder<S, C, P> {
+    return this;
+  }
   
-  return {
-    contract: <DataShape><unknown>undefined,
-    schema,
+  read(data: C): ReadResult {
+    return match(this.schema, data);
+  }
 
-    read(data: DataShape): ReadResult {
-      return _read(schema, data);
-    },
+  readAny(data: any): ReadResult {
+    return match(this.schema, data);
+  }
+}
 
-    readAny(data: any): ReadResult {
-      return _read(schema, data);
-    },
+function match(schema: SchemaNode, data: any): ReadResult {
+  return _match(ReadMode.Resolving, schema, data);
 
-    withContext<P extends AllPaths<S>, X>(path: P, fac: (upstream:any)=>X) {
-      // todo build context type
-      // and populate inner bits
-      return this;
-    },
-
-    withPhase<P extends PhasePaths<S>>(path: P, impl: (x:any,d:PhaseDataShape<DataShape, P>)=>Promise<DataShape>) {
-      // todo populate inner bits
-      return this;
-    }
-  };
-
-
-  function _read(n: SchemaNode, data: any): ReadResult {
-    let mode: ReadMode = ReadMode.Resolving;
-    return step();
-
-    function step(): ReadResult {
-
+  function _match(m: ReadMode, n: SchemaNode, d: any): ReadResult {
       if(!n) return fail('no node mate');
 
-      switch(mode) {
+      switch(m) {
         case ReadMode.Resolving:
           if(isSpace(n)) {
             if(!Array.isArray(data)) return fail('expected tuple');
@@ -63,14 +58,11 @@ export function specify<S extends SchemaNode>(fn: (root: $Root)=>S) {
             const [head, tail] = data;
             if(!isString(head)) return fail('head should be indexer');
             
-            n = n.schema[head];
-            data = tail;
-            return step();
+            return _match(m, n.space[head], tail);
           }
 
           if(isData(n)) {
-            mode = ReadMode.Validating;
-            return step();
+            return _match(ReadMode.Validating, n, d);
           }
 
           throw 'unexpected mode';
@@ -78,9 +70,9 @@ export function specify<S extends SchemaNode>(fn: (root: $Root)=>S) {
         case ReadMode.Validating:
           if(isData(n)) {
             
-            const isValid = Guard(n.schema, (s, v) => {
+            const isValid = Guard(n.data, (s, v) => {
               if(s === $root) {
-                const result = _read(schema, v);
+                const result = match(schema, v);
                 return result.isValid;
               }
             })(data);
@@ -105,56 +97,50 @@ export function specify<S extends SchemaNode>(fn: (root: $Root)=>S) {
       }
     }
   }
-}
 
+export function specify<S extends SchemaNode>(fn: (root: $Root)=>S) : Builder<S> {
+  return new Builder(fn($root));
+}
 
 enum SchemaType {
   Data,
   Space
 }
 
-export type SchemaNode = { _type: SchemaType }
-export type Data<X, S> = { _type: SchemaType.Data, schema: S }
-export type Space<X, S> = { _type: SchemaType.Space, schema: S }
+export type SchemaNode = {}
+export type DataNode<S> = SchemaNode & { data: S }
+export type SpaceNode<S> = SchemaNode & { space: S }
 
-export function data<S>(s: S): Data<any, S> {
-  return {
-    _type: SchemaType.Data,
-    schema: s
-  };
+function isData(v: SchemaNode): v is DataNode<any> {
+  return (<any>v).data;
 }
 
-export function space<S extends { [k in keyof S]: SchemaNode }>(s: S): Space<any, S> {
-  return {
-    _type: SchemaType.Space,
-    schema: s
-  };
+function isSpace(v: any): v is SpaceNode<any> {
+  return (<any>v).space;
 }
 
-function isData(v: SchemaNode): v is Data<any, any> {
-  return v._type === SchemaType.Data;
+export function data<S>(s: S): DataNode<S> {
+  return { data: s };
 }
 
-function isSpace(v: SchemaNode): v is Space<any, any> {
-  return v._type === SchemaType.Space;
+export function space<S extends { [k in keyof S]: SchemaNode }>(s: S): SpaceNode<S> {
+  return { space: s };
 }
 
 
 type Contracts<T, TRoot = any, P = []> =
-    T extends Space<any, infer I> ? { [k in keyof I]: Contracts<I[k], TRoot, [k, P]> }[keyof I]
-  : T extends Data<any, infer I> ? [RenderPath<P>, Read<I, $Root, TRoot>]
+    T extends SpaceNode<infer I> ? { [k in keyof I]: Contracts<I[k], TRoot, [k, P]> }[keyof I]
+  : T extends DataNode<infer I> ? [RenderPath<P>, Read<I, $Root, TRoot>]
   : never;
 
-
-
-type AllPaths<S, P = []> =
-    S extends Space<any, infer I> ? { [k in keyof I]: RenderPath<P> | AllPaths<I[k], [k, P]> }[keyof I]
-  : S extends Data<any, any> ? RenderPath<P>
+type Paths<S, P = []> =
+    S extends SpaceNode<infer I> ? { [k in keyof I]: RenderPath<P> | Paths<I[k], [k, P]> }[keyof I]
+  : S extends DataNode<any> ? RenderPath<P>
   : never;
 
 type PhasePaths<S, P = []> =
-    S extends Space<any, infer I> ? { [k in keyof I]: PhasePaths<I[k], [k, P]> }[keyof I]
-  : S extends Data<any, any> ? RenderPath<P>
+    S extends SpaceNode<infer I> ? { [k in keyof I]: PhasePaths<I[k], [k, P]> }[keyof I]
+  : S extends DataNode<any> ? RenderPath<P>
   : never;
 
 type RenderPath<P> =

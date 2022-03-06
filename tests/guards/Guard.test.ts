@@ -1,5 +1,5 @@
 import { isString } from 'util'
-import { Bool, Guard, match as m, match, Num, Str, Many } from '../../src/guards/Guard'
+import { Bool, Guard, match as m, match, Num, Str, Many, Never, Bottom } from '../../src/guards/Guard'
 import { tryMatch as test } from './helpers'
 
 describe('Guards', () => {
@@ -327,6 +327,20 @@ describe('match' , () => {
         [2, 2],
         [[], [1], [true]],
         [[[]]]
+      ]
+    })
+  })
+
+  //skipped as recursive reading needed instead of standard type maps
+  //sidestepping for now
+  xdescribe('arrays containing Bottom', () => {
+    test({
+      pattern: [123, Bottom],
+      no: [
+        [],
+        [1, 1],
+        [123],
+        [123, 1]
       ]
     })
   })
