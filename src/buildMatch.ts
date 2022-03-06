@@ -1,5 +1,5 @@
 import { Guard, Read } from "./guards/Guard";
-import { isString } from "./util";
+import { isString, Merge } from "./util";
 
 const $root = Symbol('root');
 export type $Root = typeof $root;
@@ -26,7 +26,7 @@ export class Builder<N extends SchemaNode> {
     this.schema = schema;
   }
 
-  withContext<P extends Path<N>, X>(path: P, fac: (upstream:any)=>X): Builder<N> {
+  withContext<P extends Path<N>, X>(path: P, fac: (upstream:any)=>X): Builder<WithContext<N, ReadPath<P>, X>> {
     return this;
   }
 
@@ -48,6 +48,37 @@ export class Builder<N extends SchemaNode> {
     arg<P extends Path<N>>(): Arg<N, P> { throw 1; }
   }
 }
+
+
+function withContext<N extends SchemaNode, P extends string>(node: N, path: P): WithContext<N, ReadPath<P>, {}> {
+  throw 123
+}
+
+
+type WithContext<N extends SchemaNode & object, P, X> =
+    P extends [] ? Merge<N, {context:X}>
+  : P extends [infer PHead, infer PTail] ? (
+      N extends SpaceNode<infer NN> ? (
+        {
+          [k in keyof NN]:
+            k extends PHead
+              ? WithContext<NN[k], PTail, X>
+              : NN[k]
+        }
+      )
+      : never
+    )
+  : never;
+
+
+
+type ReadPath<P extends string> =
+    P extends `${infer H}:${infer T}` ? [H, ReadPath<T>]
+  : P extends string ? [P, []]
+  : never;
+
+
+
 
 export function match(schema: SchemaNode, data: any): ReadResult {
   return _match(ReadMode.Resolving, schema, data);
@@ -149,9 +180,6 @@ type _Data<N, TRoot, Ac = []> =
     )
   : never;
 
-type RRR<T> = [T] extends [never] ? 'isNever' : 'isNotNever';
-type ____ = RRR<never>
-
 
 type Path<N, Ac = []> =
     N extends SpaceNode<infer I> ? { [k in keyof I]: RenderPath<Ac> | Path<I[k], [k, Ac]> }[keyof I]
@@ -171,6 +199,12 @@ type PhaseContext<N, Ac = {}> =
   any
 
 
+
+
+
+
+
+
 type RenderPath<Ac> =
     Ac extends [string, never[]] ? Ac[0]
   : Ac extends [string, any[]] ? `${RenderPath<Ac[1]>}:${Ac[0]}`
@@ -184,22 +218,18 @@ type _Arg<D, P> =
   : never;
 
 
-
 const w = specify(root =>
   space({
     hello: data(123 as const),
 
-    cow: space({
-      talk: data(['moo', 123] as const),
-    }),
-
-    sheep: space({
-      recurse: data(['baa', root] as const)
-    })
+    recurse: data(['baa', root] as const)
   })
 );
 
+w.withContext('hello', x => ({ moo: 3 }))
+
 w.debug.path
 w.debug.data
-w.debug.arg<'sheep:recurse'>()
+w.debug.arg<'recurse'>()
 
+type RRR = Merge<{moo:13,baa:1},{baa:2}>

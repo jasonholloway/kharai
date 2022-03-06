@@ -73,6 +73,7 @@ describe('buildMatch', () => {
 
   it('context accessible from handler', () => {
     w.withContext('cow', x => ({ moo: 'moooo' }))
+      // .withPhase('sheep:recurse', async (x, d) => { throw 1;  })
       .withPhase('cow:talk', async (x, d) => {
 
         x.moo //has to be available on type

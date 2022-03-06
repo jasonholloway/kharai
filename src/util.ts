@@ -34,4 +34,6 @@ export async function collect<V>(gen: AsyncIterable<V>): Promise<List<V>> {
 export type RO<T> =
   T extends any[] ? { readonly [K in keyof T]: RO<T[K]> } :
   T 
-	
+
+export type Merge<A, B> = Simplify<Omit<A, keyof B> & B>
+export type Simplify<T> = T extends infer O ? { [k in keyof O]: O[k] } : never;
