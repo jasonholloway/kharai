@@ -226,10 +226,14 @@ const w = specify(root =>
   })
 );
 
-w.withContext('hello', x => ({ moo: 3 }))
+const wwww = w.withContext('hello', x => ({ moo: 3 }))
 
 w.debug.path
 w.debug.data
 w.debug.arg<'recurse'>()
 
 type RRR = Merge<{moo:13,baa:1},{baa:2}>
+
+// if as so, then we don't actually supply the innermost factory up front
+// rather we have memoised upstreams that then get injected in
+//
