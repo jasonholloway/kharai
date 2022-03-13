@@ -35,5 +35,14 @@ export type RO<T> =
   T extends any[] ? { readonly [K in keyof T]: RO<T[K]> } :
   T 
 
-export type Merge<A, B> = Simplify<Omit<A, keyof B> & B>
+export type Merge<A, B> =
+  A extends object
+    ? (B extends object
+        ? Simplify<Omit<A, keyof B> & B>
+        : A & B)
+    : A & B;
+
 export type Simplify<T> = T extends infer O ? { [k in keyof O]: O[k] } : never;
+
+
+
