@@ -1,4 +1,3 @@
-import { Schema } from "inspector";
 import { Guard, Read } from "../guards/Guard";
 import { isString } from "../util";
 
@@ -27,7 +26,21 @@ export class Builder<S extends SchemaNode, C = Contracts<S, Contracts<S>>, P = P
     this.schema = schema;
   }
 
-  withContext<PP extends P, X>(path: PP, fac: (upstream:any)=>X): Builder<S, C, P> {
+  withContext<PP extends P, X>(path: PP, fac: (upstream: PathContext<S,PP>)=>X): Builder<S, C, P> {
+    //need to derive current context from path
+    //...
+
+    // and even then, there might be multiple upstreams, somehow
+    // there's the root, at the top
+    // and as we find more FacNodes in the tree
+    // we accumulate their types
+    //
+    // each SchemaNode can have an associated FacNode
+    // or rather, an array of FacNodes
+    // each FacNode builds on the previous one, and only makes available whatever its factory allows
+    // therefore we simplify, and it is up to us to merge results
+    //
+    
     return this;
   }
 
@@ -98,7 +111,9 @@ function match(schema: SchemaNode, data: any): ReadResult {
     }
   }
 
-export function specify<S extends SchemaNode>(fn: (root: $Root)=>S) : Builder<S> {
+type RootContext = {}
+
+export function specify<S extends SchemaNode>(fn: (root: $Root)=>S) : Builder<S, RootContext> {
   return new Builder(fn($root));
 }
 
@@ -126,6 +141,67 @@ export function data<S>(s: S): DataNode<S> {
 export function space<S extends { [k in keyof S]: SchemaNode }>(s: S): SpaceNode<S> {
   return { space: s };
 }
+
+
+
+
+
+type PathContext<N, P extends Paths<N>> =   
+    P extends `${infer H}:${infer T}` ? never
+  : never
+
+
+
+
+type EffectiveNodes<N, PL extends unknown[], Ac extends SchemaNode[] = []> =
+  PL extends [infer PHead, ...infer PTail]
+    ? (
+      N extends SpaceNode<infer I>
+        ? (
+          PHead extends keyof I
+            ? EffectiveNodes<I[PHead], PTail, [...Ac, N]>
+            : never
+        )
+        : never
+    )
+  : [...Ac, N]
+
+type PathList<PS extends string> =
+  PS extends `${infer PHead}:${infer PTail}`
+    ? [PHead, ...PathList<PTail>]
+    : [PS]
+
+type ListFilter<R extends unknown[], F> =
+  R extends [infer H, ...infer T]
+  ? (H extends F ? [H, ...ListFilter<T, F>] : ListFilter<T, F>)
+  : [];
+
+
+const w = specify(root =>
+  space({
+    dog: space({
+      woof: data(123)
+    })
+  }))
+  .withContext('dog:woof', u => ({ hello: 'woof' }))
+  .withContext('dog:woof', u => ({ woof: 'howl' }))
+  
+
+type S = typeof w.schema
+type Y = ListFilter<EffectiveNodes<S, PathList<'dog:woof'>>, SpaceNode<any>>
+type __ = Y
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 type Contracts<T, TRoot = any, P = []> =

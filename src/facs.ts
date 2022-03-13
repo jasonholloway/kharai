@@ -24,7 +24,7 @@ export class FacNode<A, B> {
     return new FacNode<T, T>((a) => a)
   }
 
-  static derive<AR extends readonly FacNode<any, any>[], C>(uppers: AR, fac: (args:ConcatArgs<AR>)=>C): FacNode<MultiplySeeds<AR>, C> {
+  static derive<AR extends readonly FacNode<any, any>[], C>(uppers: AR, fac: (args: ConcatArgs<AR>)=>C): FacNode<MultiplySeeds<AR>, C> {
     return new FacNode<MultiplySeeds<AR>, C>((a, s) => {
       const args = <ConcatArgs<AR>>uppers.map(u => u.summonInner(a, s));
       return fac(args);
