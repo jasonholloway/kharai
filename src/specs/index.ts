@@ -1,3 +1,4 @@
+import { FacNode } from "../facs";
 import { Guard, Read } from "../guards/Guard";
 import { isString } from "../util";
 
@@ -17,7 +18,7 @@ export type ReadResult = {
   payload?: any
 }
 
-export class Builder<S extends SchemaNode, C = Contracts<S, Contracts<S>>, P = Paths<S>> {
+export class Builder<S extends SchemaNode, C = Contracts<S, Contracts<S>>, P extends Paths<S> = Paths<S>> {
   contract: C
   schema: S
 
@@ -26,7 +27,7 @@ export class Builder<S extends SchemaNode, C = Contracts<S, Contracts<S>>, P = P
     this.schema = schema;
   }
 
-  withContext<PP extends P, X>(path: PP, fac: (upstream: PathContext<S,PP>)=>X): Builder<S, C, P> {
+  withContext<PP extends P, X>(path: PP, fac: (upstream: PathContext<S,PP>)=>X) {
     //need to derive current context from path
     //...
 
@@ -40,8 +41,13 @@ export class Builder<S extends SchemaNode, C = Contracts<S, Contracts<S>>, P = P
     // each FacNode builds on the previous one, and only makes available whatever its factory allows
     // therefore we simplify, and it is up to us to merge results
     //
+
+
+    // BELOW
+    // the types need accumulating, then the actual impl to match it
+    //
     
-    return this;
+    return new Builder(Object.assign(this.schema, { facNodes: [FacNode.root<'hello'>(), FacNode.root<'boo'>()] as const }));
   }
 
   withPhase<PP extends P>(path: PP, impl: (x:any,d:PhaseDataShape<C, P>)=>Promise<C>): Builder<S, C, P> {
@@ -54,6 +60,12 @@ export class Builder<S extends SchemaNode, C = Contracts<S, Contracts<S>>, P = P
 
   readAny(data: any): ReadResult {
     return match(this.schema, data);
+  }
+
+  debug = {
+    data: <Data<N>><unknown>undefined,
+    path: <Path<N>><unknown>undefined,
+    arg<P extends Path<N>>(): Arg<N, P> { throw 1; }
   }
 }
 
@@ -125,6 +137,7 @@ enum SchemaType {
 export type SchemaNode = {}
 export type DataNode<S> = SchemaNode & { data: S }
 export type SpaceNode<S> = SchemaNode & { space: S }
+export type ContextNode = SchemaNode & { facNodes: FacNode<any, any>[]  }
 
 function isData(v: SchemaNode): v is DataNode<any> {
   return (<any>v).data;
@@ -147,14 +160,27 @@ export function space<S extends { [k in keyof S]: SchemaNode }>(s: S): SpaceNode
 
 
 type PathContext<N, P extends Paths<N>> =   
-    P extends `${infer H}:${infer T}` ? never
+  TryGetProp<Last<ListFilter<EffectiveNodes<N, PathList<P>>, ContextNode>>, 'facNodes'>
+
+
+
+
+
+type TryGetProp<O, P extends string> =
+  P extends keyof O ? O[P]
   : never
 
+  
 
 
+type Last<R extends readonly unknown[]> =
+    R extends readonly [infer N] ? N
+  : R extends readonly [any, ...infer T] ? Last<T>
+  : never;
 
-type EffectiveNodes<N, PL extends unknown[], Ac extends SchemaNode[] = []> =
-  PL extends [infer PHead, ...infer PTail]
+
+type EffectiveNodes<N, PL extends readonly unknown[], Ac extends SchemaNode[] = []> =
+  PL extends readonly [infer PHead, ...infer PTail]
     ? (
       N extends SpaceNode<infer I>
         ? (
@@ -164,17 +190,17 @@ type EffectiveNodes<N, PL extends unknown[], Ac extends SchemaNode[] = []> =
         )
         : never
     )
-  : [...Ac, N]
+  : readonly [...Ac, N]
 
 type PathList<PS extends string> =
   PS extends `${infer PHead}:${infer PTail}`
     ? [PHead, ...PathList<PTail>]
     : [PS]
 
-type ListFilter<R extends unknown[], F> =
-  R extends [infer H, ...infer T]
-  ? (H extends F ? [H, ...ListFilter<T, F>] : ListFilter<T, F>)
-  : [];
+type ListFilter<R extends readonly unknown[], F> =
+  R extends readonly [infer H, ...infer T]
+  ? (H extends F ? readonly [H, ...ListFilter<T, F>] : ListFilter<T, F>)
+  : readonly [];
 
 
 const w = specify(root =>
@@ -183,12 +209,12 @@ const w = specify(root =>
       woof: data(123)
     })
   }))
-  .withContext('dog:woof', u => ({ hello: 'woof' }))
-  .withContext('dog:woof', u => ({ woof: 'howl' }))
+  .withContext('dog:woof', u => ({ u, hello: 'woof' }))
+  .withContext('dog:woof', u => ({ u, woof: 'howl' }))
   
 
 type S = typeof w.schema
-type Y = ListFilter<EffectiveNodes<S, PathList<'dog:woof'>>, SpaceNode<any>>
+type Y = PathContext<S, 'dog:woof'>
 type __ = Y
 
 

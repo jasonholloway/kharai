@@ -45,4 +45,8 @@ export type Merge<A, B> =
 export type Simplify<T> = T extends infer O ? { [k in keyof O]: O[k] } : never;
 
 
+export function mergeObjects<A, B>(a: A, b: B) {
+  return <Merge<A, B>>{ ...a, ...b };
+}
+
 
