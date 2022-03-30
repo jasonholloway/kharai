@@ -1,6 +1,6 @@
 import { FacNode } from "./facs";
 import { Guard, Read } from "./guards/Guard";
-import { isString, Merge, mergeObjects } from "./util";
+import { isString, Merge, MergeMany, mergeObjects } from "./util";
 
 const $root = Symbol('root');
 export type $Root = typeof $root;
@@ -31,15 +31,31 @@ export class Builder<N extends SchemaNode> {
     return this;
   }
 
-  withContext<P extends Path<N>, X>(path: P, fac: (upstream: PathContext<N,P>)=>X) {
+  withContext<P extends Path<N>, X>(path: P, fac: (context: PathContext<N,P>)=>X) {
 
-    //find upstream here TODO
-    const upper = FacNode.root<'meow'>();
+    //todo: correct PathContext<N,P>
+    //todo: find all upstream fac nodes
+    
+    const verticals = [
+      FacNode.root<{ a: 1 }>(),
+      FacNode.root<{ b: 2 }>()
+    ] as const;
+
+    const horizontal = FacNode.root<{ c: 3 }>();
     
     return new Builder(mergeObjects(
       this.schema,
-      { facs: [...(isContext(this.schema) ? this.schema.facs : []), FacNode.derive([upper] as const, fac)] as const
-    }));
+      {
+        fac: FacNode.derive(
+          [horizontal, ...verticals] as const,
+          all => {
+            const [h, ...vs] = all; 
+            const context = mergeObjects(...vs, h);
+            const result = fac(context);
+            return mergeObjects(h, result);
+          })
+      }
+    ));
   }
   
   read(data: Data<N>): ReadResult {
@@ -58,99 +74,122 @@ export class Builder<N extends SchemaNode> {
 }
 
 
+
 const w = specify(root =>
   space({
     dog: space({
       woof: data(123)
     })
   }))
-  .withContext('dog:woof', u => ({ u, hello: 'woof' }))
-  .withContext('dog:woof', u => ({ u, woof: 'howl' }))
+  .withContext('dog', u => ({ dog: 'woof' as const }))
+  .withContext('dog:woof', u => ({ wolf: 'howl' as const }))
+
+const rrr = effectiveNodes(w.schema, pathList('dog:woof'));
+rrr
   
+
+type PPPP = Path<typeof w.schema>
+type ____ = PPPP
+
+type UUUU = EffectiveNodes<typeof w.schema, ['dog', 'woof']>
+type ___ = UUUU
+
+
+
+
+
+//TODO test below...
+
+type EffectiveNodes<N, PL extends PathList<string>> =
+  ( PL extends readonly [] ? readonly [N]
+  : string[] extends PL ? readonly SchemaNode[] 
+  : N extends SpaceNode<infer I> ? (
+      Head<PL> extends infer PHead ? (
+        PHead extends keyof I
+          ? readonly [N, ...EffectiveNodes<I[PHead], Tail<PL>>]
+          : never
+      )
+      : never
+    )
+  : never
+  )
+
+function effectiveNodes<N, PL extends PathList<Path<N>>>(node: N, path: PL): EffectiveNodes<N, PL> {
+  return <EffectiveNodes<N, PL>>([node, ...findInner()] as const);
+
+  function findInner() {
+    if(isSpace(node)) {
+      const nextNode = node.space[head(path)];
+
+      if(nextNode !== undefined) {
+        return effectiveNodes(nextNode, tail(path));
+      }
+    }
+
+    return [] as const;
+  }
+}
+
+
+
+
+
 
 //PATHCONTEXT DOESNT WORK
 type N = typeof w.schema
-type Y = PathContext<N, 'dog:woof'>
-type __ = Y
-
-type PathContext<N, P extends Paths<N>> =   
-  Last<Flatten<ListProps<EffectiveNodes<N, PathList<P>>, 'facs'>>> extends FacNode<any, infer X>
-    ? X
-    : never;
+type YY = PathContext<N, 'dog:woof'>
+type __ = YY
 
 
 
-  
 
-type ListProps<R extends readonly unknown[], P extends string> =
+// but extensions upstream should be folded into new downstreams
+// which is the source of the lattice
+// so we don't just pluck off the final facNode, we run them all one-by-one and recombine them
+// !!!
+
+type PathContext<N, P extends Path<N>> =   
+  MergeMany<ExtractContexts<ExtractProps<EffectiveNodes<N, PathList<P>>, 'fac'>>>
+
+
+
+
+type ExtractContexts<R extends readonly unknown[]> =
+  R extends readonly [infer H, ...infer T]
+  ? (
+    H extends FacNode<never, infer X>
+      ? readonly [X, ...ExtractContexts<T>]
+      : never
+  )
+  : readonly []
+
+type ExtractProps<R extends readonly unknown[], P extends string> =
   R extends readonly [infer H, ...infer T]
     ? (
       P extends keyof H
-        ? readonly [H[P], ...ListProps<T, P>]
-        : ListProps<T, P>
+        ? readonly [H[P], ...ExtractProps<T, P>]
+        : ExtractProps<T, P>
     )
     : readonly []
 
-type Flatten<R> =
-  R extends readonly [infer H, ...infer T] ? (
-    H extends readonly unknown[]
-      ? readonly [...Flatten<H>, ...Flatten<T>]
-      : readonly [H, ...Flatten<T>]
-    )
-  : R;
 
-type Last<R extends readonly unknown[]> =
-    R extends readonly [infer N] ? N
-  : R extends readonly [any, ...infer T] ? Last<T>
-  : never;
 
-type EffectiveNodes<N, PL extends readonly unknown[], Ac extends SchemaNode[] = []> =
-  PL extends readonly [infer PHead, ...infer PTail]
-    ? (
-      N extends SpaceNode<infer I>
-        ? (
-          PHead extends keyof I
-            ? EffectiveNodes<I[PHead], PTail, [...Ac, N]>
-            : never
-        )
-        : never
-    )
-  : readonly [...Ac, N]
+function pathList<PS extends string>(ps: PS): PathList<PS> {
+  return <PathList<PS>><unknown>ps.split(':');
+}
 
 type PathList<PS extends string> =
-  PS extends `${infer PHead}:${infer PTail}`
-    ? [PHead, ...PathList<PTail>]
-    : [PS]
+    PS extends '' ? readonly []
+  : PS extends `${infer PHead}:${infer PTail}` ? readonly [PHead, ...PathList<PTail>]
+  : string extends PS ? readonly string[]
+  : readonly [PS];
 
-type ListFilter<R extends readonly unknown[], F> =
-  R extends readonly [infer H, ...infer T]
-  ? (H extends F ? readonly [H, ...ListFilter<T, F>] : ListFilter<T, F>)
-  : readonly [];
 
 type Paths<S, P = []> =
     S extends SpaceNode<infer I> ? { [k in keyof I]: RenderPath<P> | Paths<I[k], [k, P]> }[keyof I]
   : S extends DataNode<any> ? RenderPath<P>
   : never;
 
-
-
-
-
-
-type WithContext<N extends SchemaNode & object, P, X> =
-    P extends [] ? Merge<N, { context: X }>
-  : P extends [infer PHead, infer PTail] ? (
-      N extends SpaceNode<infer NN> ? (
-        {
-          [k in keyof NN]:
-            k extends PHead
-              ? WithContext<NN[k], PTail, X>
-              : NN[k]
-        }
-      )
-      : never
-    )
-  : never;
 
 
 export function match(schema: SchemaNode, data: any): ReadResult {
@@ -215,7 +254,7 @@ export type SchemaNode = {}
 export type DataNode<D> = { data: D }
 export type SpaceNode<I> = { space: I }
 export type HandlerNode<H> = { handler: H }
-export type ContextNode = { facs: readonly FacNode<any, any>[]  }
+export type ContextNode = { fac: FacNode<any, any> }
 
 function isData(v: SchemaNode): v is DataNode<any> {
   return (<any>v).data;
@@ -257,12 +296,13 @@ type _Data<N, TRoot, Ac = []> =
 type Path<N, Ac = []> =
     N extends SpaceNode<infer I> ? { [k in keyof I]: RenderPath<Ac> | Path<I[k], [k, Ac]> }[keyof I]
   : N extends DataNode<any> ? RenderPath<Ac>
+  : object extends N ? string
   : never;
 
 type RenderPath<Ac> =
     Ac extends [string, never[]] ? Ac[0]
   : Ac extends [string, any[]] ? `${RenderPath<Ac[1]>}:${Ac[0]}`
-  : never;
+  : never
 
 type Arg<N, P> =
   _Arg<Data<N>, P>
@@ -289,3 +329,27 @@ www.debug.data
 www.debug.arg<'recurse'>()
 
 type RRR = Merge<{moo:13,baa:1},{baa:2}>
+
+
+
+type Head<R extends readonly any[]> =
+    R extends readonly [] ? never
+  : R extends readonly [infer H, ...any] ? H
+  : R extends readonly (infer E)[] ? E
+  : never;
+
+type Tail<R extends readonly any[]> =
+    R extends readonly [] ? never
+  : R extends readonly [any, ...infer T] ? Readonly<T>
+  : R extends readonly [any] ? never
+  : R extends readonly (infer E)[] ? readonly E[]
+  : never;
+
+function head<R extends readonly any[]>(r: R): Head<R> {
+  return <Head<R>>r[0];
+}
+
+function tail<R extends readonly any[]>(r: R): Tail<R> {
+  const [_, ...t] = r;
+  return <Tail<R>><unknown>t;
+}

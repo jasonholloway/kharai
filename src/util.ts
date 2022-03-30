@@ -35,6 +35,11 @@ export type RO<T> =
   T extends any[] ? { readonly [K in keyof T]: RO<T[K]> } :
   T 
 
+export type MergeMany<R extends readonly unknown[]> =
+  R extends readonly [infer H, ...infer T]
+  ? Merge<H, MergeMany<T>>
+  : unknown
+
 export type Merge<A, B> =
   A extends object
     ? (B extends object
@@ -45,8 +50,8 @@ export type Merge<A, B> =
 export type Simplify<T> = T extends infer O ? { [k in keyof O]: O[k] } : never;
 
 
-export function mergeObjects<A, B>(a: A, b: B) {
-  return <Merge<A, B>>{ ...a, ...b };
-}
 
+export function mergeObjects<R extends unknown[]>(...r: R) {
+  return <MergeMany<R>>Object.assign({}, ...r);
+}
 
