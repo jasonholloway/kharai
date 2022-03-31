@@ -20,6 +20,9 @@ export type ReadResult = {
   summonContext?: () => any
 }
 
+
+
+
 export class Builder<N extends SchemaNode> {
   schema: N
 
@@ -33,16 +36,13 @@ export class Builder<N extends SchemaNode> {
 
   withContext<P extends Path<N>, X>(path: P, fac: (context: PathContext<N,P>)=>X) {
 
-    //todo: correct PathContext<N,P>
-    //todo: find all upstream fac nodes
-    
-    const verticals = [
-      FacNode.root<{ a: 1 }>(),
-      FacNode.root<{ b: 2 }>()
-    ] as const;
+    const nodes = effectiveNodes(this.schema, pathList(path));
 
-    const horizontal = FacNode.root<{ c: 3 }>();
-    
+    const verticals = extractProps(extractContextNodes(allButLast(nodes)), 'fac')
+    const horizontal = firstOr(extractProps(extractContextNodes(onlyLast(nodes)), 'fac'), FacNode.root());
+
+    //WHY IS HORIZONTAL UNDEFINED HERE???
+
     return new Builder(mergeObjects(
       this.schema,
       {
@@ -75,26 +75,53 @@ export class Builder<N extends SchemaNode> {
 
 
 
+
+
 const w = specify(root =>
   space({
     dog: space({
-      woof: data(123)
+      bark: data(123)
     })
   }))
-  .withContext('dog', u => ({ dog: 'woof' as const }))
-  .withContext('dog:woof', u => ({ wolf: 'howl' as const }))
+  .withContext('dog', u => ({ owns: ['bone'] as const }))
+  .withContext('dog:bark', u => ({ articulations: ['woof'] as const }))
 
-const rrr = effectiveNodes(w.schema, pathList('dog:woof'));
+const rrr = effectiveNodes(w.schema, pathList('dog:bark'));
 rrr
   
 
 type PPPP = Path<typeof w.schema>
 type ____ = PPPP
 
-type UUUU = EffectiveNodes<typeof w.schema, ['dog', 'woof']>
+type UUUU = EffectiveNodes<typeof w.schema, ['dog', 'bark']>
 type ___ = UUUU
 
 
+function getHorizontal<N, P extends Path<N>>(n: N, path: P) {
+  const nodes = effectiveNodes(n, pathList(<Path<N>>path));
+
+  // const verticals = extractProps(extractContexts(allButLast(nodes)), 'fac')
+  return nodes;
+
+  // const horizontal = firstOr(extractProps(extractContexts(onlyLast(nodes)), 'fac'), FacNode.root<{}>());
+  // return horizontal;
+}
+
+
+const schema = {
+  space: {
+    cat: {
+      space: {
+        meeow: data(123)
+      },
+      fac: FacNode.root<{a:1}>()
+    }
+  }
+};
+
+
+const qqq = extractContextNodes(effectiveNodes(schema, pathList('cat:meeow')))
+const _____ = qqq
 
 
 
@@ -118,7 +145,7 @@ function effectiveNodes<N, PL extends PathList<Path<N>>>(node: N, path: PL): Eff
   return <EffectiveNodes<N, PL>>([node, ...findInner()] as const);
 
   function findInner() {
-    if(isSpace(node)) {
+    if(isSpaceNode(node)) {
       const nextNode = node.space[head(path)];
 
       if(nextNode !== undefined) {
@@ -137,9 +164,8 @@ function effectiveNodes<N, PL extends PathList<Path<N>>>(node: N, path: PL): Eff
 
 //PATHCONTEXT DOESNT WORK
 type N = typeof w.schema
-type YY = PathContext<N, 'dog:woof'>
+type YY = PathContext<N, 'dog:bark'>
 type __ = YY
-
 
 
 
@@ -149,28 +175,103 @@ type __ = YY
 // !!!
 
 type PathContext<N, P extends Path<N>> =   
-  MergeMany<ExtractContexts<ExtractProps<EffectiveNodes<N, PathList<P>>, 'fac'>>>
+  MergeMany<ExtractFacContexts<EffectiveNodes<N, PathList<P>>>>
 
-
-
-
-type ExtractContexts<R extends readonly unknown[]> =
-  R extends readonly [infer H, ...infer T]
-  ? (
-    H extends FacNode<never, infer X>
-      ? readonly [X, ...ExtractContexts<T>]
-      : never
-  )
-  : readonly []
-
-type ExtractProps<R extends readonly unknown[], P extends string> =
-  R extends readonly [infer H, ...infer T]
-    ? (
-      P extends keyof H
-        ? readonly [H[P], ...ExtractProps<T, P>]
-        : ExtractProps<T, P>
+type ExtractFacContexts<R extends readonly unknown[]> =
+    R extends readonly [] ? readonly []
+  : R extends readonly [infer H, ...infer T] ? (
+      H extends { fac: FacNode<never, infer X> }
+        ? readonly [X, ...ExtractFacContexts<T>]
+        : ExtractFacContexts<T>
     )
-    : readonly []
+  : R extends readonly (infer E)[] ? (
+    E extends { fac: FacNode<never, infer X> }
+        ? readonly X[]
+        : readonly []
+    )
+  : never
+
+
+type ExtractContextNodes<R extends readonly unknown[]> =
+    R extends readonly [] ? readonly []
+  : R extends readonly [infer H, ...infer T] ? (
+      H extends ContextNode<never, any>
+        ? readonly [H, ...ExtractContextNodes<T>]
+        : ExtractContextNodes<T>
+    )
+  : R extends readonly any[] ? ContextNode[]
+  : never
+
+function extractContextNodes<R extends readonly any[]>(r: R) : ExtractContextNodes<R> {
+  const ac = [];
+
+  for(let i = 0; i < r.length; i++) {
+    const el = r[i];
+    if(isContextNode(el)) ac.push(el);
+  }
+
+  return <ExtractContextNodes<R>><unknown>ac;
+}
+
+
+
+
+type ExtractProps<R extends readonly any[], P extends string> =
+    R extends readonly [] ? readonly []
+  : R extends readonly [infer H, ...infer T] ? (
+        P extends keyof H ? readonly [H[P], ...ExtractProps<T, P>]
+      : ExtractProps<T, P>
+    )
+  : R extends readonly (infer E)[] ? (
+        P extends keyof E ? E[P][]
+      : readonly []
+    )
+  : never;
+
+function extractProps<R extends readonly any[], P extends string>(r: R, p: P) : ExtractProps<R, P> {
+  const ac = [];
+  for(let i = 0; i < r.length; i++) ac.push(r[i][p]);
+  return <ExtractProps<R, P>><unknown>ac;
+}
+
+{
+  type A = ExtractProps<readonly [{a: 1}, {a: 2}], 'a'>
+  type B = ExtractProps<readonly [{a: 1}, {}, {a: 2}], 'a'>
+  type C = ExtractProps<readonly [], 'a'>
+  type D = ExtractProps<readonly {a: 1}[], 'a'>
+  type E = ExtractProps<readonly number[], 'a'>
+  type _ = [A, B, C, D, E]
+}
+
+
+
+
+
+
+type FirstOr<R extends readonly any[], D> =
+    R extends readonly [] ? D
+  : R extends readonly [infer E] ? E
+  : R extends readonly [infer E, ...any[]] ? E
+  : R extends readonly (infer E)[] ? (E | D)
+  : never;
+
+function firstOr<R extends readonly any[], D>(r: R, defaultVal: D) : FirstOr<R, D> {
+  return r.length ? r[0] : defaultVal;
+}
+
+{
+  type A = FirstOr<readonly [], '!'>
+  type B = FirstOr<readonly [1], '!'>
+  type C = FirstOr<readonly [1, 2], '!'>
+  type D = FirstOr<readonly boolean[], '!'>
+  type E = FirstOr<readonly boolean[], true>
+  type _ = [A, B, C, D, E]
+}
+
+
+
+
+
 
 
 
@@ -185,10 +286,10 @@ type PathList<PS extends string> =
   : readonly [PS];
 
 
-type Paths<S, P = []> =
-    S extends SpaceNode<infer I> ? { [k in keyof I]: RenderPath<P> | Paths<I[k], [k, P]> }[keyof I]
-  : S extends DataNode<any> ? RenderPath<P>
-  : never;
+// type Paths<S, P = []> =
+//     S extends SpaceNode<infer I> ? { [k in keyof I]: RenderPath<P> | Paths<I[k], [k, P]> }[keyof I]
+//   : S extends DataNode<any> ? RenderPath<P>
+//   : never;
 
 
 
@@ -200,7 +301,7 @@ export function match(schema: SchemaNode, data: any): ReadResult {
 
     switch(m) {
       case ReadMode.Resolving:
-        if(isSpace(n)) {
+        if(isSpaceNode(n)) {
           if(!Array.isArray(d)) return _fail('expected tuple');
 
           const [head, tail] = d;
@@ -209,14 +310,14 @@ export function match(schema: SchemaNode, data: any): ReadResult {
           return _match(m, n.space[head], tail);
         }
 
-        if(isData(n)) {
+        if(isDataNode(n)) {
           return _match(ReadMode.Validating, n, d);
         }
 
         throw 'unexpected mode';
 
       case ReadMode.Validating:
-        if(isData(n)) {
+        if(isDataNode(n)) {
 
           const isValid = Guard(n.data, (s, v) => {
             if(s === $root) {
@@ -254,18 +355,18 @@ export type SchemaNode = {}
 export type DataNode<D> = { data: D }
 export type SpaceNode<I> = { space: I }
 export type HandlerNode<H> = { handler: H }
-export type ContextNode = { fac: FacNode<any, any> }
+export type ContextNode<R = never, X = any> = { fac: FacNode<R, X> }
 
-function isData(v: SchemaNode): v is DataNode<any> {
+function isDataNode(v: SchemaNode): v is DataNode<any> {
   return (<any>v).data;
 }
 
-function isSpace(v: any): v is SpaceNode<any> {
+function isSpaceNode(v: any): v is SpaceNode<any> {
   return (<any>v).space;
 }
 
-function isContext(v: any): v is ContextNode {
-  return (<any>v).facs;
+function isContextNode(v: any): v is ContextNode {
+  return (<any>v).fac;
 }
 
 export function data<S>(s: S): DataNode<S> {
@@ -294,10 +395,12 @@ type _Data<N, TRoot, Ac = []> =
 
 
 type Path<N, Ac = []> =
-    N extends SpaceNode<infer I> ? { [k in keyof I]: RenderPath<Ac> | Path<I[k], [k, Ac]> }[keyof I]
-  : N extends DataNode<any> ? RenderPath<Ac>
-  : object extends N ? string
-  : never;
+  '' | (
+      N extends SpaceNode<infer I> ? { [k in keyof I]: RenderPath<Ac> | Path<I[k], [k, Ac]> }[keyof I]
+    : N extends DataNode<any> ? RenderPath<Ac>
+    : object extends N ? string
+    : never
+  );
 
 type RenderPath<Ac> =
     Ac extends [string, never[]] ? Ac[0]
@@ -353,3 +456,54 @@ function tail<R extends readonly any[]>(r: R): Tail<R> {
   const [_, ...t] = r;
   return <Tail<R>><unknown>t;
 }
+
+
+type OnlyLast<R extends readonly any[]> =
+    R extends readonly [] ? readonly []
+  : R extends readonly [infer E] ? readonly [E]
+  : R extends readonly [any, ...infer T] ? OnlyLast<T>
+  : R extends readonly (infer E)[] ? readonly E[]
+  : never;
+
+function onlyLast<R extends readonly any[]>(r: R): OnlyLast<R> {
+  if(r.length) return <OnlyLast<R>>([r[r.length - 1]] as const);
+  else return <OnlyLast<R>>([] as const);
+}
+
+{
+  type A = OnlyLast<readonly [1, 2, 3]>;
+  type B = OnlyLast<readonly []>;
+  type C = OnlyLast<readonly [1]>;
+  type D = OnlyLast<number[]>;
+  type _ = [A, B, C, D]
+
+  const a = onlyLast([1, 2, 3] as const);
+}
+
+
+
+
+
+type AllButLast<R extends readonly any[]> =
+    R extends readonly [] ? []
+  : R extends readonly [any] ? []
+  : R extends readonly [infer H, ...infer T] ? [H, ...AllButLast<T>]
+  : R extends readonly (infer E)[] ? readonly E[]
+  : never;
+
+function allButLast<R extends readonly any[]>(r: R): AllButLast<R> {
+  let ac = [];
+  for(let i = 0; i < r.length - 1; i++) ac.push(r[i]) 
+  return <AllButLast<R>><unknown>ac;
+}
+
+{
+  type A = AllButLast<readonly [1, 2, 3]>;
+  type B = AllButLast<readonly []>;
+  type C = AllButLast<readonly [1]>;
+  type D = AllButLast<number[]>;
+  type _ = [A, B, C, D]
+
+  const a = allButLast([1, 2, 3] as const);
+}
+

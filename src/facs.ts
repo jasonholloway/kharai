@@ -20,7 +20,7 @@ export class FacNode<A, B> {
     return s.summon(this.nodeId, () => this.fac(a, s));
   }
 
-  static root<T>(): FacNode<T, T> {
+  static root<T = unknown>(): FacNode<T, T> {
     return new FacNode<T, T>((a) => a)
   }
 
