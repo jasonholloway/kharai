@@ -1,4 +1,4 @@
-import { FacNode } from "./facs";
+import { FacNode, IfKnown } from "./facs";
 import { Guard, Read } from "./guards/Guard";
 import { isString, Merge, MergeMany, mergeObjects } from "./util";
 
@@ -20,9 +20,6 @@ export type ReadResult = {
   summonContext?: () => any
 }
 
-
-
-
 export class Builder<N extends SchemaNode> {
   schema: N
 
@@ -38,10 +35,8 @@ export class Builder<N extends SchemaNode> {
 
     const nodes = effectiveNodes(this.schema, pathList(path));
 
-    const verticals = extractProps(extractContextNodes(allButLast(nodes)), 'fac')
-    const horizontal = firstOr(extractProps(extractContextNodes(onlyLast(nodes)), 'fac'), FacNode.root());
-
-    //WHY IS HORIZONTAL UNDEFINED HERE???
+    const verticals = extractFacNodes(allButLast(nodes))
+    const horizontal = firstOr(extractFacNodes(onlyLast(nodes)), FacNode.root());
 
     return new Builder(mergeObjects(
       this.schema,
@@ -49,10 +44,19 @@ export class Builder<N extends SchemaNode> {
         fac: FacNode.derive(
           [horizontal, ...verticals] as const,
           all => {
-            const [h, ...vs] = all; 
-            const context = mergeObjects(...vs, h);
-            const result = fac(context);
-            return mergeObjects(h, result);
+            const h2 = head(all)
+            const t2 = tail(all)
+            const context2 = mergeObjects(...t2, h2);
+            const result2 = fac(<PathContext<N, P>><unknown>context2)
+            return mergeObjects(h2, result2)
+            //ultimately... output type of function depends entirely on 'fac'!
+            //so threading types through achieves nothing?
+            //no, it also depends on 'h'
+            
+            // const [h, ...vs] = all; 
+            // const context = mergeObjects(...vs, h);
+            // const result = fac(context);
+            // return mergeObjects(h, result);
           })
       }
     ));
@@ -85,6 +89,10 @@ const w = specify(root =>
   }))
   .withContext('dog', u => ({ owns: ['bone'] as const }))
   .withContext('dog:bark', u => ({ articulations: ['woof'] as const }))
+
+w.schema
+
+
 
 const rrr = effectiveNodes(w.schema, pathList('dog:bark'));
 rrr
@@ -129,7 +137,7 @@ const _____ = qqq
 
 type EffectiveNodes<N, PL extends PathList<string>> =
   ( PL extends readonly [] ? readonly [N]
-  : string[] extends PL ? readonly SchemaNode[] 
+  // : string[] extends PL ? readonly SchemaNode[] 
   : N extends SpaceNode<infer I> ? (
       Head<PL> extends infer PHead ? (
         PHead extends keyof I
@@ -192,14 +200,41 @@ type ExtractFacContexts<R extends readonly unknown[]> =
   : never
 
 
+type ExtractFacNodes<R extends readonly unknown[]> =
+    R extends readonly [] ? readonly []
+  : R extends readonly [infer E] ?
+      IfKnown<E,
+        [E] extends [ContextNode<infer I, infer O>]
+          ? readonly [FacNode<I, O>]
+          : readonly []
+      >
+  : R extends readonly [infer H, ...infer T] ?
+      readonly [...ExtractFacNodes<readonly [H]>, ...ExtractFacNodes<T>]
+  : never
+
+function extractFacNodes<R extends readonly unknown[]>(r: R) : ExtractFacNodes<R> {
+  throw 123
+  // const ac = [];
+
+  // for(let i = 0; i < r.length; i++) {
+  //   const el = r[i];
+  //   if(isContextNode(el)) ac.push(el);
+  // }
+
+  // return <ExtractContextNodes<R>><unknown>ac;
+}
+
+
 type ExtractContextNodes<R extends readonly unknown[]> =
     R extends readonly [] ? readonly []
-  : R extends readonly [infer H, ...infer T] ? (
-      H extends ContextNode<never, any>
-        ? readonly [H, ...ExtractContextNodes<T>]
-        : ExtractContextNodes<T>
-    )
-  : R extends readonly any[] ? ContextNode[]
+  : R extends readonly [infer E] ?
+      IfKnown<E,
+        [E] extends [ContextNode<infer I, infer O>]
+          ? readonly [E & ContextNode<I, O>]
+          : readonly []
+      >
+  : R extends readonly [infer H, ...infer T] ?
+      readonly [...ExtractContextNodes<readonly [H]>, ...ExtractContextNodes<T>]
   : never
 
 function extractContextNodes<R extends readonly any[]>(r: R) : ExtractContextNodes<R> {
@@ -211,6 +246,13 @@ function extractContextNodes<R extends readonly any[]>(r: R) : ExtractContextNod
   }
 
   return <ExtractContextNodes<R>><unknown>ac;
+}
+
+{
+  type A = ExtractContextNodes<readonly []>
+  type B = ExtractContextNodes<readonly [1, ContextNode, 2]>
+  type C = ExtractContextNodes<readonly unknown[]>
+  type _____ = [A, B, C]
 }
 
 
@@ -248,11 +290,9 @@ function extractProps<R extends readonly any[], P extends string>(r: R, p: P) : 
 
 
 
-type FirstOr<R extends readonly any[], D> =
+type FirstOr<R extends readonly unknown[], D> =
     R extends readonly [] ? D
-  : R extends readonly [infer E] ? E
-  : R extends readonly [infer E, ...any[]] ? E
-  : R extends readonly (infer E)[] ? (E | D)
+  : R extends readonly [infer E, ...any] ? IfKnown<E>
   : never;
 
 function firstOr<R extends readonly any[], D>(r: R, defaultVal: D) : FirstOr<R, D> {
@@ -265,7 +305,8 @@ function firstOr<R extends readonly any[], D>(r: R, defaultVal: D) : FirstOr<R, 
   type C = FirstOr<readonly [1, 2], '!'>
   type D = FirstOr<readonly boolean[], '!'>
   type E = FirstOr<readonly boolean[], true>
-  type _ = [A, B, C, D, E]
+  type F = FirstOr<readonly [] | readonly [true], true>
+  type _ = [A, B, C, D, E, F]
 }
 
 
@@ -355,7 +396,7 @@ export type SchemaNode = {}
 export type DataNode<D> = { data: D }
 export type SpaceNode<I> = { space: I }
 export type HandlerNode<H> = { handler: H }
-export type ContextNode<R = never, X = any> = { fac: FacNode<R, X> }
+export type ContextNode<R = never, X = unknown> = { fac: FacNode<R, X> }
 
 function isDataNode(v: SchemaNode): v is DataNode<any> {
   return (<any>v).data;
@@ -435,10 +476,10 @@ type RRR = Merge<{moo:13,baa:1},{baa:2}>
 
 
 
-type Head<R extends readonly any[]> =
+type Head<R extends readonly unknown[]> =
     R extends readonly [] ? never
   : R extends readonly [infer H, ...any] ? H
-  : R extends readonly (infer E)[] ? E
+  // : R extends readonly (infer E)[] ? E
   : never;
 
 type Tail<R extends readonly any[]> =
@@ -458,11 +499,11 @@ function tail<R extends readonly any[]>(r: R): Tail<R> {
 }
 
 
-type OnlyLast<R extends readonly any[]> =
+type OnlyLast<R extends readonly unknown[]> =
     R extends readonly [] ? readonly []
-  : R extends readonly [infer E] ? readonly [E]
+  : R extends readonly [infer E] ? IfKnown<E, readonly [E]>
   : R extends readonly [any, ...infer T] ? OnlyLast<T>
-  : R extends readonly (infer E)[] ? readonly E[]
+  // : R extends readonly (infer E)[] ? readonly E[]
   : never;
 
 function onlyLast<R extends readonly any[]>(r: R): OnlyLast<R> {

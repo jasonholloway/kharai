@@ -24,7 +24,7 @@ export class FacNode<A, B> {
     return new FacNode<T, T>((a) => a)
   }
 
-  static derive<AR extends readonly FacNode<any, any>[], C>(uppers: AR, fac: (args: ConcatArgs<AR>)=>C): FacNode<MultiplySeeds<AR>, C> {
+  static derive<AR extends readonly FacNode<never, unknown>[], C>(uppers: AR, fac: (args: ConcatArgs<AR>)=>C): FacNode<MultiplySeeds<AR>, C> {
     return new FacNode<MultiplySeeds<AR>, C>((a, s) => {
       const args = <ConcatArgs<AR>>uppers.map(u => u.summonInner(a, s));
       return fac(args);
@@ -50,10 +50,15 @@ class Session {
 
 type MultiplySeeds<M> =
     M extends readonly [] ? unknown
-  : M extends readonly [FacNode<infer T, any>, ...infer R] ? Merge<T, MultiplySeeds<R>>
+  : M extends readonly [FacNode<infer T, unknown>, ...infer R] ? Merge<T, MultiplySeeds<R>>
   : unknown;
 
-type ConcatArgs<M> =
-    M extends readonly [] ? []
-  : M extends readonly [FacNode<any, infer A>, ...infer R] ? [A, ...ConcatArgs<R>]
-  : never;
+type ConcatArgs<R> =
+    R extends readonly [] ? readonly []
+  : R extends readonly [unknown] ? readonly []
+  : R extends readonly [FacNode<unknown, infer O>, ...infer T] ? readonly [O, ...ConcatArgs<T>]
+  // : R extends readonly [infer H, ...infer T]
+  //   ? readonly [...ConcatArgs<readonly [H]>, ...ConcatArgs<T>]
+  : never
+
+export type IfKnown<A, B = A> = unknown extends A ? never : B
