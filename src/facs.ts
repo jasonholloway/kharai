@@ -55,10 +55,22 @@ type MultiplySeeds<M> =
 
 type ConcatArgs<R> =
     R extends readonly [] ? readonly []
+  : R extends readonly [FacNode<never, infer O>, ...infer T] ? readonly [O, ...ConcatArgs<T>]
   : R extends readonly [unknown] ? readonly []
-  : R extends readonly [FacNode<unknown, infer O>, ...infer T] ? readonly [O, ...ConcatArgs<T>]
   // : R extends readonly [infer H, ...infer T]
   //   ? readonly [...ConcatArgs<readonly [H]>, ...ConcatArgs<T>]
   : never
 
 export type IfKnown<A, B = A> = unknown extends A ? never : B
+
+
+
+{
+  type A = ConcatArgs<[FacNode<never, unknown>]>
+  type B = ConcatArgs<[FacNode<never, 123>]>
+  type C = ConcatArgs<[FacNode<never, 123>, FacNode<never, 999>]>
+
+  type _ = [A, B, C]
+}
+
+

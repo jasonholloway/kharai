@@ -32,34 +32,26 @@ export class Builder<N extends SchemaNode> {
   }
 
   withContext<P extends Path<N>, X>(path: P, fac: (context: PathContext<N,P>)=>X) {
+    const pl = pathList(path);
 
-    const nodes = effectiveNodes(this.schema, pathList(path));
-
+    const nodes = effectiveNodes(this.schema, pl);
     const verticals = extractFacNodes(allButLast(nodes))
     const horizontal = firstOr(extractFacNodes(onlyLast(nodes)), FacNode.root());
 
-    return new Builder(mergeObjects(
-      this.schema,
-      {
-        fac: FacNode.derive(
-          [horizontal, ...verticals] as const,
-          all => {
-            const h2 = head(all)
-            const t2 = tail(all)
-            const context2 = mergeObjects(...t2, h2);
-            const result2 = fac(<PathContext<N, P>><unknown>context2)
-            return mergeObjects(h2, result2)
-            //ultimately... output type of function depends entirely on 'fac'!
-            //so threading types through achieves nothing?
-            //no, it also depends on 'h'
-            
-            // const [h, ...vs] = all; 
-            // const context = mergeObjects(...vs, h);
-            // const result = fac(context);
-            // return mergeObjects(h, result);
-          })
-      }
-    ));
+    const facNode = FacNode.derive(
+      [horizontal, ...verticals] as const,
+      all => {
+        const horiz = head(all)
+        const verts = tail(all) //don't actually have to be typed thoroughly
+
+        const context = mergeObjects(...verts, horiz);
+        const result = fac(<PathContext<N, P>><unknown>context)
+
+        return mergeObjects(horiz, result)
+      });
+
+    const schema = mergeAtSchemaPath(this.schema, { fac: facNode }, pl);
+    return new Builder(schema);
   }
   
   read(data: Data<N>): ReadResult {
@@ -84,52 +76,65 @@ export class Builder<N extends SchemaNode> {
 const w = specify(root =>
   space({
     dog: space({
-      bark: data(123)
-    })
+      bark: data(123 as const)
+    }),
+    cat: data(999 as const)
   }))
   .withContext('dog', u => ({ owns: ['bone'] as const }))
   .withContext('dog:bark', u => ({ articulations: ['woof'] as const }))
+  .withContext('dog:bark', u => ({ articulations: [...u.articulations, 'moo'] as const }))
+  .withContext('cat', u => ({}))
+w
 
 w.schema
 
 
 
-const rrr = effectiveNodes(w.schema, pathList('dog:bark'));
-rrr
-  
-
-type PPPP = Path<typeof w.schema>
-type ____ = PPPP
-
-type UUUU = EffectiveNodes<typeof w.schema, ['dog', 'bark']>
-type ___ = UUUU
 
 
-function getHorizontal<N, P extends Path<N>>(n: N, path: P) {
-  const nodes = effectiveNodes(n, pathList(<Path<N>>path));
+type MergeAtSchemaPath<N, X, PL extends readonly unknown[]> =
+    PL extends readonly [] ? Merge<N, X>
+  : PL extends readonly [infer PH, ...infer PT] ? (
+      'space' extends keyof N ? (
+        PH extends keyof N['space'] ? (
+          N['space'][PH] extends infer NN ? (
+            Merge<
+              N,
+              {
+                space: Merge<
+                  N['space'],
+                  { [k in PH]: MergeAtSchemaPath<NN, X, PT> }>
+              }>
+          )
+          : N
+        )
+        : N
+      )
+      : N
+  )
+  : N;
 
-  // const verticals = extractProps(extractContexts(allButLast(nodes)), 'fac')
-  return nodes;
-
-  // const horizontal = firstOr(extractProps(extractContexts(onlyLast(nodes)), 'fac'), FacNode.root<{}>());
-  // return horizontal;
+function mergeAtSchemaPath<N, X, PL extends PathList<Path<N>>>(n: N, x: X, pl: PL) : MergeAtSchemaPath<N, X, PL> {
+  throw 123;
 }
 
-
-const schema = {
-  space: {
-    cat: {
-      space: {
-        meeow: data(123)
+{
+  const schema = {
+    space: {
+      dog: data(7),
+      cat: {
+        space: {
+          meeow: data(123)
+        }
       },
-      fac: FacNode.root<{a:1}>()
     }
-  }
-};
+  };
 
 
-const qqq = extractContextNodes(effectiveNodes(schema, pathList('cat:meeow')))
-const _____ = qqq
+  const qqq = mergeAtSchemaPath(schema, { a: 1 as const }, pathList('cat'))
+  const _____ = qqq
+}
+
 
 
 
