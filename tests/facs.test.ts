@@ -3,7 +3,7 @@ import { FacNode } from "../src/facs";
 describe('facs', () => {
 
   it('simple', () => {
-    const root = FacNode.root<string>();
+    const root = FacNode.root();
     const child = FacNode.derive([root] as const, ([a]) => ({ species: a, sound: 'meeow' }));
     const result = child.summon('cat');
     expect(result.sound).toBe('meeow');
@@ -11,7 +11,7 @@ describe('facs', () => {
   });
 
   it('lattice', () => {
-    const meet   = FacNode.root<string>();
+    const meet   = FacNode.root();
     const child1 = FacNode.derive([meet] as const, ([b]) => ({ species: b, sound: 'meeow' }));
     const child2 = FacNode.derive([meet] as const, ([b]) => ({ furry: true }));
     const join   = FacNode.derive([child1, child2] as const, u => Object.assign(u[0], u[1]));
@@ -32,7 +32,7 @@ describe('facs', () => {
   it('memoizes shared nodes', () => {
     let c = 0;
     
-    const root   = FacNode.root<string>();
+    const root   = FacNode.root();
     const meet   = FacNode.derive([root] as const, ([s]) => c++)
     const child1 = FacNode.derive([meet] as const, ([n]) => n);
     const child2 = FacNode.derive([meet] as const, ([n]) => n);
@@ -44,7 +44,7 @@ describe('facs', () => {
   })
 
   it('lattice repeated', () => {
-    const meet   = FacNode.root<string>();
+    const meet   = FacNode.root();
     const child1 = FacNode.derive([meet] as const, ([b]) => ({ species: b, sound: 'meeow' }));
     const child2 = FacNode.derive([meet] as const, ([b]) => ({ furry: true }));
     const join   = FacNode.derive([child1, child2] as const, u => Object.assign(u[0], u[1]));

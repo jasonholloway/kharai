@@ -1,32 +1,30 @@
-import { Merge } from "./util";
-
 let nextNodeId = 1;
 
-export class FacNode<A, B> {
+export class FacNode<O> {
 
   private readonly nodeId = nextNodeId++;
 
-  private fac: (a:A, s:Session)=>B;
+  private fac: (x: any, s:Session)=>O;
 
-  constructor(fac: (a:A, s:Session)=>B) {
+  constructor(fac: (x: any, s:Session)=>O) {
     this.fac = fac;
   }
 
-  summon(a: A) {
-    return this.summonInner(a, new Session());
+  summon(x: any) {
+    return this.summonInner(x, new Session());
   }
 
-  private summonInner(a: A, s: Session): B {
-    return s.summon(this.nodeId, () => this.fac(a, s));
+  private summonInner(x: any, s: Session): O {
+    return s.summon(this.nodeId, () => this.fac(x, s));
   }
 
-  static root<T = unknown>(): FacNode<T, T> {
-    return new FacNode<T, T>((a) => a)
+  static root(): FacNode<void> {
+    return new FacNode<void>(() => {})
   }
 
-  static derive<AR extends readonly FacNode<never, unknown>[], C>(uppers: AR, fac: (args: ConcatArgs<AR>)=>C): FacNode<MultiplySeeds<AR>, C> {
-    return new FacNode<MultiplySeeds<AR>, C>((a, s) => {
-      const args = <ConcatArgs<AR>>uppers.map(u => u.summonInner(a, s));
+  static derive<AR extends readonly FacNode<unknown>[], B>(uppers: AR, fac: (args: ConcatArgs<AR>)=>B): FacNode<B> {
+    return new FacNode<B>((x, s) => {
+      const args = <ConcatArgs<AR>><unknown>uppers.map(u => u.summonInner(x, s));
       return fac(args);
     });
   }
@@ -48,17 +46,10 @@ class Session {
   }
 }
 
-type MultiplySeeds<M> =
-    M extends readonly [] ? unknown
-  : M extends readonly [FacNode<infer T, unknown>, ...infer R] ? Merge<T, MultiplySeeds<R>>
-  : unknown;
-
 type ConcatArgs<R> =
     R extends readonly [] ? readonly []
-  : R extends readonly [FacNode<never, infer O>, ...infer T] ? readonly [O, ...ConcatArgs<T>]
+  : R extends readonly [FacNode<infer O>, ...infer T] ? readonly [O, ...ConcatArgs<T>]
   : R extends readonly [unknown] ? readonly []
-  // : R extends readonly [infer H, ...infer T]
-  //   ? readonly [...ConcatArgs<readonly [H]>, ...ConcatArgs<T>]
   : never
 
 export type IfKnown<A, B = A> = unknown extends A ? never : B
@@ -66,9 +57,9 @@ export type IfKnown<A, B = A> = unknown extends A ? never : B
 
 
 {
-  type A = ConcatArgs<[FacNode<never, unknown>]>
-  type B = ConcatArgs<[FacNode<never, 123>]>
-  type C = ConcatArgs<[FacNode<never, 123>, FacNode<never, 999>]>
+  type A = ConcatArgs<[FacNode<unknown>]>
+  type B = ConcatArgs<[FacNode<123>]>
+  type C = ConcatArgs<[FacNode<123>, FacNode<999>]>
 
   type _ = [A, B, C]
 }
