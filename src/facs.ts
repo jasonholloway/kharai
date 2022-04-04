@@ -4,17 +4,17 @@ export class FacNode<O> {
 
   private readonly nodeId = nextNodeId++;
 
-  private fac: (x: any, s:Session)=>O;
+  private fac: (x: unknown, s:Session)=>O;
 
-  constructor(fac: (x: any, s:Session)=>O) {
+  constructor(fac: (x: unknown, s:Session)=>O) {
     this.fac = fac;
   }
 
-  summon(x: any) {
+  summon(x: unknown) {
     return this.summonInner(x, new Session());
   }
 
-  private summonInner(x: any, s: Session): O {
+  private summonInner(x: unknown, s: Session): O {
     return s.summon(this.nodeId, () => this.fac(x, s));
   }
 
@@ -31,7 +31,6 @@ export class FacNode<O> {
 }
 
 class Session {
-
   private entries: [any][] = []
   
   summon<T>(id: number, fac: ()=>T): T {
@@ -49,7 +48,7 @@ class Session {
 type ConcatArgs<R> =
     R extends readonly [] ? readonly []
   : R extends readonly [FacNode<infer O>, ...infer T] ? readonly [O, ...ConcatArgs<T>]
-  : R extends readonly [unknown] ? readonly []
+  // : R extends readonly [unknown] ? readonly []
   : never
 
 export type IfKnown<A, B = A> = unknown extends A ? never : B

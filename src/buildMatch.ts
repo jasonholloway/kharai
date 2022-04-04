@@ -1,6 +1,7 @@
+import { List } from "immutable";
 import { FacNode, IfKnown } from "./facs";
 import { Guard, Read } from "./guards/Guard";
-import { isString, Merge, MergeMany, mergeObjects } from "./util";
+import { isString, merge, Merge, MergeMany, mergeObjects } from "./util";
 
 const $root = Symbol('root');
 export type $Root = typeof $root;
@@ -14,7 +15,7 @@ enum ReadMode {
 
 export type ReadResult = {
   errors: string[],
-  isValid?: boolean,
+  isValid: boolean,
   payload?: any,
   handler?: (context: any, data: any) => Promise<any>
   summonContext?: () => any
@@ -54,19 +55,19 @@ export class Builder<N extends SchemaNode> {
     return new Builder(schema);
   }
   
-  read(data: Data<N>): ReadResult {
-    return match(this.schema, data);
-  }
+  // read(data: Data<N>): ReadResult {
+  //   return match(this.schema, data);
+  // }
 
   readAny(data: any): ReadResult {
     return match(this.schema, data);
   }
 
-  debug = {
-    data: <Data<N>><unknown>undefined,
-    path: <Path<N>><unknown>undefined,
-    arg<P extends Path<N>>(): Arg<N, P> { throw 1; }
-  }
+  // debug = {
+  //   data: <Data<N>><unknown>undefined,
+  //   path: <Path<N>><unknown>undefined,
+  //   arg<P extends Path<N>>(): Arg<N, P> { throw 1; }
+  // }
 }
 
 
@@ -115,7 +116,20 @@ type MergeAtSchemaPath<N, X, PL extends readonly unknown[]> =
   : N;
 
 function mergeAtSchemaPath<N, X, PL extends PathList<Path<N>>>(n: N, x: X, pl: PL) : MergeAtSchemaPath<N, X, PL> {
-  throw 123;
+  if(pl.length == 0) {
+    return <MergeAtSchemaPath<N, X, PL>>merge(n, x);
+  }
+
+  if(isSpaceNode(n)) {
+    const [h, ...t] = pl;
+
+    const found = n.space[h];
+    if(found) {
+      return mergeAtSchemaPath(found, x, t);
+    }
+  }
+
+  return <MergeAtSchemaPath<N, X, PL>>n;
 }
 
 {
@@ -218,15 +232,14 @@ type ExtractFacNodes<R extends readonly unknown[]> =
   : never
 
 function extractFacNodes<R extends readonly unknown[]>(r: R) : ExtractFacNodes<R> {
-  throw 123
-  // const ac = [];
+  const ac = [];
 
-  // for(let i = 0; i < r.length; i++) {
-  //   const el = r[i];
-  //   if(isContextNode(el)) ac.push(el);
-  // }
+  for(let i = 0; i < r.length; i++) {
+    const el = r[i];
+    if(isContextNode(el)) ac.push(el.fac);
+  }
 
-  // return <ExtractContextNodes<R>><unknown>ac;
+  return <ExtractFacNodes<R>><unknown>ac;
 }
 
 
@@ -332,17 +345,10 @@ type PathList<PS extends string> =
   : readonly [PS];
 
 
-// type Paths<S, P = []> =
-//     S extends SpaceNode<infer I> ? { [k in keyof I]: RenderPath<P> | Paths<I[k], [k, P]> }[keyof I]
-//   : S extends DataNode<any> ? RenderPath<P>
-//   : never;
-
-
-
 export function match(schema: SchemaNode, data: any): ReadResult {
-  return _match(ReadMode.Resolving, schema, data);
+  return _match(ReadMode.Resolving, [], schema, data);
 
-  function _match(m: ReadMode, n: SchemaNode, d: any): ReadResult {
+  function _match(m: ReadMode, p: readonly SchemaNode[], n: SchemaNode, d: any): ReadResult {
     if(!n) return _fail('no node mate');
 
     switch(m) {
@@ -353,11 +359,11 @@ export function match(schema: SchemaNode, data: any): ReadResult {
           const [head, tail] = d;
           if(!isString(head)) return _fail('head should be indexer');
 
-          return _match(m, n.space[head], tail);
+          return _match(m, [...p, n], n.space[head], tail);
         }
 
         if(isDataNode(n)) {
-          return _match(ReadMode.Validating, n, d);
+          return _match(ReadMode.Validating, [...p, n], n, d);
         }
 
         throw 'unexpected mode';
@@ -373,8 +379,14 @@ export function match(schema: SchemaNode, data: any): ReadResult {
           })(d);
 
           return {
-            payload: d,
             isValid,
+            payload: d,
+            summonContext: () => {
+              return List(p)
+                .filter(isContextNode)
+                .reduce((ac, cn) => merge(ac, cn.fac.summon('MAGIC ROOT HERE')), {});
+            },
+            handler: (x, d) => Promise.resolve({}),
             errors: isValid ? [] : [`payload ${d} not valid within ${data}`],
           };
         }
@@ -387,13 +399,15 @@ export function match(schema: SchemaNode, data: any): ReadResult {
 
     function _fail(message: string): ReadResult {
       return {
-        errors: [ message ],
+        isValid: false,
+        errors: [ message ]
       };
     }
   }
 
-export function specify<S extends SchemaNode>(fn: (root: $Root)=>S) : Builder<S> {
-  return new Builder(fn($root));
+export function specify<S extends SchemaNode>(fn: (root: $Root)=>S) {
+  return new Builder(fn($root))
+    .withContext('', () => ({ hello: 123 }));
 }
 
 
@@ -473,9 +487,9 @@ const www = ww
   .withContext('hello', x => ({ moo: 3 }))
   //.withContext('hello', x => ({}))
 
-www.debug.path
-www.debug.data
-www.debug.arg<'recurse'>()
+// www.debug.path
+// www.debug.data
+// www.debug.arg<'recurse'>()
 
 type RRR = Merge<{moo:13,baa:1},{baa:2}>
 

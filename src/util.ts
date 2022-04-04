@@ -50,6 +50,9 @@ export type Merge<A, B> =
 export type Simplify<T> = T extends infer O ? { [k in keyof O]: O[k] } : never;
 
 
+export function merge<A, B>(a: A, b: B) : Merge<A, B> {
+  return <Merge<A, B>>Object.assign({}, a, b);
+}
 
 export function mergeObjects<R extends unknown[]>(...r: R) {
   return <MergeMany<R>>Object.assign({}, ...r);

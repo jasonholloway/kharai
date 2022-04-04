@@ -1,5 +1,4 @@
-import { specify, match, space, data } from '../src/buildMatch'
-import { Num } from './guards/Guard'
+import { specify, space, data } from '../src/buildMatch'
 
 describe('buildMatch', () => {
 
@@ -18,7 +17,7 @@ describe('buildMatch', () => {
   );
 
   it('simple match', () => {
-    const result = w.read(['hello', 123]);
+    const result = w.readAny(['hello', 123]);
     expect(result.errors).toHaveLength(0);
     expect(result.payload).toBe(123);
     expect(result.isValid).toBeTruthy();
@@ -73,7 +72,7 @@ describe('buildMatch', () => {
 
   it('context accessible from handler', () => {
     w.withContext('cow', x => ({ moo: 'moooo' }))
-      // .withPhase('sheep:recurse', async (x, d) => { throw 1;  })
+      .withPhase('sheep:recurse', async (x, d) => { throw 1;  })
       .withPhase('cow:talk', async (x, d) => {
 
         x.moo //has to be available on type
@@ -82,19 +81,20 @@ describe('buildMatch', () => {
       });
   });
 
-	it('get context, typeless', () => {
-    const result = ww.readAny(['cow:talk', ['moo', 123]]);
+	it('get context', () => {
+    const result = ww
+      .withContext('cow', x => ({ moo: 'moooo' }))
+      .readAny(['cow:talk', ['moo', 123]]);
+
     if(!result.summonContext) throw 'not defined!';
     
     const context = result.summonContext();
+    console.log('YO', context)
     expect(context.blah).toBe(123);
+    expect(context.moo).toBe('moooo');
 	});
 
-	it('get context, typed', () => {
-    const result = ww.read(['cow:talk', ['moo', 123]]);
-    const context = result.summonContext();
-    expect(context.blah).toBe(123);
-	});
+  //todo: need to summon all previous nodes and fold em in
 
 
 
@@ -104,11 +104,15 @@ describe('buildMatch', () => {
 		});
 
 	it('get phase', async () => {
-    const result = w2.read(['cow:talk', ['moo', 123]]);
-		expect(result.handler).not.toBeUndefined();
+    const result = w2.readAny(['cow:talk', ['moo', 123]]);
 
-		const next = await result.handler(null, result.payload);
-		expect(next).toBe(['cow:talk', ['moo', 123]]);
+    if(result.handler) {
+      const next = await result.handler(null, result.payload);
+      expect(next).toBe(['cow:talk', ['moo', 123]]);
+    }
+    else {
+      throw 'handler is undefined!'
+    }
 	});
 	
 })
