@@ -193,15 +193,15 @@ type PathContext<N, P extends Path<N>> =
 type ExtractFacContexts<R extends readonly unknown[]> =
     R extends readonly [] ? readonly []
   : R extends readonly [infer H, ...infer T] ? (
-      H extends { fac: FacNode<never, infer X> }
+      H extends { fac: FacNode<infer X> }
         ? readonly [X, ...ExtractFacContexts<T>]
         : ExtractFacContexts<T>
     )
-  : R extends readonly (infer E)[] ? (
-    E extends { fac: FacNode<never, infer X> }
-        ? readonly X[]
-        : readonly []
-    )
+  // : R extends readonly (infer E)[] ? (
+  //     E extends { fac: FacNode<infer X> }
+  //         ? readonly X[]
+  //         : readonly []
+  //   )
   : never
 
 
@@ -209,8 +209,8 @@ type ExtractFacNodes<R extends readonly unknown[]> =
     R extends readonly [] ? readonly []
   : R extends readonly [infer E] ?
       IfKnown<E,
-        [E] extends [ContextNode<infer I, infer O>]
-          ? readonly [FacNode<I, O>]
+        [E] extends [ContextNode<infer O>]
+          ? readonly [FacNode<O>]
           : readonly []
       >
   : R extends readonly [infer H, ...infer T] ?
@@ -234,8 +234,8 @@ type ExtractContextNodes<R extends readonly unknown[]> =
     R extends readonly [] ? readonly []
   : R extends readonly [infer E] ?
       IfKnown<E,
-        [E] extends [ContextNode<infer I, infer O>]
-          ? readonly [E & ContextNode<I, O>]
+        [E] extends [ContextNode<infer O>]
+          ? readonly [E & ContextNode<O>]
           : readonly []
       >
   : R extends readonly [infer H, ...infer T] ?
@@ -401,7 +401,7 @@ export type SchemaNode = {}
 export type DataNode<D> = { data: D }
 export type SpaceNode<I> = { space: I }
 export type HandlerNode<H> = { handler: H }
-export type ContextNode<R = never, X = unknown> = { fac: FacNode<R, X> }
+export type ContextNode<X = unknown> = { fac: FacNode<X> }
 
 function isDataNode(v: SchemaNode): v is DataNode<any> {
   return (<any>v).data;

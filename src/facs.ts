@@ -18,8 +18,8 @@ export class FacNode<O> {
     return s.summon(this.nodeId, () => this.fac(x, s));
   }
 
-  static root(): FacNode<void> {
-    return new FacNode<void>(() => {})
+  static root(): FacNode<{}> {
+    return new FacNode<{}>(() => ({}))
   }
 
   static derive<AR extends readonly FacNode<unknown>[], B>(uppers: AR, fac: (args: ConcatArgs<AR>)=>B): FacNode<B> {
