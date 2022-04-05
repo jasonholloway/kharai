@@ -55,7 +55,6 @@ export const Guard = <S>(s: S, cb?: ((s:any,v:any)=>undefined|boolean)) => Objec
 
 
 export function match(s: any, v: any, cb?: ((s:any,v:any)=>undefined|boolean)): boolean {
-
   if(cb) {
     const r = cb(s, v);
     if(r !== undefined) return r;

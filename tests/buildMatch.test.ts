@@ -26,42 +26,38 @@ describe('buildMatch', () => {
   it('simple fail', () => {
     const result = w.readAny(['hello', -123]);
     expect(result.errors).toHaveLength(1);
-    expect(result.payload).toBe(-123);
     expect(result.isValid).toBeFalsy();
   });
 
   it('bad path', () => {
     const result = w.readAny(['hullo', 123]);
     expect(result.errors).toHaveLength(1);
-    expect(result.payload).toBeUndefined();
     expect(result.isValid).toBeFalsy();
   });
 
   it('nested match', () => {
-    const result = w.readAny(['cow', ['talk', ['moo', 123]]])
+    const result = w.readAny(['cow:talk', ['moo', 123]])
     expect(result.errors).toHaveLength(0);
     expect(result.payload).toEqual(['moo', 123]);
     expect(result.isValid).toBeTruthy();
   });
 
   it('nested fail', () => {
-    const result = w.readAny(['cow', ['talk', ['moo', -123]]])
+    const result = w.readAny(['cow:talk', ['moo', -123]])
     expect(result.errors).toHaveLength(1);
-    expect(result.payload).toEqual(['moo', -123]);
     expect(result.isValid).toBeFalsy();
   });
 
   it('recursive match', () => {
-    const result = w.readAny(['sheep', ['recurse', ['baa', ['hello', 123]]]])
+    const result = w.readAny(['sheep:recurse', ['baa', ['hello', 123]]])
     expect(result.errors).toHaveLength(0);
     expect(result.payload).toEqual(['baa', ['hello', 123]]);
     expect(result.isValid).toBeTruthy();
   });
 
   it('recursive fail', () => {
-    const result = w.readAny(['sheep', ['recurse', ['baa', ['hello', -123]]]])
+    const result = w.readAny(['sheep:recurse', ['baa', ['hello', -123]]])
     expect(result.errors).toHaveLength(1);
-    expect(result.payload).toEqual(['baa', ['hello', -123]]);
     expect(result.isValid).toBeFalsy();
   });
 
@@ -72,7 +68,9 @@ describe('buildMatch', () => {
 
   it('context accessible from handler', () => {
     w.withContext('cow', x => ({ moo: 'moooo' }))
-      .withPhase('sheep:recurse', async (x, d) => { throw 1;  })
+      .withPhase('sheep:recurse', async (x, d) => {
+        throw 1;
+      })
       .withPhase('cow:talk', async (x, d) => {
 
         x.moo //has to be available on type
@@ -89,7 +87,6 @@ describe('buildMatch', () => {
     if(!result.summonContext) throw 'not defined!';
     
     const context = result.summonContext();
-    console.log('YO', context)
     expect(context.blah).toBe(123);
     expect(context.moo).toBe('moooo');
 	});

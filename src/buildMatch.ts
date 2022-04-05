@@ -52,6 +52,7 @@ export class Builder<N extends SchemaNode> {
       });
 
     const schema = mergeAtSchemaPath(this.schema, { fac: facNode }, pl);
+
     return new Builder(schema);
   }
   
@@ -125,7 +126,11 @@ function mergeAtSchemaPath<N, X, PL extends PathList<Path<N>>>(n: N, x: X, pl: P
 
     const found = n.space[h];
     if(found) {
-      return mergeAtSchemaPath(found, x, t);
+      return <MergeAtSchemaPath<N, X, PL>>merge(n, {
+        space: merge(n.space, {
+          [h]: mergeAtSchemaPath(found, x, t)
+        })
+      });
     }
   }
 
@@ -346,61 +351,69 @@ type PathList<PS extends string> =
 
 
 export function match(schema: SchemaNode, data: any): ReadResult {
-  return _match(ReadMode.Resolving, [], schema, data);
+  if(!Array.isArray(data)) return _fail('data must be tuple');
+  if(!isString(data[0])) return _fail('first element of data must be address string');
 
-  function _match(m: ReadMode, p: readonly SchemaNode[], n: SchemaNode, d: any): ReadResult {
+  const address = data[0].split(':');
+  const payload = data[1]; //.slice(1);
+
+  return _match(ReadMode.Resolving, [], schema, address);
+
+  function _match(m: ReadMode, p: readonly SchemaNode[], n: SchemaNode, a: readonly string[]): ReadResult {
     if(!n) return _fail('no node mate');
 
     switch(m) {
       case ReadMode.Resolving:
-        if(isSpaceNode(n)) {
-          if(!Array.isArray(d)) return _fail('expected tuple');
-
-          const [head, tail] = d;
-          if(!isString(head)) return _fail('head should be indexer');
-
-          return _match(m, [...p, n], n.space[head], tail);
+        if(a.length == 0) {
+          return _match(ReadMode.Validating, [...p, n], n, []);
         }
+        
+        if(!isSpaceNode(n)) return _fail(`imprecise address ${address} requires SpaceNode`);
 
-        if(isDataNode(n)) {
-          return _match(ReadMode.Validating, [...p, n], n, d);
-        }
-
-        throw 'unexpected mode';
+        return _match(m, [...p, n], n.space[a[0]], a.slice(1));
 
       case ReadMode.Validating:
-        if(isDataNode(n)) {
+        if(!isDataNode(n)) return _fail('wrong node for mode')
 
-          const isValid = Guard(n.data, (s, v) => {
-            if(s === $root) {
-              const result = match(schema, v);
-              return result.isValid;
-            }
-          })(d);
+        const isValid = Guard(n.data, (s, v) => {
+          if(s === $root) {
+            const result = match(schema, v);
+            return result.isValid;
+          }
+        })(payload);
 
-          return {
-            isValid,
-            payload: d,
-            summonContext: () => {
-              return List(p)
-                .filter(isContextNode)
-                .reduce((ac, cn) => merge(ac, cn.fac.summon('MAGIC ROOT HERE')), {});
-            },
-            handler: (x, d) => Promise.resolve({}),
-            errors: isValid ? [] : [`payload ${d} not valid within ${data}`],
-          };
-        }
+        if(!isValid) return _fail(`payload ${payload} not valid at ${address.join(':')}`);
 
-        throw 'wrong mode for schema node';
+        return _ok({
+          payload,
+          summonContext: () => {
+            return List(p)
+              .filter(isContextNode)
+              .reduce(
+                (ac, cn) => {
+                  return merge(ac, cn.fac.summon('MAGIC ROOT HERE'))
+                },
+                {});
+          },
+          handler: (x, d) => Promise.resolve({})
+        });
       }
 
       return _fail(`unexpected schema node ${n}`);
     }
 
+    function _ok(body: Omit<ReadResult, 'isValid' | 'errors'>): ReadResult {
+      return {
+        isValid: true,
+        errors: [],
+        ...body
+      };
+    }
+
     function _fail(message: string): ReadResult {
       return {
         isValid: false,
-        errors: [ message ]
+        errors: [ message ],
       };
     }
   }
