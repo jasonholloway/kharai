@@ -62,32 +62,24 @@ describe('buildMatch', () => {
   });
 
 
-
-	const ww = w
-    .withContext('cow:talk', x => ({ blah: 123 }));
-
   it('context accessible from handler', () => {
-    w.withContext('cow', x => ({ moo: 'moooo' }))
-      .withPhase('sheep:recurse', async (x, d) => {
-        throw 1;
-      })
+    w.withContext('cow', x => ({ moo: 'moooo' as const }))
       .withPhase('cow:talk', async (x, d) => {
-
         x.moo //has to be available on type
-        
-        return ['cow:talk', ['moo', 123]];
+        throw 'never';
       });
   });
 
 	it('get context', () => {
-    const result = ww
-      .withContext('cow', x => ({ moo: 'moooo' }))
+    const result = w
+      .withContext('cow', x => ({ moo: 'moooo', blah: 1 }))
+      .withContext('cow:talk', x => ({ blah: 2 }))
       .readAny(['cow:talk', ['moo', 123]]);
 
     if(!result.summonContext) throw 'not defined!';
     
     const context = result.summonContext();
-    expect(context.blah).toBe(123);
+    expect(context.blah).toBe(2);
     expect(context.moo).toBe('moooo');
 	});
 
@@ -104,8 +96,8 @@ describe('buildMatch', () => {
     const result = w2.readAny(['cow:talk', ['moo', 123]]);
 
     if(result.handler) {
-      const next = await result.handler(null, result.payload);
-      expect(next).toBe(['cow:talk', ['moo', 123]]);
+      const next = await result.handler.fn(null, result.payload);
+      expect(next).toEqual(['cow:talk', ['moo', 123]]);
     }
     else {
       throw 'handler is undefined!'

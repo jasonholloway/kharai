@@ -17,8 +17,16 @@ export type ReadResult = {
   errors: string[],
   isValid: boolean,
   payload?: any,
-  handler?: (context: any, data: any) => Promise<any>
+  handler?: Handler,
   summonContext?: () => any
+}
+
+class Handler {
+  fn: (x:any, d:any) => Promise<any>
+  
+  constructor(fn: (x:any, d:any) => Promise<any>) {
+    this.fn = fn;
+  }
 }
 
 export class Builder<N extends SchemaNode> {
@@ -28,8 +36,10 @@ export class Builder<N extends SchemaNode> {
     this.schema = schema;
   }
 
-  withPhase<P extends Path<N>>(path: P, impl: (x:any,d:Arg<N,P>)=>Promise<Data<N>>): Builder<N> {
-    return this;
+  withPhase<P extends Path<N>>(path: P, handler: (x:PathContext<N,P>, d:Arg<N,P>)=>Promise<Data<N>>) {
+    const pl = pathList(path);
+    const schema = mergeAtSchemaPath(this.schema, { handler: new Handler(handler) }, pl)
+    return new Builder(schema);
   }
 
   withContext<P extends Path<N>, X>(path: P, fac: (context: PathContext<N,P>)=>X) {
@@ -395,7 +405,7 @@ export function match(schema: SchemaNode, data: any): ReadResult {
                 },
                 {});
           },
-          handler: (x, d) => Promise.resolve({})
+          handler: isHandlerNode(n) ? n.handler : undefined
         });
       }
 
@@ -427,7 +437,7 @@ export function specify<S extends SchemaNode>(fn: (root: $Root)=>S) {
 export type SchemaNode = {}
 export type DataNode<D> = { data: D }
 export type SpaceNode<I> = { space: I }
-export type HandlerNode<H> = { handler: H }
+export type HandlerNode = { handler: Handler }
 export type ContextNode<X = unknown> = { fac: FacNode<X> }
 
 function isDataNode(v: SchemaNode): v is DataNode<any> {
@@ -440,6 +450,10 @@ function isSpaceNode(v: any): v is SpaceNode<any> {
 
 function isContextNode(v: any): v is ContextNode {
   return (<any>v).fac;
+}
+
+function isHandlerNode(v: any): v is HandlerNode {
+  return (<any>v).handler;
 }
 
 export function data<S>(s: S): DataNode<S> {
