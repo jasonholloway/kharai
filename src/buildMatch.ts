@@ -1,4 +1,4 @@
-import { List } from "immutable";
+import { List, Map } from "immutable";
 import { FacNode, IfKnown } from "./facs";
 import { Guard, Read } from "./guards/Guard";
 import { isString, merge, Merge, MergeMany, mergeObjects } from "./util";
@@ -21,25 +21,42 @@ export type ReadResult = {
   summonContext?: () => any
 }
 
-class Handler {
-  fn: (x:any, d:any) => Promise<any>
-  
-  constructor(fn: (x:any, d:any) => Promise<any>) {
-    this.fn = fn;
+type Handler = (x: any, d: any) => Promise<any>;
+
+
+//TODO below must be COW
+class Registry {
+
+  private handlers: Map<string, Handler> = Map();
+
+  private constructor(handlers: Map<string, Handler>) {
+    this.handlers = handlers;
+  }
+
+  static empty = new Registry(Map());
+
+  addHandler(p: string, h: Handler): Registry {
+    return new Registry(this.handlers.set(p, h));
+  }
+
+  getHandler(p: string): Handler | undefined {
+    return this.handlers.get(p);
   }
 }
 
+
+
 export class Builder<N extends SchemaNode> {
+  reg: Registry
   schema: N
 
-  constructor(schema: N) {
+  constructor(schema: N, reg: Registry) {
     this.schema = schema;
+    this.reg = reg;
   }
 
-  withPhase<P extends Path<N>>(path: P, handler: (x:PathContext<N,P>, d:Arg<N,P>)=>Promise<Data<N>>) {
-    const pl = pathList(path);
-    const schema = mergeAtSchemaPath(this.schema, { handler: new Handler(handler) }, pl)
-    return new Builder(schema);
+  withPhase<P extends Path<N>>(path: P, handler: (x:PathContext<N,P>, d:Arg<N,P>)=>Promise<Data<N>>) : Builder<N> {
+    return new Builder<N>(this.schema, this.reg.addHandler(path, handler))
   }
 
   withContext<P extends Path<N>, X>(path: P, fac: (context: PathContext<N,P>)=>X) {
@@ -63,22 +80,12 @@ export class Builder<N extends SchemaNode> {
 
     const schema = mergeAtSchemaPath(this.schema, { fac: facNode }, pl);
 
-    return new Builder(schema);
+    return new Builder(schema, this.reg);
   }
-  
-  // read(data: Data<N>): ReadResult {
-  //   return match(this.schema, data);
-  // }
 
   readAny(data: any): ReadResult {
-    return match(this.schema, data);
+    return match(this.schema, this.reg, data);
   }
-
-  // debug = {
-  //   data: <Data<N>><unknown>undefined,
-  //   path: <Path<N>><unknown>undefined,
-  //   arg<P extends Path<N>>(): Arg<N, P> { throw 1; }
-  // }
 }
 
 
@@ -360,34 +367,35 @@ type PathList<PS extends string> =
   : readonly [PS];
 
 
-export function match(schema: SchemaNode, data: any): ReadResult {
+export function match(schema: SchemaNode, reg: Registry, data: any): ReadResult {
   if(!Array.isArray(data)) return _fail('data must be tuple');
   if(!isString(data[0])) return _fail('first element of data must be address string');
 
   const address = data[0].split(':');
   const payload = data[1]; //.slice(1);
 
-  return _match(ReadMode.Resolving, [], schema, address);
+  return _match(ReadMode.Resolving, [], [], schema, address);
 
-  function _match(m: ReadMode, p: readonly SchemaNode[], n: SchemaNode, a: readonly string[]): ReadResult {
+  function _match(m: ReadMode, pl: readonly string[], pn: readonly SchemaNode[], n: SchemaNode, a: readonly string[]): ReadResult {
     if(!n) return _fail('no node mate');
 
     switch(m) {
       case ReadMode.Resolving:
         if(a.length == 0) {
-          return _match(ReadMode.Validating, [...p, n], n, []);
+          return _match(ReadMode.Validating, pl, [...pn, n], n, []);
         }
         
         if(!isSpaceNode(n)) return _fail(`imprecise address ${address} requires SpaceNode`);
 
-        return _match(m, [...p, n], n.space[a[0]], a.slice(1));
+        const nextPart = a[0];
+        return _match(m, [...pl, nextPart], [...pn, n], n.space[nextPart], a.slice(1));
 
       case ReadMode.Validating:
         if(!isDataNode(n)) return _fail('wrong node for mode')
 
         const isValid = Guard(n.data, (s, v) => {
           if(s === $root) {
-            const result = match(schema, v);
+            const result = match(schema, reg, v);
             return result.isValid;
           }
         })(payload);
@@ -397,7 +405,7 @@ export function match(schema: SchemaNode, data: any): ReadResult {
         return _ok({
           payload,
           summonContext: () => {
-            return List(p)
+            return List(pn)
               .filter(isContextNode)
               .reduce(
                 (ac, cn) => {
@@ -405,7 +413,7 @@ export function match(schema: SchemaNode, data: any): ReadResult {
                 },
                 {});
           },
-          handler: isHandlerNode(n) ? n.handler : undefined
+          handler: reg.getHandler(pl.join(':'))
         });
       }
 
@@ -429,7 +437,7 @@ export function match(schema: SchemaNode, data: any): ReadResult {
   }
 
 export function specify<S extends SchemaNode>(fn: (root: $Root)=>S) {
-  return new Builder(fn($root))
+  return new Builder(fn($root), Registry.empty)
     .withContext('', () => ({ hello: 123 }));
 }
 
@@ -535,11 +543,11 @@ type Tail<R extends readonly any[]> =
   : R extends readonly (infer E)[] ? readonly E[]
   : never;
 
-function head<R extends readonly any[]>(r: R): Head<R> {
+export function head<R extends readonly any[]>(r: R): Head<R> {
   return <Head<R>>r[0];
 }
 
-function tail<R extends readonly any[]>(r: R): Tail<R> {
+export function tail<R extends readonly any[]>(r: R): Tail<R> {
   const [_, ...t] = r;
   return <Tail<R>><unknown>t;
 }

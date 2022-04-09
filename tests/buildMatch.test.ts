@@ -1,4 +1,6 @@
 import { specify, space, data } from '../src/buildMatch'
+import { Num } from '../src/guards/Guard';
+import { delay } from '../src/util';
 
 describe('buildMatch', () => {
 
@@ -96,7 +98,7 @@ describe('buildMatch', () => {
     const result = w2.readAny(['cow:talk', ['moo', 123]]);
 
     if(result.handler) {
-      const next = await result.handler.fn(null, result.payload);
+      const next = await result.handler(null, result.payload);
       expect(next).toEqual(['cow:talk', ['moo', 123]]);
     }
     else {
@@ -105,4 +107,72 @@ describe('buildMatch', () => {
 	});
 	
 })
+
+
+// -------------------------------------------------------
+// inference depth check
+{
+  const a = specify(_ => space({
+    hullo: data(Num)
+  }));
+
+  const b = a
+    .withPhase('hullo', async () => {
+      await delay(1);
+      return ['hullo', 123];
+    })
+    .withPhase('hullo', async () => {
+      await delay(1);
+      return ['hullo', 123];
+    })
+    .withPhase('hullo', async () => {
+      await delay(1);
+      return ['hullo', 123];
+    })
+    .withPhase('hullo', async () => {
+      await delay(1);
+      return ['hullo', 123];
+    })
+    .withPhase('hullo', async () => {
+      await delay(1);
+      return ['hullo', 123];
+    })
+    .withPhase('hullo', async () => {
+      await delay(1);
+      return ['hullo', 123];
+    })
+  
+  b
+}
+
+// {
+//   const a = specify(_ => space({
+//     hullo: data(Num)
+//   }));
+
+//   const b = a
+//     .withContext('hullo', () => {
+//       return { moo: 123 }
+//     })
+//     .withContext('hullo', () => {
+//       return { moo: 123 }
+//     })
+//     .withContext('hullo', () => {
+//       return { moo: 123 }
+//     })
+//     .withContext('hullo', () => {
+//       return { moo: 123 }
+//     })
+//     .withContext('hullo', () => {
+//       return { moo: 123 }
+//     })
+//     .withContext('hullo', () => {
+//       return { moo: 123 }
+//     })
+  
+//   b
+// }
+
+
+
 

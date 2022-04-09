@@ -1,6 +1,6 @@
 import _Monoid from '../../src/_Monoid'
 import { delay } from '../../src/util'
-import { data, space, specify } from '../specs'
+import { data, space, specify } from '../../src/buildMatch'
 import { Any, Many, Num, Str } from '../guards/Guard'
 
 const w1 = specify(me =>
@@ -38,6 +38,13 @@ const w2 = w1
     return ['$end', [`I have squeaked ${d}!`]];
   });
 
+
+// todo: put handlers in secret structure behind schema
+// todo: put facnode in secret structure, with only succinct type in schema
+// todo: return full type from withContext/withPhase
+// todo: magic path lookup could be done once in with('aaa:bbb', () => addition) blocks
+
+
 const w3 = w2
   .withPhase('hamster:wake', async (_, d) => {
     await delay(100);
@@ -60,7 +67,6 @@ const w4 = w3
         else throw Error('bad response from attendee')
       }
     });
-
     return ['$end', resp]
   });
 
