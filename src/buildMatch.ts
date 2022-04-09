@@ -59,7 +59,7 @@ export class Builder<N extends SchemaNode> {
     return new Builder<N>(this.schema, this.reg.addHandler(path, handler))
   }
 
-  withContext<P extends Path<N>, X>(path: P, fac: (context: PathContext<N,P>)=>X) {
+  withContext<P extends Path<N>, X>(path: P, fac: (context: PathContext<N,P>)=>X): Builder<MergeAtSchemaPath<N, { fac: FacNode<X> }, PathList<P>>> {
     const pl = pathList(path);
 
     const nodes = effectiveNodes(this.schema, pl);
@@ -80,7 +80,7 @@ export class Builder<N extends SchemaNode> {
 
     const schema = mergeAtSchemaPath(this.schema, { fac: facNode }, pl);
 
-    return new Builder(schema, this.reg);
+    return <Builder<MergeAtSchemaPath<N, { fac: FacNode<X> }, PathList<P>>>><unknown>new Builder(schema, this.reg);
   }
 
   readAny(data: any): ReadResult {

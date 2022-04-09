@@ -85,8 +85,6 @@ describe('buildMatch', () => {
     expect(context.moo).toBe('moooo');
 	});
 
-  //todo: need to summon all previous nodes and fold em in
-
 
 
 	const w2 = w
@@ -145,34 +143,40 @@ describe('buildMatch', () => {
   b
 }
 
-// {
-//   const a = specify(_ => space({
-//     hullo: data(Num)
-//   }));
+{
+  const a = specify(_ => space({
+    hullo: data(Num)
+  }));
 
-//   const b = a
-//     .withContext('hullo', () => {
-//       return { moo: 123 }
-//     })
-//     .withContext('hullo', () => {
-//       return { moo: 123 }
-//     })
-//     .withContext('hullo', () => {
-//       return { moo: 123 }
-//     })
-//     .withContext('hullo', () => {
-//       return { moo: 123 }
-//     })
-//     .withContext('hullo', () => {
-//       return { moo: 123 }
-//     })
-//     .withContext('hullo', () => {
-//       return { moo: 123 }
-//     })
+  const b = a
+    .withContext('hullo', () => {
+      return { moo: 123 }
+    })
+    .withContext('hullo', () => {
+      return { moo: 123 }
+    })
+    .withContext('hullo', () => {
+      return { moo: 123 }
+    })
+    .withContext('hullo', () => {
+      return { moo: 123 }
+    })
+    .withContext('hullo', () => {
+      return { moo: 123 }
+    })
+    .withContext('hullo', () => {
+      return { moo: 123 }
+    })
+    .withContext('hullo', () => {
+      return { moo: 123 }
+    })
+    .withContext('hullo', () => {
+      return { moo: 123 }
+    })
   
-//   b
-// }
+  b
 
+}
 
 
 
