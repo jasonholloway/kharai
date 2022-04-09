@@ -22,10 +22,10 @@ export class FacNode<O> {
     return new FacNode<{}>(() => ({}))
   }
 
-  static derive<AR extends readonly FacNode<unknown>[], B>(uppers: AR, fac: (args: ConcatArgs<AR>)=>B): FacNode<B> {
+  static derive<AR extends readonly FacNode<unknown>[], B>(uppers: AR, fac: (args:ConcatArgs<AR>, x:unknown)=>B): FacNode<B> {
     return new FacNode<B>((x, s) => {
       const args = <ConcatArgs<AR>><unknown>uppers.map(u => u.summonInner(x, s));
-      return fac(args);
+      return fac(args, x);
     });
   }
 }

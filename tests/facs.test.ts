@@ -4,15 +4,16 @@ describe('facs', () => {
 
   it('simple', () => {
     const root = FacNode.root();
-    const child = FacNode.derive([root] as const, ([a]) => ({ species: a, sound: 'meeow' }));
-    const result = child.summon('cat');
+    const child1 = FacNode.derive([root] as const, (_, x) => ({ species: <string>x }));
+    const child2 = FacNode.derive([child1] as const, ([u], x) => ({ ...u, sound: 'meeow' }));
+    const result = child2.summon('cat');
     expect(result.sound).toBe('meeow');
     expect(result.species).toBe('cat');
   });
 
   it('lattice', () => {
     const meet   = FacNode.root();
-    const child1 = FacNode.derive([meet] as const, ([b]) => ({ species: b, sound: 'meeow' }));
+    const child1 = FacNode.derive([meet] as const, (_, x) => ({ species: <string>x, sound: 'meeow' }));
     const child2 = FacNode.derive([meet] as const, ([b]) => ({ furry: true }));
     const join   = FacNode.derive([child1, child2] as const, u => Object.assign(u[0], u[1]));
 
@@ -45,7 +46,7 @@ describe('facs', () => {
 
   it('lattice repeated', () => {
     const meet   = FacNode.root();
-    const child1 = FacNode.derive([meet] as const, ([b]) => ({ species: b, sound: 'meeow' }));
+    const child1 = FacNode.derive([meet] as const, (_, x) => ({ species: <string>x, sound: 'meeow' }));
     const child2 = FacNode.derive([meet] as const, ([b]) => ({ furry: true }));
     const join   = FacNode.derive([child1, child2] as const, u => Object.assign(u[0], u[1]));
 
