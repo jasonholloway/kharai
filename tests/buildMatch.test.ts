@@ -1,6 +1,5 @@
-import { specify, space, data } from '../src/buildMatch'
-import { Num } from '../src/guards/Guard';
-import { delay } from '../src/util';
+import { specify,  } from '../src/buildMatch'
+import { space, data } from '../src/shapeShared'
 
 describe('buildMatch', () => {
 
@@ -109,74 +108,74 @@ describe('buildMatch', () => {
 
 // -------------------------------------------------------
 // inference depth check
-{
-  const a = specify(_ => space({
-    hullo: data(Num)
-  }));
+// {
+//   const a = specify(_ => space({
+//     hullo: data(Num)
+//   }));
 
-  const b = a
-    .withPhase('hullo', async () => {
-      await delay(1);
-      return ['hullo', 123];
-    })
-    .withPhase('hullo', async () => {
-      await delay(1);
-      return ['hullo', 123];
-    })
-    .withPhase('hullo', async () => {
-      await delay(1);
-      return ['hullo', 123];
-    })
-    .withPhase('hullo', async () => {
-      await delay(1);
-      return ['hullo', 123];
-    })
-    .withPhase('hullo', async () => {
-      await delay(1);
-      return ['hullo', 123];
-    })
-    .withPhase('hullo', async () => {
-      await delay(1);
-      return ['hullo', 123];
-    })
+//   const b = a
+//     .withPhase('hullo', async () => {
+//       await delay(1);
+//       return ['hullo', 123];
+//     })
+//     .withPhase('hullo', async () => {
+//       await delay(1);
+//       return ['hullo', 123];
+//     })
+//     .withPhase('hullo', async () => {
+//       await delay(1);
+//       return ['hullo', 123];
+//     })
+//     .withPhase('hullo', async () => {
+//       await delay(1);
+//       return ['hullo', 123];
+//     })
+//     .withPhase('hullo', async () => {
+//       await delay(1);
+//       return ['hullo', 123];
+//     })
+//     .withPhase('hullo', async () => {
+//       await delay(1);
+//       return ['hullo', 123];
+//     })
   
-  b
-}
+//   b
+// }
 
-{
-  const a = specify(_ => space({
-    hullo: data(Num)
-  }));
+// {
+//   const a = specify(_ => space({
+//     hullo: data(Num)
+//   }));
 
-  const b = a
-    .withContext('hullo', () => {
-      return { moo: 123 }
-    })
-    .withContext('hullo', () => {
-      return { moo: 123 }
-    })
-    .withContext('hullo', () => {
-      return { moo: 123 }
-    })
-    .withContext('hullo', () => {
-      return { moo: 123 }
-    })
-    .withContext('hullo', () => {
-      return { moo: 123 }
-    })
-    .withContext('hullo', () => {
-      return { moo: 123 }
-    })
-    .withContext('hullo', () => {
-      return { moo: 123 }
-    })
-    .withContext('hullo', () => {
-      return { moo: 123 }
-    })
+//   const b = a
+//     .withContext('hullo', () => {
+//       return { moo: 123 }
+//     })
+//     .withContext('hullo', () => {
+//       return { moo: 123 }
+//     })
+//     .withContext('hullo', () => {
+//       return { moo: 123 }
+//     })
+//     .withContext('hullo', () => {
+//       return { moo: 123 }
+//     })
+//     .withContext('hullo', () => {
+//       return { moo: 123 }
+//     })
+//     .withContext('hullo', () => {
+//       return { moo: 123 }
+//     })
+//     .withContext('hullo', () => {
+//       return { moo: 123 }
+//     })
+//     .withContext('hullo', () => {
+//       return { moo: 123 }
+//     })
   
-  b
+//   b
 
-}
+// }
 
 
 

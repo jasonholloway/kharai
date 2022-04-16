@@ -1,10 +1,8 @@
 import { List, Map } from "immutable";
 import { FacNode, IfKnown } from "./facs";
 import { Guard, Read } from "./guards/Guard";
-import { isString, merge, Merge, MergeMany, mergeObjects } from "./util";
-
-const $root = Symbol('root');
-export type $Root = typeof $root;
+import { $Root, $root, ContextNode, data, Handler, isContextNode, isSpaceNode, Nodes, SchemaNode, space } from "./shapeShared";
+import { isString, merge, Merge, MergeMany, mergeObjects, Simplify } from "./util";
 
 enum ReadMode {
   Resolving,
@@ -20,8 +18,6 @@ export type ReadResult = {
   handler?: Handler,
   summonContext?: () => any
 }
-
-type Handler = (x: any, d: any) => Promise<any>;
 
 
 //TODO below must be COW
@@ -46,23 +42,23 @@ class Registry {
 
 
 
-export class Builder<N extends SchemaNode> {
+export class Builder<N extends Nodes> {
   reg: Registry
-  schema: N
+  nodes: N
 
-  constructor(schema: N, reg: Registry) {
-    this.schema = schema;
+  constructor(nodes: N, reg: Registry) {
+    this.nodes = nodes;
     this.reg = reg;
   }
 
   withPhase<P extends Path<N>>(path: P, handler: (x:PathContext<N,P>, d:Arg<N,P>)=>Promise<Data<N>>) : Builder<N> {
-    return new Builder<N>(this.schema, this.reg.addHandler(path, handler))
+    return new Builder<N>(this.nodes, this.reg.addHandler(path, handler))
   }
 
   withContext<P extends Path<N>, X>(path: P, fac: (context: PathContext<N,P>)=>X): Builder<MergeAtSchemaPath<N, { fac: FacNode<X> }, PathList<P>>> {
     const pl = pathList(path);
 
-    const nodes = effectiveNodes(this.schema, pl);
+    const nodes = effectiveNodes(this.nodes, pl);
     const verticals = extractFacNodes(allButLast(nodes))
     const horizontal = firstOr(extractFacNodes(onlyLast(nodes)), FacNode.root());
 
@@ -78,13 +74,13 @@ export class Builder<N extends SchemaNode> {
         return mergeObjects(horiz, result)
       });
 
-    const schema = mergeAtSchemaPath(this.schema, { fac: facNode }, pl);
+    const schema = mergeAtSchemaPath(this.nodes, { fac: facNode }, pl);
 
     return <Builder<MergeAtSchemaPath<N, { fac: FacNode<X> }, PathList<P>>>><unknown>new Builder(schema, this.reg);
   }
 
   readAny(data: any): ReadResult {
-    return match(this.schema, this.reg, data);
+    return match(this.nodes, this.reg, data);
   }
 }
 
@@ -105,7 +101,7 @@ const w = specify(root =>
   .withContext('cat', u => ({}))
 w
 
-w.schema
+w.nodes
 
 
 
@@ -174,7 +170,13 @@ function mergeAtSchemaPath<N, X, PL extends PathList<Path<N>>>(n: N, x: X, pl: P
 
 
 
-//TODO test below...
+
+{
+  //PATHCONTEXT DOESNT WORK
+  type N = typeof w.nodes
+  type YY = EffectiveNodes<N, PathList<'dog:bark'>>
+  type __ = YY
+}
 
 type EffectiveNodes<N, PL extends PathList<string>> =
   ( PL extends readonly [] ? readonly [N]
@@ -211,10 +213,12 @@ function effectiveNodes<N, PL extends PathList<Path<N>>>(node: N, path: PL): Eff
 
 
 
-//PATHCONTEXT DOESNT WORK
-type N = typeof w.schema
-type YY = PathContext<N, 'dog:bark'>
-type __ = YY
+{
+  //PATHCONTEXT DOESNT WORK
+  type N = typeof w.nodes
+  type YY = PathContext<N, 'dog:bark'>
+  type __ = YY
+}
 
 
 
@@ -442,35 +446,27 @@ export function specify<S extends SchemaNode>(fn: (root: $Root)=>S) {
 }
 
 
-export type SchemaNode = {}
-export type DataNode<D> = { data: D }
-export type SpaceNode<I> = { space: I }
-export type HandlerNode = { handler: Handler }
-export type ContextNode<X = unknown> = { fac: FacNode<X> }
+{
+  const a = specify(root => space({
 
-function isDataNode(v: SchemaNode): v is DataNode<any> {
-  return (<any>v).data;
+    // ['cow']: fac(),
+    ['cow:moo']: data('hello'),
+    ['cow:moooo']: data(123 as const),
+
+    sheep: space({
+      baa: data('hello')
+    })
+  }));
+
+  const n1 = a.nodes['cow:moo'];
+  const n2 = a.nodes['sheep:baa'];
+  [n1, n2]
 }
 
-function isSpaceNode(v: any): v is SpaceNode<any> {
-  return (<any>v).space;
-}
 
-function isContextNode(v: any): v is ContextNode {
-  return (<any>v).fac;
-}
 
-function isHandlerNode(v: any): v is HandlerNode {
-  return (<any>v).handler;
-}
 
-export function data<S>(s: S): DataNode<S> {
-  return { data: s };
-}
 
-export function space<S extends { [k in keyof S]: SchemaNode }>(s: S): SpaceNode<S> {
-  return { space: s };
-}
 
 
 
@@ -601,4 +597,7 @@ function allButLast<R extends readonly any[]>(r: R): AllButLast<R> {
 
   const a = allButLast([1, 2, 3] as const);
 }
+
+
+
 

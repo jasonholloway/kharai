@@ -1,0 +1,17 @@
+
+
+
+* Type-Mappings
+
+** Materialize disjunctive Unions to single spatialized Objects
+
+* Unions
+
+** Naturally associative; just what we want for many operations
+
+** Unfortunately unordered; but if we're going object->union->object this doesn't matter
+
+*** putting into object form gives us settled slices: no sliding about, can put in order
+
+* Conditional types map items one-by-one
+
