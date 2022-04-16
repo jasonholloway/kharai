@@ -58,3 +58,36 @@ export function mergeObjects<R extends unknown[]>(...r: R) {
   return <MergeMany<R>>Object.assign({}, ...r);
 }
 
+
+type _MergeDeep<A, B> =
+  { [k in keyof A | keyof B]:
+    k extends keyof B ? (
+      k extends keyof A ? (
+        MergeDeep<A[k], B[k]>
+      )
+      : B[k]
+    )
+    : (k extends keyof A ? A[k] : never)
+  }
+
+export type MergeDeep<A, B> = Simplify<_MergeDeep<A, B>>
+
+export function mergeDeep<A, B>(a: A, b: B) : MergeDeep<A, B> {
+  if(b === undefined) return <MergeDeep<A, B>><unknown>a;
+  if(a === undefined) return <MergeDeep<A, B>><unknown>b;
+  
+  const bns = List(Object.getOwnPropertyNames(b));
+
+  return <MergeDeep<A, B>>bns.reduce((ac, pn) => merge(ac, { [pn]: mergeDeep<unknown, unknown>((<any>ac)[pn], <unknown>(<any>b)[pn]) }), <unknown>a);
+}
+
+{
+  type A = MergeDeep<{}, { a:1 }>
+  type B = MergeDeep<{ a: { moo: 1 }, b: {} }, { a: { baa: 2 } }>
+
+  type _ = [A, B]
+}
+
+
+
+

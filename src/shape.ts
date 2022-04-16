@@ -1,6 +1,6 @@
 import { List } from "immutable";
 import { $Root, $root, data, isSpaceNode, SchemaNode, space } from "./shapeShared";
-import { Simplify } from "./util";
+import { merge, Merge, mergeDeep, MergeDeep, Simplify } from "./util";
 
 export const separator = '_'
 export type Separator = typeof separator;
@@ -12,6 +12,10 @@ export class Builder<N> {
   
   constructor(nodes: N) {
     this.nodes = nodes
+  }
+
+  add<B>(other: Builder<B>) : Builder<MergeDeep<N, B>> {
+    return new Builder(mergeDeep(this.nodes, other.nodes));
   }
 }
 

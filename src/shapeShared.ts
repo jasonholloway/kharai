@@ -39,3 +39,7 @@ export function space<S extends { [k in keyof S]: SchemaNode }>(s: S): SpaceNode
   return { space: s };
 }
 
+export function fac<X>(x: X) {
+  return { fac: x };
+}
+
