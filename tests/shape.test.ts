@@ -70,5 +70,30 @@ describe('shape', () => {
     expect(w.nodes._hamster_squeak.fac.hello).toBe(1)
   })
 
+  it('adds facs', () => {
+    const w =
+      shape(_ => space({
+        hamster: space({
+          squeak: data(123 as const),
+        })
+      }))
+      .addFac('_hamster', () => 1)
+
+    expect(w.nodes._hamster).toHaveProperty('fac')
+  })
+
+  it('types facs from upstreams', () => {
+    const w =
+      shape(_ => space({
+        hamster: space({
+          squeak: data(123 as const),
+        })
+      }))
+      .addFac('_', () => ({ a:1 }))
+      .addFac('_hamster', u => ({ b: u.a + 1 }))
+
+    expect(w.nodes._hamster).toHaveProperty('fac')
+    expect(w.nodes._hamster.fac()).toBe({ a:1, b:2 });
+  })
 })
 

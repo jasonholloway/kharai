@@ -1,10 +1,15 @@
 import { List } from "immutable";
-import { $Root, $root, data, isSpaceNode, SchemaNode, space } from "./shapeShared";
-import { merge, Merge, mergeDeep, MergeDeep, Simplify } from "./util";
+import { FacNode } from "./facs";
+import Head from "./Head";
+import { Tail } from "./lib";
+import { $Root, $root, data, isSpaceNode, SchemaNode, space, SpaceNode } from "./shapeShared";
+import { merge, Merge, mergeDeep, MergeDeep, MergeMany, Simplify } from "./util";
 
 export const separator = '_'
 export type Separator = typeof separator;
 
+
+export type Path<N> = keyof N & string;
 
 
 export class Builder<N> {
@@ -17,8 +22,11 @@ export class Builder<N> {
   add<B>(other: Builder<B>) : Builder<MergeDeep<N, B>> {
     return new Builder(mergeDeep(this.nodes, other.nodes));
   }
-}
 
+  addFac<P extends Path<N>>(path: P, fn: ()=>any) : Builder<MergeDeep<N, { [k in P]: { fac: ()=>any } }>> {
+    return new Builder(mergeDeep(this.nodes, <{ [k in P]: { fac: ()=>any } }>{ [path]: { fac: fn } }))
+  }
+}
 
 
 export function shape<S extends SchemaNode>(fn: (root: $Root)=>S) : Builder<Shape<S>> {
@@ -60,13 +68,9 @@ export function shape<S extends SchemaNode>(fn: (root: $Root)=>S) : Builder<Shap
 }
 
 
+
 export type Shape<S> =
   Simplify<Assemble<Walk<S>>>
-
-
-type KV<K extends string = string, V = unknown>
-  = readonly [K, V]
-
 
 type Walk<O, P extends string = ''> =
   KV<P extends '' ? Separator : P,
@@ -84,6 +88,8 @@ type Walk<O, P extends string = ''> =
 type Assemble<T extends KV> =
   { [kv in T as kv[0]]: kv[1] }
 
+type KV<K extends string = string, V = unknown>
+  = readonly [K, V]
 
 {
   const s = space({
@@ -102,3 +108,41 @@ type Assemble<T extends KV> =
 }
 
 
+
+
+type PathContext<N, P extends Path<N>> =   
+  MergeMany<ExtractFacContexts<EffectiveNodes<N, PathList<P>>>>
+
+type ExtractFacContexts<R extends readonly unknown[]> =
+    R extends readonly [] ? readonly []
+  : R extends readonly [infer H, ...infer T] ? (
+      H extends { fac: FacNode<infer X> }
+        ? readonly [X, ...ExtractFacContexts<T>]
+        : ExtractFacContexts<T>
+    )
+  // : R extends readonly (infer E)[] ? (
+  //     E extends { fac: FacNode<infer X> }
+  //         ? readonly X[]
+  //         : readonly []
+  //   )
+  : never
+
+type EffectiveNodes<N, PL extends PathList<string>> =
+  ( PL extends readonly [] ? readonly [N]
+  // : string[] extends PL ? readonly SchemaNode[] 
+  : N extends SpaceNode<infer I> ? (
+      Head<PL> extends infer PHead ? (
+        PHead extends keyof I
+          ? readonly [N, ...EffectiveNodes<I[PHead], Tail<PL>>]
+          : never
+      )
+      : never
+    )
+  : never
+  )
+
+type PathList<PS extends string> =
+    PS extends '' ? readonly []
+  : PS extends `${infer PHead}:${infer PTail}` ? readonly [PHead, ...PathList<PTail>]
+  : string extends PS ? readonly string[]
+  : readonly [PS];
