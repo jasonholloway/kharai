@@ -142,107 +142,35 @@ type KV<K extends string = string, V = unknown>
 }
 
 
-type PathList<PS extends string> =
-  ['', ..._PathList<PS>]
 
-type _PathList<PS extends string> =
-    PS extends '' ? []
-  : PS extends `${infer PHead}${Separator}${infer PTail}` ? readonly [PHead, ..._PathList<PTail>]
-  : readonly [PS]
+export type PathContext<N extends Nodes, P extends NodePath<N>> =
+  MergeMany<_AllPathContexts<N, P>>
 
-{
-  type A = PathList<''>
-  type B = PathList<'hamster_squeak'>
-  type C = PathList<'hamster_squeak_loud'>
+type _AllPathContexts<N, P extends string> =
+  readonly [_RootContext<N>, ..._PathContexts<N, '', P>]
 
-  type _ = [A,B,C]
-}
+type _RootContext<N> =
+  'X_' extends keyof N ? N['X_'] : unknown;
 
-
-
-
-type EffectivePath<PS extends string> =
-  PS extends `` ?  never
-  : never
-
-{
-  type A = EffectivePath<'hamster_squeak_loud'>
-
-  type _ = [A]
-}
-
-
-
-
-
-
-// type PathContext<N extends Nodes, P extends NodePath<N>> =
-//   _PathContext<N, PathList<P>>
-
-// type _PathContext<N extends Nodes, PL extends string[]> =
-//   MergeMany<_EffectiveContexts<N, PL>>
-
-// type _EffectiveContexts<N extends Nodes, PL extends string[]> =
-//     PL extends readonly [] ? readonly []
-//   : PL extends readonly [infer PElem] ? (
-//     PElem extends keyof N ? [N[PElem]] : []
-//   )
-//   : PL extends readonly [infer PHead, ...infer PTail] ? (
-//     PHead extends string ?
-//     `X_${PHead}` extends infer K ? never
-//       : never : never
-    
-//     // PHead extends keyof N ? [N[PHead]] : []
-//   )
-//   : never;
-
-
-//need to recurse backwards
-
-
-// type EffectiveNodes<N, PL extends PathList<string>> =
-//   ( PL extends readonly [] ? readonly [N]
-//   // : string[] extends PL ? readonly SchemaNode[] 
-//   : N extends SpaceNode<infer I> ? (
-//       Head<PL> extends infer PHead ? (
-//         PHead extends keyof I
-//           ? readonly [N, ...EffectiveNodes<I[PHead], Tail<PL>>]
-//           : never
-//       )
-//       : never
-//     )
-//   : never
-//   )
-
-type PathContext<N extends Nodes, P extends NodePath<N>> =
-  MergeMany<_EffectiveContexts<N, '', P>>
-
-type _EffectiveContexts<N, Path extends string, P extends string> =
-  P extends '' ? (
-    `X${Path}` extends infer K ? (
-      K extends keyof N ?
-        readonly [N[K]]
-        : []
-    ) : never
-  )
-  : P extends `${infer H}${Separator}${infer T}` ? (
+type _PathContexts<N, Path extends string, P extends string> =
+  P extends `${infer H}${Separator}${infer T}` ? (
     `${Path}_${H}` extends infer NewPath ?
     NewPath extends string ?
-      readonly [..._EffectiveContexts<N, Path, H>, ..._EffectiveContexts<N, NewPath, T>]
+      readonly [..._PathContexts<N, Path, H>, ..._PathContexts<N, NewPath, T>]
       : never : never
   )
   : P extends string ? (
-    `${Path}_${P}` extends infer NewPath ?
-    NewPath extends string ?
-      _EffectiveContexts<N, NewPath, ''>
-      : never : never
+    `X${Path}_${P}` extends infer K ?
+    K extends keyof N ?
+      readonly [N[K]]
+      : [] : never
   )
-  : never
+  : never;
   
 
 {
   type N = {
-    X: { a: 1 }
+    X_: { a: 1 }
     N_: true,
     X_hamster: { b: 2 },
     N_hamster: true,
@@ -252,9 +180,9 @@ type _EffectiveContexts<N, Path extends string, P extends string> =
   }
 
   type A = NodePath<N>
-  type B = _EffectiveContexts<N, '', ''>
-  type C = _EffectiveContexts<N, '', 'hamster'>
-  type D = _EffectiveContexts<N, '', 'hamster_squeak_quietly'>
+  type B = _AllPathContexts<N, ''>
+  type C = _AllPathContexts<N, 'hamster'>
+  type D = _AllPathContexts<N, 'hamster_squeak_quietly'>
   type E = PathContext<N, 'hamster_squeak_quietly'>
 
   type _ = [A, B, C, D, E]

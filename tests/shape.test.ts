@@ -17,8 +17,8 @@ describe('shape', () => {
     const r = w.nodes
     r
 
-    expect(w.nodes).toHaveProperty('_hamster_squeak')
-    expect(w.nodes).toHaveProperty('_hamster_burrow')
+    expect(w.nodes).toHaveProperty('D_hamster_squeak')
+    expect(w.nodes).toHaveProperty('D_hamster_burrow')
     expect(w.nodes.D_hamster_syrian_grumpAbout).toBe(789)
   })
 
@@ -42,7 +42,7 @@ describe('shape', () => {
     const r = w.nodes
     r
 
-    expect(w.nodes).toHaveProperty('_hamster_squeak')
+    expect(w.nodes).toHaveProperty('D_hamster_squeak')
     expect(w.nodes.D_hamster_squeak).toBe(123)
     expect(w.nodes.D_hamster_syrian_grumpAbout).toBe(789)
   })
@@ -65,7 +65,7 @@ describe('shape', () => {
     const r = w.nodes
     r
 
-    expect(w.nodes).toHaveProperty('_hamster_squeak')
+    expect(w.nodes).toHaveProperty('D_hamster_squeak')
     expect(w.nodes.D_hamster_squeak).toBe(123)
     expect(w.nodes.X_hamster_squeak.hello).toBe(1)
   })
