@@ -4,7 +4,7 @@ import { data, fac, space } from "../src/shapeShared";
 describe('shape', () => {
 
   it('builds node map from tree', () => {
-    const w = shape(root => space({
+    const w = shape(_ => space({
       hamster: space({
         squeak: data(123 as const),
         burrow: data(456 as const),
@@ -19,7 +19,7 @@ describe('shape', () => {
 
     expect(w.nodes).toHaveProperty('_hamster_squeak')
     expect(w.nodes).toHaveProperty('_hamster_burrow')
-    expect(w.nodes._hamster_syrian_grumpAbout.data).toBe(789)
+    expect(w.nodes.D_hamster_syrian_grumpAbout).toBe(789)
   })
 
   it('combines node trees', () => {
@@ -43,8 +43,8 @@ describe('shape', () => {
     r
 
     expect(w.nodes).toHaveProperty('_hamster_squeak')
-    expect(w.nodes._hamster_squeak.data).toBe(123)
-    expect(w.nodes._hamster_syrian_grumpAbout.data).toBe(789)
+    expect(w.nodes.D_hamster_squeak).toBe(123)
+    expect(w.nodes.D_hamster_syrian_grumpAbout).toBe(789)
   })
 
   it('combines nodes', () => {
@@ -66,8 +66,8 @@ describe('shape', () => {
     r
 
     expect(w.nodes).toHaveProperty('_hamster_squeak')
-    expect(w.nodes._hamster_squeak.data).toBe(123)
-    expect(w.nodes._hamster_squeak.fac.hello).toBe(1)
+    expect(w.nodes.D_hamster_squeak).toBe(123)
+    expect(w.nodes.X_hamster_squeak.hello).toBe(1)
   })
 
   it('adds facs', () => {
@@ -77,9 +77,9 @@ describe('shape', () => {
           squeak: data(123 as const),
         })
       }))
-      .addFac('_hamster', () => 1)
+      .addFac('hamster', () => 1 as const)
 
-    expect(w.nodes._hamster).toHaveProperty('fac')
+    expect(w.nodes.X_hamster).toBe(1)
   })
 
   it('types facs from upstreams', () => {
@@ -89,11 +89,10 @@ describe('shape', () => {
           squeak: data(123 as const),
         })
       }))
-      .addFac('_', () => ({ a:1 }))
-      .addFac('_hamster', u => ({ b: u.a + 1 }))
+      .addFac('', () => ({ a:1 }))
+      .addFac('hamster', u => ({ b: u.a + 1 }))
 
-    expect(w.nodes._hamster).toHaveProperty('fac')
-    expect(w.nodes._hamster.fac()).toBe({ a:1, b:2 });
+    expect(w.nodes.X_hamster).toBe({ a:1, b:2 });
   })
 })
 

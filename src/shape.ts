@@ -1,32 +1,52 @@
 import { List } from "immutable";
-import { FacNode } from "./facs";
-import Head from "./Head";
-import { Tail } from "./lib";
-import { $Root, $root, data, isSpaceNode, SchemaNode, space, SpaceNode } from "./shapeShared";
-import { merge, Merge, mergeDeep, MergeDeep, MergeMany, Simplify } from "./util";
+import { $Root, $root, data, fac, isSpaceNode, SchemaNode, space } from "./shapeShared";
+import { merge, Merge, MergeMany, Simplify } from "./util";
 
 export const separator = '_'
 export type Separator = typeof separator;
 
+type Nodes = { [k in string]: unknown }
 
-export type Path<N> = keyof N & string;
+
+export type NodePath<N extends Nodes> = _ExtractPath<`N${Separator}`, keyof N> | ''
+export type DataPath<N extends Nodes> = _ExtractPath<`D${Separator}`, keyof N>
+type _ExtractPath<A extends string, K> = K extends `${A}${infer P}` ? P : never
+
+{
+  type N = {
+    N_: true,
+    N_hamster: true
+    D_hamster: 123
+  }
+
+  type A = NodePath<N>
+  type B = DataPath<N>
+
+  type _ = [A,B]
+}
 
 
-export class Builder<N> {
+export class Builder<N extends Nodes> {
   public readonly nodes: N
   
   constructor(nodes: N) {
-    this.nodes = nodes
+    this.nodes = nodes;
   }
 
-  add<B>(other: Builder<B>) : Builder<MergeDeep<N, B>> {
-    return new Builder(mergeDeep(this.nodes, other.nodes));
+  add<N2 extends Nodes>(other: Builder<N2>) : Builder<Merge<N, N2>> {
+    return new Builder(merge(this.nodes, other.nodes));
   }
 
-  addFac<P extends Path<N>>(path: P, fn: ()=>any) : Builder<MergeDeep<N, { [k in P]: { fac: ()=>any } }>> {
-    return new Builder(mergeDeep(this.nodes, <{ [k in P]: { fac: ()=>any } }>{ [path]: { fac: fn } }))
+  addFac<P extends NodePath<N>, X2>(path: P, fn: (x: PathContext<N,P>)=>X2) : Builder<Merge<N, { [k in P as `X${Separator}${k}`]: X2 }>> {
+    throw 123;
+    // return new Builder<D, Merge<F, { [k in P]: X2 }>>(this.data, undefined);
   }
+
+  //todo merge in actual facnodes
 }
+
+
+
 
 
 export function shape<S extends SchemaNode>(fn: (root: $Root)=>S) : Builder<Shape<S>> {
@@ -69,12 +89,22 @@ export function shape<S extends SchemaNode>(fn: (root: $Root)=>S) : Builder<Shap
 
 
 
-export type Shape<S> =
-  Simplify<Assemble<Walk<S>>>
+export type Shape<S> = Simplify<Assemble<Walk<S>>>
 
 type Walk<O, P extends string = ''> =
-  KV<P extends '' ? Separator : P,
-    Simplify<Omit<O, 'space'>>>
+  (
+    KV<`N${P}`, true>
+  )
+  | (
+    'data' extends keyof O ?
+      KV<`D${P}`, O['data']>
+      : never
+  )
+  | (
+    'fac' extends keyof O ?
+      KV<`X${P}`, O['fac']>
+      : never
+  )
   | (
     'space' extends keyof O ?
     O['space'] extends (infer S) ?
@@ -92,57 +122,140 @@ type KV<K extends string = string, V = unknown>
   = readonly [K, V]
 
 {
-  const s = space({
+ const s = space({
     hamster: space({
       nibble: data(123 as const),
     }),
     rabbit: space({
-      jump: data(7 as const)
+      jump: data(7 as const),
+      blah: fac(123 as const)
     })
   });
 
   type A = Walk<typeof s>
   type B = Assemble<A>
 
+  const x = shape(_ => s)
+  x
+
   type _ = [A,B]
+}
+
+
+type PathList<PS extends string> =
+  ['', ..._PathList<PS>]
+
+type _PathList<PS extends string> =
+    PS extends '' ? []
+  : PS extends `${infer PHead}${Separator}${infer PTail}` ? readonly [PHead, ..._PathList<PTail>]
+  : readonly [PS]
+
+{
+  type A = PathList<''>
+  type B = PathList<'hamster_squeak'>
+  type C = PathList<'hamster_squeak_loud'>
+
+  type _ = [A,B,C]
 }
 
 
 
 
-type PathContext<N, P extends Path<N>> =   
-  MergeMany<ExtractFacContexts<EffectiveNodes<N, PathList<P>>>>
-
-type ExtractFacContexts<R extends readonly unknown[]> =
-    R extends readonly [] ? readonly []
-  : R extends readonly [infer H, ...infer T] ? (
-      H extends { fac: FacNode<infer X> }
-        ? readonly [X, ...ExtractFacContexts<T>]
-        : ExtractFacContexts<T>
-    )
-  // : R extends readonly (infer E)[] ? (
-  //     E extends { fac: FacNode<infer X> }
-  //         ? readonly X[]
-  //         : readonly []
-  //   )
+type EffectivePath<PS extends string> =
+  PS extends `` ?  never
   : never
 
-type EffectiveNodes<N, PL extends PathList<string>> =
-  ( PL extends readonly [] ? readonly [N]
-  // : string[] extends PL ? readonly SchemaNode[] 
-  : N extends SpaceNode<infer I> ? (
-      Head<PL> extends infer PHead ? (
-        PHead extends keyof I
-          ? readonly [N, ...EffectiveNodes<I[PHead], Tail<PL>>]
-          : never
-      )
-      : never
-    )
-  : never
+{
+  type A = EffectivePath<'hamster_squeak_loud'>
+
+  type _ = [A]
+}
+
+
+
+
+
+
+// type PathContext<N extends Nodes, P extends NodePath<N>> =
+//   _PathContext<N, PathList<P>>
+
+// type _PathContext<N extends Nodes, PL extends string[]> =
+//   MergeMany<_EffectiveContexts<N, PL>>
+
+// type _EffectiveContexts<N extends Nodes, PL extends string[]> =
+//     PL extends readonly [] ? readonly []
+//   : PL extends readonly [infer PElem] ? (
+//     PElem extends keyof N ? [N[PElem]] : []
+//   )
+//   : PL extends readonly [infer PHead, ...infer PTail] ? (
+//     PHead extends string ?
+//     `X_${PHead}` extends infer K ? never
+//       : never : never
+    
+//     // PHead extends keyof N ? [N[PHead]] : []
+//   )
+//   : never;
+
+
+//need to recurse backwards
+
+
+// type EffectiveNodes<N, PL extends PathList<string>> =
+//   ( PL extends readonly [] ? readonly [N]
+//   // : string[] extends PL ? readonly SchemaNode[] 
+//   : N extends SpaceNode<infer I> ? (
+//       Head<PL> extends infer PHead ? (
+//         PHead extends keyof I
+//           ? readonly [N, ...EffectiveNodes<I[PHead], Tail<PL>>]
+//           : never
+//       )
+//       : never
+//     )
+//   : never
+//   )
+
+type PathContext<N extends Nodes, P extends NodePath<N>> =
+  MergeMany<_EffectiveContexts<N, '', P>>
+
+type _EffectiveContexts<N, Path extends string, P extends string> =
+  P extends '' ? (
+    `X${Path}` extends infer K ? (
+      K extends keyof N ?
+        readonly [N[K]]
+        : []
+    ) : never
   )
+  : P extends `${infer H}${Separator}${infer T}` ? (
+    `${Path}_${H}` extends infer NewPath ?
+    NewPath extends string ?
+      readonly [..._EffectiveContexts<N, Path, H>, ..._EffectiveContexts<N, NewPath, T>]
+      : never : never
+  )
+  : P extends string ? (
+    `${Path}_${P}` extends infer NewPath ?
+    NewPath extends string ?
+      _EffectiveContexts<N, NewPath, ''>
+      : never : never
+  )
+  : never
+  
 
-type PathList<PS extends string> =
-    PS extends '' ? readonly []
-  : PS extends `${infer PHead}:${infer PTail}` ? readonly [PHead, ...PathList<PTail>]
-  : string extends PS ? readonly string[]
-  : readonly [PS];
+{
+  type N = {
+    X: { a: 1 }
+    N_: true,
+    X_hamster: { b: 2 },
+    N_hamster: true,
+    N_hamster_squeak: true
+    N_hamster_squeak_quietly: true
+    X_hamster_squeak_quietly: { c: 3 },
+  }
+
+  type A = NodePath<N>
+  type B = _EffectiveContexts<N, '', ''>
+  type C = _EffectiveContexts<N, '', 'hamster'>
+  type D = _EffectiveContexts<N, '', 'hamster_squeak_quietly'>
+  type E = PathContext<N, 'hamster_squeak_quietly'>
+
+  type _ = [A, B, C, D, E]
+}

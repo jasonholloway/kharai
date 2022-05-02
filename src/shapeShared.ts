@@ -10,7 +10,7 @@ export type Handler = (x: any, d: any) => Promise<any>;
 export type Nodes = { [p: string]: SchemaNode }
 
 export type SchemaNode = {}
-export type DataNode<D> = { data: D }
+export type DataNode<D = unknown> = { data: D }
 export type SpaceNode<I> = { space: I }
 export type HandlerNode = { handler: Handler }
 export type ContextNode<X = unknown> = { fac: FacNode<X> }
