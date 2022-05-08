@@ -1,17 +1,17 @@
 import { shape } from "../src/shape";
-import { data, fac, space } from "../src/shapeShared";
+import { data, fac } from "../src/shapeShared";
 
 describe('shape', () => {
 
   it('builds node map from tree', () => {
-    const w = shape(_ => space({
-      jerboa: space({
+    const w = shape(_ => ({
+      jerboa: {
         squeak: data(123 as const),
         burrow: data(456 as const),
-        syrian: space({
+        syrian: {
           grumpAbout: data(789 as const)
-        })
-      })
+        }
+      }
     }));
 
     expect(w.nodes).toBe({
@@ -24,18 +24,18 @@ describe('shape', () => {
 
   it('combines node trees', () => {
     const w =
-      shape(_ => space({
-        jerboa: space({
+      shape(_ => ({
+        jerboa: {
           squeak: data(123 as const),
-        })
+        }
       }))
       .add(
-        shape(_ => space({
-          jerboa: space({
-            syrian: space({
+        shape(_ => ({
+          jerboa: {
+            syrian: {
               grumpAbout: data(789 as const)
-            })
-          })
+            }
+          }
         }))
       );
 
@@ -49,16 +49,16 @@ describe('shape', () => {
 
   it('combines nodes', () => {
     const w =
-      shape(_ => space({
-        jerboa: space({
+      shape(_ => ({
+        jerboa: {
           squeak: data(123 as const),
-        })
+        }
       }))
       .add(
-        shape(_ => space({
-          jerboa: space({
+        shape(_ => ({
+          jerboa: {
             squeak: fac({ hello: 1 })
-          })
+          }
         }))
       );
 
@@ -69,10 +69,10 @@ describe('shape', () => {
 
   it('adds facs', () => {
     const w =
-      shape(_ => space({
-        jerboa: space({
+      shape(_ => ({
+        jerboa: {
           squeak: data(123 as const),
-        })
+        }
       }))
       .addFac('jerboa', () => 1 as const)
 
@@ -81,10 +81,10 @@ describe('shape', () => {
 
   it('types facs from upstreams', () => {
     const w =
-      shape(_ => space({
-        jerboa: space({
+      shape(_ => ({
+        jerboa: {
           squeak: data(123 as const),
-        })
+        }
       }))
       .addFac('', () => ({ a:1 }))
       .addFac('jerboa', u => ({ b: u.a + 1 }))

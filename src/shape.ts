@@ -98,23 +98,26 @@ type Walk<O, P extends string = ''> =
     KV<`N${P}`, true>
   )
   | (
-    $Data extends keyof O ?
-      KV<`D${P}`, O[$Data]>
-      : never
-  )
-  | (
-    $Fac extends keyof O ?
-      KV<`X${P}`, O[$Fac]>
-      : never
-  )
-  | (
-    $Space extends keyof O ?
-    O[$Space] extends (infer S) ?
-    (keyof S) extends (infer K) ?
-    K extends string ?
-    K extends keyof S ?
-      Walk<S[K], `${P}${Separator}${K}`>
-      : never : never : never : never : never
+      Intersects<$Fac | $Data, keyof O> extends true
+      ? ( //we're not a space...
+          (
+            $Data extends keyof O ?
+              KV<`D${P}`, O[$Data]>
+              : never
+          )
+          | (
+            $Fac extends keyof O ?
+              KV<`X${P}`, O[$Fac]>
+              : never
+          )
+      )
+      : ( //we are a space...
+          (keyof O) extends (infer K) ?
+          K extends string ?
+          K extends keyof O ?
+            Walk<O[K], `${P}${Separator}${K}`>
+            : never : never : never
+      )
   )
 
 type Assemble<T extends KV> =
@@ -123,16 +126,27 @@ type Assemble<T extends KV> =
 type KV<K extends string = string, V = unknown>
   = readonly [K, V]
 
+// type IsSpace<N> =
+//   $Data extends keyof O ? false :
+//   $Fac extends keyof O ? never :
+
+export type Intersects<A, B> =
+  [A & B] extends [never] ? false : true;
+    
+
 {
- const s = space({
-    hamster: space({
+
+
+  
+ const s = {
+    hamster: {
       nibble: data(123 as const),
-    }),
-    rabbit: space({
+    },
+    rabbit: {
       jump: data(7 as const),
       blah: fac(123 as const)
-    })
-  });
+    }
+  };
 
   type A = Walk<typeof s>
   type B = Assemble<A>
