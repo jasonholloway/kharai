@@ -1,5 +1,5 @@
 import { List } from "immutable";
-import { $Root, $root, data, fac, isSpaceNode, SchemaNode, space } from "./shapeShared";
+import { $Root, $root, $Space, $Data, $Fac, data, fac, isSpaceNode, SchemaNode, space, $space } from "./shapeShared";
 import { merge, Merge, MergeMany, Simplify } from "./util";
 
 export const separator = '_'
@@ -62,13 +62,15 @@ export function shape<S extends SchemaNode>(fn: (root: $Root)=>S) : Builder<Shap
     }
 
     const mine = List([
-      [p, { ...n, space: undefined }] as const
+      [p, { ...n, [$space]: undefined }] as const
     ]);
+
+    const space = n[$space];
     
     const inner =
-      List(Object.getOwnPropertyNames(n.space))
+      List(Object.getOwnPropertyNames(space))
         .flatMap(pn => {
-          const child = n.space[pn];
+          const child = space[pn];
           return walk(child, [...p, pn])
         });
 
@@ -96,18 +98,18 @@ type Walk<O, P extends string = ''> =
     KV<`N${P}`, true>
   )
   | (
-    'data' extends keyof O ?
-      KV<`D${P}`, O['data']>
+    $Data extends keyof O ?
+      KV<`D${P}`, O[$Data]>
       : never
   )
   | (
-    'fac' extends keyof O ?
-      KV<`X${P}`, O['fac']>
+    $Fac extends keyof O ?
+      KV<`X${P}`, O[$Fac]>
       : never
   )
   | (
-    'space' extends keyof O ?
-    O['space'] extends (infer S) ?
+    $Space extends keyof O ?
+    O[$Space] extends (infer S) ?
     (keyof S) extends (infer K) ?
     K extends string ?
     K extends keyof S ?
