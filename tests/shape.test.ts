@@ -3,7 +3,6 @@ import { data, fac } from "../src/shapeShared";
 
 describe('shape', () => {
 
-
   it('builds node map from tree', () => {
     const w = shape({
         jerboa: {
@@ -17,11 +16,20 @@ describe('shape', () => {
       .impl({
         jerboa: {
           async squeak(x, d) {
-            //...
+            x;
+            return ['jerboa_squeak', d];
           },
 
           async burrow(x, d) {
-            //...
+            x; d
+            return ['jerboa_jump_quick', 789]
+          },
+
+          jump: {
+            async quick(x, d) {
+              x; d
+              throw 123
+            }
           }
         }
       });

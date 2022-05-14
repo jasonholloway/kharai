@@ -1,6 +1,6 @@
 import { Map, List } from "immutable";
 import { Guard } from "./guards/Guard";
-import { $Root, $root, $Data, $Fac, data, fac, isSpaceNode, SchemaNode, space, $space, Handler, isDataNode, isContextNode, $data, $fac } from "./shapeShared";
+import { $Root, $root, $Data, $Fac, data, fac, isSpaceNode, SchemaNode, $space, Handler, isDataNode, isContextNode, $data, $fac } from "./shapeShared";
 import { isString, merge, Merge, MergeMany, Simplify } from "./util";
 
 export const separator = '_'
@@ -9,9 +9,18 @@ export type Separator = typeof separator;
 type Nodes = { [k in string]: unknown }
 
 
-export type NodePath<N extends Nodes> = _ExtractPath<`N${Separator}`, keyof N> | ''
+export type NodePath<N extends Nodes> = _ExtractPath<`S${Separator}` | `D${Separator}`, keyof N> | ''
 export type DataPath<N extends Nodes> = _ExtractPath<`D${Separator}`, keyof N>
 type _ExtractPath<A extends string, K> = K extends `${A}${infer P}` ? P : never
+
+
+export type Data<N extends Nodes> =
+  keyof N extends infer K ?
+  K extends `D${Separator}${infer P}` ?
+  [P, N[K]]
+  : never
+  : never;
+
 
 
 export class Builder<N extends Nodes> {
@@ -27,8 +36,8 @@ export class Builder<N extends Nodes> {
     return new Builder(merge(this.nodes, other.nodes), this.reg);
   }
 
-  addHandler<P extends DataPath<N>>(path: P, fn: ((x: any, d: any) => void)): Builder<N> {
-    throw 123;
+  impl<S extends Impl<N>>(s: S): Builder<N> {
+    throw 123
   }
 
   addFac<P extends NodePath<N>, X2>(path: P, fn: (x: PathContext<N,P>)=>X2) : Builder<Merge<N, { [k in P as `X${Separator}${k}`]: X2 }>> {
@@ -36,10 +45,6 @@ export class Builder<N extends Nodes> {
     // return new Builder<D, Merge<F, { [k in P]: X2 }>>(this.data, undefined);
   }
 
-
-  impl<S extends Impl<N>>(s: S): Builder<N> {
-    throw 123
-  }
 
   //todo merge in actual facnodes
 
@@ -378,35 +383,42 @@ export type Intersects<A, B> =
 
 
 type Impl<N extends Nodes> =
-  _ImplAssemble<_ImplWalk<N>>
+  _ImplAssemble<N, _ImplWalk<N>>
 
-type _ImplWalk<N extends Nodes, Path extends string = ''> =
+type _ImplWalk<N extends Nodes, Path extends string = '', X = unknown> =
   keyof N extends infer K ?
   K extends `${infer T}${Path}${Separator}${_WholeOnly<infer Rest>}` ?
+  (
+    `X${Path}${Separator}${Rest}` extends infer XK ?
+    XK extends keyof N ?     
+    Merge<X, N[XK]>
+    : X
+    : X
+  ) extends infer NX ?
   T extends 'S' ? (
-    [Rest, 'S', _ImplWalk<N, `${Path}${Separator}${Rest}`>]
+    [Rest, 'S', NX, _ImplWalk<N, `${Path}${Separator}${Rest}`>]
   )
   : T extends 'D' ? (
-    [Rest, 'D', N[K]]
+    [Rest, 'D', NX, N[K]]
   )
-  : never : never : never;
+  : never : never : never : never;
+
+type _ImplAssemble<N extends Nodes, Tup> =
+  Simplify<{
+    [K in Tup extends any[] ? Tup[0] : never]?:
+    (
+      Tup extends [K, infer Type, infer X, infer Inner] ?
+      Type extends 'S' ? _ImplAssemble<N, Inner>
+      : Type extends 'D' ? (((x:X, d:Inner) => Promise<Data<N>>))
+      : never
+      : never
+    )
+  }>
 
 type _WholeOnly<S extends string> =
   S extends '' ? never
   : S extends `${string}${Separator}${string}` ? never
   : S;
-
-type _ImplAssemble<Tup> =
-  Simplify<{
-    [K in Tup extends any[] ? Tup[0] : never]?:
-    (
-      Tup extends [K, infer Type, infer Inner] ?
-      Type extends 'S' ? _ImplAssemble<Inner>
-      : Type extends 'D' ? (((x:any, d:Inner) => Promise<any>))
-      : never
-      : never
-    )
-  }>
 
 {
   type N = {
@@ -447,7 +459,7 @@ type _AllPathContexts<N, P extends string> =
   readonly [_RootContext<N>, ..._PathContexts<N, '', P>]
 
 type _RootContext<N> =
-  'X_' extends keyof N ? N['X_'] : unknown;
+  'X' extends keyof N ? N['X'] : unknown;
 
 type _PathContexts<N, Path extends string, P extends string> =
   P extends `${infer H}${Separator}${infer T}` ? (
@@ -467,12 +479,12 @@ type _PathContexts<N, Path extends string, P extends string> =
 
 {
   type N = {
-    X_: { a: 1 }
-    N_: true,
+    X: { a: 1 }
+    S: true,
     X_hamster: { b: 2 },
-    N_hamster: true,
-    N_hamster_squeak: true
-    N_hamster_squeak_quietly: true
+    S_hamster: true,
+    S_hamster_squeak: true
+    D_hamster_squeak_quietly: 999,
     X_hamster_squeak_quietly: { c: 3 },
   }
 
