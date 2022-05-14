@@ -3,23 +3,38 @@ import { data, fac } from "../src/shapeShared";
 
 describe('shape', () => {
 
+
   it('builds node map from tree', () => {
-    const w = shape(_ => ({
-      jerboa: {
-        squeak: data(123 as const),
-        burrow: data(456 as const),
-        syrian: {
-          grumpAbout: data(789 as const)
+    const w = shape({
+        jerboa: {
+          squeak: data(123 as const),
+          burrow: data(456 as const),
+          jump: {
+            quick: data(789 as const)
+          }
         }
-      }
-    }));
+      })
+      .impl({
+        jerboa: {
+          async squeak(x, d) {
+            //...
+          },
 
-    expect(w.nodes).toBe({
-    })
+          async burrow(x, d) {
+            //...
+          }
+        }
+      });
 
-    expect(w.nodes).toHaveProperty('D_jerboa_squeak')
-    expect(w.nodes).toHaveProperty('D_jerboa_burrow')
-    expect(w.nodes.D_jerboa_syrian_grumpAbout).toBe(789)
+    w.nodes.D_jerboa_burrow
+
+    const r1 = w.read(['jerboa_squeak', 123]);
+    expect(r1.errors).toBeUndefined();
+    expect(r1).toHaveProperty('isValid', true);
+
+    const r2 = w.read(['jerboa_jump_quick', 789]);
+    expect(r2.errors).toBeUndefined();
+    expect(r2).toHaveProperty('isValid', true);
   })
 
   it('combines node trees', () => {
@@ -29,22 +44,20 @@ describe('shape', () => {
           squeak: data(123 as const),
         }
       }))
-      .add(
-        shape(_ => ({
-          jerboa: {
-            syrian: {
-              grumpAbout: data(789 as const)
-            }
+      .add(shape(_ => ({
+        jerboa: {
+          jump: {
+            quick: data(789 as const)
           }
-        }))
-      );
+        }
+      })));
 
     const r = w.nodes
     r
 
     expect(w.nodes).toHaveProperty('D_jerboa_squeak')
     expect(w.nodes.D_jerboa_squeak).toBe(123)
-    expect(w.nodes.D_jerboa_syrian_grumpAbout).toBe(789)
+    expect(w.nodes.D_jerboa_jump_quick).toBe(789)
   })
 
   it('combines nodes', () => {

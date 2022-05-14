@@ -1,6 +1,7 @@
-import { List } from "immutable";
-import { $Root, $root, $Space, $Data, $Fac, data, fac, isSpaceNode, SchemaNode, space, $space } from "./shapeShared";
-import { merge, Merge, MergeMany, Simplify } from "./util";
+import { Map, List } from "immutable";
+import { Guard } from "./guards/Guard";
+import { $Root, $root, $Data, $Fac, data, fac, isSpaceNode, SchemaNode, space, $space, Handler, isDataNode, isContextNode, $data, $fac } from "./shapeShared";
+import { isString, merge, Merge, MergeMany, Simplify } from "./util";
 
 export const separator = '_'
 export type Separator = typeof separator;
@@ -12,29 +13,22 @@ export type NodePath<N extends Nodes> = _ExtractPath<`N${Separator}`, keyof N> |
 export type DataPath<N extends Nodes> = _ExtractPath<`D${Separator}`, keyof N>
 type _ExtractPath<A extends string, K> = K extends `${A}${infer P}` ? P : never
 
-{
-  type N = {
-    N_: true,
-    N_hamster: true
-    D_hamster: 123
-  }
-
-  type A = NodePath<N>
-  type B = DataPath<N>
-
-  type _ = [A,B]
-}
-
 
 export class Builder<N extends Nodes> {
   public readonly nodes: N
+  readonly reg: Registry
   
-  constructor(nodes: N) {
+  constructor(nodes: N, reg?: Registry) {
     this.nodes = nodes;
+    this.reg = reg ?? Registry.empty;
   }
 
-  add<N2 extends Nodes>(other: Builder<N2>) : Builder<Merge<N, N2>> {
-    return new Builder(merge(this.nodes, other.nodes));
+  add<N2 extends Nodes>(other: Builder<N2>): Builder<Merge<N, N2>> {
+    return new Builder(merge(this.nodes, other.nodes), this.reg);
+  }
+
+  addHandler<P extends DataPath<N>>(path: P, fn: ((x: any, d: any) => void)): Builder<N> {
+    throw 123;
   }
 
   addFac<P extends NodePath<N>, X2>(path: P, fn: (x: PathContext<N,P>)=>X2) : Builder<Merge<N, { [k in P as `X${Separator}${k}`]: X2 }>> {
@@ -42,15 +36,242 @@ export class Builder<N extends Nodes> {
     // return new Builder<D, Merge<F, { [k in P]: X2 }>>(this.data, undefined);
   }
 
+
+  impl<S extends Impl<N>>(s: S): Builder<N> {
+    throw 123
+  }
+
   //todo merge in actual facnodes
+
+  read(state: any): ReadResult {
+    return match(this.reg, state);
+  }
+}
+
+
+function match(reg: Registry, state: any): ReadResult {
+
+  if(!Array.isArray(state)) return _fail('state must be tuple');
+  if(!isString(state[0])) return _fail('first element of state must be address string');
+
+  const address = state[0].split(separator);
+  const data = state[1];
+
+  //2) walk nodes, accumulating facs
+  //4) bind payload
+  // return _match(ReadMode.Resolving, [], address);
+  return _walk([], address);
+
+  function _walk(pl: readonly string[], al: readonly string[]): ReadResult {
+    if(al.length == 0) {
+      const path = _formPath(pl);
+      const handler = reg.getHandler(path);
+
+      if(!handler) return _fail(`no handler at ${path}`);
+
+      return _ok({
+        data,
+        handler,
+        // summonContext: () => {
+        //   return List(pn)
+        //     .filter(isContextNode)
+        //     .reduce(
+        //       (ac, cn) => {
+        //         return merge(ac, cn[$fac].summon('MAGIC ROOT HERE'))
+        //       },
+        //       {});
+        // },
+      });
+    }
+    
+    const [aHead, ...aTail] = al;
+
+    return _walk([...pl, aHead], aTail);
+  }
+
+  function _formPath(pl: readonly string[]) {
+    return pl.join(separator);
+  }
+
+  
+
+  //NB no need for the mode here, can just use two separate methods...
+
+  function _match(m: ReadMode, pl: readonly string[], al: readonly string[]): ReadResult {
+    switch(m) {
+      case ReadMode.Resolving:
+        if(al.length == 0) {
+          return _match(ReadMode.Validating, pl, []);
+        }
+        
+        //no n here... need to look up full address and check type
+        //which means... we do actually need values output in nodes, not just types
+        if(!isSpaceNode(n)) return _fail(`imprecise address ${address} requires SpaceNode`);
+
+        const [alHead, ...alTail] = al;
+        return _match(m, [...pl, alHead], alTail);
+
+      case ReadMode.Validating:
+        if(!isDataNode(n)) return _fail('wrong node for mode')
+
+        const isValid = Guard(n[$data], (s, v) => {
+          if(s === $root) {
+            const result = oldMatch(schema, reg, v);
+            return result.isValid;
+          }
+        })(data);
+
+        if(!isValid) return _fail(`payload ${data} not valid at ${address.join(':')}`);
+
+        return _ok({
+          data,
+          summonContext: () => {
+            return List(pn)
+              .filter(isContextNode)
+              .reduce(
+                (ac, cn) => {
+                  return merge(ac, cn[$fac].summon('MAGIC ROOT HERE'))
+                },
+                {});
+          },
+          handler: reg.getHandler(pl.join(':'))
+        });
+      }
+
+      return _fail(`unexpected schema node ${n}`);
+    }
+
+    function _ok(body: Omit<ReadResult, 'isValid' | 'errors'>): ReadResult {
+      return {
+        isValid: true,
+        errors: [],
+        ...body
+      };
+    }
+
+    function _fail(message: string): ReadResult {
+      return {
+        isValid: false,
+        errors: [ message ],
+      };
+    }
 }
 
 
 
 
+enum ReadMode {
+  Resolving,
+  Failed,
+  Validating,
+  Validated
+}
 
-export function shape<S extends SchemaNode>(fn: (root: $Root)=>S) : Builder<Shape<S>> {
-  const s = fn($root);
+export type ReadResult = {
+  errors: string[],
+  isValid: boolean,
+  data?: any,
+  handler?: Handler,
+  summonContext?: () => any
+}
+
+//TODO below must be COW
+class Registry {
+  private handlers: Map<string, Handler> = Map();
+
+  private constructor(handlers: Map<string, Handler>) {
+    this.handlers = handlers;
+  }
+
+  static empty = new Registry(Map());
+
+  addHandler(p: string, h: Handler): Registry {
+    return new Registry(this.handlers.set(p, h));
+  }
+
+  getHandler(p: string): Handler | undefined {
+    return this.handlers.get(p);
+  }
+}
+
+
+
+export function oldMatch(schema: SchemaNode, reg: Registry, data: any): ReadResult {
+  if(!Array.isArray(data)) return _fail('data must be tuple');
+  if(!isString(data[0])) return _fail('first element of data must be address string');
+
+  const address = data[0].split(':');
+  const payload = data[1]; //.slice(1);
+
+  return _match(ReadMode.Resolving, [], [], schema, address);
+
+  function _match(m: ReadMode, pl: readonly string[], pn: readonly SchemaNode[], n: SchemaNode, a: readonly string[]): ReadResult {
+    if(!n) return _fail('no node mate');
+
+    switch(m) {
+      case ReadMode.Resolving:
+        if(a.length == 0) {
+          return _match(ReadMode.Validating, pl, [...pn, n], n, []);
+        }
+        
+        if(!isSpaceNode(n)) return _fail(`imprecise address ${address} requires SpaceNode`);
+
+        const nextPart = a[0];
+        return _match(m, [...pl, nextPart], [...pn, n], n[$space][nextPart], a.slice(1));
+
+      case ReadMode.Validating:
+        if(!isDataNode(n)) return _fail('wrong node for mode')
+
+        const isValid = Guard(n[$data], (s, v) => {
+          if(s === $root) {
+            const result = oldMatch(schema, reg, v);
+            return result.isValid;
+          }
+        })(payload);
+
+        if(!isValid) return _fail(`payload ${payload} not valid at ${address.join(':')}`);
+
+        return _ok({
+          payload,
+          summonContext: () => {
+            return List(pn)
+              .filter(isContextNode)
+              .reduce(
+                (ac, cn) => {
+                  return merge(ac, cn[$fac].summon('MAGIC ROOT HERE'))
+                },
+                {});
+          },
+          handler: reg.getHandler(pl.join(':'))
+        });
+      }
+
+      return _fail(`unexpected schema node ${n}`);
+    }
+
+    function _ok(body: Omit<ReadResult, 'isValid' | 'errors'>): ReadResult {
+      return {
+        isValid: true,
+        errors: [],
+        ...body
+      };
+    }
+
+    function _fail(message: string): ReadResult {
+      return {
+        isValid: false,
+        errors: [ message ],
+      };
+    }
+  }
+
+
+
+
+export function shape<S extends SchemaNode>(arg: ((root: $Root)=>S)|S) : Builder<Shape<S>> {
+  
+  const s = <S>(isFunction(arg) ? (<(root:$Root)=>S>arg)($root) : arg);
+
   const n = prepare(walk(s, []));
   return new Builder(<Shape<S>><unknown>n);
 
@@ -91,53 +312,49 @@ export function shape<S extends SchemaNode>(fn: (root: $Root)=>S) : Builder<Shap
 
 
 
-export type Shape<S> = Simplify<Assemble<Walk<S>>>
 
-type Walk<O, P extends string = ''> =
+
+
+
+export type Shape<S> = Simplify<_ShapeAssemble<_ShapeWalk<S>>>
+
+type _ShapeWalk<O, P extends string = ''> =
   (
-    KV<`N${P}`, true>
-  )
-  | (
-      Intersects<$Fac | $Data, keyof O> extends true
-      ? ( //we're not a space...
-          (
-            $Data extends keyof O ?
-              KV<`D${P}`, O[$Data]>
-              : never
-          )
-          | (
-            $Fac extends keyof O ?
-              KV<`X${P}`, O[$Fac]>
-              : never
-          )
+    Intersects<$Fac | $Data, keyof O> extends true
+    ? ( //we're not a space...
+        (
+          $Data extends keyof O ?
+            KV<`D${P}`, O[$Data]>
+            : never
+        )
+        | (
+          $Fac extends keyof O ?
+            KV<`X${P}`, O[$Fac]>
+            : never
+        )
+    )
+    : ( //we are a space...
+      KV<`S${P}`, true>
+      | (
+        (keyof O) extends (infer K) ?
+        K extends string ?
+        K extends keyof O ?
+          _ShapeWalk<O[K], `${P}${Separator}${K}`>
+          : never : never : never
       )
-      : ( //we are a space...
-          (keyof O) extends (infer K) ?
-          K extends string ?
-          K extends keyof O ?
-            Walk<O[K], `${P}${Separator}${K}`>
-            : never : never : never
-      )
+    )
   )
 
-type Assemble<T extends KV> =
+type _ShapeAssemble<T extends KV> =
   { [kv in T as kv[0]]: kv[1] }
 
 type KV<K extends string = string, V = unknown>
   = readonly [K, V]
 
-// type IsSpace<N> =
-//   $Data extends keyof O ? false :
-//   $Fac extends keyof O ? never :
-
 export type Intersects<A, B> =
   [A & B] extends [never] ? false : true;
-    
 
 {
-
-
-  
  const s = {
     hamster: {
       nibble: data(123 as const),
@@ -148,13 +365,77 @@ export type Intersects<A, B> =
     }
   };
 
-  type A = Walk<typeof s>
-  type B = Assemble<A>
+  type A = _ShapeWalk<typeof s>
+  type B = _ShapeAssemble<A>
 
   const x = shape(_ => s)
   x
 
   type _ = [A,B]
+}
+
+
+
+
+type Impl<N extends Nodes> =
+  _ImplAssemble<_ImplWalk<N>>
+
+type _ImplWalk<N extends Nodes, Path extends string = ''> =
+  keyof N extends infer K ?
+  K extends `${infer T}${Path}${Separator}${_WholeOnly<infer Rest>}` ?
+  T extends 'S' ? (
+    [Rest, 'S', _ImplWalk<N, `${Path}${Separator}${Rest}`>]
+  )
+  : T extends 'D' ? (
+    [Rest, 'D', N[K]]
+  )
+  : never : never : never;
+
+type _WholeOnly<S extends string> =
+  S extends '' ? never
+  : S extends `${string}${Separator}${string}` ? never
+  : S;
+
+type _ImplAssemble<Tup> =
+  Simplify<{
+    [K in Tup extends any[] ? Tup[0] : never]?:
+    (
+      Tup extends [K, infer Type, infer Inner] ?
+      Type extends 'S' ? _ImplAssemble<Inner>
+      : Type extends 'D' ? (((x:any, d:Inner) => Promise<any>))
+      : never
+      : never
+    )
+  }>
+
+{
+  type N = {
+    S: true,
+    S_hamster: true
+    S_hamster_squeak: true
+    D_hamster_squeak_quietly: 123
+    D_hamster_bite: 456,
+  }
+
+  //TODO
+  //data nodes to not also appear as space nodes
+  //TODO
+
+  type A = NodePath<N>
+  type B = DataPath<N>
+  type I = Impl<N>
+
+  const i:I = {
+    hamster: {
+      squeak: {
+        async quietly(x, d) {
+        }
+      }
+    }
+  };
+
+  type _ = [A,B,I]
+  i
 }
 
 
