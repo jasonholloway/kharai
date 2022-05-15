@@ -35,7 +35,7 @@ export class Builder<N extends Nodes> {
     return new Builder(merge(this.nodes, other.nodes), this.reg);
   }
 
-  addImpls<S extends Impls<N>>(s: S): Builder<N> {
+  impl<S extends Impls<N>>(s: S): Builder<N> {
     throw 123
   }
 
@@ -44,7 +44,7 @@ export class Builder<N extends Nodes> {
   }
   
 
-  addFac<P extends NodePath<N>, X2>(path: P, fn: (x: PathContext<N,P>)=>X2) : Builder<Merge<N, { [k in P as k extends '' ? 'X' : `X${Separator}${k}`]: X2 }>> {
+  fac<P extends NodePath<N>, X2>(path: P, fn: (x: PathContext<N,P>)=>X2) : Builder<Merge<N, { [k in P as k extends '' ? 'X' : `X${Separator}${k}`]: X2 }>> {
     throw 123;
     // return new Builder<D, Merge<F, { [k in P]: X2 }>>(this.data, undefined);
   }
@@ -391,26 +391,15 @@ export type Intersects<A, B> =
 type Impls<N extends Nodes> =
   _ImplAssemble<N, _ImplWalk<N>>
 
-type _ImplWalk<N extends Nodes, Path extends string = '', X = unknown> =
+type _ImplWalk<N extends Nodes, Path extends string = '', Trail = []> =
   keyof N extends infer K ?
   K extends `${infer T}${Path}${Separator}${_WholeOnly<infer Rest>}` ?
-  (
-    `X${Path}${Separator}${Rest}` extends infer XK ?
-    XK extends keyof N ?
-      [N[XK], X] : X : X
-
-
-      
-      // XK extends keyof N ? 123 : X : X
-    // Merge<X, N[XK]>
-    // : X
-    // : X
-  ) extends infer NX ?
+  [K, Trail] extends infer Trail ?
   T extends 'S' ? (
-    [Rest, 'S', NX, _ImplWalk<N, `${Path}${Separator}${Rest}`, NX>]
+    [Rest, 'S', Trail, _ImplWalk<N, `${Path}${Separator}${Rest}`, Trail>]
   )
   : T extends 'D' ? (
-    [Rest, 'D', NX, N[K]]
+    [Rest, 'D', Trail, N[K]]
   )
   : never : never : never : never;
 
@@ -419,14 +408,29 @@ type _ImplAssemble<N extends Nodes, Tup> =
   {
     [K in Tup extends any[] ? Tup[0] : never]?:
     (
-      Tup extends [K, infer Type, infer X, infer Inner] ?
+      Tup extends [K, infer Type, infer Trail, infer Inner] ?
       Type extends 'S' ? _ImplAssemble<N, Inner>
-      : Type extends 'D' ? (((x:X, d:Inner) => Promise<Data<N>>))
+      : Type extends 'D' ? (((x:_TrailContext<N, Trail>, d:Inner) => Promise<Data<N>>))
       : never
       : never
     )
   }
   // }>
+
+type _TrailContext<N extends Nodes, Trail> =
+  Trail extends [] ? (
+    'X' extends keyof N
+      ? N['X']
+      : {}
+  )
+  : Trail extends [infer H, infer T] ?
+    _TrailContext<N, T> extends infer AboveX ?
+    H extends `${string}${infer Path}` ?
+    `X${Path}` extends infer XPath ?
+    XPath extends keyof N
+      ? Merge<AboveX, N[XPath]>
+      : AboveX
+  : never : never : never : never;
 
 type _WholeOnly<S extends string> =
   S extends '' ? never

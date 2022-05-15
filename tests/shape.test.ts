@@ -13,14 +13,11 @@ describe('shape', () => {
           }
         }
       })
-      .addFac('', () => ({ baa: 0 }))
-      .addFac('jerboa', () => ({ moo: 1 }))
-      .addImpls({
+      .fac('', () => ({ baa: 0 }))
+      .fac('jerboa', () => ({ moo: 1 as const }))
+      .fac('jerboa_jump', () => ({ neigh: 2 as const }))
+      .impl({
         jerboa: {
-
-          fac() {
-          },
-          
           async squeak(x, d) {
             x;
             return ['jerboa_squeak', d];
@@ -101,7 +98,7 @@ describe('shape', () => {
           squeak: data(123 as const),
         }
       }))
-      .addFac('jerboa', () => 1 as const)
+      .fac('jerboa', () => 1 as const)
 
     expect(w.nodes.X_jerboa).toBe(1)
   })
@@ -113,8 +110,8 @@ describe('shape', () => {
           squeak: data(123 as const),
         }
       }))
-      .addFac('', () => ({ a:1 }))
-      .addFac('jerboa', u => ({ b: u.a + 1 }))
+      .fac('', () => ({ a:1 }))
+      .fac('jerboa', u => ({ b: u.a + 1 }))
 
     expect(w.nodes.X_jerboa).toBe({ a:1, b:2 });
   })
