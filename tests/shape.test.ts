@@ -9,12 +9,18 @@ describe('shape', () => {
           squeak: data(123 as const),
           burrow: data(456 as const),
           jump: {
-            quick: data(789 as const)
+            quickly: data(789 as const)
           }
         }
       })
-      .impl({
+      .addFac('', () => ({ baa: 0 }))
+      .addFac('jerboa', () => ({ moo: 1 }))
+      .addImpls({
         jerboa: {
+
+          fac() {
+          },
+          
           async squeak(x, d) {
             x;
             return ['jerboa_squeak', d];
@@ -22,11 +28,11 @@ describe('shape', () => {
 
           async burrow(x, d) {
             x; d
-            return ['jerboa_jump_quick', 789]
+            return ['jerboa_jump_quickly', 789]
           },
 
           jump: {
-            async quick(x, d) {
+            async quickly(x, d) {
               x; d
               throw 123
             }
@@ -40,7 +46,7 @@ describe('shape', () => {
     expect(r1.errors).toBeUndefined();
     expect(r1).toHaveProperty('isValid', true);
 
-    const r2 = w.read(['jerboa_jump_quick', 789]);
+    const r2 = w.read(['jerboa_jump_quickly', 789]);
     expect(r2.errors).toBeUndefined();
     expect(r2).toHaveProperty('isValid', true);
   })

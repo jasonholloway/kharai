@@ -22,7 +22,6 @@ export type Data<N extends Nodes> =
   : never;
 
 
-
 export class Builder<N extends Nodes> {
   public readonly nodes: N
   readonly reg: Registry
@@ -36,11 +35,16 @@ export class Builder<N extends Nodes> {
     return new Builder(merge(this.nodes, other.nodes), this.reg);
   }
 
-  impl<S extends Impl<N>>(s: S): Builder<N> {
+  addImpls<S extends Impls<N>>(s: S): Builder<N> {
     throw 123
   }
 
-  addFac<P extends NodePath<N>, X2>(path: P, fn: (x: PathContext<N,P>)=>X2) : Builder<Merge<N, { [k in P as `X${Separator}${k}`]: X2 }>> {
+  addFacs<S extends {}>(s: S): Builder<N> {
+    throw 123;
+  }
+  
+
+  addFac<P extends NodePath<N>, X2>(path: P, fn: (x: PathContext<N,P>)=>X2) : Builder<Merge<N, { [k in P as k extends '' ? 'X' : `X${Separator}${k}`]: X2 }>> {
     throw 123;
     // return new Builder<D, Merge<F, { [k in P]: X2 }>>(this.data, undefined);
   }
@@ -376,13 +380,15 @@ export type Intersects<A, B> =
   const x = shape(_ => s)
   x
 
-  type _ = [A,B]
+  type C = 14 & unknown
+
+  type _ = [A,B,C]
 }
 
 
 
 
-type Impl<N extends Nodes> =
+type Impls<N extends Nodes> =
   _ImplAssemble<N, _ImplWalk<N>>
 
 type _ImplWalk<N extends Nodes, Path extends string = '', X = unknown> =
@@ -390,13 +396,18 @@ type _ImplWalk<N extends Nodes, Path extends string = '', X = unknown> =
   K extends `${infer T}${Path}${Separator}${_WholeOnly<infer Rest>}` ?
   (
     `X${Path}${Separator}${Rest}` extends infer XK ?
-    XK extends keyof N ?     
-    Merge<X, N[XK]>
-    : X
-    : X
+    XK extends keyof N ?
+      [N[XK], X] : X : X
+
+
+      
+      // XK extends keyof N ? 123 : X : X
+    // Merge<X, N[XK]>
+    // : X
+    // : X
   ) extends infer NX ?
   T extends 'S' ? (
-    [Rest, 'S', NX, _ImplWalk<N, `${Path}${Separator}${Rest}`>]
+    [Rest, 'S', NX, _ImplWalk<N, `${Path}${Separator}${Rest}`, NX>]
   )
   : T extends 'D' ? (
     [Rest, 'D', NX, N[K]]
@@ -404,7 +415,8 @@ type _ImplWalk<N extends Nodes, Path extends string = '', X = unknown> =
   : never : never : never : never;
 
 type _ImplAssemble<N extends Nodes, Tup> =
-  Simplify<{
+  // Simplify<{
+  {
     [K in Tup extends any[] ? Tup[0] : never]?:
     (
       Tup extends [K, infer Type, infer X, infer Inner] ?
@@ -413,7 +425,8 @@ type _ImplAssemble<N extends Nodes, Tup> =
       : never
       : never
     )
-  }>
+  }
+  // }>
 
 type _WholeOnly<S extends string> =
   S extends '' ? never
@@ -435,7 +448,7 @@ type _WholeOnly<S extends string> =
 
   type A = NodePath<N>
   type B = DataPath<N>
-  type I = Impl<N>
+  type I = Impls<N>
 
   const i:I = {
     hamster: {
@@ -449,7 +462,6 @@ type _WholeOnly<S extends string> =
   type _ = [A,B,I]
   i
 }
-
 
 
 export type PathContext<N extends Nodes, P extends NodePath<N>> =
