@@ -1,6 +1,6 @@
 import { Map, List } from "immutable";
-import { Guard } from "./guards/Guard";
-import { $Root, $root, $Data, $Fac, data, fac, isSpaceNode, SchemaNode, $space, Handler, isDataNode, isContextNode, $data, $fac } from "./shapeShared";
+import { isFunction } from "util";
+import { $Data, $Fac, data, fac, isSpaceNode, SchemaNode, $space, Handler, isDataNode } from "./shapeShared";
 import { isString, merge, Merge, MergeMany, Simplify } from "./util";
 
 export const separator = '_'
@@ -21,6 +21,9 @@ export type Data<N extends Nodes> =
   : never
   : never;
 
+type WithFac<N extends Nodes, P extends NodePath<N>, X>
+  = Merge<N, { [k in P as k extends '' ? 'X' : `X${Separator}${k}`]: X }>;
+
 
 export class Builder<N extends Nodes> {
   public readonly nodes: N
@@ -36,29 +39,35 @@ export class Builder<N extends Nodes> {
   }
 
   impl<S extends Impls<N>>(s: S): Builder<N> {
-    throw 123
+    const reg2 = _walk(s, [], this.reg);
+    return new Builder(this.nodes, reg2);
+
+    function _walk(n: unknown, pl: string[], r: Registry): Registry {
+      switch(typeof n) {
+        case 'function':
+          return r.addHandler(_formPath(pl), <Handler>n);
+
+        case 'object':
+          return Object.getOwnPropertyNames(n)
+              .reduce((ac, pn) => _walk((<any>n)[pn], [...pl, pn], ac), r);
+
+        default:
+          throw Error('strange item encountered');
+      }
+    }
   }
 
-  addFacs<S extends {}>(s: S): Builder<N> {
-    throw 123;
+  fac<P extends NodePath<N>, X2>(path: P, fn: (x: PathContext<N,P>)=>X2) : Builder<WithFac<N, P, X2>> {
+    return <Builder<WithFac<N, P, X2>>><unknown>this;
   }
-  
-
-  fac<P extends NodePath<N>, X2>(path: P, fn: (x: PathContext<N,P>)=>X2) : Builder<Merge<N, { [k in P as k extends '' ? 'X' : `X${Separator}${k}`]: X2 }>> {
-    throw 123;
-    // return new Builder<D, Merge<F, { [k in P]: X2 }>>(this.data, undefined);
-  }
-
-
-  //todo merge in actual facnodes
 
   read(state: any): ReadResult {
-    return match(this.reg, state);
+    return _read(this.reg, state);
   }
 }
 
 
-function match(reg: Registry, state: any): ReadResult {
+function _read(reg: Registry, state: any): ReadResult {
 
   if(!Array.isArray(state)) return _fail('state must be tuple');
   if(!isString(state[0])) return _fail('first element of state must be address string');
@@ -98,57 +107,53 @@ function match(reg: Registry, state: any): ReadResult {
     return _walk([...pl, aHead], aTail);
   }
 
-  function _formPath(pl: readonly string[]) {
-    return pl.join(separator);
-  }
-
   
 
   //NB no need for the mode here, can just use two separate methods...
 
-  function _match(m: ReadMode, pl: readonly string[], al: readonly string[]): ReadResult {
-    switch(m) {
-      case ReadMode.Resolving:
-        if(al.length == 0) {
-          return _match(ReadMode.Validating, pl, []);
-        }
+  // function _match(m: ReadMode, pl: readonly string[], al: readonly string[]): ReadResult {
+  //   switch(m) {
+  //     case ReadMode.Resolving:
+  //       if(al.length == 0) {
+  //         return _match(ReadMode.Validating, pl, []);
+  //       }
         
-        //no n here... need to look up full address and check type
-        //which means... we do actually need values output in nodes, not just types
-        if(!isSpaceNode(n)) return _fail(`imprecise address ${address} requires SpaceNode`);
+  //       //no n here... need to look up full address and check type
+  //       //which means... we do actually need values output in nodes, not just types
+  //       if(!isSpaceNode(n)) return _fail(`imprecise address ${address} requires SpaceNode`);
 
-        const [alHead, ...alTail] = al;
-        return _match(m, [...pl, alHead], alTail);
+  //       const [alHead, ...alTail] = al;
+  //       return _match(m, [...pl, alHead], alTail);
 
-      case ReadMode.Validating:
-        if(!isDataNode(n)) return _fail('wrong node for mode')
+  //     case ReadMode.Validating:
+  //       if(!isDataNode(n)) return _fail('wrong node for mode')
 
-        const isValid = Guard(n[$data], (s, v) => {
-          if(s === $root) {
-            const result = oldMatch(schema, reg, v);
-            return result.isValid;
-          }
-        })(data);
+  //       const isValid = Guard(n[$data], (s, v) => {
+  //         if(s === $root) {
+  //           const result = oldMatch(schema, reg, v);
+  //           return result.isValid;
+  //         }
+  //       })(data);
 
-        if(!isValid) return _fail(`payload ${data} not valid at ${address.join(':')}`);
+  //       if(!isValid) return _fail(`payload ${data} not valid at ${address.join(':')}`);
 
-        return _ok({
-          data,
-          summonContext: () => {
-            return List(pn)
-              .filter(isContextNode)
-              .reduce(
-                (ac, cn) => {
-                  return merge(ac, cn[$fac].summon('MAGIC ROOT HERE'))
-                },
-                {});
-          },
-          handler: reg.getHandler(pl.join(':'))
-        });
-      }
+  //       return _ok({
+  //         data,
+  //         summonContext: () => {
+  //           return List(pn)
+  //             .filter(isContextNode)
+  //             .reduce(
+  //               (ac, cn) => {
+  //                 return merge(ac, cn[$fac].summon('MAGIC ROOT HERE'))
+  //               },
+  //               {});
+  //         },
+  //         handler: reg.getHandler(pl.join(':'))
+  //       });
+  //     }
 
-      return _fail(`unexpected schema node ${n}`);
-    }
+  //     return _fail(`unexpected schema node ${n}`);
+  //   }
 
     function _ok(body: Omit<ReadResult, 'isValid' | 'errors'>): ReadResult {
       return {
@@ -165,6 +170,11 @@ function match(reg: Registry, state: any): ReadResult {
       };
     }
 }
+
+function _formPath(pl: readonly string[]) {
+  return pl.join(separator);
+}
+
 
 
 
@@ -205,82 +215,79 @@ class Registry {
 
 
 
-export function oldMatch(schema: SchemaNode, reg: Registry, data: any): ReadResult {
-  if(!Array.isArray(data)) return _fail('data must be tuple');
-  if(!isString(data[0])) return _fail('first element of data must be address string');
+// export function oldMatch(schema: SchemaNode, reg: Registry, data: any): ReadResult {
+//   if(!Array.isArray(data)) return _fail('data must be tuple');
+//   if(!isString(data[0])) return _fail('first element of data must be address string');
 
-  const address = data[0].split(':');
-  const payload = data[1]; //.slice(1);
+//   const address = data[0].split(':');
+//   const payload = data[1]; //.slice(1);
 
-  return _match(ReadMode.Resolving, [], [], schema, address);
+//   return _match(ReadMode.Resolving, [], [], schema, address);
 
-  function _match(m: ReadMode, pl: readonly string[], pn: readonly SchemaNode[], n: SchemaNode, a: readonly string[]): ReadResult {
-    if(!n) return _fail('no node mate');
+//   function _match(m: ReadMode, pl: readonly string[], pn: readonly SchemaNode[], n: SchemaNode, a: readonly string[]): ReadResult {
+//     if(!n) return _fail('no node mate');
 
-    switch(m) {
-      case ReadMode.Resolving:
-        if(a.length == 0) {
-          return _match(ReadMode.Validating, pl, [...pn, n], n, []);
-        }
+//     switch(m) {
+//       case ReadMode.Resolving:
+//         if(a.length == 0) {
+//           return _match(ReadMode.Validating, pl, [...pn, n], n, []);
+//         }
         
-        if(!isSpaceNode(n)) return _fail(`imprecise address ${address} requires SpaceNode`);
+//         if(!isSpaceNode(n)) return _fail(`imprecise address ${address} requires SpaceNode`);
 
-        const nextPart = a[0];
-        return _match(m, [...pl, nextPart], [...pn, n], n[$space][nextPart], a.slice(1));
+//         const nextPart = a[0];
+//         return _match(m, [...pl, nextPart], [...pn, n], n[$space][nextPart], a.slice(1));
 
-      case ReadMode.Validating:
-        if(!isDataNode(n)) return _fail('wrong node for mode')
+//       case ReadMode.Validating:
+//         if(!isDataNode(n)) return _fail('wrong node for mode')
 
-        const isValid = Guard(n[$data], (s, v) => {
-          if(s === $root) {
-            const result = oldMatch(schema, reg, v);
-            return result.isValid;
-          }
-        })(payload);
+//         const isValid = Guard(n[$data], (s, v) => {
+//           if(s === $root) {
+//             const result = oldMatch(schema, reg, v);
+//             return result.isValid;
+//           }
+//         })(payload);
 
-        if(!isValid) return _fail(`payload ${payload} not valid at ${address.join(':')}`);
+//         if(!isValid) return _fail(`payload ${payload} not valid at ${address.join(':')}`);
 
-        return _ok({
-          payload,
-          summonContext: () => {
-            return List(pn)
-              .filter(isContextNode)
-              .reduce(
-                (ac, cn) => {
-                  return merge(ac, cn[$fac].summon('MAGIC ROOT HERE'))
-                },
-                {});
-          },
-          handler: reg.getHandler(pl.join(':'))
-        });
-      }
+//         return _ok({
+//           payload,
+//           summonContext: () => {
+//             return List(pn)
+//               .filter(isContextNode)
+//               .reduce(
+//                 (ac, cn) => {
+//                   return merge(ac, cn[$fac].summon('MAGIC ROOT HERE'))
+//                 },
+//                 {});
+//           },
+//           handler: reg.getHandler(pl.join(':'))
+//         });
+//       }
 
-      return _fail(`unexpected schema node ${n}`);
-    }
+//       return _fail(`unexpected schema node ${n}`);
+//     }
 
-    function _ok(body: Omit<ReadResult, 'isValid' | 'errors'>): ReadResult {
-      return {
-        isValid: true,
-        errors: [],
-        ...body
-      };
-    }
+//     function _ok(body: Omit<ReadResult, 'isValid' | 'errors'>): ReadResult {
+//       return {
+//         isValid: true,
+//         errors: [],
+//         ...body
+//       };
+//     }
 
-    function _fail(message: string): ReadResult {
-      return {
-        isValid: false,
-        errors: [ message ],
-      };
-    }
-  }
-
-
+//     function _fail(message: string): ReadResult {
+//       return {
+//         isValid: false,
+//         errors: [ message ],
+//       };
+//     }
+//   }
 
 
-export function shape<S extends SchemaNode>(arg: ((root: $Root)=>S)|S) : Builder<Shape<S>> {
-  
-  const s = <S>(isFunction(arg) ? (<(root:$Root)=>S>arg)($root) : arg);
 
+
+export function shape<S extends SchemaNode>(s: S) : Builder<Shape<S>> {
   const n = prepare(walk(s, []));
   return new Builder(<Shape<S>><unknown>n);
 
@@ -377,7 +384,7 @@ export type Intersects<A, B> =
   type A = _ShapeWalk<typeof s>
   type B = _ShapeAssemble<A>
 
-  const x = shape(_ => s)
+  const x = shape(s)
   x
 
   type C = 14 & unknown
@@ -446,10 +453,6 @@ type _WholeOnly<S extends string> =
     D_hamster_bite: 456,
   }
 
-  //TODO
-  //data nodes to not also appear as space nodes
-  //TODO
-
   type A = NodePath<N>
   type B = DataPath<N>
   type I = Impls<N>
@@ -458,6 +461,7 @@ type _WholeOnly<S extends string> =
     hamster: {
       squeak: {
         async quietly(x, d) {
+          throw 123;
         }
       }
     }
