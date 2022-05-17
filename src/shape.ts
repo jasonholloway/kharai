@@ -1,13 +1,12 @@
 import { Map, List } from "immutable";
-import { isFunction } from "util";
-import { $Data, $Fac, data, fac, isSpaceNode, SchemaNode, $space, Handler, isDataNode } from "./shapeShared";
-import { isString, merge, Merge, MergeMany, Simplify } from "./util";
+import { FacNode } from "./facs";
+import { $Data, $Fac, data, fac, isSpaceNode, SchemaNode, $space, Handler } from "./shapeShared";
+import { merge, Merge, MergeMany, Simplify } from "./util";
 
 export const separator = '_'
 export type Separator = typeof separator;
 
 type Nodes = { [k in string]: unknown }
-
 
 export type NodePath<N extends Nodes> = _ExtractPath<`S${Separator}` | `D${Separator}`, keyof N> | ''
 export type DataPath<N extends Nodes> = _ExtractPath<`D${Separator}`, keyof N>
@@ -45,7 +44,7 @@ export class Builder<N extends Nodes> {
     function _walk(n: unknown, pl: string[], r: Registry): Registry {
       switch(typeof n) {
         case 'function':
-          return r.addHandler(_formPath(pl), <Handler>n);
+          return r.addHandler(formPath(pl), <Handler>n);
 
         case 'object':
           return Object.getOwnPropertyNames(n)
@@ -61,140 +60,43 @@ export class Builder<N extends Nodes> {
     return <Builder<WithFac<N, P, X2>>><unknown>this;
   }
 
-  read(state: any): ReadResult {
-    return _read(this.reg, state);
-  }
-}
+  read(address: string): ReadResult {
+    const reg = this.reg;
+    return _read([], address.split(separator));
 
+    function _read(pl: readonly string[], al: readonly string[]): ReadResult {
+      if(al.length) {
+        const [aHead, ...aTail] = al;
+        return _read([...pl, aHead], aTail);
+      }
 
-function _read(reg: Registry, state: any): ReadResult {
-
-  if(!Array.isArray(state)) return _fail('state must be tuple');
-  if(!isString(state[0])) return _fail('first element of state must be address string');
-
-  const address = state[0].split(separator);
-  const data = state[1];
-
-  //2) walk nodes, accumulating facs
-  //4) bind payload
-  // return _match(ReadMode.Resolving, [], address);
-  return _walk([], address);
-
-  function _walk(pl: readonly string[], al: readonly string[]): ReadResult {
-    if(al.length == 0) {
-      const path = _formPath(pl);
+      const path = formPath(pl);
       const handler = reg.getHandler(path);
 
-      if(!handler) return _fail(`no handler at ${path}`);
-
-      return _ok({
-        data,
+      return {
+        guard: 'HELLO',
         handler,
-        // summonContext: () => {
-        //   return List(pn)
-        //     .filter(isContextNode)
-        //     .reduce(
-        //       (ac, cn) => {
-        //         return merge(ac, cn[$fac].summon('MAGIC ROOT HERE'))
-        //       },
-        //       {});
-        // },
-      });
+        fac: _findFac(pl)
+      };
     }
-    
-    const [aHead, ...aTail] = al;
 
-    return _walk([...pl, aHead], aTail);
+    function _findFac(pl: readonly string[]) : FacNode<unknown>|undefined {
+      return undefined;
+    }
   }
-
-  
-
-  //NB no need for the mode here, can just use two separate methods...
-
-  // function _match(m: ReadMode, pl: readonly string[], al: readonly string[]): ReadResult {
-  //   switch(m) {
-  //     case ReadMode.Resolving:
-  //       if(al.length == 0) {
-  //         return _match(ReadMode.Validating, pl, []);
-  //       }
-        
-  //       //no n here... need to look up full address and check type
-  //       //which means... we do actually need values output in nodes, not just types
-  //       if(!isSpaceNode(n)) return _fail(`imprecise address ${address} requires SpaceNode`);
-
-  //       const [alHead, ...alTail] = al;
-  //       return _match(m, [...pl, alHead], alTail);
-
-  //     case ReadMode.Validating:
-  //       if(!isDataNode(n)) return _fail('wrong node for mode')
-
-  //       const isValid = Guard(n[$data], (s, v) => {
-  //         if(s === $root) {
-  //           const result = oldMatch(schema, reg, v);
-  //           return result.isValid;
-  //         }
-  //       })(data);
-
-  //       if(!isValid) return _fail(`payload ${data} not valid at ${address.join(':')}`);
-
-  //       return _ok({
-  //         data,
-  //         summonContext: () => {
-  //           return List(pn)
-  //             .filter(isContextNode)
-  //             .reduce(
-  //               (ac, cn) => {
-  //                 return merge(ac, cn[$fac].summon('MAGIC ROOT HERE'))
-  //               },
-  //               {});
-  //         },
-  //         handler: reg.getHandler(pl.join(':'))
-  //       });
-  //     }
-
-  //     return _fail(`unexpected schema node ${n}`);
-  //   }
-
-    function _ok(body: Omit<ReadResult, 'isValid' | 'errors'>): ReadResult {
-      return {
-        isValid: true,
-        errors: [],
-        ...body
-      };
-    }
-
-    function _fail(message: string): ReadResult {
-      return {
-        isValid: false,
-        errors: [ message ],
-      };
-    }
 }
 
-function _formPath(pl: readonly string[]) {
+function formPath(pl: readonly string[]) {
   return pl.join(separator);
 }
 
 
-
-
-
-enum ReadMode {
-  Resolving,
-  Failed,
-  Validating,
-  Validated
-}
-
 export type ReadResult = {
-  errors: string[],
-  isValid: boolean,
-  data?: any,
+  guard?: any,
   handler?: Handler,
-  summonContext?: () => any
+  fac?: FacNode<unknown>
 }
 
-//TODO below must be COW
 class Registry {
   private handlers: Map<string, Handler> = Map();
 
@@ -212,79 +114,6 @@ class Registry {
     return this.handlers.get(p);
   }
 }
-
-
-
-// export function oldMatch(schema: SchemaNode, reg: Registry, data: any): ReadResult {
-//   if(!Array.isArray(data)) return _fail('data must be tuple');
-//   if(!isString(data[0])) return _fail('first element of data must be address string');
-
-//   const address = data[0].split(':');
-//   const payload = data[1]; //.slice(1);
-
-//   return _match(ReadMode.Resolving, [], [], schema, address);
-
-//   function _match(m: ReadMode, pl: readonly string[], pn: readonly SchemaNode[], n: SchemaNode, a: readonly string[]): ReadResult {
-//     if(!n) return _fail('no node mate');
-
-//     switch(m) {
-//       case ReadMode.Resolving:
-//         if(a.length == 0) {
-//           return _match(ReadMode.Validating, pl, [...pn, n], n, []);
-//         }
-        
-//         if(!isSpaceNode(n)) return _fail(`imprecise address ${address} requires SpaceNode`);
-
-//         const nextPart = a[0];
-//         return _match(m, [...pl, nextPart], [...pn, n], n[$space][nextPart], a.slice(1));
-
-//       case ReadMode.Validating:
-//         if(!isDataNode(n)) return _fail('wrong node for mode')
-
-//         const isValid = Guard(n[$data], (s, v) => {
-//           if(s === $root) {
-//             const result = oldMatch(schema, reg, v);
-//             return result.isValid;
-//           }
-//         })(payload);
-
-//         if(!isValid) return _fail(`payload ${payload} not valid at ${address.join(':')}`);
-
-//         return _ok({
-//           payload,
-//           summonContext: () => {
-//             return List(pn)
-//               .filter(isContextNode)
-//               .reduce(
-//                 (ac, cn) => {
-//                   return merge(ac, cn[$fac].summon('MAGIC ROOT HERE'))
-//                 },
-//                 {});
-//           },
-//           handler: reg.getHandler(pl.join(':'))
-//         });
-//       }
-
-//       return _fail(`unexpected schema node ${n}`);
-//     }
-
-//     function _ok(body: Omit<ReadResult, 'isValid' | 'errors'>): ReadResult {
-//       return {
-//         isValid: true,
-//         errors: [],
-//         ...body
-//       };
-//     }
-
-//     function _fail(message: string): ReadResult {
-//       return {
-//         isValid: false,
-//         errors: [ message ],
-//       };
-//     }
-//   }
-
-
 
 
 export function shape<S extends SchemaNode>(s: S) : Builder<Shape<S>> {
@@ -325,10 +154,6 @@ export function shape<S extends SchemaNode>(s: S) : Builder<Shape<S>> {
   type Tup = readonly [Path, object]
   type Path = readonly string[]
 }
-
-
-
-
 
 
 

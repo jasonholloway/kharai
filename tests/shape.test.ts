@@ -1,12 +1,13 @@
 import { shape } from "../src/shape";
 import { data, fac } from "../src/shapeShared";
+import { Num } from "../src/guards/Guard";
 
 describe('shape', () => {
 
   it('builds node map from tree', () => {
     const w = shape({
         jerboa: {
-          squeak: data(123 as const),
+          squeak: data(Num),
           burrow: data(456 as const),
           jump: {
             quickly: data(789 as const)
@@ -37,20 +38,17 @@ describe('shape', () => {
         }
       });
 
-    const r1 = w.read(['jerboa_squeak', 123]);
+    const r1 = w.read('jerboa_squeak');
     console.log(r1)
-    expect(r1).toHaveProperty('isValid', true);
-    expect(r1.errors).toEqual([]);
+    expect(r1.handler).not.toBeUndefined();
 
-    const r2 = w.read(['jerboa_jump_quickly', 789]);
+    const r2 = w.read('jerboa_jump_quickly');
     console.log(r2)
-    expect(r2).toHaveProperty('isValid', true);
-    expect(r2.errors).toEqual([]);
+    expect(r2.handler).not.toBeUndefined();
 
-    const r3 = w.read(['jerboa_squeak', 666]);
+    const r3 = w.read('jerboa_squeak');
     console.log(r3)
-    expect(r2).toHaveProperty('isValid', false);
-    expect(r2.errors).toEqual([]);
+    expect(r3.handler).not.toBeUndefined();
   })
 
   it('combines node trees', () => {
