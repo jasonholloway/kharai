@@ -1,5 +1,6 @@
 import { Map, List } from "immutable";
 import { FacNode } from "./facs";
+import { Read } from "./guards/Guard";
 import { $Data, $Fac, data, fac, SchemaNode, Handler, $data } from "./shapeShared";
 import { merge, Merge, MergeMany, Simplify } from "./util";
 
@@ -174,7 +175,7 @@ type _ShapeWalk<O, P extends string = ''> =
     ? ( //we're not a space...
         (
           $Data extends keyof O ?
-            KV<`D${P}`, O[$Data]>
+            KV<`D${P}`, Read<O[$Data]>>
             : never
         )
         | (

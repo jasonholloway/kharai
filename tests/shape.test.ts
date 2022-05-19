@@ -1,9 +1,6 @@
 import { shape } from "../src/shape";
 import { data, fac } from "../src/shapeShared";
 import { Num } from "../src/guards/Guard";
-      // .fac('', x => ({ baa: 0 }))
-      // .fac('jerboa', x => ({ moo: 1 as const }))
-      // .fac('jerboa_jump', x => ({ neigh: 2 as const }))
 
 describe('shape', () => {
 
@@ -18,6 +15,9 @@ describe('shape', () => {
           }
         }
       })
+      .fac('', x => ({ baa: 0 }))
+      .fac('jerboa', x => ({ moo: 1 as const }))
+      .fac('jerboa_jump', x => ({ neigh: 2 as const }))
       .impl({
         jerboa: {
           async squeak(x, d) {

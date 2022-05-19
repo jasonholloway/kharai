@@ -1,41 +1,46 @@
 import _Monoid from '../../src/_Monoid'
 import { delay } from '../../src/util'
-import { data, space, specify } from '../../src/buildMatch'
 import { Any, Many, Num, Str } from '../guards/Guard'
+import { shape } from '../shape';
+import { $root, data } from '../shapeShared';
 
-const w1 = specify(me =>
-	space({
-		$boot: data([]),
-		$end: data(Many(Any)),
-		$wait: data([Num, me] as const),
+const w1 = shape({
+  $boot: data([]),
+  $end: data(Many(Any)),
+  $wait: data([Num, $root] as const),
 
-    rat: space({
-      wake: data([]),
-      squeak: data([Num] as const)
-    }),
+  rat: {
+    wake: data([]),
+    squeak: data([Num] as const)
+  },
 
-    hamster: space({
-      wake: data([Num] as const),
-      nibble: data([])
-    }),
+  hamster: {
+    wake: data([Num] as const),
+    nibble: data([])
+  },
 
-    guineaPig: space({
-      runAbout: data([]),
-      gruntAt: data([Str] as const)
-    }),
+  guineaPig: {
+    runAbout: data([]),
+    gruntAt: data([Str] as const)
+  },
 
-    gerbil: space({
-      spawn: data([Num, Num] as const)
-    })
-	}));
+  gerbil: {
+    spawn: data([Num, Num] as const)
+  }
+});
 
 const w2 = w1
-  .withContext('rat', x => x)
-  .withPhase('rat:wake', async (_, [n]) => {
-    return ['rat:squeak', [123]];
-  })
-  .withPhase('rat:squeak', async (_, [d]) => {
-    return ['$end', [`I have squeaked ${d}!`]];
+  .fac('rat', x => x)
+  .impl({
+    rat: {
+      async wake(_, [n]) {
+        return ['rat_squeak', [123]];
+      },
+
+      async squeak(_, [d]) {
+        return ['$end', ['I have squeaked ${d}!']]
+      }
+    }
   });
 
 
