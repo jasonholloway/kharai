@@ -1,6 +1,9 @@
 import { shape } from "../src/shape";
 import { data, fac } from "../src/shapeShared";
 import { Num } from "../src/guards/Guard";
+      // .fac('', x => ({ baa: 0 }))
+      // .fac('jerboa', x => ({ moo: 1 as const }))
+      // .fac('jerboa_jump', x => ({ neigh: 2 as const }))
 
 describe('shape', () => {
 
@@ -10,13 +13,11 @@ describe('shape', () => {
           squeak: data(Num),
           burrow: data(456 as const),
           jump: {
-            quickly: data(789 as const)
+            quickly: data(789 as const),
+            slovenly: data('boo' as const)
           }
         }
       })
-      .fac('', x => ({ baa: 0 }))
-      .fac('jerboa', x => ({ moo: 1 as const }))
-      .fac('jerboa_jump', x => ({ neigh: 2 as const }))
       .impl({
         jerboa: {
           async squeak(x, d) {
@@ -30,24 +31,29 @@ describe('shape', () => {
           },
 
           jump: {
+            async slovenly(x, d) {
+              console.log('hello');
+              return ['jerboa_jump_quickly', 789];
+            },
+            
             async quickly(x, d) {
               x; d
-              throw 123
+              return ['jerboa_squeak', 13];
             }
           }
         }
       });
 
     const r1 = w.read('jerboa_squeak');
-    console.log(r1)
+    expect(r1.guard).toEqual([Num])
     expect(r1.handler).not.toBeUndefined();
 
     const r2 = w.read('jerboa_jump_quickly');
-    console.log(r2)
+    expect(r2.guard).toEqual([789])
     expect(r2.handler).not.toBeUndefined();
 
     const r3 = w.read('jerboa_squeak');
-    console.log(r3)
+    expect(r3.guard).toEqual([Num])
     expect(r3.handler).not.toBeUndefined();
   })
 

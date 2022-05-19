@@ -1,6 +1,6 @@
 import { Map, List } from "immutable";
 import { FacNode } from "./facs";
-import { $Data, $Fac, data, fac, isSpaceNode, SchemaNode, $space, Handler } from "./shapeShared";
+import { $Data, $Fac, data, fac, SchemaNode, Handler, $data } from "./shapeShared";
 import { merge, Merge, MergeMany, Simplify } from "./util";
 
 export const separator = '_'
@@ -71,16 +71,16 @@ export class Builder<N extends Nodes> {
       }
 
       const path = formPath(pl);
-      const handler = reg.getHandler(path);
 
       return {
-        guard: 'HELLO',
-        handler,
+        guard: reg.getGuard(path),
+        handler: reg.getHandler(path),
         fac: _findFac(pl)
       };
     }
 
     function _findFac(pl: readonly string[]) : FacNode<unknown>|undefined {
+      //TODO
       return undefined;
     }
   }
@@ -98,16 +98,35 @@ export type ReadResult = {
 }
 
 class Registry {
+  private guards: Map<string, unknown> = Map();
   private handlers: Map<string, Handler> = Map();
 
-  private constructor(handlers: Map<string, Handler>) {
+  private constructor(guards: Map<string, unknown>, handlers: Map<string, Handler>) {
+    this.guards = guards;
     this.handlers = handlers;
   }
 
-  static empty = new Registry(Map());
+  static empty = new Registry(Map(), Map());
+  private static $notFound = Symbol('notFound');
+
+  addGuard(p: string, guard: unknown): Registry {
+    return new Registry(
+      this.guards.set(p, guard),
+      this.handlers
+    );
+  }
+
+  getGuard(p: string): [unknown] | undefined {
+    const result = this.guards.get(p, Registry.$notFound);
+    return result !== Registry.$notFound
+      ? [result] : undefined;
+  }
 
   addHandler(p: string, h: Handler): Registry {
-    return new Registry(this.handlers.set(p, h));
+    return new Registry(
+      this.guards,
+      this.handlers.set(p, h)
+    );
   }
 
   getHandler(p: string): Handler | undefined {
@@ -117,42 +136,32 @@ class Registry {
 
 
 export function shape<S extends SchemaNode>(s: S) : Builder<Shape<S>> {
-  const n = prepare(walk(s, []));
-  return new Builder(<Shape<S>><unknown>n);
 
-  function walk(n: SchemaNode, p: Path) : List<Tup> {
-    if(!isSpaceNode(n)) {
-      return List([
-        [p, n] as const
-      ]);
+  const reg = _walk([], s)
+    .reduce(
+      (ac, [p, g]) => ac.addGuard(p, g),
+      Registry.empty
+    );
+
+  return new Builder<Shape<S>>(<Shape<S>><unknown>undefined, reg);
+
+
+  function _walk(pl: string[], n: SchemaNode) : List<readonly [string, unknown]> {
+    if((<any>n)[$data]) {
+      const data = <unknown>(<any>n)[$data];
+      return List([[pl.join(separator), data] as const]);
     }
 
-    const mine = List([
-      [p, { ...n, [$space]: undefined }] as const
-    ]);
-
-    const space = n[$space];
-    
-    const inner =
-      List(Object.getOwnPropertyNames(space))
+    if(typeof n === 'object') {
+      return List(Object.getOwnPropertyNames(n))
         .flatMap(pn => {
-          const child = space[pn];
-          return walk(child, [...p, pn])
+          const child = (<any>n)[pn];
+          return _walk([...pl, pn], child)
         });
+    }
 
-    return mine.concat(inner);
+    throw 'strange node encountered';
   }
-
-  function prepare(tups: List<Tup>) {
-    return tups.reduce((ac, t) => ({ ...ac, [flatPath(t[0])]: t[1] }), {});
-  }
-
-  function flatPath(p: Path) : string {
-    return separator + p.join(separator);
-  }
-
-  type Tup = readonly [Path, object]
-  type Path = readonly string[]
 }
 
 

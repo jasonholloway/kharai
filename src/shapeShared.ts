@@ -22,7 +22,7 @@ export type Handler = (x: any, d: any) => Promise<any>;
 
 export type Nodes = { [p: string]: SchemaNode }
 
-export type SchemaNode = {}
+export type SchemaNode = DataNode | { [k: string]: SchemaNode }
 export type DataNode<D = unknown> = { [$data]: D }
 export type SpaceNode<I> = { [$space]: I }
 export type HandlerNode = { [$handler]: Handler }
