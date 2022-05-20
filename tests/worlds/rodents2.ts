@@ -51,47 +51,61 @@ const w2 = w1
 
 
 const w3 = w2
-  .withPhase('hamster:wake', async (_, d) => {
-    await delay(100);
-    return ['$end', [d]]
-  })
-  .withPhase('hamster:nibble', async () => {
-    return ['$end', []];
+  .impl({
+    hamster: {
+      async wake(_, d) {
+        await delay(100);
+        return ['$end', [d]];
+      },
+
+      async nibble() {
+        return ['$end', []];
+      }
+    }
   });
 
 const w4 = w3
-  .withPhase('guineaPig:runAbout', async (x, _) => {
-    const a = await x.attach({ chat(m) { return [m, 'squeak!'] } });
-    return (a && ['$end', a]) || ['$end', ['BIG NASTY ERROR']]
-  })
-  .withPhase('guineaPig:gruntAt', async (x, [id]) => {
-    const resp = await x.convene([id], {
-      convene([p]) {
-        const a = p.chat('grunt!');
-        if(a) return a;
-        else throw Error('bad response from attendee')
+  .impl({
+    guineaPig: {
+      async runAbout(x) {
+        const a = await x.attach({ chat(m) { return [m, 'squeak!'] } });
+        return (a && ['$end', a]) || ['$end', ['BIG NASTY ERROR']]
+      },
+
+      async gruntAt(x, [id]) {
+        const resp = await x.convene([id], {
+          convene([p]) {
+            const a = p.chat('grunt!');
+            if(a) return a;
+            else throw Error('bad response from attendee')
+          }
+        });
+        return ['$end', resp]
       }
-    });
-    return ['$end', resp]
+    }
   });
 
 const w5 = w4
-  .withPhase('gerbil:spawn', async (x, [step, max]) => {
-    if(step < max) {
-      const appendage = String.fromCharCode('a'.charCodeAt(0) + step);
+  .impl({
+    gerbil: {
+      async spawn(x, [step, max]) {
+        if(step < max) {
+          const appendage = String.fromCharCode('a'.charCodeAt(0) + step);
 
-      if(x.id.length < max) {
-        const other = `${x.id}${appendage}`;
+          if(x.id.length < max) {
+            const other = `${x.id}${appendage}`;
 
-        await x.convene([other], {
-          convene([p]) {
-            p.chat([['gerbil', ['spawn', [0, max]]]])
+            await x.convene([other], {
+              convene([p]) {
+                p.chat([['gerbil', ['spawn', [0, max]]]])
+              }
+            })
+
+            return ['gerbil_spawn', [step + 1, max]]
           }
-        })
+        }
 
-        return ['spawn', [step + 1, max]]
+        return false;
       }
     }
-
-    return false;
-  })
+  });

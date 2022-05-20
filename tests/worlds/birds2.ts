@@ -1,106 +1,98 @@
 import _Monoid from '../../src/_Monoid'
-import { Id, SpecWorld, World, Phase } from '../../src/lib'
 import { toArray, take } from 'rxjs/operators'
 import { delay } from '../../src/util'
-import { specify, space, data } from '../specs'
-import { Str, Num, Many, Any } from '../guards/Guard'
+import { Str, Num, Many, Any, Read } from '../guards/Guard'
+import { shape } from '../../src/shape'
+import { $root, data } from '../../src/shapeShared'
+import { Observable } from 'rxjs'
 
-const log = console.log;
+const w1 = shape({
+    $boot: data([]),
+    $end: data([Many(Any)] as const),
+    // $wait: data([Num, me] as const),
 
-export type TBirds<Me extends World = World> = SpecWorld<{
-	$boot: []
-	$end: [any[]]
-	$wait: [number, Phase<Me>]
-	// $watch: [Id, string, Phase<Me>]
-
-	track: [Id[], number]
-	runAround: [number]
-	// sleepThen: [number, Phase<Me>]
-}>
-
-export type Birds = TBirds<TBirds>
-
-const w1 = specify(me =>
-	space({
-		$boot: data([]),
-		$end: data([Many(Any)] as const),
-		// $wait: data([Num, me] as const),
-
-		emu: space({
-			track: data([Many(Str), Num] as const),
-			runAround: data([Num] as const),
-		})
-		
-	}));
+    emu: {
+      track: data([Many(Str), Num] as const),
+      runAround: data([Num] as const),
+    }
+  })
+  .fac('', () =>({
+    watch(ids: string[]): Observable<unknown> {
+      throw 123;
+    }
+  }));
 
 
-const w2 = w1.withContext('emu', x => ({ moo:123 }));
+const w2 = w1
+  .fac('emu', x => ({ moo:123 }));
 
 const w3 = w2
-	.withPhase('emu:runAround', async (x, [n]) => {
-		if(n > 0) {
-			await delay(20);
-			return ['emu:runAround', [n-1]]
-		}
+  .impl({
+    emu: {
+      async runAround(x, [n]) {
+        if(n > 0) {
+          await delay(20);
+          
+          return ['emu_runAround', [n-1]]
+        }
 
-		return false;
-});
+        return false;
+      }
+    }
+  });
 
 const w4 = w3
-	.withPhase('emu:track', async (x, [ids, c]) => {
-		const frames = await x.watch(ids)
-			.pipe(take(c), toArray())
-			.toPromise();
+  .impl({
+    emu: {
+      async track(x, [ids, c]) {
+        const frames = await x.watch(ids)
+          .pipe(take(c), toArray())
+          .toPromise();
 
-		return ['$end', [frames]];
-	});
-
-
-
-
-
-
+        return ['$end', [frames]];
+      }
+    }
+  });
 
 
-const Scraper =
-	space({
-		scrape: data([Num] as const),
-		notify: data([Str] as const)
-	});
+const Scraper = {
+  scrape: data(Num),
+  notify: data([Str] as const)
+};
 
-const w = specify(me =>
-	space({
-		$boot: data([]),
-		$end: data([Many(Any)] as const),
-		$wait: data([Num, me] as const),
+const w = shape({
+    $boot: data([]),
+    $end: data([Many(Any)] as const),
+    $wait: data([Num, $root] as const),
 
-		AO: Scraper,
-		Very: Scraper,
-		Argos: Scraper
-	}));
+    AO: Scraper,
+    Very: Scraper,
+    Argos: Scraper
+  })
+  .impl({
+    AO: {
+      async scrape(x, n) {
+        console.log(n + 13);
 
+        //do something here...
+        await Promise.resolve();
 
-w.withPhase('AO:scrape', async (x, [n]) => {
+        return ['AO_notify', ['https://someurl']]
+      },
 
-	console.log(n + 13);
-	
-	//do something here...
-	await Promise.resolve();
+      async notify(x, d) {
+        return ['$wait', [100, ['AO_scrape', 123]]]
+      }
+    },
 
-	return ['AO:notify', ['https://someurl']]
-})
+    Very: {
+      async scrape(x, d) {
+        //do something here...
+        await Promise.resolve();
 
-w.withPhase('AO:notify', async (x, d) => {
+        return ['$wait', [100000, ['Very_notify', ['moo']]]]
+      }
+    }
+  });
 
-	return ['$wait', [1000, ['AO:scrape', [123]]]];
-})
-
-w.withPhase('Very:scrape', async (x, d) => {
-	//do something here...
-	await Promise.resolve();
-
-	return ['$wait', [100000, ['Very:scrape', [123]]]]
-})
-
-
-	
+  

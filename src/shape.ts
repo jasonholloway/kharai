@@ -1,7 +1,7 @@
 import { Map, List } from "immutable";
 import { FacNode } from "./facs";
 import { Read } from "./guards/Guard";
-import { $Data, $Fac, data, fac, SchemaNode, Handler, $data } from "./shapeShared";
+import { $Data, $Fac, data, fac, SchemaNode, Handler, $data, $Root } from "./shapeShared";
 import { merge, Merge, MergeMany, Simplify } from "./util";
 
 export const separator = '_'
@@ -14,12 +14,13 @@ export type DataPath<N extends Nodes> = _ExtractPath<`D${Separator}`, keyof N>
 type _ExtractPath<A extends string, K> = K extends `${A}${infer P}` ? P : never
 
 
-export type Data<N extends Nodes> =
+export type Data<N extends Nodes, Inner = unknown> =
   keyof N extends infer K ?
   K extends `D${Separator}${infer P}` ?
-  [P, N[K]]
-  : never
-  : never;
+  N[K] extends infer G ?
+  Read<G, $Root, Inner> extends infer D ?
+  [P, D]
+  : never : never : never : never;
 
 type WithFac<N extends Nodes, P extends NodePath<N>, X>
   = Merge<N, { [k in P as k extends '' ? 'X' : `X${Separator}${k}`]: X }>;
@@ -175,7 +176,7 @@ type _ShapeWalk<O, P extends string = ''> =
     ? ( //we're not a space...
         (
           $Data extends keyof O ?
-            KV<`D${P}`, Read<O[$Data]>>
+            KV<`D${P}`, O[$Data]>
             : never
         )
         | (
@@ -231,7 +232,10 @@ export type Intersects<A, B> =
 
 
 type Impls<N extends Nodes> =
-  _ImplAssemble<N, _ImplWalk<N>>
+  Data<N> extends infer DOne ?
+  Data<N, DOne> extends infer DFull ?
+  _ImplAssemble<N, _ImplWalk<N>, DFull, DOne>
+  : never : never;
 
 type _ImplWalk<N extends Nodes, Path extends string = '', Trail = []> =
   keyof N extends infer K ?
@@ -245,14 +249,14 @@ type _ImplWalk<N extends Nodes, Path extends string = '', Trail = []> =
   )
   : never : never : never : never;
 
-type _ImplAssemble<N extends Nodes, Tup> =
+type _ImplAssemble<N extends Nodes, Tup, DFull, DOne> =
   // Simplify<{
   {
     [K in Tup extends any[] ? Tup[0] : never]?:
     (
-      Tup extends [K, infer Type, infer Trail, infer Inner] ?
-      Type extends 'S' ? _ImplAssemble<N, Inner>
-      : Type extends 'D' ? (((x:_TrailContext<N, Trail>, d:Inner) => Promise<Data<N>>))
+      Tup extends [K, infer Type, infer Trail, infer Body] ?
+        Type extends 'S' ? _ImplAssemble<N, Body, DFull, DOne>
+        : Type extends 'D' ? (((x:_TrailContext<N, Trail>, d:Read<Body, $Root, DOne>) => Promise<DFull|false>))
       : never
       : never
     )
