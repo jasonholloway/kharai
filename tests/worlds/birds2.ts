@@ -57,7 +57,7 @@ const w4 = w3
 
 const Scraper = {
   scrape: data(Num),
-  notify: data([Str] as const)
+  notify: data([/http.*/] as const)
 };
 
 const w = shape({
