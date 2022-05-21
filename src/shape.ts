@@ -174,16 +174,17 @@ type _ShapeWalk<O, P extends string = ''> =
   (
     Intersects<$Fac | $Data, keyof O> extends true
     ? ( //we're not a space...
-        (
-          $Data extends keyof O ?
-            KV<`D${P}`, O[$Data]>
-            : never
-        )
-        | (
-          $Fac extends keyof O ?
-            KV<`X${P}`, O[$Fac]>
-            : never
-        )
+      _DataWalk<O, P> | _FacWalk<O, P>
+        // (
+        //   $Data extends keyof O ?
+        //     KV<`D${P}`, O[$Data]>
+        //     : never
+        // )
+        // | (
+        //   $Fac extends keyof O ?
+        //     _FacWalk<O, P>
+        //     : never
+        // )
     )
     : ( //we are a space...
       KV<`S${P}`, true>
@@ -191,11 +192,25 @@ type _ShapeWalk<O, P extends string = ''> =
         (keyof O) extends (infer K) ?
         K extends string ?
         K extends keyof O ?
-          _ShapeWalk<O[K], `${P}${Separator}${K}`>
+          (K extends '$'
+            ? _FacWalk<O[K], P>
+            : _ShapeWalk<O[K], `${P}${Separator}${K}`>)
           : never : never : never
       )
     )
   )
+
+type _DataWalk<O, P extends string> =
+  $Data extends keyof O ?
+  O[$Data] extends infer D ?
+  KV<`D${P}`, D>
+  : never : never;
+
+type _FacWalk<O, P extends string> =
+  $Fac extends keyof O ?
+  O[$Fac] extends infer F ?
+  KV<`X${P}`, F>
+  : never : never;
 
 type _ShapeAssemble<T extends KV> =
   { [kv in T as kv[0]]: kv[1] }
