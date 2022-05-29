@@ -30,7 +30,7 @@ const w1 = shape({
 });
 
 const w2 = w1
-  .fac('rat', x => x)
+  .facImpl('rat', x => x)
   .impl({
     rat: {
       async wake(_, [n]) {

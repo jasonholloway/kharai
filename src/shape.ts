@@ -2,28 +2,12 @@ import { Map, List } from "immutable";
 import { FacNode } from "./facs";
 import { Read } from "./guards/Guard";
 import { $Data, $Fac, data, fac, SchemaNode, Handler, $data, $Root } from "./shapeShared";
-import { merge, Merge, MergeMany, Simplify } from "./util";
+import { merge, Merge, Simplify } from "./util";
 
 export const separator = '_'
 export type Separator = typeof separator;
 
 type Nodes = { [k in string]: unknown }
-
-export type NodePath<N extends Nodes> = _ExtractPath<`S${Separator}` | `D${Separator}`, keyof N> | ''
-export type DataPath<N extends Nodes> = _ExtractPath<`D${Separator}`, keyof N>
-type _ExtractPath<A extends string, K> = K extends `${A}${infer P}` ? P : never
-
-
-export type Data<N extends Nodes, Inner = unknown> =
-  keyof N extends infer K ?
-  K extends `D${Separator}${infer P}` ?
-  N[K] extends infer G ?
-  Read<G, $Root, Inner> extends infer D ?
-  [P, D]
-  : never : never : never : never;
-
-type WithFac<N extends Nodes, P extends NodePath<N>, X>
-  = Merge<N, { [k in P as k extends '' ? 'X' : `X${Separator}${k}`]: X }>;
 
 
 export class Builder<N extends Nodes> {
@@ -58,8 +42,9 @@ export class Builder<N extends Nodes> {
     }
   }
 
-  fac<P extends NodePath<N>, X2>(path: P, fn: (x: PathContext<N,P>)=>X2) : Builder<WithFac<N, P, X2>> {
-    return <Builder<WithFac<N, P, X2>>><unknown>this;
+  //TODO PathContext SHOULD NOT INCLUDE actual target X
+  facImpl<P extends FacPath<N>>(path: P, fn: (x: PathContext<N,P>)=>PathFac<N, P>) : Builder<N> {
+    return this;
   }
 
   read(address: string): ReadResult {
@@ -91,6 +76,26 @@ export class Builder<N extends Nodes> {
 function formPath(pl: readonly string[]) {
   return pl.join(separator);
 }
+
+
+export type NodePath<N extends Nodes> = _ExtractPath<'S'|'D', keyof N> | ''
+export type DataPath<N extends Nodes> = _ExtractPath<'D', keyof N>
+export type FacPath<N extends Nodes> = _ExtractPath<'X', keyof N>
+
+type _ExtractPath<A extends string, K> =
+    K extends A ? ''
+  : K extends `${A}${Separator}${infer P}` ? P
+  : never
+
+
+export type Data<N extends Nodes, Inner = unknown> =
+  keyof N extends infer K ?
+  K extends `D${Separator}${infer P}` ?
+  N[K] extends infer G ?
+  Read<G, $Root, Inner> extends infer D ?
+  [P, D]
+  : never : never : never : never;
+
 
 
 export type ReadResult = {
@@ -137,8 +142,8 @@ class Registry {
 }
 
 
-export function shape<S extends SchemaNode>(s: S) : Builder<Shape<S>> {
 
+export function shape<S extends SchemaNode>(s: S) : Builder<Shape<S>> {
   const reg = _walk([], s)
     .reduce(
       (ac, [p, g]) => ac.addGuard(p, g),
@@ -146,7 +151,6 @@ export function shape<S extends SchemaNode>(s: S) : Builder<Shape<S>> {
     );
 
   return new Builder<Shape<S>>(<Shape<S>><unknown>undefined, reg);
-
 
   function _walk(pl: string[], n: SchemaNode) : List<readonly [string, unknown]> {
     if((<any>n)[$data]) {
@@ -167,59 +171,36 @@ export function shape<S extends SchemaNode>(s: S) : Builder<Shape<S>> {
 }
 
 
+export type Shape<S> = Simplify<_Assemble<_Walk<S>>>
 
-export type Shape<S> = Simplify<_ShapeAssemble<_ShapeWalk<S>>>
-
-type _ShapeWalk<O, P extends string = ''> =
-  (
-    Intersects<$Fac | $Data, keyof O> extends true
-    ? ( //we're not a space...
-      _DataWalk<O, P> | _FacWalk<O, P>
-        // (
-        //   $Data extends keyof O ?
-        //     KV<`D${P}`, O[$Data]>
-        //     : never
-        // )
-        // | (
-        //   $Fac extends keyof O ?
-        //     _FacWalk<O, P>
-        //     : never
-        // )
-    )
-    : ( //we are a space...
-      KV<`S${P}`, true>
-      | (
-        (keyof O) extends (infer K) ?
-        K extends string ?
-        K extends keyof O ?
-          (K extends '$'
-            ? _FacWalk<O[K], P>
-            : _ShapeWalk<O[K], `${P}${Separator}${K}`>)
-          : never : never : never
-      )
-    )
-  )
+type _Walk<O, P extends string = ''> =
+    _DataWalk<O, P>
+  | _FacWalk<O, P>
+  | _SpaceWalk<O, P>;
 
 type _DataWalk<O, P extends string> =
   $Data extends keyof O ?
   O[$Data] extends infer D ?
-  KV<`D${P}`, D>
+  [`D${P}`, D]
   : never : never;
 
 type _FacWalk<O, P extends string> =
   $Fac extends keyof O ?
   O[$Fac] extends infer F ?
-  KV<`X${P}`, F>
+  [`X${P}`, F]
   : never : never;
 
-type _ShapeAssemble<T extends KV> =
+type _SpaceWalk<O, P extends string = ''> =
+  Except<keyof O, $Fac|$Data> extends infer K ?
+    K extends string ?
+    K extends keyof O ?
+    _Walk<O[K], `${P}${Separator}${K}`> extends infer Found ?
+    [Found] extends [any] ?
+      ([`S${P}`, true] | Found)
+  : never : never : never : never : never; // : never;
+
+type _Assemble<T extends readonly [string, unknown]> =
   { [kv in T as kv[0]]: kv[1] }
-
-type KV<K extends string = string, V = unknown>
-  = readonly [K, V]
-
-export type Intersects<A, B> =
-  [A & B] extends [never] ? false : true;
 
 {
  const s = {
@@ -232,8 +213,8 @@ export type Intersects<A, B> =
     }
   };
 
-  type A = _ShapeWalk<typeof s>
-  type B = _ShapeAssemble<A>
+  type A = _SpaceWalk<typeof s>
+  type B = _Assemble<A>
 
   const x = shape(s)
   x
@@ -326,47 +307,174 @@ type _WholeOnly<S extends string> =
 }
 
 
-export type PathContext<N extends Nodes, P extends NodePath<N>> =
-  MergeMany<_AllPathContexts<N, P>>
 
-type _AllPathContexts<N, P extends string> =
-  readonly [_RootContext<N>, ..._PathContexts<N, '', P>]
+export type PathFac<N extends Nodes, P extends string> =
+  _JoinPaths<'X', P> extends infer XP ?
+  XP extends keyof N ?
+    N[XP]
+  : never : never;
 
-type _RootContext<N> =
-  'X' extends keyof N ? N['X'] : unknown;
 
-type _PathContexts<N, Path extends string, P extends string> =
-  P extends `${infer H}${Separator}${infer T}` ? (
-    `${Path}_${H}` extends infer NewPath ?
-    NewPath extends string ?
-      readonly [..._PathContexts<N, Path, H>, ..._PathContexts<N, NewPath, T>]
-      : never : never
-  )
-  : P extends string ? (
-    `X${Path}_${P}` extends infer K ?
-    K extends keyof N ?
-      readonly [N[K]]
-      : [] : never
-  )
+export type PathContext<N extends Nodes, P extends string> =
+  _PathContextMerge<N, _UpstreamFacPaths<N, P>>;
+
+type _PathContextMerge<N, PL> =
+    PL extends readonly [] ? {}
+  : PL extends readonly [infer H, ...infer T] ? (
+      H extends keyof N ?
+      Merge<N[H], _PathContextMerge<N, T>>
+      : never
+    )
   : never;
-  
+
+
+type _UpstreamFacPaths<N extends Nodes, P extends string> =
+  _JoinPaths<'X', P> extends infer XP ?
+  XP extends string ?
+  TupExclude<_KnownRoutePaths<N, XP>, XP> extends infer Route ?
+    Route
+  : never : never : never;
+
+type _KnownRoutePaths<N extends Nodes, P extends string> =
+  _AllRoutePaths<P> extends infer AS ?
+  TupExtract<AS, keyof N> extends infer S ?
+    S
+  : never : never;
+
+type _AllRoutePaths<P extends string, Path extends string = ''> =
+  P extends `${infer Head}${Separator}${infer Tail}`
+  ? readonly [..._AllRoutePaths<Head, Path>, ..._AllRoutePaths<Tail, _JoinPaths<Path, Head>>]
+  : readonly [_JoinPaths<Path, P>];
+
+
+type _JoinPaths<H extends string, T extends string> =
+  H extends '' ? T
+  : T extends '' ? H
+  : `${H}${Separator}${T}`;
+
 
 {
-  type N = {
+  type Nodes = {
     X: { a: 1 }
     S: true,
-    X_hamster: { b: 2 },
-    S_hamster: true,
-    S_hamster_squeak: true
-    D_hamster_squeak_quietly: 999,
-    X_hamster_squeak_quietly: { c: 3 },
+    X_rat: { b: 2 },
+    S_rat: true,
+    S_rat_squeak: true
+    D_rat_squeak_quietly: 999,
+    X_rat_squeak_quietly: { c: 3 },
+    S_rat_squeak_quietly: true,
+    D_rat_squeak_quietly_blah: 999,
   }
 
-  type A = NodePath<N>
-  type B = _AllPathContexts<N, ''>
-  type C = _AllPathContexts<N, 'hamster'>
-  type D = _AllPathContexts<N, 'hamster_squeak_quietly'>
-  type E = PathContext<N, 'hamster_squeak_quietly'>
+  type A = FacPath<Nodes>
 
-  type _ = [A, B, C, D, E]
+  type B = _AllRoutePaths<'X'>
+  type C = _AllRoutePaths<'X_rat'>
+  type D = _AllRoutePaths<'X_rat_squeak_quietly_blah'>
+
+  type E = _KnownRoutePaths<Nodes, 'X'>
+  type F = _KnownRoutePaths<Nodes, 'X_rat'>
+  type G = _KnownRoutePaths<Nodes, 'X_rat_squeak_quietly_blah'>
+
+  type H = _UpstreamFacPaths<Nodes, ''>
+  type I = _UpstreamFacPaths<Nodes, 'rat'>
+  type J = _UpstreamFacPaths<Nodes, 'rat_squeak_quietly'>
+  type K = _UpstreamFacPaths<Nodes, 'rat_squeak_quietly_blah'>
+
+  type L = PathContext<Nodes, 'rat'>
+  type M = PathContext<Nodes, 'rat_squeak_quietly'>
+  type N = PathContext<Nodes, 'rat_squeak_quietly_blah'>
+
+  type _ = [A, B, C, D, E, F, G, H, I, J, K, L, M, N];
+}
+
+
+
+export type Except<A, B> =
+  A extends B ? never : A;
+
+{
+  type A = 1 | 2 | 3 | 4;
+  type B = 3 | 2;
+  type C = Except<A,B>
+
+  type _ = [A,B,C]
+}
+
+
+export type Intersects<A, B> =
+  [A & B] extends [never] ? false : true;
+
+
+
+
+type AllButLast<R extends readonly any[]> =
+    R extends readonly [] ? []
+  : R extends readonly [any] ? []
+  : R extends readonly [infer H, ...infer T] ? [H, ...AllButLast<T>]
+  : R extends readonly (infer E)[] ? readonly E[]
+  : never;
+
+function allButLast<R extends readonly any[]>(r: R): AllButLast<R> {
+  let ac = [];
+  for(let i = 0; i < r.length - 1; i++) ac.push(r[i]) 
+  return <AllButLast<R>><unknown>ac;
+}
+
+{
+  type A = AllButLast<readonly [1, 2, 3]>;
+  type B = AllButLast<readonly []>;
+  type C = AllButLast<readonly [1]>;
+  type D = AllButLast<number[]>;
+  type _ = [A, B, C, D]
+
+  const a = allButLast([1, 2, 3] as const);
+}
+
+
+
+type Head<R extends readonly unknown[]> =
+    R extends readonly [] ? never
+  : R extends readonly [infer H, ...any] ? H
+  // : R extends readonly (infer E)[] ? E
+  : never;
+
+type Tail<R extends readonly any[]> =
+    R extends readonly [] ? never
+  : R extends readonly [any, ...infer T] ? Readonly<T>
+  : R extends readonly [any] ? never
+  : R extends readonly (infer E)[] ? readonly E[]
+  : never;
+
+export function head<R extends readonly any[]>(r: R): Head<R> {
+  return <Head<R>>r[0];
+}
+
+export function tail<R extends readonly any[]>(r: R): Tail<R> {
+  const [_, ...t] = r;
+  return <Tail<R>><unknown>t;
+}
+
+
+
+type TupExtract<R, Filter> =
+    R extends readonly [] ? readonly []
+  : R extends readonly [infer H, ...infer T] ? (
+    H extends Filter ? readonly [H, ...TupExtract<T, Filter>] : TupExtract<T, Filter>
+  )
+  : never;
+
+type TupExclude<R, Filter> =
+    R extends readonly [] ? readonly []
+  : R extends readonly [infer H, ...infer T] ? (
+    H extends Filter ? TupExclude<T, Filter> : readonly [H, ...TupExclude<T, Filter>]
+  )
+  : never;
+
+{
+  type A = TupExtract<[], 1>
+  type B = TupExtract<[1], 1>
+  type C = TupExtract<[1], 0>
+  type D = TupExtract<[1, 2, 3], 1|3>
+  type _ = [A, B, C, D]
 }

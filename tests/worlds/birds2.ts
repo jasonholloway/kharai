@@ -16,7 +16,7 @@ const w1 = shape({
       runAround: data([Num] as const),
     }
   })
-  .fac('', () =>({
+  .facImpl('', () =>({
     watch(ids: string[]): Observable<unknown> {
       throw 123;
     }
@@ -24,7 +24,7 @@ const w1 = shape({
 
 
 const w2 = w1
-  .fac('emu', x => ({ moo:123 }));
+  .facImpl('emu', x => ({ moo:123 }));
 
 const w3 = w2
   .impl({
