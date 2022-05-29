@@ -1,124 +1,74 @@
 import { shape } from "../src/shape";
-import { $Fac, $fac, data } from "../src/shapeShared";
+import { data, fac } from "../src/shapeShared";
 import { Num } from "../src/guards/Guard";
 
 
-function fac<T>(): { [k in $Fac]: T } {
-  return { [$fac]: <T><unknown>'FAC' };
-}
-
-
-// but being inline means we don't have to excessively type the thing...
-// which would be lovely
-// but - we have to support declaring a type only to support the base context
-// so inline implementations can be saved for later
-// for now we need to do types as part of the shape
-
 describe('shape', () => {
+  
+  const w0 = shape({
+    ...fac<{ a:number }>(),
 
-  it('simple nodes', () => {
-    const w = shape({
-      ...fac<number>(),
+      jerboa: {
+        ...fac<{ b:number[] }>(),
 
-      rat: {
-        ...fac<'yo'>(),
+        squeak: data(Num),
+        burrow: data(456 as const),
 
-        squeak: data(Num)
+        jump: {
+          ...fac<{ c:string }>(),
+
+          quickly: data(789 as const),
+          slovenly: data('boo' as const)
+        }
+      }
+    })
+    .facImpl('', () => ({ a:1 }))
+    .facImpl('jerboa', x => ({ b:[0, x.a] }))
+    .facImpl('jerboa_jump', () => ({ c:'hullo' }))
+    .impl({
+      jerboa: {
+        async squeak(x, d) {
+          x;
+          return ['jerboa_squeak', d];
+        },
+
+        async burrow(x, d) {
+          x; d
+          return ['jerboa_jump_quickly', 789]
+        },
+
+        jump: {
+          async slovenly(x, d) {
+            console.log(`hello ${d}`);
+            return ['jerboa_jump_quickly', 789];
+          }
+        }
       }
     });
 
-    w.nodes
-  })
-  
-
-  it('builds node map from tree', () => {
-    const w = shape({
-      ...fac<{ a:number }>(),
-      
-        jerboa: {
-          ...fac<{ b:number[] }>(),
-
-          squeak: data(Num),
-          burrow: data(456 as const),
-          jump: {
-            quickly: data(789 as const),
-            slovenly: data('boo' as const)
-          }
-        }
-      })
-      .facImpl('', () => ({ a:1 }))
-      .facImpl('jerboa', x => ({ b:[0, x.a] }))
-      .impl({
-        jerboa: {
-          async squeak(x, d) {
-            x;
-            return ['jerboa_squeak', d];
-          },
-
-          async burrow(x, d) {
-            x; d
-            return ['jerboa_jump_quickly', 789]
-          },
-
-          jump: {
-            async slovenly(x, d) {
-              console.log(`hello ${d}`);
-              return ['jerboa_jump_quickly', 789];
-            }
-          }
-        }
-      });
-
-    const r1 = w.read('jerboa_squeak');
+  it('resolves handlers', () => {
+    const r1 = w0.read('jerboa_squeak');
     expect(r1.guard).toEqual([Num])
     expect(r1.handler).not.toBeUndefined();
 
-    const r2 = w.read('jerboa_jump_quickly');
+    const r2 = w0.read('jerboa_jump_quickly');
     expect(r2.guard).toEqual([789])
-    expect(r2.handler).not.toBeUndefined();
-
-    const r3 = w.read('jerboa_squeak');
-    expect(r3.guard).toEqual([Num])
-    expect(r3.handler).not.toBeUndefined();
-
-    const x1 = r1.fac?.summon({});
-    expect(x1).toHaveProperty('baa', 0);
-    expect(x1).toHaveProperty('moo', 1);
-    
-    const x2 = r2.fac?.summon({});
-    expect(x2).toHaveProperty('baa', 0);
-    expect(x2).toHaveProperty('moo', 1);
-    expect(x2).toHaveProperty('neigh', 2);
+    expect(r2.handler).toBeUndefined();
   })
 
-  // FacNodes should be bound immediately to Impls
-  // so, the link is to be made in Registry
-  // 
-  // when a handler is registered, it captures the FacNodes of its vicinity
-  // but then we can't override existing facs? we could if there were contracts
-  //
-  // and we need fac contracts to share common upstream implementations
-  // or each module resupplies from above, which is rubbish, as we might have lots of modules
-  // 
-  // if we're not resupplying new FacNodes over and over again,
-  // then our handlers must know that certain facs are at least to be supplied
-  //
-  // the overall idea is that facs can be part of the shape, along with data
-  // and that shapes can be merged as long as... well, they will be overwritten
-  // as data determines input and output contracts, there is no variance
-  //
-  // so, as with handlers, there will be facs that fulfil declared contracts?
-  // but then our FacNode graph has something to say about this surely
-  // our FacNode graph allows us to overlay new facs without breaking previous bindings
-  // and it forces us to build from the bottom up
-  // we need a root before we can program against the branches
-  //
-  // in fact this problem of bottom-up has already been met: we are relying on providing access to the runtime via an untyped replacable backdoor ref
-  // as the runtime is only available after specification
-  // now this challenge has been made more general
-  // 
-  // 
-  //
+  it('resolves facs', () => {
+    const r1 = w0.read('jerboa_squeak');
+    const x1 = r1.fac?.call({},{});
+    expect(x1).toHaveProperty('a', 1);
+    expect(x1).toHaveProperty('b', [0, 1]);
+    
+    const r2 = w0.read('jerboa_jump_quickly');
+    const x2 = r2.fac?.call({},{});
+    expect(x2).toHaveProperty('a', 1);
+    expect(x2).toHaveProperty('b', [0, 1]);
+    expect(x2).toHaveProperty('c', 'hullo');
+  })
+
 
   it('combines node trees', () => {
     const w =

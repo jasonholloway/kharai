@@ -18,6 +18,7 @@ export type $Fac = typeof $fac;
 
 
 export type Handler = (x: any, d: any) => Promise<any>;
+export type Fac = (x:any) => any;
 
 
 export type Nodes = { [p: string]: SchemaNode }
@@ -52,7 +53,6 @@ export function space<S extends { [k in keyof S]: SchemaNode }>(s: S): SpaceNode
   return { [$space]: s };
 }
 
-export function fac<X>(x: X) {
-  return { [$fac]: x };
+export function fac<T>(): { [k in $Fac]: T } {
+  return { [$fac]: <T><unknown>'FAC' };
 }
-

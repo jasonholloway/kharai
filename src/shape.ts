@@ -1,7 +1,7 @@
 import { Map, List } from "immutable";
 import { FacNode } from "./facs";
 import { Read } from "./guards/Guard";
-import { $Data, $Fac, data, fac, SchemaNode, Handler, $data, $Root } from "./shapeShared";
+import { $Data, $Fac, data, fac, SchemaNode, Handler, $data, $Root, Fac } from "./shapeShared";
 import { merge, Merge, Simplify } from "./util";
 
 export const separator = '_'
@@ -43,7 +43,7 @@ export class Builder<N extends Nodes> {
   }
 
   facImpl<P extends FacPath<N>>(path: P, fn: (x: PathContext<N,P>)=>PathFac<N,P>) : Builder<N> {
-    return this;
+    return new Builder(this.nodes, this.reg.addFac(path, fn));
   }
 
   read(address: string): ReadResult {
@@ -61,13 +61,20 @@ export class Builder<N extends Nodes> {
       return {
         guard: reg.getGuard(path),
         handler: reg.getHandler(path),
-        fac: _findFac(pl)
+        fac: _findFac(List(pl))
       };
     }
 
-    function _findFac(pl: readonly string[]) : FacNode<unknown>|undefined {
-      //TODO
-      return undefined;
+    function _findFac(pl: List<string>) : Fac|undefined {
+      if(pl.isEmpty()) return reg.getFac('');
+
+      const fac0 = _findFac(pl.butLast()) || ((x:any) => x);
+      const fac1 = reg.getFac(formPath([...pl])) || ((x:any) => x);
+
+      return (x: any) => {
+        const r = fac0(x);
+        return { ...r, ...fac1(r) };
+      };
     }
   }
 }
@@ -99,26 +106,29 @@ export type Data<N extends Nodes, Inner = unknown> =
 export type ReadResult = {
   guard?: any,
   handler?: Handler,
-  fac?: FacNode<unknown>
+  fac?: Fac
 }
 
 
 class Registry {
   private guards: Map<string, unknown> = Map();
   private handlers: Map<string, Handler> = Map();
+  private facs: Map<string, Fac> = Map();
 
-  private constructor(guards: Map<string, unknown>, handlers: Map<string, Handler>) {
+  private constructor(guards: Map<string, unknown>, handlers: Map<string, Handler>, facs: Map<string, Fac>) {
     this.guards = guards;
     this.handlers = handlers;
+    this.facs = facs;
   }
 
-  static empty = new Registry(Map(), Map());
+  static empty = new Registry(Map(), Map(), Map());
   private static $notFound = Symbol('notFound');
 
   addGuard(p: string, guard: unknown): Registry {
     return new Registry(
       this.guards.set(p, guard),
-      this.handlers
+      this.handlers,
+      this.facs
     );
   }
 
@@ -131,13 +141,26 @@ class Registry {
   addHandler(p: string, h: Handler): Registry {
     return new Registry(
       this.guards,
-      this.handlers.set(p, h)
+      this.handlers.set(p, h),
+      this.facs
     );
   }
 
   getHandler(p: string): Handler | undefined {
     return this.handlers.get(p);
   }
+
+  addFac(p: string, fac: Fac): Registry {
+    return new Registry(
+      this.guards,
+      this.handlers,
+      this.facs.set(p, fac)
+   );
+  } 
+
+  getFac(p: string): Fac | undefined {
+    return this.facs.get(p);
+  } 
 }
 
 
