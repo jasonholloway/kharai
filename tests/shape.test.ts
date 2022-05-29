@@ -33,10 +33,10 @@ describe('shape', () => {
 
   it('builds node map from tree', () => {
     const w = shape({
-      ...fac<{ a:1 }>(),
+      ...fac<{ a:number }>(),
       
         jerboa: {
-          ...fac<{ b:2 }>(),
+          ...fac<{ b:number[] }>(),
 
           squeak: data(Num),
           burrow: data(456 as const),
@@ -46,8 +46,8 @@ describe('shape', () => {
           }
         }
       })
-      .facImpl('', () => ({ a: 1 as const }))
-      .facImpl('jerboa', x => ({ b: 2 as const }))
+      .facImpl('', () => ({ a:1 }))
+      .facImpl('jerboa', x => ({ b:[0, x.a] }))
       .impl({
         jerboa: {
           async squeak(x, d) {
@@ -62,13 +62,8 @@ describe('shape', () => {
 
           jump: {
             async slovenly(x, d) {
-              console.log('hello');
+              console.log(`hello ${d}`);
               return ['jerboa_jump_quickly', 789];
-            },
-            
-            async quickly(x, d) {
-              x; d
-              return ['jerboa_squeak', 13];
             }
           }
         }

@@ -42,8 +42,7 @@ export class Builder<N extends Nodes> {
     }
   }
 
-  //TODO PathContext SHOULD NOT INCLUDE actual target X
-  facImpl<P extends FacPath<N>>(path: P, fn: (x: PathContext<N,P>)=>PathFac<N, P>) : Builder<N> {
+  facImpl<P extends FacPath<N>>(path: P, fn: (x: PathContext<N,P>)=>PathFac<N,P>) : Builder<N> {
     return this;
   }
 
@@ -97,12 +96,12 @@ export type Data<N extends Nodes, Inner = unknown> =
   : never : never : never : never;
 
 
-
 export type ReadResult = {
   guard?: any,
   handler?: Handler,
   fac?: FacNode<unknown>
 }
+
 
 class Registry {
   private guards: Map<string, unknown> = Map();
@@ -142,7 +141,6 @@ class Registry {
 }
 
 
-
 export function shape<S extends SchemaNode>(s: S) : Builder<Shape<S>> {
   const reg = _walk([], s)
     .reduce(
@@ -171,24 +169,27 @@ export function shape<S extends SchemaNode>(s: S) : Builder<Shape<S>> {
 }
 
 
-export type Shape<S> = Simplify<_Assemble<_Walk<S>>>
+export type Shape<S> = Simplify<_Assemble<_Walk<S>>>;
 
 type _Walk<O, P extends string = ''> =
     _DataWalk<O, P>
   | _FacWalk<O, P>
-  | _SpaceWalk<O, P>;
+  | _SpaceWalk<O, P>
+;
 
 type _DataWalk<O, P extends string> =
   $Data extends keyof O ?
   O[$Data] extends infer D ?
   [`D${P}`, D]
-  : never : never;
+  : never : never
+;
 
 type _FacWalk<O, P extends string> =
   $Fac extends keyof O ?
   O[$Fac] extends infer F ?
   [`X${P}`, F]
-  : never : never;
+  : never : never
+;
 
 type _SpaceWalk<O, P extends string = ''> =
   Except<keyof O, $Fac|$Data> extends infer K ?
@@ -196,11 +197,14 @@ type _SpaceWalk<O, P extends string = ''> =
     K extends keyof O ?
     _Walk<O[K], `${P}${Separator}${K}`> extends infer Found ?
     [Found] extends [any] ?
-      ([`S${P}`, true] | Found)
-  : never : never : never : never : never; // : never;
+      Found
+      // ([`S${P}`, true] | Found)
+  : never : never : never : never : never
+;
 
 type _Assemble<T extends readonly [string, unknown]> =
   { [kv in T as kv[0]]: kv[1] }
+;
 
 {
  const s = {
@@ -227,57 +231,70 @@ type _Assemble<T extends readonly [string, unknown]> =
 
 
 
-type Impls<N extends Nodes> =
-  Data<N> extends infer DOne ?
-  Data<N, DOne> extends infer DFull ?
-  _ImplAssemble<N, _ImplWalk<N>, DFull, DOne>
-  : never : never;
+export type Impls<N extends Nodes> =
+  [Data<N>] extends [infer DOne] ?
+  [Data<N, DOne>] extends [infer DFull] ?
+  [_ImplSplit<N>] extends [infer Tups] ?
+    _ImplCombine<[Tups], {}, DOne, DFull>
+  : never : never : never
+;
 
-type _ImplWalk<N extends Nodes, Path extends string = '', Trail = []> =
+type _ImplSplit<N extends Nodes> =
   keyof N extends infer K ?
-  K extends `${infer T}${Path}${Separator}${_WholeOnly<infer Rest>}` ?
-  [K, Trail] extends infer Trail ?
-  T extends 'S' ? (
-    [Rest, 'S', Trail, _ImplWalk<N, `${Path}${Separator}${Rest}`, Trail>]
-  )
-  : T extends 'D' ? (
-    [Rest, 'D', Trail, N[K]]
-  )
-  : never : never : never : never;
+  K extends keyof N ?
+  K extends string ?
+  TupPopHead<PathList<K>> extends [infer Tail, infer Popped, infer Head] ?
+  Popped extends true ?
+    readonly [Tail, Head, N[K]]
+  : never : never : never : never : never
+;
 
-type _ImplAssemble<N extends Nodes, Tup, DFull, DOne> =
-  // Simplify<{
-  {
-    [K in Tup extends any[] ? Tup[0] : never]?:
-    (
-      Tup extends [K, infer Type, infer Trail, infer Body] ?
-        Type extends 'S' ? _ImplAssemble<N, Body, DFull, DOne>
-        : Type extends 'D' ? (((x:_TrailContext<N, Trail>, d:Read<Body, $Root, DOne>) => Promise<DFull|false>))
-      : never
-      : never
-    )
+type _ImplCombine<Tups, X0, DOne, DAll> =
+  (
+    [
+      Tups extends readonly [infer I] ?
+      I extends readonly [[], 'X', infer V] ? V
+      : never : never
+    ] extends readonly [infer X1] ?
+    IsNotNever<X1> extends true ? Merge<X0, X1> : X0
+    : never
+  ) extends infer X ?
+
+  [
+    Tups extends readonly [infer I] ?
+    I extends readonly [[], 'D', infer V] ? V
+    : never : never
+  ] extends readonly [infer D] ?
+  IsNotNever<D> extends true ? ((x:X, d:Read<D, $Root, DOne>)=>Promise<DAll|false>)
+
+  : {
+    [Next in
+      Tups extends readonly [infer I] ?
+      I extends readonly [readonly [infer PH, ...infer PT], ...infer T] ?
+      PH extends string ?
+      [PH, [PT, ...T]]
+      : never : never : never
+     as Next[0]
+    ]?: _ImplCombine<[Next[1]], X, DOne, DAll>
   }
-  // }>
 
-type _TrailContext<N extends Nodes, Trail> =
-  Trail extends [] ? (
-    'X' extends keyof N
-      ? N['X']
-      : {}
-  )
-  : Trail extends [infer H, infer T] ?
-    _TrailContext<N, T> extends infer AboveX ?
-    H extends `${string}${infer Path}` ?
-    `X${Path}` extends infer XPath ?
-    XPath extends keyof N
-      ? Merge<AboveX, N[XPath]>
-      : AboveX
-  : never : never : never : never;
+  : never : never
+;
 
-type _WholeOnly<S extends string> =
-  S extends '' ? never
-  : S extends `${string}${Separator}${string}` ? never
-  : S;
+{
+  type W = {
+    X: { a:1 },
+    D_rat_squeak: 123,
+    X_cat: { b:2 },
+    D_cat_meeow: 456
+  };
+
+  type A = _ImplSplit<W>
+  type B = _ImplCombine<[A], {}, 'DOne', 'DAll'>
+  type C = Impls<W>
+
+  type _ = [A, B, C]
+}
 
 {
   type N = {
@@ -436,7 +453,6 @@ function allButLast<R extends readonly any[]>(r: R): AllButLast<R> {
 type Head<R extends readonly unknown[]> =
     R extends readonly [] ? never
   : R extends readonly [infer H, ...any] ? H
-  // : R extends readonly (infer E)[] ? E
   : never;
 
 type Tail<R extends readonly any[]> =
@@ -478,3 +494,30 @@ type TupExclude<R, Filter> =
   type D = TupExtract<[1, 2, 3], 1|3>
   type _ = [A, B, C, D]
 }
+
+
+
+
+type PathList<PS extends string> =
+    PS extends '' ? []
+  : PS extends `${infer PHead}${Separator}${infer PTail}` ? [PHead, ...PathList<PTail>]
+  : [PS];
+
+
+
+type TupPopHead<L> =
+    L extends [] ? [[], false]
+  : L extends [infer H, ...infer T] ? [T, true, H]
+  : never;
+
+{
+  type A = TupPopHead<[]>
+  type B = TupPopHead<[1]>
+  type C = TupPopHead<[1, 2, 3]>
+
+  type _ = [A, B, C]
+}
+
+
+type IsNotNever<T> =
+  [T] extends [never] ? false : true;
