@@ -20,7 +20,7 @@ export class Builder<N extends Nodes> {
   }
 
   add<N2 extends Nodes>(other: Builder<N2>): Builder<Merge<N, N2>> {
-    return new Builder(merge(this.nodes, other.nodes), this.reg);
+    return new Builder(merge(this.nodes, other.nodes), Registry.merge(this.reg, other.reg));
   }
 
   impl<S extends Impls<N>>(s: S): Builder<N> {
@@ -161,6 +161,14 @@ class Registry {
   getFac(p: string): Fac | undefined {
     return this.facs.get(p);
   } 
+
+  static merge(a: Registry, b: Registry) {
+    return new Registry(
+      a.guards.merge(b.guards),
+      a.handlers.merge(b.handlers),
+      a.facs.merge(b.facs)
+    );
+  }
 }
 
 

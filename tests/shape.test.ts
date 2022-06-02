@@ -69,73 +69,41 @@ describe('shape', () => {
     expect(x2).toHaveProperty('c', 'hullo');
   })
 
-
   it('combines node trees', () => {
-    const w =
+    const merged = w0.add(
       shape({
         jerboa: {
-          squeak: data(123 as const),
-        }
-      })
-      .add(shape({
-        jerboa: {
-          jump: {
-            quick: data(789 as const)
+          ...fac<{ z: 999 }>(),
+
+          nibble: {
+            ...fac<{ z: 999 }>(),
+            furtively: data(789 as const)
           }
         }
-      }));
+      }))
+      .facImpl('jerboa_nibble', x => ({ z: 999 as const }));
 
-    const r = w.nodes
-    r
+    merged.nodes.D_jerboa_squeak
+    merged.nodes.D_jerboa_nibble_furtively
 
-    expect(w.nodes).toHaveProperty('D_jerboa_squeak')
-    expect(w.nodes.D_jerboa_squeak).toBe(123)
-    expect(w.nodes.D_jerboa_jump_quick).toBe(789)
+    const r0 = merged.read('jerboa_squeak');
+    expect(r0.guard).toEqual([Num]);
+
+    const r1 = merged.read('jerboa_nibble_furtively');
+    expect(r1.guard).toEqual([789]);
+
+    const x1 = r1.fac?.call({},{})
+    expect(x1).toEqual({
+      a: 1,
+      b: [0, 1],
+      z: 999
+    })
   })
 
-  it('combines nodes', () => {
-    const w =
-      shape({
-        jerboa: {
-          squeak: data(123 as const),
-        }
-      })
-      .add(
-        shape({
-          jerboa: {
-            squeak: fac({ hello: 1 })
-          }
-        })
-      );
+  //TODO should enforce types on merge too
+  //fac types can be expanded
+  //but data types are invariant (can shadow, but not extend)
+  //facs should be merged in one by one too - so you don't have to reimpl the entire thing
 
-    expect(w.nodes).toHaveProperty('D_jerboa_squeak')
-    expect(w.nodes.D_jerboa_squeak).toBe(123)
-    expect(w.nodes.X_jerboa_squeak.hello).toBe(1)
-  })
-
-  it('adds facs', () => {
-    const w =
-      shape({
-        jerboa: {
-          squeak: data(123 as const),
-        }
-      })
-      .facImpl('jerboa', () => 1 as const)
-
-    expect(w.nodes.X_jerboa).toBe(1)
-  })
-
-  it('types facs from upstreams', () => {
-    const w =
-      shape({
-        jerboa: {
-          squeak: data(123 as const),
-        }
-      })
-      .facImpl('', () => ({ a:1 }))
-      .facImpl('jerboa', u => ({ b: u.a + 1 }))
-
-    expect(w.nodes.X_jerboa).toBe({ a:1, b:2 });
-  })
 })
 
