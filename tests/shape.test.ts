@@ -2,7 +2,6 @@ import { shape } from "../src/shape";
 import { data, fac } from "../src/shapeShared";
 import { Num } from "../src/guards/Guard";
 
-
 describe('shape', () => {
   
   const w0 = shape({
@@ -83,7 +82,7 @@ describe('shape', () => {
       }))
       .facImpl('jerboa_nibble', x => ({ z: 999 as const }));
 
-    merged.nodes.D_jerboa_squeak
+    merged.nodes.D_jerboa_squeak,
     merged.nodes.D_jerboa_nibble_furtively
 
     const r0 = merged.read('jerboa_squeak');

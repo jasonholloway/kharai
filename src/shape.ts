@@ -1,8 +1,7 @@
 import { Map, List } from "immutable";
-import { FacNode } from "./facs";
 import { Read } from "./guards/Guard";
 import { $Data, $Fac, data, fac, SchemaNode, Handler, $data, $Root, Fac } from "./shapeShared";
-import { merge, Merge, Simplify } from "./util";
+import { Merge, Simplify } from "./util";
 
 export const separator = '_'
 export type Separator = typeof separator;
@@ -11,21 +10,20 @@ type Nodes = { [k in string]: unknown }
 
 
 export class Builder<N extends Nodes> {
-  public readonly nodes: N
+  public readonly nodes: N = <N><unknown>{}
   readonly reg: Registry
   
-  constructor(nodes: N, reg?: Registry) {
-    this.nodes = nodes;
+  constructor(reg?: Registry) {
     this.reg = reg ?? Registry.empty;
   }
 
   add<N2 extends Nodes>(other: Builder<N2>): Builder<Merge<N, N2>> {
-    return new Builder(merge(this.nodes, other.nodes), Registry.merge(this.reg, other.reg));
+    return new Builder(Registry.merge(this.reg, other.reg));
   }
 
   impl<S extends Impls<N>>(s: S): Builder<N> {
     const reg2 = _walk(s, [], this.reg);
-    return new Builder(this.nodes, reg2);
+    return new Builder<N>(reg2);
 
     function _walk(n: unknown, pl: string[], r: Registry): Registry {
       switch(typeof n) {
@@ -43,7 +41,7 @@ export class Builder<N extends Nodes> {
   }
 
   facImpl<P extends FacPath<N>>(path: P, fn: (x: PathContext<N,P>)=>PathFac<N,P>) : Builder<N> {
-    return new Builder(this.nodes, this.reg.addFac(path, fn));
+    return new Builder<N>(this.reg.addFac(path, fn));
   }
 
   read(address: string): ReadResult {
@@ -179,7 +177,7 @@ export function shape<S extends SchemaNode>(s: S) : Builder<Shape<S>> {
       Registry.empty
     );
 
-  return new Builder<Shape<S>>(<Shape<S>><unknown>undefined, reg);
+  return new Builder<Shape<S>>(reg);
 
   function _walk(pl: string[], n: SchemaNode) : List<readonly [string, unknown]> {
     if((<any>n)[$data]) {
@@ -243,8 +241,8 @@ type _Assemble<T extends readonly [string, unknown]> =
       nibble: data(123 as const),
     },
     rabbit: {
+      ...fac<123>(),
       jump: data(7 as const),
-      blah: fac(123 as const)
     }
   };
 
