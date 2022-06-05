@@ -157,10 +157,10 @@ describe('shape', () => {
     const w1 = w0.add(
       shape({
         jerboa: {
-          ...fac<{ j: [number,number] }>()
+          ...fac<{ j: readonly [number,number] }>()
         }
       }))
-      .facImpl('jerboa', x => ({ j: [1, x.b[0]] }));
+      .facImpl('jerboa', x => ({ j: [1, x.b[1]] as const }));
 
     const r0 = w1.read('jerboa_squeak');
     const x0 = r0.fac?.call({}, {});

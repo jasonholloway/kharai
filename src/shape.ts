@@ -40,8 +40,8 @@ export class Builder<N extends Nodes> {
     }
   }
 
-  facImpl<P extends FacPath<N>>(path: P, fn: (x: PathContext<N,P>)=>PathFac<N,P>) : Builder<N> {
-    return new Builder<N>(this.reg.addFac(path, fn));
+  facImpl<P extends FacPath<N>, X extends PathFac<N,P>>(path: P, fn: (x: FacContext<N,P>)=>X) : Builder<Merge<N, { [k in _JoinPaths<'XI', P>]: X }>> {
+    return new Builder<Merge<N, { [k in _JoinPaths<'XI', P>]: X }>>(this.reg.addFac(path, fn));
   }
 
   read(address: string): ReadResult {
@@ -368,8 +368,19 @@ export type PathFac<N extends Nodes, P extends string> =
   : never : never;
 
 
-export type PathContext<N extends Nodes, P extends string> =
-  _PathContextMerge<N, _UpstreamFacPaths<N, P>>;
+export type FacContext<N extends Nodes, P extends string> =
+  Merge<
+    _PathContextMerge<N, _UpstreamFacPaths<N, P>>,
+    (
+      _JoinPaths<'XI', P> extends infer XIP ?
+      XIP extends keyof N ?
+        N[XIP]
+        : {}
+      : never
+    )
+  >
+
+  
 
 type _PathContextMerge<N, PL> =
     PL extends readonly [] ? {}
@@ -384,8 +395,8 @@ type _PathContextMerge<N, PL> =
 type _UpstreamFacPaths<N extends Nodes, P extends string> =
   _JoinPaths<'X', P> extends infer XP ?
   XP extends string ?
-  _KnownRoutePaths<N, XP> extends infer Route ?
-  // TupExclude<_KnownRoutePaths<N, XP>, XP> extends infer Route ?
+  // _KnownRoutePaths<N, XP> extends infer Route ?
+  TupExclude<_KnownRoutePaths<N, XP>, XP> extends infer Route ?
     Route
   : never : never : never;
 
@@ -435,9 +446,9 @@ type _JoinPaths<H extends string, T extends string> =
   type J = _UpstreamFacPaths<Nodes, 'rat_squeak_quietly'>
   type K = _UpstreamFacPaths<Nodes, 'rat_squeak_quietly_blah'>
 
-  type L = PathContext<Nodes, 'rat'>
-  type M = PathContext<Nodes, 'rat_squeak_quietly'>
-  type N = PathContext<Nodes, 'rat_squeak_quietly_blah'>
+  type L = FacContext<Nodes, 'rat'>
+  type M = FacContext<Nodes, 'rat_squeak_quietly'>
+  type N = FacContext<Nodes, 'rat_squeak_quietly_blah'>
 
   type _ = [A, B, C, D, E, F, G, H, I, J, K, L, M, N];
 }
