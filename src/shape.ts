@@ -59,20 +59,27 @@ export class Builder<N extends Nodes> {
       return {
         guard: reg.getGuard(path),
         handler: reg.getHandler(path),
-        fac: _findFac(List(pl))
+        fac: _formFac(List(pl))
       };
     }
 
-    function _findFac(pl: List<string>) : Fac|undefined {
-      if(pl.isEmpty()) return reg.getFac('');
+    function _formFac(pl: List<string>) : Fac {
+      const facs = _findFacs(pl);
+      return facs.reduce(
+        (ac, fn) => x => {
+          const r = ac(x);
+          return { ...r, ...fn(r) };
+        },
+        (x => x));
+    }
 
-      const fac0 = _findFac(pl.butLast()) || ((x:any) => x);
-      const fac1 = reg.getFac(formPath([...pl])) || ((x:any) => x);
+    function _findFacs(pl: List<string>): Fac[] {
+      if(pl.isEmpty()) return reg.getFacs('');
 
-      return (x: any) => {
-        const r = fac0(x);
-        return { ...r, ...fac1(r) };
-      };
+      const l = _findFacs(pl.butLast());
+      const r = reg.getFacs(formPath([...pl]))
+
+      return [...l, ...r];
     }
   }
 }
@@ -111,9 +118,9 @@ export type ReadResult = {
 class Registry {
   private guards: Map<string, unknown> = Map();
   private handlers: Map<string, Handler> = Map();
-  private facs: Map<string, Fac> = Map();
+  private facs: Map<string, Fac[]> = Map();
 
-  private constructor(guards: Map<string, unknown>, handlers: Map<string, Handler>, facs: Map<string, Fac>) {
+  private constructor(guards: Map<string, unknown>, handlers: Map<string, Handler>, facs: Map<string, Fac[]>) {
     this.guards = guards;
     this.handlers = handlers;
     this.facs = facs;
@@ -152,19 +159,19 @@ class Registry {
     return new Registry(
       this.guards,
       this.handlers,
-      this.facs.set(p, fac)
+      this.facs.mergeDeep({ [p]: [fac] })
    );
   } 
 
-  getFac(p: string): Fac | undefined {
-    return this.facs.get(p);
+  getFacs(p: string): Fac[] {
+    return this.facs.get(p, []);
   } 
 
   static merge(a: Registry, b: Registry) {
     return new Registry(
       a.guards.merge(b.guards),
       a.handlers.merge(b.handlers),
-      a.facs.merge(b.facs)
+      a.facs.mergeDeep(b.facs)
     );
   }
 }
