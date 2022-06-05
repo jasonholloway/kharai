@@ -384,7 +384,8 @@ type _PathContextMerge<N, PL> =
 type _UpstreamFacPaths<N extends Nodes, P extends string> =
   _JoinPaths<'X', P> extends infer XP ?
   XP extends string ?
-  TupExclude<_KnownRoutePaths<N, XP>, XP> extends infer Route ?
+  _KnownRoutePaths<N, XP> extends infer Route ?
+  // TupExclude<_KnownRoutePaths<N, XP>, XP> extends infer Route ?
     Route
   : never : never : never;
 
