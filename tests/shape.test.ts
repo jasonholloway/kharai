@@ -72,18 +72,23 @@ describe('shape', () => {
     const merged = w0.add(
       shape({
         jerboa: {
-          ...fac<{ z: 999 }>(),
+          ...fac<{ z: 111 }>(),
 
           nibble: {
-            ...fac<{ z: 999 }>(),
+            ...fac<{ z: 999, z0: number }>(),
             furtively: data(789 as const)
+          },
+
+          jump: {
+            ...fac<{ c0: string }>()
           }
         }
       }))
-      .facImpl('jerboa_nibble', x => ({ z: 999 as const }));
+      .facImpl('jerboa_nibble', x => ({ z: 999 as const, z0: x.z }));
 
     merged.nodes.D_jerboa_squeak,
     merged.nodes.D_jerboa_nibble_furtively
+    merged.nodes.X_jerboa_nibble
 
     const r0 = merged.read('jerboa_squeak');
     expect(r0.guard).toEqual([Num]);
@@ -95,63 +100,21 @@ describe('shape', () => {
     expect(x1).toEqual({
       a: 1,
       b: [0, 1],
-      z: 999
+      z: 999,
+      z0: 111    //problem here is that upstream z is never actually implemented!!!
     })
-  })
 
-  //TODO facimpl types should fold existing X types into upstream
-  //all context types should be tuples, with the types accumulating then
-  //but: we don't care about the history of impls
-  //we care about the distinction between implemented and non-implemented
-  //
-  //it's this idea again that implementations should change the node graph
-  //at every fac node we have the shape that handlers and downstream facs will use
-  //but we also potentially have the currently-available context, provided by an existing implementation
-  //this is a special case when we have a fac left hanging, unimplemented
-  //
-  //as soon as we add an implementation, the hangingness is gone
-  //similarly as soon as we add a shape, then we have a hanging type
-  //
-  //adding a shape:
-  //if there's a simple type there already (because a fac has been implemented at this node)
-  //then we can extend it happily
-  //
-  //but if it's a tuple, then we have this incomplete split
-  //one half gets folded into the upstream context
-  //the other half gets used for handlers and downstream facs
-  //
-  //if we're resolving the context of something downstream (either fac or handler)
-  //then we don't even look at the LHS: if there's a gap in the implementation,
-  //it's not our business (although something will need to enforce the implementation)
-  //
-  //adding a fac to a shape doesn't just set the type directly then: it either creates 
-  //a new tuple to represent its unfulfilled expectation, building from an existing implementation (or empty obj by default)
-  //
-  //maybe it could _always_ be a tuple, with local upstream and exposed contract together
-  //on implementation, the two types are harmonized into one tuple of two
-  //
-  //this is nice, but for the duplication of potentially complex types
-  //if they are the same, we could optimize by just having a single type then - _as an optimization_, ie we don't need to do this up front
-  //
-  //so - all X types are binary tuples
-  //LHS: preexisting supplied type
-  //RHS: offered downstream type
-  //
-  //when there is already a tuple in existence,
-  //then our implementation derives from the pre-existing implementation, and offers a potentially new, merged contract
-  //
-  //----
-  //
-  //but that does for deriving, what about merging?
-  // [{}, {a:1}] * [{}, {b:2}] = [{},{a:1,b:2}]
-  //
-  // [{a:1}, {a:1,b:2}] * [{},{c:3}] = [{a:1}, {a:1,b:2,c:3}]
-  // basically we just merge each component (as implementations will be concatted)
-  //
-  // but...
-  // given the above type, we then have an unimplemented fac
-  //
-  //
+    // **************************
+    // TODO we need to check that all are implemented - a build step?
+    // otherwise we get undefineds in the system as above
+    // **************************
+
+    // **************************
+    // TODO expanded, overwritten facs should extend rather than replace
+    // ie their outputs should be implicitly merged
+    // at the type level
+    // **************************
+  })
 
   it('can expand facs', () => {
     const w1 = w0.add(
@@ -171,6 +134,7 @@ describe('shape', () => {
       j: [1, 1]
     });
   })
+
 
   //TODO should enforce types on merge too
   //fac types can be expanded
