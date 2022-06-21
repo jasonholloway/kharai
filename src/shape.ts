@@ -8,7 +8,6 @@ export type Separator = typeof separator;
 
 type Nodes = { [k in string]: unknown }
 
-
 export class Builder<N extends Nodes> {
   public readonly nodes: N = <N><unknown>{}
   readonly reg: Registry
@@ -42,6 +41,70 @@ export class Builder<N extends Nodes> {
 
   facImpl<P extends FacPath<N>, X extends PathFac<N,P>>(path: P, fn: (x: FacContext<N,P>)=>X) : Builder<Merge<N, { [k in _JoinPaths<'XI', P>]: X }>> {
     return new Builder<Merge<N, { [k in _JoinPaths<'XI', P>]: X }>>(this.reg.addFac(path, fn));
+  }
+
+  build(): TryBuildWorld<N> {
+    return <TryBuildWorld<N>><unknown>new World<N>(this.reg);
+  }
+}
+
+
+export type TryBuildWorld<N> =
+  [_FindUnimplementedFacs<N, keyof N>] extends [infer Results] ?
+  [Results] extends [[]]
+    ? World<N>
+    : ['Unimplemented facs found', Results]
+  : never;
+
+type _FindUnimplementedFacs<N,X> =
+  X extends keyof N ?
+  X extends `XA${infer Rest}` ? 
+  `XI${Rest}` extends infer XI ?
+  XI extends keyof N ?
+  N[XI] extends N[X] ? never
+  : [X, N[XI]]
+  : [X, never]
+  : never : never : never;
+
+{
+  type A = {
+    D: 444,
+    D_blah: 123,
+    XA: { a:1 },
+    XI: { a:1 },
+    XA_moo: { b:3 },
+    XI_moo: { b:3 },
+    // XA_chinchilla: {c: 9}
+  };
+
+  type H = TryBuildWorld<A>
+
+  const w = shape({
+    meeow: {
+      ...fac<{a:1}>()
+    }
+  }).build();
+
+  const _ = w;
+  type _ = [A,H];
+}
+
+
+// when N is good return 
+//
+//
+//
+
+
+
+
+
+export class World<N> {
+  public readonly nodes: N = <N><unknown>{}
+  readonly reg: Registry
+
+  constructor(reg?: Registry) {
+    this.reg = reg ?? Registry.empty;
   }
 
   read(address: string): ReadResult {
@@ -91,7 +154,7 @@ function formPath(pl: readonly string[]) {
 
 export type NodePath<N extends Nodes> = _ExtractPath<'S'|'D', keyof N> | ''
 export type DataPath<N extends Nodes> = _ExtractPath<'D', keyof N>
-export type FacPath<N extends Nodes> = _ExtractPath<'X', keyof N>
+export type FacPath<N extends Nodes> = _ExtractPath<'XA', keyof N>
 
 type _ExtractPath<A extends string, K> =
     K extends A ? ''
@@ -223,7 +286,7 @@ type _DataWalk<O, P extends string> =
 type _FacWalk<O, P extends string> =
   $Fac extends keyof O ?
   O[$Fac] extends infer F ?
-  [`X${P}`, F]
+  [`XA${P}`, F]
   : never : never
 ;
 
@@ -289,7 +352,7 @@ type _ImplCombine<Tups, X0, DOne, DAll> =
   (
     [
       Tups extends readonly [infer I] ?
-      I extends readonly [[], 'X', infer V] ? V
+      I extends readonly [[], 'XA', infer V] ? V
       : never : never
     ] extends readonly [infer X1] ?
     IsNotNever<X1> extends true ? Merge<X0, X1> : X0
@@ -319,9 +382,9 @@ type _ImplCombine<Tups, X0, DOne, DAll> =
 
 {
   type W = {
-    X: { a:1 },
+    XA: { a:1 },
     D_rat_squeak: 123,
-    X_cat: { b:2 },
+    XA_cat: { b:2 },
     D_cat_meeow: 456
   };
 
@@ -362,7 +425,7 @@ type _ImplCombine<Tups, X0, DOne, DAll> =
 
 
 export type PathFac<N extends Nodes, P extends string> =
-  _JoinPaths<'X', P> extends infer XP ?
+  _JoinPaths<'XA', P> extends infer XP ?
   XP extends keyof N ?
     N[XP]
   : never : never;
@@ -393,7 +456,7 @@ type _PathContextMerge<N, PL> =
 
 
 type _UpstreamFacPaths<N extends Nodes, P extends string> =
-  _JoinPaths<'X', P> extends infer XP ?
+  _JoinPaths<'XA', P> extends infer XP ?
   XP extends string ?
   // _KnownRoutePaths<N, XP> extends infer Route ?
   TupExclude<_KnownRoutePaths<N, XP>, XP> extends infer Route ?
@@ -420,26 +483,26 @@ type _JoinPaths<H extends string, T extends string> =
 
 {
   type Nodes = {
-    X: { a: 1 }
+    XA: { a: 1 }
     S: true,
-    X_rat: { b: 2 },
+    XA_rat: { b: 2 },
     S_rat: true,
     S_rat_squeak: true
     D_rat_squeak_quietly: 999,
-    X_rat_squeak_quietly: { c: 3 },
+    XA_rat_squeak_quietly: { c: 3 },
     S_rat_squeak_quietly: true,
     D_rat_squeak_quietly_blah: 999,
   }
 
   type A = FacPath<Nodes>
 
-  type B = _AllRoutePaths<'X'>
-  type C = _AllRoutePaths<'X_rat'>
-  type D = _AllRoutePaths<'X_rat_squeak_quietly_blah'>
+  type B = _AllRoutePaths<'XA'>
+  type C = _AllRoutePaths<'XA_rat'>
+  type D = _AllRoutePaths<'XA_rat_squeak_quietly_blah'>
 
-  type E = _KnownRoutePaths<Nodes, 'X'>
-  type F = _KnownRoutePaths<Nodes, 'X_rat'>
-  type G = _KnownRoutePaths<Nodes, 'X_rat_squeak_quietly_blah'>
+  type E = _KnownRoutePaths<Nodes, 'XA'>
+  type F = _KnownRoutePaths<Nodes, 'XA_rat'>
+  type G = _KnownRoutePaths<Nodes, 'XA_rat_squeak_quietly_blah'>
 
   type H = _UpstreamFacPaths<Nodes, ''>
   type I = _UpstreamFacPaths<Nodes, 'rat'>

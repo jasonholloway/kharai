@@ -1,4 +1,4 @@
-import { shape } from "../src/shape";
+import { shape, TryBuildWorld } from "../src/shape";
 import { data, fac } from "../src/shapeShared";
 import { Num } from "../src/guards/Guard";
 
@@ -46,22 +46,26 @@ describe('shape', () => {
     });
 
   it('resolves handlers', () => {
-    const r1 = w0.read('jerboa_squeak');
+    const w = w0.build();
+    
+    const r1 = w.read('jerboa_squeak');
     expect(r1.guard).toEqual([Num])
     expect(r1.handler).not.toBeUndefined();
 
-    const r2 = w0.read('jerboa_jump_quickly');
+    const r2 = w.read('jerboa_jump_quickly');
     expect(r2.guard).toEqual([789])
     expect(r2.handler).toBeUndefined();
   })
 
   it('resolves facs', () => {
-    const r1 = w0.read('jerboa_squeak');
+    const w = w0.build();
+
+    const r1 = w.read('jerboa_squeak');
     const x1 = r1.fac?.call({},{});
     expect(x1).toHaveProperty('a', 1);
     expect(x1).toHaveProperty('b', [0, 1]);
     
-    const r2 = w0.read('jerboa_jump_quickly');
+    const r2 = w.read('jerboa_jump_quickly');
     const x2 = r2.fac?.call({},{});
     expect(x2).toHaveProperty('a', 1);
     expect(x2).toHaveProperty('b', [0, 1]);
@@ -69,7 +73,7 @@ describe('shape', () => {
   })
 
   it('combines node trees', () => {
-    const merged = w0.add(
+    const w = w0.add(
       shape({
         jerboa: {
           ...fac<{ z: 111 }>(),
@@ -84,16 +88,17 @@ describe('shape', () => {
           }
         }
       }))
-      .facImpl('jerboa_nibble', x => ({ z: 999 as const, z0: x.z }));
+      .facImpl('jerboa_nibble', x => ({ z: 999 as const, z0: x.z }))
+      .build();
 
-    merged.nodes.D_jerboa_squeak,
-    merged.nodes.D_jerboa_nibble_furtively
-    merged.nodes.X_jerboa_nibble
+    w.nodes.D_jerboa_squeak,
+    w.nodes.D_jerboa_nibble_furtively
+    w.nodes.X_jerboa_nibble
 
-    const r0 = merged.read('jerboa_squeak');
+    const r0 = w.read('jerboa_squeak');
     expect(r0.guard).toEqual([Num]);
 
-    const r1 = merged.read('jerboa_nibble_furtively');
+    const r1 = w.read('jerboa_nibble_furtively');
     expect(r1.guard).toEqual([789]);
 
     const x1 = r1.fac?.call({},{})
@@ -117,15 +122,16 @@ describe('shape', () => {
   })
 
   it('can expand facs', () => {
-    const w1 = w0.add(
+    const w = w0.add(
       shape({
         jerboa: {
           ...fac<{ j: readonly [number,number] }>()
         }
       }))
-      .facImpl('jerboa', x => ({ j: [1, x.b[1]] as const }));
+      .facImpl('jerboa', x => ({ j: [1, x.b[1]] as const }))
+      .build();
 
-    const r0 = w1.read('jerboa_squeak');
+    const r0 = w.read('jerboa_squeak');
     const x0 = r0.fac?.call({}, {});
 
     expect(x0).toEqual({
