@@ -8,6 +8,104 @@ export type Separator = typeof separator;
 
 type Nodes = { [k in string]: unknown }
 
+
+//TODO return Builder or error
+//we can't wrap all in a tuple because we need to do dispatch directly against the result
+
+export module Builder {
+
+  export type TryMerge<A extends Nodes, B extends Nodes> =
+    Merge<A,_MergeNew<A,B>> extends infer Merged ?
+    Merged extends Nodes ?
+    Builder<Merged>
+    : never : never;
+
+  type _MergeNew<A,B> = {
+    [k in keyof B]:
+      k extends `D_${string}` ? (
+        //data must be invariantly equal
+        k extends keyof A ?
+          A[k] extends B[k] ?
+          B[k] extends A[k] ?
+          B[k]
+          : never : never : never
+        //need to pool errors somehow
+      )
+    : k extends `XA_${string}` ? (
+        //contracts should merge nicely
+        k extends keyof A ?
+        Merge<A[k], B[k]>
+        : B[k]
+      )
+    : k extends `XI_${string}` ? (
+        //implementations should merge nicely
+        k extends keyof A ?
+        Merge<A[k], B[k]>
+        : B[k]
+
+      //this is a shallow merge only of facs
+      //and moreso it allows simple shadowing of props
+      //this will then put XAs and XIs out of whack, which should be caught
+      )
+    : never
+
+    //how to pack error here?
+    //can only pack encoding into mapped props
+    //and extract in one swoop after
+  };
+
+  //merging facs, what's the point?
+  //we want to extend facs - simple enough
+  //so just merge types where we have overlap?
+  //
+  //but... this doesn't help us extend them fluently...
+  //
+
+
+
+  export type TryBuild<N> =
+    [_FindUnimplementedFacs<N, keyof N>] extends [infer Results] ?
+    [Results] extends [[]]
+      ? World<N>
+      : ['Unimplemented facs found', Results]
+    : never;
+
+  type _FindUnimplementedFacs<N,X> =
+    X extends keyof N ?
+    X extends `XA${infer Rest}` ? 
+    `XI${Rest}` extends infer XI ?
+    XI extends keyof N ?
+    N[XI] extends N[X] ? never
+    : [Rest, N[X], N[XI]]
+    : [Rest, N[X], never]
+    : never : never : never;
+
+}
+
+{
+  type A = {
+    D: 444,
+    D_blah: 123,
+    XA: { a:1 },
+    XI: { a:1 },
+    XA_moo: { b:3 },
+    XI_moo: { b:3 },
+    // XA_chinchilla: {c: 9}
+  };
+
+  type H = Builder.TryBuild<A>
+
+  const w = shape({
+    meeow: {
+      ...fac<{a:1}>()
+    }
+  }).build();
+
+  const _ = w;
+  type _ = [A,H];
+}
+
+
 export class Builder<N extends Nodes> {
   public readonly nodes: N = <N><unknown>{}
   readonly reg: Registry
@@ -16,8 +114,8 @@ export class Builder<N extends Nodes> {
     this.reg = reg ?? Registry.empty;
   }
 
-  add<N2 extends Nodes>(other: Builder<N2>): Builder<Merge<N, N2>> {
-    return new Builder(Registry.merge(this.reg, other.reg));
+  add<N2 extends Nodes>(other: Builder<N2>): Builder.TryMerge<N,N2> {
+    return <Builder.TryMerge<N,N2>><unknown>new Builder(Registry.merge(this.reg, other.reg));
   }
 
   impl<S extends Impls<N>>(s: S): Builder<N> {
@@ -43,51 +141,12 @@ export class Builder<N extends Nodes> {
     return new Builder<Merge<N, { [k in _JoinPaths<'XI', P>]: X }>>(this.reg.addFac(path, fn));
   }
 
-  build(): TryBuildWorld<N> {
-    return <TryBuildWorld<N>><unknown>new World<N>(this.reg);
+  build(): Builder.TryBuild<N> {
+    return <Builder.TryBuild<N>><unknown>new World<N>(this.reg);
   }
 }
 
 
-export type TryBuildWorld<N> =
-  [_FindUnimplementedFacs<N, keyof N>] extends [infer Results] ?
-  [Results] extends [[]]
-    ? World<N>
-    : ['Unimplemented facs found', Results]
-  : never;
-
-type _FindUnimplementedFacs<N,X> =
-  X extends keyof N ?
-  X extends `XA${infer Rest}` ? 
-  `XI${Rest}` extends infer XI ?
-  XI extends keyof N ?
-  N[XI] extends N[X] ? never
-  : [X, N[XI]]
-  : [X, never]
-  : never : never : never;
-
-{
-  type A = {
-    D: 444,
-    D_blah: 123,
-    XA: { a:1 },
-    XI: { a:1 },
-    XA_moo: { b:3 },
-    XI_moo: { b:3 },
-    // XA_chinchilla: {c: 9}
-  };
-
-  type H = TryBuildWorld<A>
-
-  const w = shape({
-    meeow: {
-      ...fac<{a:1}>()
-    }
-  }).build();
-
-  const _ = w;
-  type _ = [A,H];
-}
 
 
 // when N is good return 

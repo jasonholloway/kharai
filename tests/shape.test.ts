@@ -72,6 +72,51 @@ describe('shape', () => {
     expect(x2).toHaveProperty('c', 'hullo');
   })
 
+  it('facs covariant only', () => {
+
+    const b0 = shape({
+      ...fac<{a:1}>()
+    });
+
+    const b1 = b0.add(shape({
+      ...fac<{a:2}>()
+    }));
+
+    //TODO
+    //above should be impossible
+    //or rather, it should return an error type
+
+    //better to throw errors as soon as poss
+    //so not as part of the build, but even on the add
+    //in fact it has to be done there
+    //on the add
+
+    //so a merge but... more expensive...
+    //not actually sure how to escape this aspect
+    //as this will happen on every merge
+    //but - as long as its not exponential then we should be good
+
+    //
+    // what else can we do to preserve the cheapness of merging?
+    // my initial idea was to add multiples, preserving info
+    // the issue here is that the emplacing of a fac becomes expensive still
+    // though it is true the merging is maintained
+    // but - this is not the case, as there is logic involved in consolidating different multiples
+    // we can't just merge with wild abandon as before
+    // still we need to check for the presence of others
+    // so we wouldn't gain anything...
+    //
+    // best cheapness is with simple merging and inadvertant shadowing
+    // but this doesn't combine, it just overwrites...
+    //
+    // if we are to merge, what is the cost of it?
+    // phases are merged, in a simple-ish way - no variance is allowed, but we have to test for type identity at least
+    // facs are merged with covariance in play
+    //
+
+    const _ = b1.build();
+  })
+
   it('combines node trees', () => {
     const w = w0.add(
       shape({
@@ -90,6 +135,13 @@ describe('shape', () => {
       }))
       .facImpl('jerboa_nibble', x => ({ z: 999 as const, z0: x.z }))
       .build();
+
+    //todo
+    //new implementations should merge with existing?
+    //think we said this before: facs can expand
+
+    //so above fac expansions are actually illegal and should fail...
+    //so shape either returns error or a builder
 
     w.nodes.D_jerboa_squeak,
     w.nodes.D_jerboa_nibble_furtively
@@ -122,16 +174,18 @@ describe('shape', () => {
   })
 
   it('can expand facs', () => {
-    const w = w0.add(
+    const w1 = w0.add(
       shape({
         jerboa: {
           ...fac<{ j: readonly [number,number] }>()
         }
-      }))
+      }));
+
+    const b = w1
       .facImpl('jerboa', x => ({ j: [1, x.b[1]] as const }))
       .build();
 
-    const r0 = w.read('jerboa_squeak');
+    const r0 = b.read('jerboa_squeak');
     const x0 = r0.fac?.call({}, {});
 
     expect(x0).toEqual({
@@ -146,6 +200,13 @@ describe('shape', () => {
   //fac types can be expanded
   //but data types are invariant (can shadow, but not extend)
   //facs should be merged in one by one too - so you don't have to reimpl the entire thing
+
+  //fac types can be expanded
+  //which means, XA should be merged...
+  //
+  //if we're going to implicitly merge facs (we should)
+  //facImpls must be allowed to be partial impls
+  //TODO *****
 
 })
 
