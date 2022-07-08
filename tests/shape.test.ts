@@ -8,7 +8,7 @@ describe('shape', () => {
     ...ctx<{ a:number }>(),
 
       jerboa: {
-        ...ctx<{ b:number[] }>(),
+        ...ctx<{ b:readonly number[] }>(),
 
         squeak: act(Num),
         burrow: act(456 as const),
@@ -129,21 +129,11 @@ describe('shape', () => {
             ...ctx<{ z: 999, z0: number }>(),
             furtively: act(789 as const)
           },
-
-          jump: {
-            ...ctx<{ c0: string }>()
-          }
         }
       }))
+      .ctxImpl('jerboa', x => ({ z: 111 as const }))
       .ctxImpl('jerboa_nibble', x => ({ z: 999 as const, z0: x.z }))
       .build();
-
-    //todo
-    //new implementations should merge with existing?
-    //think we said this before: facs can expand
-
-    //so above fac expansions are actually illegal and should fail...
-    //so shape either returns error or a builder
 
     w.nodes.D_jerboa_squeak,
     w.nodes.D_jerboa_nibble_furtively
@@ -179,9 +169,12 @@ describe('shape', () => {
     const w1 = w0.mergeWith(
       world({
         jerboa: {
-          ...ctx<{ b:'yo', j: readonly [number,number] }>()
+          ...ctx<{ b: readonly [1,number] }>()
         }
       }));
+
+    w1.nodes.XA_jerboa
+
 
     //TODO shouldn't be able to
     //overwrite XA parts via merge
@@ -193,9 +186,9 @@ describe('shape', () => {
 
     w1.nodes.XA_jerboa
 
-    const w2 = w1
-      .ctxImpl('jerboa', x => ({ j: [1, x.b[1]] as const }));
 
+    const w2 = w1
+      .ctxImpl('jerboa', x => ({ b: [1, x.b[1]] }));
 
     //TODO ****************************
     //need to _actually_ merge partial outputs of facimpls

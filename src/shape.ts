@@ -9,15 +9,12 @@ export type Separator = typeof separator;
 type Nodes = { [k in string]: unknown }
 
 
-//TODO return Builder or error
-//we can't wrap all in a tuple because we need to do dispatch directly against the result
-
 export module Builder {
 
   export type TryMerge<A extends Nodes, B extends Nodes> =
     Merge<A,_MergeNew<A,B>> extends infer Merged ?
     Merged extends Nodes ?
-    Builder<Simplify<Merged>>
+    Builder<Merged>
     : never : never;
 
   type _MergeNew<A,B> = {
@@ -74,11 +71,12 @@ export module Builder {
     X extends keyof N ?
     X extends `XA${infer Rest}` ? 
     `XI${Rest}` extends infer XI ?
+    `${Rest} needs` extends infer Part0 ?
     XI extends keyof N ?
     N[XI] extends N[X] ? never
-    : [Rest, N[X], N[XI]]
-    : [Rest, N[X], never]
-    : never : never : never;
+    : [Part0, N[X], 'but given:', N[XI]]
+    : [Part0, N[X], 'but not given']
+  : never : never : never : never;
 
 
   export type MergeFacImpl<N extends Nodes, P extends string, X> =

@@ -41,17 +41,61 @@ export type MergeMany<R extends readonly unknown[]> =
   : unknown
 
 export type Merge<A, B> =
-  A extends object
-    ? (B extends object
-        ? Simplify<Omit<A, keyof B> & B>
-        : A & B)
-    : A & B;
+  [A,B] extends [unknown[], unknown[]] ? (
+      A extends unknown[] ?
+      B extends unknown[] ?
+      MergeTupsAndArrays<A,B>
+      : never : never
+  )
+  : [A,B] extends [object,object] ? (
+      A extends object ?
+      B extends object ?
+      MergeObjects<A,B>
+      : never : never
+  )
+  : A & B;
+
+// below is bit ropey
+// eg number[] and [1,2] should merge to [1,2]
+// as the only result that satisfies both
+type MergeTupsAndArrays<A extends unknown[], B extends unknown[]> =
+    A extends readonly [] ? B
+  : B extends readonly [] ? A
+  : ( A extends readonly [infer AH, ...infer AT] ?
+      B extends readonly [infer BH, ...infer BT] ?
+      readonly [Merge<AH,BH>, ...MergeTupsAndArrays<AT,BT>]
+      : MergeArrays<A,B> : MergeArrays<A,B>
+    );
+
+type MergeArrays<A extends unknown[], B extends unknown[]> =
+  A extends (infer AT)[] ?
+  B extends (infer BT)[] ?
+  readonly (AT|BT)[]
+  : never : never;
+
+
+type MergeObjects<A extends object, B extends object> =
+  Simplify<Omit<A, keyof B> & B>;
+  
+
+{
+  type A = Merge<{a:1},{b:2}>
+  type B = Merge<[1], [1,2]>
+  type C = Merge<1[], number[]>
+  type D = Merge<number[], [1,2]>
+
+  type _ = [A,B,C,D]
+}
+
 
 export type Simplify<T> =
-  T extends readonly any[] ? T
-  : T extends infer O ?
-    { [k in keyof O]: O[k] }
-    : never;
+  T extends readonly unknown[] ? SimplifyArray<T>
+  : { [k in keyof T]: T[k] };
+
+type SimplifyArray<R extends readonly unknown[]> =
+  R extends [infer Head, ...infer Tail]
+  ? [Simplify<Head>, ...SimplifyArray<Tail>]
+  : [...R];
 
 export function merge<A, B>(a: A, b: B) : Merge<A, B> {
   return <Merge<A, B>>Object.assign({}, a, b);
