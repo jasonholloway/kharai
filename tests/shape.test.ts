@@ -1,32 +1,33 @@
-import { shape, TryBuildWorld } from "../src/shape";
-import { data, fac } from "../src/shapeShared";
+import { world } from "../src/shape";
+import { act, ctx } from "../src/shapeShared";
 import { Num } from "../src/guards/Guard";
 
 describe('shape', () => {
   
-  const w0 = shape({
-    ...fac<{ a:number }>(),
+  const w0 = world({
+    ...ctx<{ a:number }>(),
 
       jerboa: {
-        ...fac<{ b:number[] }>(),
+        ...ctx<{ b:number[] }>(),
 
-        squeak: data(Num),
-        burrow: data(456 as const),
+        squeak: act(Num),
+        burrow: act(456 as const),
 
         jump: {
-          ...fac<{ c:string }>(),
+          ...ctx<{ c:string }>(),
 
-          quickly: data(789 as const),
-          slovenly: data('boo' as const)
+          quickly: act(789 as const),
+          slovenly: act('boo' as const)
         }
       }
     })
-    .facImpl('', () => ({ a:1 }))
-    .facImpl('jerboa', x => ({ b:[0, x.a] }))
-    .facImpl('jerboa_jump', () => ({ c:'hullo' }))
+    .ctxImpl('', () => ({ a:1 }))
+    .ctxImpl('jerboa', x => ({ b:[0, x.a] }))
+    .ctxImpl('jerboa_jump', () => ({ c:'hullo' }))
     .impl({
       jerboa: {
         async squeak(x, d) {
+          
           x;
           return ['jerboa_squeak', d];
         },
@@ -38,6 +39,7 @@ describe('shape', () => {
 
         jump: {
           async slovenly(x, d) {
+            x;
             console.log(`hello ${d}`);
             return ['jerboa_jump_quickly', 789];
           }
@@ -74,12 +76,12 @@ describe('shape', () => {
 
   it('facs covariant only', () => {
 
-    const b0 = shape({
-      ...fac<{a:1}>()
+    const b0 = world({
+      ...ctx<{a:1}>()
     });
 
-    const b1 = b0.add(shape({
-      ...fac<{a:2}>()
+    const b1 = b0.mergeWith(world({
+      ...ctx<{a:2}>()
     }));
 
     //TODO
@@ -118,22 +120,22 @@ describe('shape', () => {
   })
 
   it('combines node trees', () => {
-    const w = w0.add(
-      shape({
+    const w = w0.mergeWith(
+      world({
         jerboa: {
-          ...fac<{ z: 111 }>(),
+          ...ctx<{ z: 111 }>(),
 
           nibble: {
-            ...fac<{ z: 999, z0: number }>(),
-            furtively: data(789 as const)
+            ...ctx<{ z: 999, z0: number }>(),
+            furtively: act(789 as const)
           },
 
           jump: {
-            ...fac<{ c0: string }>()
+            ...ctx<{ c0: string }>()
           }
         }
       }))
-      .facImpl('jerboa_nibble', x => ({ z: 999 as const, z0: x.z }))
+      .ctxImpl('jerboa_nibble', x => ({ z: 999 as const, z0: x.z }))
       .build();
 
     //todo
@@ -145,7 +147,7 @@ describe('shape', () => {
 
     w.nodes.D_jerboa_squeak,
     w.nodes.D_jerboa_nibble_furtively
-    w.nodes.X_jerboa_nibble
+    w.nodes.XI_jerboa_nibble
 
     const r0 = w.read('jerboa_squeak');
     expect(r0.guard).toEqual([Num]);
@@ -174,15 +176,32 @@ describe('shape', () => {
   })
 
   it('can expand facs', () => {
-    const w1 = w0.add(
-      shape({
+    const w1 = w0.mergeWith(
+      world({
         jerboa: {
-          ...fac<{ j: readonly [number,number] }>()
+          ...ctx<{ b:'yo', j: readonly [number,number] }>()
         }
       }));
 
-    const b = w1
-      .facImpl('jerboa', x => ({ j: [1, x.b[1]] as const }))
+    //TODO shouldn't be able to
+    //overwrite XA parts via merge
+    //therefore need deep prop-multiply...
+
+    //if we just overwrite them like this,
+    //then upstream actions will get the wrong context types
+    //we need a deep merge...
+
+    w1.nodes.XA_jerboa
+
+    const w2 = w1
+      .ctxImpl('jerboa', x => ({ j: [1, x.b[1]] as const }));
+
+
+    //TODO ****************************
+    //need to _actually_ merge partial outputs of facimpls
+    //*********************************
+
+    const b = w2
       .build();
 
     const r0 = b.read('jerboa_squeak');
@@ -194,19 +213,5 @@ describe('shape', () => {
       j: [1, 1]
     });
   })
-
-
-  //TODO should enforce types on merge too
-  //fac types can be expanded
-  //but data types are invariant (can shadow, but not extend)
-  //facs should be merged in one by one too - so you don't have to reimpl the entire thing
-
-  //fac types can be expanded
-  //which means, XA should be merged...
-  //
-  //if we're going to implicitly merge facs (we should)
-  //facImpls must be allowed to be partial impls
-  //TODO *****
-
 })
 

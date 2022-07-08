@@ -2,21 +2,21 @@ import _Monoid from '../../src/_Monoid'
 import { toArray, take } from 'rxjs/operators'
 import { delay } from '../../src/util'
 import { Str, Num, Many, Any, Read } from '../guards/Guard'
-import { shape } from '../../src/shape'
-import { $root, data } from '../../src/shapeShared'
+import { world } from '../../src/shape'
+import { $root, act } from '../../src/shapeShared'
 import { Observable } from 'rxjs'
 
-const w1 = shape({
-    $boot: data([]),
-    $end: data([Many(Any)] as const),
+const w1 = world({
+    $boot: act([]),
+    $end: act([Many(Any)] as const),
     // $wait: data([Num, me] as const),
 
     emu: {
-      track: data([Many(Str), Num] as const),
-      runAround: data([Num] as const),
+      track: act([Many(Str), Num] as const),
+      runAround: act([Num] as const),
     }
   })
-  .facImpl('', () =>({
+  .ctxImpl('', () =>({
     watch(ids: string[]): Observable<unknown> {
       throw 123;
     }
@@ -24,7 +24,7 @@ const w1 = shape({
 
 
 const w2 = w1
-  .facImpl('emu', x => ({ moo:123 }));
+  .ctxImpl('emu', x => ({ moo:123 }));
 
 const w3 = w2
   .impl({
@@ -56,14 +56,14 @@ const w4 = w3
 
 
 const Scraper = {
-  scrape: data(Num),
-  notify: data([/http.*/] as const)
+  scrape: act(Num),
+  notify: act([/http.*/] as const)
 };
 
-const w = shape({
-    $boot: data([]),
-    $end: data([Many(Any)] as const),
-    $wait: data([Num, $root] as const),
+const w = world({
+    $boot: act([]),
+    $end: act([Many(Any)] as const),
+    $wait: act([Num, $root] as const),
 
     AO: Scraper,
     Very: Scraper,

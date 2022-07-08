@@ -1,7 +1,7 @@
 import { List, Map } from "immutable";
 import { FacNode, IfKnown } from "./facs";
 import { Guard, Read } from "./guards/Guard";
-import { $Root, $root, ContextNode, data, Handler, isContextNode, isSpaceNode, Nodes, SchemaNode, space } from "./shapeShared";
+import { $Root, $root, ContextNode, act, Handler, isContextNode, isSpaceNode, Nodes, SchemaNode, space } from "./shapeShared";
 import { isString, merge, Merge, MergeMany, mergeObjects, Simplify } from "./util";
 
 enum ReadMode {
@@ -91,9 +91,9 @@ export class Builder<N extends Nodes> {
 const w = specify(root =>
   space({
     dog: space({
-      bark: data(123 as const)
+      bark: act(123 as const)
     }),
-    cat: data(999 as const)
+    cat: act(999 as const)
   }))
   .withContext('dog', u => ({ owns: ['bone'] as const }))
   .withContext('dog:bark', u => ({ articulations: ['woof'] as const }))
@@ -153,10 +153,10 @@ function mergeAtSchemaPath<N, X, PL extends PathList<Path<N>>>(n: N, x: X, pl: P
 {
   const schema = {
     space: {
-      dog: data(7),
+      dog: act(7),
       cat: {
         space: {
-          meeow: data(123)
+          meeow: act(123)
         }
       },
     }
@@ -450,11 +450,11 @@ export function specify<S extends SchemaNode>(fn: (root: $Root)=>S) {
   const a = specify(root => space({
 
     // ['cow']: fac(),
-    ['cow:moo']: data('hello'),
-    ['cow:moooo']: data(123 as const),
+    ['cow:moo']: act('hello'),
+    ['cow:moooo']: act(123 as const),
 
     sheep: space({
-      baa: data('hello')
+      baa: act('hello')
     })
   }));
 
@@ -508,9 +508,9 @@ type _Arg<D, P> =
 
 const ww = specify(root =>
   space({
-    hello: data(123 as const),
+    hello: act(123 as const),
 
-    recurse: data(['baa', root] as const)
+    recurse: act(['baa', root] as const)
   })
 );
 

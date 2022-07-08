@@ -1,7 +1,7 @@
 import { Map, List } from "immutable";
 import { Read } from "./guards/Guard";
-import { $Data, $Fac, data, fac, SchemaNode, Handler, $data, $Root, Fac } from "./shapeShared";
-import { Merge, Simplify } from "./util";
+import { $Data, $Fac, act, ctx, SchemaNode, Handler, $data, $Root, Fac } from "./shapeShared";
+import { DeepMerge, Merge, Simplify } from "./util";
 
 export const separator = '_'
 export type Separator = typeof separator;
@@ -17,7 +17,7 @@ export module Builder {
   export type TryMerge<A extends Nodes, B extends Nodes> =
     Merge<A,_MergeNew<A,B>> extends infer Merged ?
     Merged extends Nodes ?
-    Builder<Merged>
+    Builder<Simplify<Merged>>
     : never : never;
 
   type _MergeNew<A,B> = {
@@ -34,13 +34,13 @@ export module Builder {
     : k extends `XA_${string}` ? (
         //contracts should merge nicely
         k extends keyof A ?
-        Merge<A[k], B[k]>
+        DeepMerge<A[k], B[k]> //tried MergeDeep here but it's naff (currently)
         : B[k]
       )
     : k extends `XI_${string}` ? (
         //implementations should merge nicely
         k extends keyof A ?
-        Merge<A[k], B[k]>
+        DeepMerge<A[k], B[k]>
         : B[k]
 
       //this is a shallow merge only of facs
@@ -80,6 +80,17 @@ export module Builder {
     : [Rest, N[X], never]
     : never : never : never;
 
+
+  export type MergeFacImpl<N extends Nodes, P extends string, X> =
+    Builder<Merge<
+      N,
+      {
+        [k in _JoinPaths<'XI', P>]:
+          k extends keyof N ?
+          Merge<N[k],X>
+          : X
+      }
+    >>
 }
 
 {
@@ -95,9 +106,9 @@ export module Builder {
 
   type H = Builder.TryBuild<A>
 
-  const w = shape({
+  const w = world({
     meeow: {
-      ...fac<{a:1}>()
+      ...ctx<{a:1}>()
     }
   }).build();
 
@@ -114,7 +125,7 @@ export class Builder<N extends Nodes> {
     this.reg = reg ?? Registry.empty;
   }
 
-  add<N2 extends Nodes>(other: Builder<N2>): Builder.TryMerge<N,N2> {
+  mergeWith<N2 extends Nodes>(other: Builder<N2>): Builder.TryMerge<N,N2> {
     return <Builder.TryMerge<N,N2>><unknown>new Builder(Registry.merge(this.reg, other.reg));
   }
 
@@ -137,17 +148,14 @@ export class Builder<N extends Nodes> {
     }
   }
 
-  facImpl<P extends FacPath<N>, X extends PathFac<N,P>>(path: P, fn: (x: FacContext<N,P>)=>X) : Builder<Merge<N, { [k in _JoinPaths<'XI', P>]: X }>> {
-    return new Builder<Merge<N, { [k in _JoinPaths<'XI', P>]: X }>>(this.reg.addFac(path, fn));
+  ctxImpl<P extends FacPath<N>, X extends Partial<PathFac<N,P>>>(path: P, fn: (x: FacContext<N,P>)=>X) : Builder.MergeFacImpl<N,P,X> {
+    return new Builder(this.reg.addFac(path, fn));
   }
 
   build(): Builder.TryBuild<N> {
     return <Builder.TryBuild<N>><unknown>new World<N>(this.reg);
   }
 }
-
-
-
 
 // when N is good return 
 //
@@ -299,7 +307,7 @@ class Registry {
 }
 
 
-export function shape<S extends SchemaNode>(s: S) : Builder<Shape<S>> {
+export function world<S extends SchemaNode>(s: S) : Builder<Shape<S>> {
   const reg = _walk([], s)
     .reduce(
       (ac, [p, g]) => ac.addGuard(p, g),
@@ -367,18 +375,18 @@ type _Assemble<T extends readonly [string, unknown]> =
 {
  const s = {
     hamster: {
-      nibble: data(123 as const),
+      nibble: act(123 as const),
     },
     rabbit: {
-      ...fac<123>(),
-      jump: data(7 as const),
+      ...ctx<123>(),
+      jump: act(7 as const),
     }
   };
 
   type A = _SpaceWalk<typeof s>
   type B = _Assemble<A>
 
-  const x = shape(s)
+  const x = world(s)
   x
 
   type C = 14 & unknown
@@ -691,3 +699,5 @@ type TupPopHead<L> =
 
 type IsNotNever<T> =
   [T] extends [never] ? false : true;
+
+

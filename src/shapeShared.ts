@@ -45,7 +45,7 @@ export function isHandlerNode(v: any): v is HandlerNode {
   return !!(<any>v)[$handler];
 }
 
-export function data<S>(s: S): DataNode<S> {
+export function act<S>(s: S): DataNode<S> {
   return { [$data]: s };
 }
 
@@ -53,6 +53,6 @@ export function space<S extends { [k in keyof S]: SchemaNode }>(s: S): SpaceNode
   return { [$space]: s };
 }
 
-export function fac<T>(): { [k in $Fac]: T } {
+export function ctx<T>(): { [k in $Fac]: T } {
   return { [$fac]: <T><unknown>'FAC' };
 }

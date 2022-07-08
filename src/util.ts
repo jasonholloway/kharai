@@ -47,8 +47,11 @@ export type Merge<A, B> =
         : A & B)
     : A & B;
 
-export type Simplify<T> = T extends infer O ? { [k in keyof O]: O[k] } : never;
-
+export type Simplify<T> =
+  T extends readonly any[] ? T
+  : T extends infer O ?
+    { [k in keyof O]: O[k] }
+    : never;
 
 export function merge<A, B>(a: A, b: B) : Merge<A, B> {
   return <Merge<A, B>>Object.assign({}, a, b);
@@ -56,6 +59,26 @@ export function merge<A, B>(a: A, b: B) : Merge<A, B> {
 
 export function mergeObjects<R extends unknown[]>(...r: R) {
   return <MergeMany<R>>Object.assign({}, ...r);
+}
+
+
+export type DeepMerge<A,B> =
+  [A,B] extends [object,object] ?
+    Merge<A, {
+      [k in keyof B]:
+        k extends keyof A
+          ? DeepMerge<A[k],B[k]>
+          : B[k]
+    }>
+  : A&B;
+
+{
+  type A = DeepMerge<{},{}>
+  type B = DeepMerge<{a:1, c:{ z:9 }},{a:number,b:2,c:{y:3}}>
+  type C = DeepMerge<{a:1, c:{ z:9 }},{a:number,b:2,c:{z:3}}>
+  type D = DeepMerge<{a:[1]},{a:[number]}>
+
+  type _ = [A,B,C,D]
 }
 
 

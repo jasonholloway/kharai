@@ -1,36 +1,36 @@
 import _Monoid from '../../src/_Monoid'
 import { delay } from '../../src/util'
 import { Any, Many, Num, Str } from '../guards/Guard'
-import { shape } from '../shape';
-import { $root, data } from '../shapeShared';
+import { world } from '../shape';
+import { $root, act } from '../shapeShared';
 
-const w1 = shape({
-  $boot: data([]),
-  $end: data(Many(Any)),
-  $wait: data([Num, $root] as const),
+const w1 = world({
+  $boot: act([]),
+  $end: act(Many(Any)),
+  $wait: act([Num, $root] as const),
 
   rat: {
-    wake: data([]),
-    squeak: data([Num] as const)
+    wake: act([]),
+    squeak: act([Num] as const)
   },
 
   hamster: {
-    wake: data([Num] as const),
-    nibble: data([])
+    wake: act([Num] as const),
+    nibble: act([])
   },
 
   guineaPig: {
-    runAbout: data([]),
-    gruntAt: data([Str] as const)
+    runAbout: act([]),
+    gruntAt: act([Str] as const)
   },
 
   gerbil: {
-    spawn: data([Num, Num] as const)
+    spawn: act([Num, Num] as const)
   }
 });
 
 const w2 = w1
-  .facImpl('rat', x => x)
+  .ctxImpl('rat', x => x)
   .impl({
     rat: {
       async wake(_, [n]) {

@@ -1,18 +1,18 @@
 import { specify,  } from '../src/buildMatch'
-import { space, data } from '../src/shapeShared'
+import { space, act } from '../src/shapeShared'
 
 describe('buildMatch', () => {
 
   const w = specify(root =>
     space({
-      hello: data(123 as const),
+      hello: act(123 as const),
 
       cow: space({
-        talk: data(['moo', 123] as const),
+        talk: act(['moo', 123] as const),
       }),
 
       sheep: space({
-        recurse: data(['baa', root] as const)
+        recurse: act(['baa', root] as const)
       })
     })
   );
