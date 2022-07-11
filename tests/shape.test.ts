@@ -1,10 +1,10 @@
 import { act, ctx } from "../src/shapeShared";
 import { Num } from "../src/guards/Guard";
-import { world } from "../src/shape/world";
+import { World } from "../src/shape/World";
 
 describe('shape', () => {
   
-  const w0 = world({
+  const w0 = World.shape({
     ...ctx<{ a:number }>(),
 
       jerboa: {
@@ -76,11 +76,11 @@ describe('shape', () => {
 
   it('facs covariant only', () => {
 
-    const b0 = world({
+    const b0 = World.shape({
       ...ctx<{a:1}>()
     });
 
-    const b1 = b0.mergeWith(world({
+    const b1 = b0.mergeWith(World.shape({
       ...ctx<{a:2}>()
     }));
 
@@ -89,7 +89,7 @@ describe('shape', () => {
 
   it('combines node trees', () => {
     const w = w0.mergeWith(
-      world({
+      World.shape({
         jerboa: {
           ...ctx<{ z: 111 }>(),
 
@@ -125,7 +125,7 @@ describe('shape', () => {
 
   it('can expand facs', () => {
     const w1 = w0.mergeWith(
-      world({
+      World.shape({
         jerboa: {
           ...ctx<{ b: readonly [1,number] }>()
         }

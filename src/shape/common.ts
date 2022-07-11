@@ -1,6 +1,4 @@
-import { List } from "immutable";
 import { Read } from "../guards/Guard";
-import { Registry } from "./Registry";
 import { Handler, $Root, Fac } from "../shapeShared";
 import { Merge } from "../util";
 
@@ -9,55 +7,7 @@ export type Separator = typeof separator;
 
 export type Nodes = { [k in string]: unknown }
 
-export class World<N> {
-  public readonly nodes: N = <N><unknown>{}
-  readonly reg: Registry
-
-  constructor(reg?: Registry) {
-    this.reg = reg ?? Registry.empty;
-  }
-
-  read(address: string): ReadResult {
-    const reg = this.reg;
-    return _read([], address.split(separator));
-
-    function _read(pl: readonly string[], al: readonly string[]): ReadResult {
-      if(al.length) {
-        const [aHead, ...aTail] = al;
-        return _read([...pl, aHead], aTail);
-      }
-
-      const path = formPath(pl);
-
-      return {
-        guard: reg.getGuard(path),
-        handler: reg.getHandler(path),
-        fac: _formFac(List(pl))
-      };
-    }
-
-    function _formFac(pl: List<string>) : Fac {
-      const facs = _findFacs(pl);
-      return facs.reduce(
-        (ac, fn) => x => {
-          const r = ac(x);
-          return { ...r, ...fn(r) };
-        },
-        (x => x));
-    }
-
-    function _findFacs(pl: List<string>): Fac[] {
-      if(pl.isEmpty()) return reg.getFacs('');
-
-      const l = _findFacs(pl.butLast());
-      const r = reg.getFacs(formPath([...pl]))
-
-      return [...l, ...r];
-    }
-  }
-}
-
-function formPath(pl: readonly string[]) {
+export function formPath(pl: readonly string[]) {
   return pl.join(separator);
 }
 
