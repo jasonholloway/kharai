@@ -1,15 +1,16 @@
 import _Monoid from '../../src/_Monoid'
 import { delay } from '../../src/util'
 import { Any, Many, Num, Str } from '../guards/Guard'
-import { world } from '../shape';
-import { $root, act } from '../shapeShared';
+import { $root, act, ctx } from '../shapeShared';
+import { World } from '../shape/World';
 
-const w1 = world({
+const w1 = World.shape({
   $boot: act([]),
   $end: act(Many(Any)),
   $wait: act([Num, $root] as const),
 
   rat: {
+    ...ctx<{}>(),
     wake: act([]),
     squeak: act([Num] as const)
   },
@@ -42,13 +43,6 @@ const w2 = w1
       }
     }
   });
-
-
-// todo: put handlers in secret structure behind schema
-// todo: put facnode in secret structure, with only succinct type in schema
-// todo: return full type from withContext/withPhase
-// todo: magic path lookup could be done once in with('aaa:bbb', () => addition) blocks
-
 
 const w3 = w2
   .impl({

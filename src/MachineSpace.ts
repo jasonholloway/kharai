@@ -15,11 +15,11 @@ export type Emit<P = any> = readonly [Id, P]
   
 export type Loader<P> = (ids: Set<Id>) => Promise<Map<Id, P>>
 
-  export class MachineSpace<W extends PhaseMap, P = Phase<W>, X extends MachineContext<P> = MachineContext<P>> {
+export class MachineSpace<W extends PhaseMap, P = Phase<W>, X extends MachineContext<P> = MachineContext<P>> {
   private readonly world: WorldImpl<W, X> & ContextImpl<P, X>
   private readonly loader: Loader<P>
   private readonly mediator: Mediator
-    private readonly dispatch: Dispatch<P, X>
+  private readonly dispatch: Dispatch<P, X>
 
   private readonly _commit$ = new ReplaySubject<Commit<Data>>(1)
   readonly commit$ = this._commit$;
