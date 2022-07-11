@@ -1,6 +1,6 @@
-import { world } from "../src/shape";
 import { act, ctx } from "../src/shapeShared";
 import { Num } from "../src/guards/Guard";
+import { world } from "../src/shape/world";
 
 describe('shape', () => {
   
@@ -8,7 +8,7 @@ describe('shape', () => {
     ...ctx<{ a:number }>(),
 
       jerboa: {
-        ...ctx<{ b:readonly number[] }>(),
+        ...ctx<{ b:readonly number[], bb:number }>(),
 
         squeak: act(Num),
         burrow: act(456 as const),
@@ -22,7 +22,7 @@ describe('shape', () => {
       }
     })
     .ctxImpl('', () => ({ a:1 }))
-    .ctxImpl('jerboa', x => ({ b:[0, x.a] }))
+    .ctxImpl('jerboa', x => ({ b:[0, x.a], bb:0 }))
     .ctxImpl('jerboa_jump', () => ({ c:'hullo' }))
     .impl({
       jerboa: {
@@ -84,39 +84,7 @@ describe('shape', () => {
       ...ctx<{a:2}>()
     }));
 
-    //TODO
-    //above should be impossible
-    //or rather, it should return an error type
-
-    //better to throw errors as soon as poss
-    //so not as part of the build, but even on the add
-    //in fact it has to be done there
-    //on the add
-
-    //so a merge but... more expensive...
-    //not actually sure how to escape this aspect
-    //as this will happen on every merge
-    //but - as long as its not exponential then we should be good
-
-    //
-    // what else can we do to preserve the cheapness of merging?
-    // my initial idea was to add multiples, preserving info
-    // the issue here is that the emplacing of a fac becomes expensive still
-    // though it is true the merging is maintained
-    // but - this is not the case, as there is logic involved in consolidating different multiples
-    // we can't just merge with wild abandon as before
-    // still we need to check for the presence of others
-    // so we wouldn't gain anything...
-    //
-    // best cheapness is with simple merging and inadvertant shadowing
-    // but this doesn't combine, it just overwrites...
-    //
-    // if we are to merge, what is the cost of it?
-    // phases are merged, in a simple-ish way - no variance is allowed, but we have to test for type identity at least
-    // facs are merged with covariance in play
-    //
-
-    const _ = b1.build();
+    const _ = b1.build() as ['Unimplemented facs found', unknown];
   })
 
   it('combines node trees', () => {
@@ -149,20 +117,10 @@ describe('shape', () => {
     expect(x1).toEqual({
       a: 1,
       b: [0, 1],
+      bb: 0,
       z: 999,
       z0: 111    //problem here is that upstream z is never actually implemented!!!
     })
-
-    // **************************
-    // TODO we need to check that all are implemented - a build step?
-    // otherwise we get undefineds in the system as above
-    // **************************
-
-    // **************************
-    // TODO expanded, overwritten facs should extend rather than replace
-    // ie their outputs should be implicitly merged
-    // at the type level
-    // **************************
   })
 
   it('can expand facs', () => {
@@ -173,26 +131,8 @@ describe('shape', () => {
         }
       }));
 
-    w1.nodes.XA_jerboa
-
-
-    //TODO shouldn't be able to
-    //overwrite XA parts via merge
-    //therefore need deep prop-multiply...
-
-    //if we just overwrite them like this,
-    //then upstream actions will get the wrong context types
-    //we need a deep merge...
-
-    w1.nodes.XA_jerboa
-
-
     const w2 = w1
-      .ctxImpl('jerboa', x => ({ b: [1, x.b[1]] }));
-
-    //TODO ****************************
-    //need to _actually_ merge partial outputs of facimpls
-    //*********************************
+      .ctxImpl('jerboa', x => ({ b: [2, x.b[1]] }));
 
     const b = w2
       .build();
@@ -202,8 +142,8 @@ describe('shape', () => {
 
     expect(x0).toEqual({
       a: 1,
-      b: [0, 1],
-      j: [1, 1]
+      b: [2, 1],
+      bb: 0
     });
   })
 })

@@ -1,7 +1,8 @@
-import { Map, List } from "immutable";
-import { Read } from "./guards/Guard";
-import { $Data, $Fac, act, ctx, SchemaNode, Handler, $data, $Root, Fac } from "./shapeShared";
-import { DeepMerge, Merge, Simplify } from "./util";
+import { List } from "immutable";
+import { Read } from "../guards/Guard";
+import { Handler, $Root, Fac } from "../shapeShared";
+import { DeepMerge, Merge } from "../util";
+import { Registry } from "./Registry";
 
 export const separator = '_'
 export type Separator = typeof separator;
@@ -25,7 +26,8 @@ export module Builder {
           A[k] extends B[k] ?
           B[k] extends A[k] ?
           B[k]
-          : never : never : never
+          : never : never
+        : B[k]
         //need to pool errors somehow
       )
     : k extends `XA_${string}` ? (
@@ -80,39 +82,40 @@ export module Builder {
 
 
   export type MergeFacImpl<N extends Nodes, P extends string, X> =
-    Builder<Merge<
-      N,
+    Merge<N,
       {
         [k in _JoinPaths<'XI', P>]:
           k extends keyof N ?
           Merge<N[k],X>
           : X
-      }
-    >>
+      }> extends infer Merged ?
+    Merged extends Nodes ?
+    Builder<Merged>
+    : never : never;
 }
 
-{
-  type A = {
-    D: 444,
-    D_blah: 123,
-    XA: { a:1 },
-    XI: { a:1 },
-    XA_moo: { b:3 },
-    XI_moo: { b:3 },
-    // XA_chinchilla: {c: 9}
-  };
+// {
+//   type A = {
+//     D: 444,
+//     D_blah: 123,
+//     XA: { a:1 },
+//     XI: { a:1 },
+//     XA_moo: { b:3 },
+//     XI_moo: { b:3 },
+//     // XA_chinchilla: {c: 9}
+//   };
 
-  type H = Builder.TryBuild<A>
+//   type H = Builder.TryBuild<A>
 
-  const w = world({
-    meeow: {
-      ...ctx<{a:1}>()
-    }
-  }).build();
+//   const w = world({
+//     meeow: {
+//       ...ctx<{a:1}>()
+//     }
+//   }).build();
 
-  const _ = w;
-  type _ = [A,H];
-}
+//   const _ = w;
+//   type _ = [A,H];
+// }
 
 
 export class Builder<N extends Nodes> {
@@ -146,8 +149,12 @@ export class Builder<N extends Nodes> {
     }
   }
 
+  paths(): FacPath<N> {
+    throw 'err';
+  }
+
   ctxImpl<P extends FacPath<N>, X extends Partial<PathFac<N,P>>>(path: P, fn: (x: FacContext<N,P>)=>X) : Builder.MergeFacImpl<N,P,X> {
-    return new Builder(this.reg.addFac(path, fn));
+    return <Builder.MergeFacImpl<N,P,X>>new Builder(this.reg.addFac(path, fn));
   }
 
   build(): Builder.TryBuild<N> {
@@ -193,21 +200,24 @@ export class World<N> {
 
     function _formFac(pl: List<string>) : Fac {
       const facs = _findFacs(pl);
+
       return facs.reduce(
-        (ac, fn) => x => {
+        (ac, [p,fn]) => x => {
           const r = ac(x);
           return { ...r, ...fn(r) };
         },
         (x => x));
     }
 
-    function _findFacs(pl: List<string>): Fac[] {
-      if(pl.isEmpty()) return reg.getFacs('');
+    function _findFacs(pl: List<string>): List<readonly [string,Fac]> {
+      if(pl.isEmpty()) return reg.getFacs('').map(f => ['',f] as const);
 
       const l = _findFacs(pl.butLast());
-      const r = reg.getFacs(formPath([...pl]))
 
-      return [...l, ...r];
+      const p = formPath([...pl])
+      const r = reg.getFacs(p).map(f => [p,f] as const);
+
+      return List.of(...l, ...r);
     }
   }
 }
@@ -241,158 +251,6 @@ export type ReadResult = {
   handler?: Handler,
   fac?: Fac
 }
-
-
-class Registry {
-  private guards: Map<string, unknown> = Map();
-  private handlers: Map<string, Handler> = Map();
-  private facs: Map<string, Fac[]> = Map();
-
-  private constructor(guards: Map<string, unknown>, handlers: Map<string, Handler>, facs: Map<string, Fac[]>) {
-    this.guards = guards;
-    this.handlers = handlers;
-    this.facs = facs;
-  }
-
-  static empty = new Registry(Map(), Map(), Map());
-  private static $notFound = Symbol('notFound');
-
-  addGuard(p: string, guard: unknown): Registry {
-    return new Registry(
-      this.guards.set(p, guard),
-      this.handlers,
-      this.facs
-    );
-  }
-
-  getGuard(p: string): [unknown] | undefined {
-    const result = this.guards.get(p, Registry.$notFound);
-    return result !== Registry.$notFound
-      ? [result] : undefined;
-  }
-
-  addHandler(p: string, h: Handler): Registry {
-    return new Registry(
-      this.guards,
-      this.handlers.set(p, h),
-      this.facs
-    );
-  }
-
-  getHandler(p: string): Handler | undefined {
-    return this.handlers.get(p);
-  }
-
-  addFac(p: string, fac: Fac): Registry {
-    return new Registry(
-      this.guards,
-      this.handlers,
-      this.facs.mergeDeep({ [p]: [fac] })
-   );
-  } 
-
-  getFacs(p: string): Fac[] {
-    return this.facs.get(p, []);
-  } 
-
-  static merge(a: Registry, b: Registry) {
-    return new Registry(
-      a.guards.merge(b.guards),
-      a.handlers.merge(b.handlers),
-      a.facs.mergeDeep(b.facs)
-    );
-  }
-}
-
-
-export function world<S extends SchemaNode>(s: S) : Builder<Shape<S>> {
-  const reg = _walk([], s)
-    .reduce(
-      (ac, [p, g]) => ac.addGuard(p, g),
-      Registry.empty
-    );
-
-  return new Builder<Shape<S>>(reg);
-
-  function _walk(pl: string[], n: SchemaNode) : List<readonly [string, unknown]> {
-    if((<any>n)[$data]) {
-      const data = <unknown>(<any>n)[$data];
-      return List([[pl.join(separator), data] as const]);
-    }
-
-    if(typeof n === 'object') {
-      return List(Object.getOwnPropertyNames(n))
-        .flatMap(pn => {
-          const child = (<any>n)[pn];
-          return _walk([...pl, pn], child)
-        });
-    }
-
-    throw 'strange node encountered';
-  }
-}
-
-
-export type Shape<S> = Simplify<_Assemble<_Walk<S>>>;
-
-type _Walk<O, P extends string = ''> =
-    _DataWalk<O, P>
-  | _FacWalk<O, P>
-  | _SpaceWalk<O, P>
-;
-
-type _DataWalk<O, P extends string> =
-  $Data extends keyof O ?
-  O[$Data] extends infer D ?
-  [`D${P}`, D]
-  : never : never
-;
-
-type _FacWalk<O, P extends string> =
-  $Fac extends keyof O ?
-  O[$Fac] extends infer F ?
-  [`XA${P}`, F]
-  : never : never
-;
-
-type _SpaceWalk<O, P extends string = ''> =
-  Except<keyof O, $Fac|$Data> extends infer K ?
-    K extends string ?
-    K extends keyof O ?
-    _Walk<O[K], `${P}${Separator}${K}`> extends infer Found ?
-    [Found] extends [any] ?
-      Found
-      // ([`S${P}`, true] | Found)
-  : never : never : never : never : never
-;
-
-type _Assemble<T extends readonly [string, unknown]> =
-  { [kv in T as kv[0]]: kv[1] }
-;
-
-{
- const s = {
-    hamster: {
-      nibble: act(123 as const),
-    },
-    rabbit: {
-      ...ctx<123>(),
-      jump: act(7 as const),
-    }
-  };
-
-  type A = _SpaceWalk<typeof s>
-  type B = _Assemble<A>
-
-  const x = world(s)
-  x
-
-  type C = 14 & unknown
-
-  type _ = [A,B,C]
-}
-
-
 
 
 export type Impls<N extends Nodes> =
