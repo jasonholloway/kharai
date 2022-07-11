@@ -1,46 +1,41 @@
-import { Id, Data, MachineContext } from './lib'
+import { Id, Data } from './lib'
 import { Convener, Attendee, Peer } from './Mediator'
 import { Observable, from, of, EMPTY } from 'rxjs'
-import { map, tap, filter, expand, takeUntil, finalize, startWith, shareReplay, share, takeWhile, flatMap } from 'rxjs/operators'
+import { tap, filter, expand, takeUntil, finalize, startWith, shareReplay, share, flatMap } from 'rxjs/operators'
 import Committer from './Committer'
 import { Map, List } from 'immutable'
-import { Dispatch } from './dispatch'
 import { isArray } from 'util'
 import MonoidData from './MonoidData'
 import { AtomRef } from './atoms'
 import Head from './Head'
 import { ISpace, Signal } from './MachineSpace'
-const log = console.log;
+import { BuiltWorld } from './shape/BuiltWorld'
 
 const $Ahoy = Symbol('$Ahoy')
 
-export type Machine<P> = {
+export type Machine = {
   id: Id,
   head: Head<Data>,
-  log$: Observable<Log<P>>
+  log$: Observable<Log>
 }
 
 export type CommitFac = (h: Head<Data>) => Committer<Data>
 
-export type Log<P> = [P, AtomRef<Data>?]
+export type Log = [unknown, AtomRef<Data>?]
 
-export function runMachine<X, P>(
+export function runMachine(
   id: Id,
-  phase: P,
+  state: unknown,
   head: Head<Data>,
   commitFac: CommitFac,
-  space: ISpace<P>,
-  dispatch: Dispatch<P, X>,
-  modContext: (x: MachineContext<P>) => X,
+  space: ISpace,
+  world: BuiltWorld,
   signal$: Observable<Signal>
-): Machine<P>
+): Machine
 {
-  type L = Log<P|false>
-  
   const kill$ = signal$.pipe(filter(s => s.stop), share());
 
-
-  const log$ = of(<L>[phase]).pipe(
+  const log$ = of(<Log>[state]).pipe(
     expand(([p]) => {
       if(!p) return EMPTY;
 
@@ -48,16 +43,26 @@ export function runMachine<X, P>(
         const committer = commitFac(head);
 
         try {
-          const x = buildContext(id, committer);
+          //read path out of phase here
+          const { guard, fac, handler } = world.read('');
 
-          const out = await dispatch(x)(p);
+          if(!handler) throw Error();
+          if(!fac) throw Error();
+          if(!guard) throw Error();
+
+          //guard here
+          //...
+
+          const coreCtx = coreContext(id, committer);
+          const ctx = fac(coreCtx);
+          const out = await handler(ctx, p);
 
           if(out) {
             const ref = await committer.complete(Map({ [id]: out }));
-            return <L>[out, ref];
+            return <Log>[out, ref];
           }
 
-          return <L>[out];
+          return <Log>[out];
         }
         catch(e) {
           console.error(e);
@@ -66,8 +71,8 @@ export function runMachine<X, P>(
         }
       })())
     }),
-    startWith(<L>[phase, new AtomRef()]),
-    filter((l): l is Log<P> => !!l[0]),
+    startWith(<Log>[state, new AtomRef()]),
+    filter((l) => !!l[0]),
     takeUntil(kill$),
     finalize(() => head.release()),
     shareReplay(1),
@@ -82,17 +87,17 @@ export function runMachine<X, P>(
   return machine;
 
 
-  function buildContext(id: Id, commit: Committer<Data>): X {
-    return modContext({
+  function coreContext(id: Id, commit: Committer<Data>): unknown {
+    return {
       id: id,
 
-      watch(ids: Id[]): Observable<[Id, P]> {
+      watch(ids: Id[]): Observable<[Id, unknown]> {
         return space.watch(ids)                //TODO if the same thing is watched twice, commits will be added doubly
           .pipe(
             tap(([,[,r]]) => { //gathering all watched atomrefs here into mutable Commit
               if(r) commit.add(List([r]))
             }),
-            flatMap(([id, [p]]) => p ? [<[Id, P]>[id, p]] : []),
+            flatMap(([id, [p]]) => p ? [<[Id, unknown]>[id, p]] : []),
           );
       },
 
@@ -126,6 +131,6 @@ export function runMachine<X, P>(
 					}
 				});
       }
-    });
+    };
   }
 }

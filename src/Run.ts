@@ -1,27 +1,22 @@
-import { Id, PhaseMap, Phase, WorldImpl, Data, ContextImpl, MachineContext } from './lib'
+import { Id, PhaseMap, Phase, Data } from './lib'
 import { Mediator, Convener } from './Mediator'
 import { Observable, ReplaySubject, of, concat, Subject, merge } from 'rxjs'
 import { startWith, endWith, scan, takeWhile, finalize, map, toArray, ignoreElements, concatMap, filter, takeUntil, shareReplay, mergeMap  } from 'rxjs/operators'
 import { Set } from 'immutable'
 import { MachineSpace, Loader, Signal } from './MachineSpace'
-import { buildDispatch } from './dispatch'
 import { runSaver } from './AtomSpace'
 import MonoidData from './MonoidData'
 import Store from './Store'
-import { Log } from './runMachine'
-import { AtomRef } from './atoms'
 import { Preemptable } from './Preemptable'
+import { BuiltWorld } from './shape/BuiltWorld'
 
 const MD = new MonoidData();
 const gather = <V>(v$: Observable<V>) => v$.pipe(toArray()).toPromise();
 
-export function newRun<
-	W extends PhaseMap,
-	P = Phase<W>,
-  X extends MachineContext<P> = MachineContext<P>>
+export function newRun<W extends PhaseMap>
 (
-	world: WorldImpl<W, X> & ContextImpl<P, X>,
-	loader: Loader<P>,
+	world: BuiltWorld,
+	loader: Loader,
 	opts?: { threshold?: number, store?: Store<Data> }
 ) {
 	const signal$ = new ReplaySubject<Signal>(1);
@@ -30,7 +25,7 @@ export function newRun<
 	const store = opts?.store;
 
 	const mediator = new Mediator(signal$);
-	const space = new MachineSpace(world, loader, buildDispatch(world.phases), mediator, signal$)
+	const space = new MachineSpace(world, loader, mediator, signal$)
 
 	if(store) {
 		const threshold$ = concat(
@@ -54,8 +49,7 @@ export function newRun<
 	const machine$ = space.machine$;
 	const log$ = machine$.pipe(
 		mergeMap(m => m.log$.pipe(
-			map<Log<P>, [Id, P|false, AtomRef<Data>?]>(
-				([p,r]) => r ? [m.id, p, r] : [m.id, p])
+			map(l => [m.id, l] as const)
 		)));
 
 	const keepAlive$ = new Subject<number>();

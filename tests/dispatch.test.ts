@@ -1,25 +1,42 @@
 import { buildDispatch } from '../src/dispatch'
 import { PhaseMapImpl } from '../src/lib'
+import { Num, Str } from './guards/Guard';
+import { World } from './shape/World'
+import { act } from './shapeShared';
 
 describe('dispatching', () => {
+
+	// Dispatcher creates base context
+	// reads from world
+	// prepares full context
+	// and actually runs the action (should catch errors too)
+	//
+	// a layer above the dispatcher, bits are emitted on save
+	// and then we continue...
+	//
+	// the dispatcher might be superfluous as an extra layer
+	// something orchestrates the call, but hiding half of it in Dispatcher is naff
+	
 	it('shallow phases', async () => {
-		type Phases = {
-			apple: [number],
-			banana: [string]
-		}
-
-		const phases: PhaseMapImpl<any, Phases> = {
-			apple: x => ({
-				guard(d): d is [number] { return true },
-				async run() { return ['banana', ['hello!']] }
-			}),
-			banana: x => ({
-				guard(d): d is [string] { return true },
-				async run() { return ['apple', [0]] }
+		const w = World
+			.shape({
+				apple: act(Num),
+				banana: act(Str)
 			})
-		}
+			.impl({
+				async apple() {
+					return ['banana', 'hello']
+				},
+				async banana() {
+					return ['apple', 0]
+				}
+			})
+			.build();
 
-		const dispatch = buildDispatch(phases);
+		const r = w.read('');
+		const x = r.fac({});
+
+		const dispatch = buildDispatch(w);
 
 		const result1 = await dispatch({})(['apple', [12]]);
 		expect(result1).toEqual(['banana', ['hello!']]);

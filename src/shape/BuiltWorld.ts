@@ -3,7 +3,7 @@ import { Fac, Handler } from "../shapeShared";
 import { formPath, separator } from "./common";
 import { Registry } from "./Registry";
 
-export class BuiltWorld<N> {
+export class BuiltWorld<N = unknown> {
   public readonly nodes: N = <N><unknown>{}
   readonly reg: Registry
 
