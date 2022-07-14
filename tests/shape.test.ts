@@ -4,8 +4,9 @@ import { World } from "../src/shape/World";
 
 describe('shape', () => {
   
-  const w0 = World.shape({
-    ...ctx<{ a:number }>(),
+  const w0 = World
+    .shape({
+      ...ctx<{ a:number }>(),
 
       jerboa: {
         ...ctx<{ b:readonly number[], bb:number }>(),
@@ -75,7 +76,6 @@ describe('shape', () => {
   })
 
   it('facs covariant only', () => {
-
     const b0 = World.shape({
       ...ctx<{a:1}>()
     });

@@ -4,6 +4,8 @@ import { Any, Many, Num, Str } from '../guards/Guard'
 import { $root, act, ctx } from '../shapeShared';
 import { World } from '../shape/World';
 
+// todo: shape needs to build in basic context
+
 const w1 = World.shape({
   $boot: act([]),
   $end: act(Many(Any)),

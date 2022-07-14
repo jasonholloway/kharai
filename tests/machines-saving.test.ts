@@ -2,7 +2,6 @@ import _Monoid from '../src/_Monoid'
 import { scenario } from './shared'
 import { rodents } from './worlds/rodents'
 import { Map, Set, List } from 'immutable'
-const log = console.log;
 
 describe('machines - saving', () => {
 	const fac = scenario(rodents());

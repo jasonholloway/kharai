@@ -22,7 +22,7 @@ export module World {
 
   type _MergeNew<A,B> = {
     [k in keyof B]:
-      k extends `D_${string}` ? (
+      k extends `D${'_'|''}${string}` ? (
         //data must be invariantly equal
         k extends keyof A ?
           A[k] extends B[k] ?
@@ -32,13 +32,13 @@ export module World {
         : B[k]
         //need to pool errors somehow
       )
-    : k extends `XA_${string}` ? (
+    : k extends `XA${'_'|''}${string}` ? (
         //contracts should merge nicely
         k extends keyof A ?
         DeepMerge<A[k], B[k]> //tried MergeDeep here but it's naff (currently)
         : B[k]
       )
-    : k extends `XI_${string}` ? (
+    : k extends `XI${'_'|''}${string}` ? (
         //implementations should merge nicely
         k extends keyof A ?
         DeepMerge<A[k], B[k]>
@@ -123,6 +123,7 @@ export module World {
 export class World<N extends Nodes> {
   public readonly nodes: N = <N><unknown>{}
   readonly reg: Registry
+  static TryMerge: any;
   
   constructor(reg?: Registry) {
     this.reg = reg ?? Registry.empty;
@@ -164,14 +165,16 @@ export class World<N extends Nodes> {
   }
 
   
-  static shape<S extends SchemaNode>(s: S) : World<Shape<S>> {
+  static shape<S extends SchemaNode>(s: S) { //} : World<Shape<S>> {
     const reg = _walk([], s)
       .reduce(
         (ac, [p, g]) => ac.addGuard(p, g),
         Registry.empty
       );
 
-    return new World<Shape<S>>(reg);
+    type Merged = World.TryMerge<{XA:CoreCtx},Shape<S>>
+    
+    return <Merged>new World<Shape<S>>(reg);
 
     function _walk(pl: string[], n: SchemaNode) : List<readonly [string, unknown]> {
       if((<any>n)[$data]) {
@@ -191,6 +194,13 @@ export class World<N extends Nodes> {
     }
   }
 }
+
+
+export type CoreCtx = {
+  id: string,
+  hello: 123
+}
+
 
 export type Shape<S> =
   Simplify<_Assemble<_Walk<S>>> extends infer N ?
