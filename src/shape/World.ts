@@ -1,5 +1,7 @@
 import { List } from "immutable";
+import { Observable } from "rxjs/internal/Observable";
 import { Read } from "../guards/Guard";
+import { Attendee, Convener } from "../Mediator";
 import { Handler, $Root, SchemaNode, $data, $Data, $Fac, act, ctx } from "../shapeShared";
 import { DeepMerge, Merge, Simplify } from "../util";
 import { BuiltWorld } from "./BuiltWorld";
@@ -75,7 +77,7 @@ export module World {
     X extends keyof N ?
     X extends `XA${infer Rest}` ? 
     `XI${Rest}` extends infer XI ?
-    `${Rest} needs` extends infer Part0 ?
+    `fac '${Rest}' needs` extends infer Part0 ?
     XI extends keyof N ?
     N[XI] extends N[X] ? never
     : [Part0, N[X], 'but given:', N[XI]]
@@ -195,10 +197,45 @@ export class World<N extends Nodes> {
   }
 }
 
+        // watch(ids: Id[]): Observable<[Id, unknown]> {
+        //   return _this.summon(Set(ids)) //TODO if the same thing is watched twice, commits will be added doubly
+        //     .pipe(
+        //       mergeMap(m => m.log$.pipe(
+        //         map(l => <[Id, Log]>[m.id, l])
+        //       )),
+        //       tap(([,[,r]]) => { //gathering all watched atomrefs here into mutable Commit
+        //         if(r) commit.add(List([r]))
+        //       }),
+        //       mergeMap(([id, [p]]) => p ? [<[Id, unknown]>[id, p]] : []),
+        //     );
+        // },
+
+        // attach<R>(attend: Attendee<R>) {
+        //   return _this.mediator.attach(machine, {
+        //     chat(m, peers) {
+        //       if(isArray(m) && m[0] == $Ahoy) {
+        //         Committer.combine(new MonoidData(), [commit, <Committer<Data>>m[1]]);
+        //         m = m[2];
+        //       }
+
+        //       const proxied = peers.map(p => <Peer>({
+        //         chat(m) {
+        //           return p.chat([$Ahoy, commit, m]);
+        //         }
+        //       }));
+        //       return attend.chat(m, proxied);
+        //     }
+        //   });
+        // },
+
+        // async convene<R>(ids: Id[], convene: Convener<R>) {
+        //   const m$ = _this.summon(Set(ids));
 
 export type CoreCtx = {
-  id: string,
-  hello: 123
+  id: string
+  watch: (ids: string[]) => Observable<readonly [string, unknown]>
+  attach: <R>(attend: Attendee<R>) => unknown
+  convene: <R>(ids: string[], convene: Convener<R>) => unknown
 }
 
 
@@ -400,7 +437,32 @@ export type FacContext<N extends Nodes, P extends string> =
     )
   >
 
-  
+// on extending, if we promised to be last in the list, we could rely on XA
+// _but_ we couldn't extend the contract
+// but that's how things are already
+// only XAs can extend the contract
+//
+// what it would mean, this other mode, is that the impls own output wouldn't be consumable by followers
+// unless they themselves opted to go on the end as well
+//
+// why would any fac not go on the end then?
+// because you might want purposely to provide for future siblings
+//
+// so if you opted into being up front, you can only extend what's already in the list (ie XI)
+// then other front-loaders can see you because you've added to XI0 
+// the action is a split between XI0 and XI1, downstream acts are of course oblivious
+//
+// XI1s can't stack... last must mean last: you can'thave more than one last, receiving the full breadth of the XA
+// so it's an ordered list of types, from <never> to XI to XA
+// pinning to the end doesn't really work anyway, as some of the XA will be self-provided (unless we are to be purely parasitical)
+//
+// but pinning to the beginning might work
+// in fact, multiple facs can pin to the beginning, basically opting out of receiving any upstream sibling contexts
+// this pinning must be registered on the XA - it makes 
+//
+// I can try and settlethis later...
+// for now, lets bring all the tests up to date eh
+//
 
 type _PathContextMerge<N, PL> =
     PL extends readonly [] ? {}
