@@ -7,7 +7,7 @@ import { Id } from '../lib';
 export const parakeet = World
   .shape({
 		$boot: act([]),
-		$end: act([Any] as const),
+		$end: act(Any),
 
 		listen: act([]),
 		chirp: act([Many(Str), Str] as const)
@@ -25,7 +25,7 @@ export const parakeet = World
 				return ['chirp', [ids, m]]
 			}
 
-			return ['$end', []];
+			return ['$end', true];
 		},
 
 		async chirp(x, [ids, message]) {
@@ -38,10 +38,10 @@ export const parakeet = World
 						return 'chirped!';
 					}
 				});
-				return ['$end', [r]];
+				return ['$end', r];
 			}
 
-			return ['$end', ['no-one to chirp to!']];
+			return ['$end', 'no-one to chirp to!'];
 		}
 	});
 

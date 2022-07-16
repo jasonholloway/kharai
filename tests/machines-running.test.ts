@@ -1,6 +1,6 @@
 import _Monoid from '../src/_Monoid'
 import { createRunner } from './shared'
-import { rodents } from '../src/worlds/rodents'
+import { rodents } from './worlds/rodents'
 
 describe('machines - running', () => {
   const world = rodents.build();

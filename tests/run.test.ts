@@ -1,5 +1,5 @@
 import { Map } from 'immutable'
-import { rodents } from "../src/worlds/rodents";
+import { rodents } from "./worlds/rodents";
 import { delay } from '../src/util';
 import { createRunner } from './shared'
 

@@ -1,11 +1,11 @@
 import { Map, Set, List } from 'immutable'
 import _Monoid from '../src/_Monoid'
-import { Id, Data, MachineContext, Phase, PhaseMap, WorldImpl, ContextImpl } from '../src/lib'
+import { Id, Data } from '../src/lib'
 import { BehaviorSubject } from 'rxjs'
 import { shareReplay, scan, groupBy, map, filter,takeWhile, mergeMap } from 'rxjs/operators'
 import { AtomRef, Atom, AtomLike } from '../src/atoms'
 import { gather } from './helpers'
-import { Loader } from '../src/MachineSpace'
+import { Loader, Log } from '../src/MachineSpace'
 import MonoidData from '../src/MonoidData'
 import { newRun } from '../src/Run'
 import { tracePath, renderAtoms } from '../src/AtomPath'
@@ -59,8 +59,8 @@ export function createRunner<N>(world: BuiltWorld<N>, opts?: Opts) {
     logs: (id: Id) =>
       gather(log$.pipe(
         filter(([i]) => i == id),
-        map(([,p]) => p),
-        takeWhile((p): p is P => !!p),
+        map(([,[p]]) => p),
+        takeWhile((p): p is [string, unknown] => !!p),
       )),
 
     allLogs: () => gather(log$),

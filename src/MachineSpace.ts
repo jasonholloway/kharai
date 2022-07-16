@@ -23,7 +23,7 @@ export type Machine = {
 
 type CommitFac = (h: Head<Data>) => Committer<Data>
 
-export type Log = [unknown, AtomRef<Data>?]
+export type Log = [[string, unknown]|false, AtomRef<Data>?]
 
 export class MachineSpace {
   private readonly world: BuiltWorld

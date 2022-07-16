@@ -1,7 +1,7 @@
 import _Monoid from '../../src/_Monoid'
 import { toArray, take } from 'rxjs/operators'
 import { delay } from '../../src/util'
-import { Str, Num, Many, Any } from '../guards/Guard'
+import { Str, Num, Many, Any } from '../../src/guards/Guard'
 import { $root, act } from '../../src/shapeShared'
 import { World } from '../../src/shape/World'
 

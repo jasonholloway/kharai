@@ -16,7 +16,7 @@ describe('machines - watching', () => {
 		]);
 
 		const kes = await x.logs('Kes');
-		const seen = kes.find(l => l[0] == '$end')?.[1][0];
+		const [,seen] = kes.find(([p]) => p == '$end')!;
 
 		expect(seen).toEqual([
 			['Stu', ['runAround', [3]]],
@@ -59,7 +59,7 @@ describe('machines - watching', () => {
 		]);
 
 		const kes = await x.logs('Kes');
-		const seen = kes.find(l => l[0] == '$end')?.[1][0];
+		const seen = kes.find(l => l[0][0] == '$end')?.[0][1];
 
 		expect(seen).toEqual([
 			['Biff', ['runAround', [11]]],
