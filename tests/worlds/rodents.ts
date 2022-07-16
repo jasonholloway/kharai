@@ -1,125 +1,93 @@
 import _Monoid from '../../src/_Monoid'
-import { Id, SpecWorld, makeWorld, World, Phase } from '../../src/lib'
 import { delay } from '../../src/util'
-import { bootPhase, endPhase, waitPhase } from '../../src/phases'
+import { Any, Many, Num, Str } from '../../src/guards/Guard'
+import { $root, act } from '../../src/shapeShared';
+import { World } from '../../src/shape/World';
 
-export type TRodents<Me extends World = World> = SpecWorld<{
-  $boot: []
-  $end: [any]
-  $wait: [number, Phase<Me>]
+export const rodents = World
+  .shape({
+    $boot: act([]),
+    $end: act(Many(Any)),
+    $wait: act([Num, $root] as const),
 
-  rat: {
-    wake: [],
-    squeak: [number]
-  }
+    rat: {
+      wake: act([]),
+      squeak: act([Num] as const)
+    },
 
-  hamster: {
-    wake: [number]
-    nibble: []
-  }
+    hamster: {
+      wake: act([Num] as const),
+      nibble: act([])
+    },
 
-  guineaPig: {
-    runAbout: []
-    gruntAt: [Id]
-  }
+    guineaPig: {
+      runAbout: act([]),
+      gruntAt: act([Str] as const)
+    },
 
-  gerbil: {
-    spawn: [number, number]
-  }
-}>
-
-export type Rodents = TRodents<TRodents>
-
-export const rodents = () => makeWorld<Rodents>()(
-  {
-    contextFac: x => x
-  },
-  {
-    phases: {
-      $boot: bootPhase(),
-      $end: endPhase(),
-      $wait: waitPhase(),
-
-      rat: {
-        wake: x => ({
-          guard(d): d is [] { return true },
-          async run() {
-            return ['squeak', [123]]
-          }
-        }),
-
-        squeak: x => ({
-          guard(d): d is [number] { return true },
-          async run([d]) {
-            return ['$end', [`I have squeaked ${d}!`]]
-          }
-        })
-      },
-
-      hamster: {
-        wake: x => ({
-          guard(d): d is [number] { return true },
-          async run([d]) {
-            await delay(100);
-            return ['$end', [d]]
-          }
-        }),
-        nibble: x => ({
-          guard(d): d is [] { return true },
-          async run() {
-            return false;
-          }
-        })
-      },
-
-      guineaPig: {
-        runAbout: x => ({
-          guard(d): d is [] { return true },
-          async run() {
-            const a = await x.attach({ chat(m) { return [m, 'squeak!'] } });
-            return (a && ['$end', a]) || ['$end', ['BIG NASTY ERROR']]
-          }
-        }),
-
-        gruntAt: x => ({
-          guard(d): d is [Id] { return true },
-          async run([id]) {
-            const resp = await x.convene([id], {
-              convene([p]) {
-                const a = p.chat('grunt!');
-                if(a) return a;
-                else throw Error('bad response from attendee')
-              }
-            });
-
-            return ['$end', resp]
-          }
-        })
-      },
-
-      gerbil: {
-        spawn: x => ({
-          guard(d): d is [number, number] { return true; },
-          async run([step, max]) {
-            if(step < max) {
-              const appendage = String.fromCharCode('a'.charCodeAt(0) + step);
-
-              if(x.id.length < max) {
-                const other = `${x.id}${appendage}`;
-
-                await x.convene([other], {
-                  convene([p]) {
-                    p.chat([['gerbil', ['spawn', [0, max]]]])
-                  }
-                })
-
-                return ['spawn', [step + 1, max]]
-              }
-            }
-
-            return false;
-          }
-        })
-      },
+    gerbil: {
+      spawn: act([Num, Num] as const)
     }
   })
+  .impl({
+    rat: {
+      async wake(_, [n]) {
+        return ['rat_squeak', [123]];
+      },
+
+      async squeak(_, [d]) {
+        return ['$end', ['I have squeaked ${d}!']]
+      }
+    },
+
+    hamster: {
+      async wake(_, d) {
+        await delay(100);
+        return ['$end', [d]];
+      },
+
+      async nibble() {
+        return ['$end', []];
+      }
+    },
+
+    guineaPig: {
+      async runAbout(x) {
+        const a = await x.attach({ chat(m) { return [m, 'squeak!'] } });
+        return (a && ['$end', a]) || ['$end', ['BIG NASTY ERROR']]
+      },
+
+      async gruntAt(x, [id]) {
+        const resp = await x.convene([id], {
+          convene([p]) {
+            const a = p.chat('grunt!');
+            if(a) return a;
+            else throw Error('bad response from attendee')
+          }
+        });
+        return ['$end', resp]
+      }
+    },
+
+    gerbil: {
+      async spawn(x, [step, max]) {
+        if(step < max) {
+          const appendage = String.fromCharCode('a'.charCodeAt(0) + step);
+
+          if(x.id.length < max) {
+            const other = `${x.id}${appendage}`;
+
+            await x.convene([other], {
+              convene([p]) {
+                p.chat([['gerbil', ['spawn', [0, max]]]])
+              }
+            })
+
+            return ['gerbil_spawn', [step + 1, max]]
+          }
+        }
+
+        return false;
+      }
+    }
+  });

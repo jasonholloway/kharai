@@ -10,16 +10,15 @@ export const Bool = Symbol('Bool');
 export const Str = Symbol('Str');
 export const Never = Symbol('Never');
 
-const $many = Symbol('Many');
+export const $many = Symbol('Many');
 type Many<V> = {
   _type: typeof $many,
-  inner: V,
-  [$inspect](): string
+  inner: V
 }
 
 
 export function Many<V>(m: V) : Many<V> {
-  return {
+  return <Many<V>>{
     _type: $many,
     inner: m,
     [$inspect]() { return `${inspect(m)}[]` }

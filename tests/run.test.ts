@@ -1,74 +1,57 @@
 import { Map } from 'immutable'
-import { rodents, Rodents } from "./worlds/rodents";
-import { newRun } from "../src/Run";
-import { Phase, Id } from "../src/lib";
-import { Loader } from './MachineSpace';
-import { scenario } from './shared';
-import { delay } from '../src//util';
-const log = console.log;
+import { rodents } from "../src/worlds/rodents";
+import { delay } from '../src/util';
+import { createRunner } from './shared'
 
 describe('running', () => {
-	type P = Phase<Rodents>;
+	const world = rodents.build();
 
 	it('start and stop', async () => {
-		const world = rodents();
-
-    const loader: Loader<P> =
-      ids => Promise.resolve(
-				ids.reduce<Map<Id, P>>(
-					(ac, id) => ac.set(id, ['$boot', []]),
-					Map()));
-
-		const run = newRun(world, loader);
+		const x = createRunner(world);
 
 		await Promise.all([
-			run.boot('a', ['gerbil', ['spawn', [0, 3]]]),
-			run.boot('b', ['gerbil', ['spawn', [0, 2]]]),
+			x.run.boot('a', ['gerbil', ['spawn', [0, 3]]]),
+			x.run.boot('b', ['gerbil', ['spawn', [0, 2]]]),
 		]);
 		
-		await run.log$.toPromise();
-		await run.machine$.toPromise();
+		await x.run.log$.toPromise();
+		await x.run.machine$.toPromise();
 	})
 
 	it('starting fresh', async () => {
-		const x = scenario(rodents())(
-			{
-				loader: ids => Promise.resolve(
-					ids.reduce<Map<Id, P>>(
-						(ac, id) => ac.set(id, ['$boot', []]),
-						Map()))
-			});
+		const x = createRunner(world);
 
 		const success = await x.run.boot('fresh', ['guineaPig', ['runAbout', []]]);
 		expect(success).toBeTruthy();
 	})
 
+	//TODO loaded states should be frisked at runtime
+
 	it('starting existing', async () => {
-		const x = scenario(rodents())(
-			{
-				loader: ids => Promise.resolve(
-					ids.reduce<Map<Id, P>>(
-						(ac, id) => ac.set(id, ['gerbil', ['spawn', [0, 2]]]),
-						Map()))
-			});
+		const x = createRunner(world, {
+			loader: ids => Promise.resolve(
+				ids.reduce(
+					(ac, id) => ac.set(id, ['gerbil', ['spawn', [0, 2]]]),
+					Map()))
+		});
 
 		const success = await x.run.boot('existing', ['guineaPig', ['runAbout', []]]);
 		expect(success).toBeFalsy();
 	})
 
 	it('starting both fresh and existing', async () => {
-		const x = scenario(rodents())(
-			{
-				loader: ids => Promise.resolve(
-					ids.reduce<Map<Id, P>>(
-						(ac, id) => {
-							switch(id) {
-								case 'existing': return ac.set(id, ['rat', ['wake', []]]);
-								default: return ac.set(id, ['$boot', []]);
-							}
-						},
-						Map()))
-			});
+		const x = createRunner(world,
+		{
+			loader: ids => Promise.resolve(
+				ids.reduce(
+					(ac, id) => {
+						switch(id) {
+							case 'existing': return ac.set(id, ['rat', ['wake', []]]);
+							default: return ac.set(id, ['$boot', []]);
+						}
+					},
+					Map()))
+		});
 
 		await x.session(async () => {
 			const [bootedExisting, bootedFresh] = await Promise.all([
@@ -97,7 +80,6 @@ describe('running', () => {
 		]);
 	})
 
-
 	xit('graceful ending of deadlocks', async () => {
 		//
 		//deadlocks get in the way of graceful shutdown
@@ -113,7 +95,5 @@ describe('running', () => {
 		//
 		//TODO
 	})
-
 	
 })
-

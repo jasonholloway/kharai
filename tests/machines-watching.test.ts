@@ -1,16 +1,13 @@
-import { List, Map } from 'immutable'
 import _Monoid from '../src/_Monoid'
-import { scenario } from './shared'
-import { birds } from './worlds/birds'
-
-const log = console.log;
+import { createRunner } from './shared';
+import { birds } from './worlds/birds2'
 
 describe('machines - watching', () => {
-	const fac = scenario(birds);
-	let x: ReturnType<typeof fac>
+
+	const world = birds.build();
 
 	it('one can watch the other', async () => {
-		x = fac({ save: false });
+		const x = createRunner(world, { save:false });
 
 		await Promise.all([
 			x.run.boot('Kes', ['track', [['Stu'], 100]]),
@@ -30,12 +27,10 @@ describe('machines - watching', () => {
 	})
 
 	it('loaded state immediately visible; implies dispatch', async () => {
-		x = fac({
-			phases: Map({
-				Gwen: ['runAround', [13]]
-			}),
-			save: false
-		});
+		const x = createRunner(world, { save:false });
+			// phases: Map({
+			// 	Gwen: ['runAround', [13]]
+			// }),
 
 		await Promise.all([
 			x.run.boot('Gareth', ['track', [['Gwen'], 2]]),
@@ -54,7 +49,7 @@ describe('machines - watching', () => {
 	})
 
 	it('can watch several at once', async () => {
-		x = fac({ save: false });
+		const x = createRunner(world, { save:false });
 
 		await Promise.all([
 			x.run.boot('Kes', ['track', [['Biff', 'Kipper'], 4]]),
@@ -76,7 +71,7 @@ describe('machines - watching', () => {
 
 
 	it('tracks causality in atom tree', async () => {
-		x = fac({ save: false });
+		const x = createRunner(world, { save:false });
 
 		await Promise.all([
 			x.run.boot('Gord', ['runAround', [1]]),
@@ -100,7 +95,7 @@ describe('machines - watching', () => {
 	})
 
 	it('past phases of target aren\'t seen', async () => {
-		x = fac({ save: false });
+		const x = createRunner(world, { save:false });
 
 		await Promise.all([
 			x.run.boot('Gord', ['runAround', [2]]),

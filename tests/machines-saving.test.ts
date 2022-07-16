@@ -1,14 +1,14 @@
 import _Monoid from '../src/_Monoid'
-import { scenario } from './shared'
-import { rodents } from './worlds/rodents'
+import { createRunner } from './shared'
+import { rodents } from '../src/worlds/rodents'
 import { Map, Set, List } from 'immutable'
 
 describe('machines - saving', () => {
-	const fac = scenario(rodents());
-	let x: ReturnType<typeof fac>
+
+	const world = rodents.build();
 
 	it('atoms conjoin without consolidation (no saver or rewrites)', async () => {
-		x = fac({ save: false });
+		const x = createRunner(world, { save:false });
 
 		await Promise.all([
 			x.run.boot('baz', ['guineaPig', ['runAbout', []]]),
@@ -51,7 +51,7 @@ describe('machines - saving', () => {
 	})
 
 	it('atoms consolidated (via saver)', async () => {
-		x = fac();
+		const x = createRunner(world);
 
 		await Promise.all([
 			x.run.boot('baz', ['guineaPig', ['runAbout', []]]),
@@ -78,7 +78,7 @@ describe('machines - saving', () => {
 	})
 
 	it('doesn\'t save $boots', async () => {
-		x = fac({ batchSize: 2 });
+		const x = createRunner(world, { batchSize:2 });
 
 		await Promise.all([
 			x.run.boot('a', ['gerbil', ['spawn', [0, 2]]]),
@@ -92,7 +92,7 @@ describe('machines - saving', () => {
 	})
 
 	xit('too small batch size throws error', async () => {
-		x = fac({ batchSize: 1 });
+		const x = createRunner(world, { batchSize:1 });
 
 		await Promise.all([
 			x.run.boot('m', ['gerbil', ['spawn', [0, 2]]]),
@@ -104,7 +104,7 @@ describe('machines - saving', () => {
 	})
 
 	it('big enough batch saves once', async () => {
-		x = fac({ batchSize: 24, threshold: 6 });
+		const x = createRunner(world, { batchSize:24, threshold:6 });
 
 		await Promise.all([
 			x.run.boot('m', ['gerbil', ['spawn', [0, 2]]]),
@@ -116,7 +116,7 @@ describe('machines - saving', () => {
 	})
 	
 	it('big enough batch, heads resolve to same atom', async () => {
-		x = fac({ batchSize: 24, threshold: 3 });
+		const x = createRunner(world, { batchSize:24, threshold:3 });
 
 		await Promise.all([
 			x.run.boot('a', ['gerbil', ['spawn', [0, 2]]]),
@@ -141,7 +141,7 @@ describe('machines - saving', () => {
 	})
 
 	xit('further saving', async () => {
-		x = fac({ batchSize: 5, threshold: 4 });
+		const x = createRunner(world, { batchSize:5, threshold:4 });
 
 		await Promise.all([
 			x.run.boot('m', ['gerbil', ['spawn', [0, 2]]]),

@@ -1,12 +1,12 @@
 import _Monoid from '../../src/_Monoid'
 import { toArray, take } from 'rxjs/operators'
 import { delay } from '../../src/util'
-import { Str, Num, Many, Any, Read } from '../guards/Guard'
-import { world } from '../../src/shape'
+import { Str, Num, Many, Any } from '../guards/Guard'
 import { $root, act } from '../../src/shapeShared'
-import { Observable } from 'rxjs'
+import { World } from '../../src/shape/World'
 
-const w1 = world({
+export const birds = World
+  .shape({
     $boot: act([]),
     $end: act([Many(Any)] as const),
     // $wait: data([Num, me] as const),
@@ -16,17 +16,6 @@ const w1 = world({
       runAround: act([Num] as const),
     }
   })
-  .ctxImpl('', () =>({
-    watch(ids: string[]): Observable<unknown> {
-      throw 123;
-    }
-  }));
-
-
-const w2 = w1
-  .ctxImpl('emu', x => ({ moo:123 }));
-
-const w3 = w2
   .impl({
     emu: {
       async runAround(x, [n]) {
@@ -37,13 +26,8 @@ const w3 = w2
         }
 
         return false;
-      }
-    }
-  });
+      },
 
-const w4 = w3
-  .impl({
-    emu: {
       async track(x, [ids, c]) {
         const frames = await x.watch(ids)
           .pipe(take(c), toArray())
@@ -60,7 +44,7 @@ const Scraper = {
   notify: act([/http.*/] as const)
 };
 
-const w = world({
+const w = World.shape({
     $boot: act([]),
     $end: act([Many(Any)] as const),
     $wait: act([Num, $root] as const),

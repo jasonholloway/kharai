@@ -1,13 +1,13 @@
 import _Monoid from '../src/_Monoid'
-import { scenario } from './shared'
 import { parakeet } from './worlds/parakeet'
 import { delay } from '../src/util';
+import { createRunner } from './shared';
 
 describe('machines - conversing', () => {
-	const fac = scenario(parakeet);
+	const world = parakeet.build();
 
 	it('atom dependencies tracked', async () => {
-		const x = fac({ save: false });
+    const x = createRunner(world, {save:false});
 
 		await Promise.all([
 			x.run.boot('Polly', ['listen', []]),

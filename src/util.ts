@@ -105,16 +105,22 @@ export function mergeObjects<R extends unknown[]>(...r: R) {
   return <MergeMany<R>>Object.assign({}, ...r);
 }
 
+export type Identical<A,B> =
+  A extends B ? B extends A ? true
+  : false : false;
 
 export type DeepMerge<A,B> =
-  [A,B] extends [object,object] ?
-    Merge<A, {
-      [k in keyof B]:
-        k extends keyof A
-          ? DeepMerge<A[k],B[k]>
-          : B[k]
-    }>
-  : A&B;
+  Identical<A,B> extends true ? A
+  : ( 
+    [A,B] extends [object,object] ?
+      Merge<A, {
+        [k in keyof B]:
+          k extends keyof A
+            ? DeepMerge<A[k],B[k]>
+            : B[k]
+      }>
+    : A&B
+  );
 
 {
   type A = DeepMerge<{},{}>

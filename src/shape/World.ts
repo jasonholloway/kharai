@@ -174,9 +174,10 @@ export class World<N extends Nodes> {
         Registry.empty
       );
 
-    type Merged = World.TryMerge<{XA:CoreCtx},Shape<S>>
-    
+    type Merged = World.TryMerge<{XA:CoreCtx,XI:CoreCtx},Shape<S>>
     return <Merged>new World<Shape<S>>(reg);
+
+    //TODO inject CoreCtx into reg
 
     function _walk(pl: string[], n: SchemaNode) : List<readonly [string, unknown]> {
       if((<any>n)[$data]) {
@@ -234,8 +235,8 @@ export class World<N extends Nodes> {
 export type CoreCtx = {
   id: string
   watch: (ids: string[]) => Observable<readonly [string, unknown]>
-  attach: <R>(attend: Attendee<R>) => unknown
-  convene: <R>(ids: string[], convene: Convener<R>) => unknown
+  attach: <R>(attend: Attendee<R>) => Promise<false|[R]>
+  convene: <R>(ids: string[], convene: Convener<R>) => Promise<R>
 }
 
 

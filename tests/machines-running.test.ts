@@ -1,16 +1,13 @@
 import _Monoid from '../src/_Monoid'
-import { scenario } from './shared'
-import { rodents } from './worlds/rodents'
+import { createRunner } from './shared'
+import { rodents } from '../src/worlds/rodents'
 
 describe('machines - running', () => {
-  const fac = scenario(rodents());
-  let x: ReturnType<typeof fac>
-
-  beforeEach(() => {
-    x = fac();
-  })  
+  const world = rodents.build();
 
   it('run through phases', async () => {
+    const x = createRunner(world);
+    
     const [logs] = await Promise.all([
       x.allLogs(),
       x.run.boot('bob', ['rat', ['wake', []]])
@@ -25,6 +22,8 @@ describe('machines - running', () => {
   })
 
   it('two run at once', async () => {
+    const x = createRunner(world);
+
     const [logs] = await Promise.all([
       x.allLogs(),
       x.run.boot('nib', ['hamster', ['wake', [77]]]),
@@ -43,6 +42,8 @@ describe('machines - running', () => {
   })
 
   it('two talk to one another', async () => {
+    const x = createRunner(world);
+
     const [logs] = await Promise.all([
       x.allLogs(),
       x.run.boot('gaz', ['guineaPig', ['runAbout', []]]),
