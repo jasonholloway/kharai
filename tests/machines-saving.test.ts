@@ -22,11 +22,11 @@ describe('machines - saving', () => {
 		expect(baz.map(a => a.val().toObject()))
 			.toEqual([
 				{
-					baz: ['guineaPig', ['runAbout', []]]
+					baz: ['guineaPig_runAbout']
 				},
 				{
-					baz: ['$end', ['grunt!']],
-					loz: ['$end', ['squeak!']]
+					baz: ['$end', 'grunt!'],
+					loz: ['$end', 'squeak!']
 				}
 			]);
 
@@ -37,11 +37,11 @@ describe('machines - saving', () => {
 		expect(loz.map(a => a.val().toObject()))
 			.toEqual([
 				{
-					loz: ['guineaPig', ['gruntAt', ['baz']]]
+					loz: ['guineaPig_gruntAt', 'baz']
 				},
 				{
-					baz: ['$end', ['grunt!']],
-					loz: ['$end', ['squeak!']]
+					baz: ['$end', 'grunt!'],
+					loz: ['$end', 'squeak!']
 				}
 			]);
 
@@ -64,15 +64,15 @@ describe('machines - saving', () => {
 
 		expect(baz).toHaveLength(1);
 		expect(baz[0].val().toObject()).toEqual({
-			baz: ['$end', ['grunt!']],
-			loz: ['$end', ['squeak!']]
+			baz: ['$end', 'grunt!'],
+			loz: ['$end', 'squeak!']
 		});
 		expect(baz[0].parents()).toHaveLength(0);
 
 		expect(loz).toHaveLength(1);
 		expect(loz[0].val().toObject()).toEqual({
-			baz: ['$end', ['grunt!']],
-			loz: ['$end', ['squeak!']]
+			baz: ['$end', 'grunt!'],
+			loz: ['$end', 'squeak!']
 		});
 		expect(loz[0].parents()).toHaveLength(0);
 	})

@@ -18,10 +18,10 @@ describe('machines - watching', () => {
 		const [,seen] = kes.find(([p]) => p == '$end')!;
 
 		expect(seen).toEqual([
-			['Stu', ['runAround', [3]]],
-			['Stu', ['runAround', [2]]],
-			['Stu', ['runAround', [1]]],
-			['Stu', ['runAround', [0]]]
+			['Stu', ['runAround', 3]],
+			['Stu', ['runAround', 2]],
+			['Stu', ['runAround', 1]],
+			['Stu', ['runAround', 0]]
 		])
 	})
 
@@ -42,8 +42,8 @@ describe('machines - watching', () => {
 		expect(p).toEqual('$end');
 
 		expect(d).toEqual([
-			['Gwen', ['runAround', [13]]],
-			['Gwen', ['runAround', [12]]]
+			['Gwen', ['runAround', 13]],
+			['Gwen', ['runAround', 12]]
 		])
 	})
 
@@ -61,10 +61,10 @@ describe('machines - watching', () => {
 		const seen = kes.find(l => l[0][0] == '$end')?.[0][1];
 
 		expect(seen).toEqual([
-			['Biff', ['runAround', [11]]],
-			['Kipper', ['runAround', [22]]],
-			['Biff', ['runAround', [10]]],
-			['Kipper', ['runAround', [21]]]
+			['Biff', ['runAround', 11]],
+			['Kipper', ['runAround', 22]],
+			['Biff', ['runAround', 10]],
+			['Kipper', ['runAround', 21]]
 		])
 	})
 
@@ -104,17 +104,15 @@ describe('machines - watching', () => {
 		const logs = await x.allLogs();
 
     expect(logs).toEqual([
-			['Gord', ['$boot', []]],
-			['Ed', ['$boot', []]],
-			['Gord', ['runAround', [2]]],
+			['Gord', ['$boot']],
+			['Ed', ['$boot']],
+			['Gord', ['runAround', 2]],
 			['Ed', ['$wait', [100, ['track', [['Gord'], 1]]]]],
-			['Gord', ['runAround', [1]]],
-			['Gord', ['runAround', [0]]],
+			['Gord', ['runAround', 1]],
+			['Gord', ['runAround', 0]],
 			['Ed', ['track', [['Gord'], 1]]],
 
-			['Ed', ['$end', [[
-				['Gord', ['runAround', [0]]]]]
-			]],
+			['Ed', ['$end', [['Gord', ['runAround', 0]]]]],
 		]);
 	})
 

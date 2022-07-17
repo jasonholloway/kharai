@@ -31,7 +31,7 @@ describe('running', () => {
 		const x = createRunner(world, {
 			loader: ids => Promise.resolve(
 				ids.reduce(
-					(ac, id) => ac.set(id, ['gerbil', ['spawn', [0, 2]]]),
+					(ac, id) => ac.set(id, ['gerbil_spawn', [0, 2]]),
 					Map()))
 		});
 
@@ -46,8 +46,8 @@ describe('running', () => {
 				ids.reduce(
 					(ac, id) => {
 						switch(id) {
-							case 'existing': return ac.set(id, ['rat', ['wake', []]]);
-							default: return ac.set(id, ['$boot', []]);
+							case 'existing': return ac.set(id, ['rat_wake']);
+							default: return ac.set(id, ['$boot']);
 						}
 					},
 					Map()))
@@ -67,16 +67,16 @@ describe('running', () => {
 
 		const existing = await x.logs('existing');
 		expect(existing).toEqual([
-			['rat', ['wake', []]],
-			['rat', ['squeak', [123]]],
-			['$end', ['I have squeaked 123!']]
+			['rat_wake'],
+			['rat_squeak', 123],
+			['$end', 'I have squeaked 123!']
 		]);
 
 		const fresh = await x.logs('fresh');
 		expect(fresh).toEqual([
-			['$boot', []],
-			['hamster', ['wake', [123]]],
-			['$end', [123]]
+			['$boot'],
+			['hamster_wake', 123],
+			['$end', 123]
 		]);
 	})
 

@@ -3,7 +3,7 @@ import { Observable } from "rxjs/internal/Observable";
 import { Any } from "../guards/Guard";
 import { Attendee, Convener } from "../Mediator";
 import { Handler, $data, $Data, $Fac } from "../shapeShared";
-import { DeepMerge, Merge, Simplify } from "../util";
+import { DeepMerge, delay, Merge, Simplify } from "../util";
 import { BuiltWorld } from "./BuiltWorld";
 import { act, ctx, FacContext, FacPath, formPath, Impls, PathFac, SchemaNode } from "./common";
 import { Registry } from "./Registry";
@@ -175,25 +175,30 @@ export class World<N extends Nodes> {
       );
 
     type BuiltIns = {
-      XA: CoreCtx
+      XA: CoreCtx //todo these could be collapsed into simple, single 'X' entry
       XI: CoreCtx
-      D_$boot: unknown,
+      D_$boot: never,
       D_$end: unknown
     };
 
     reg = reg
+      .addFac('', x => x);
+
+    reg = reg
       .addGuard('$boot', Any)
       .addHandler('$boot', async (x: CoreCtx) => {
-        const received = await x.attend({
-          chat(initial) {
-            return [initial];
+        while(true) {
+          const answer = await x.attend({
+            chat(m) { return [m]; }
+          });
+
+          if(answer) {
+            return answer[0];
           }
-        });
-
-        if(!received) throw Error();
-
-        const [initial] = received;
-        return initial;
+          else {
+            await delay(30); //when we release properly, this can be removed (cryptic note!)
+          }
+        }
       });
 
     reg = reg
@@ -202,8 +207,7 @@ export class World<N extends Nodes> {
         return false;
       });
     
-    type Merged = World.TryMerge<BuiltIns,Shape<S>>
-    return <Merged>new World<Shape<S>>(reg);
+    return <World.TryMerge<BuiltIns,Shape<S>>>new World<Shape<S>>(reg);
 
     //TODO inject CoreCtx into reg
 

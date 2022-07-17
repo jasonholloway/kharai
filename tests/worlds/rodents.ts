@@ -78,7 +78,7 @@ export const rodents = World
 
             await x.convene([other], {
               convene([p]) {
-                p.chat([['gerbil', ['spawn', [0, max]]]])
+                p.chat(['gerbil_spawn', [0, max]])
               }
             })
 
