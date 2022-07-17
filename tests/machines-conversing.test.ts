@@ -10,8 +10,8 @@ describe('machines - conversing', () => {
     const x = createRunner(world, {save:false});
 
 		await Promise.all([
-			x.run.boot('Polly', ['listen', []]),
-			x.run.boot('Priscilla', ['listen', []]),
+			x.run.boot('Polly', ['listen']),
+			x.run.boot('Priscilla', ['listen']),
 			x.run.boot('Pete', ['chirp', [['Polly', 'Priscilla'], 'hello!']])
 		]);
 
@@ -22,11 +22,11 @@ describe('machines - conversing', () => {
 		const pete = x.view('Pete');
 
 		expect(priscilla[0].val().toObject())
-			.toEqual({ Priscilla: ['listen', []] })
+			.toEqual({ Priscilla: ['listen'] })
 
 		expect(priscilla[1].val().toObject())
 			.toEqual({
-				Polly: ['$end', ['chirped!']],
+				Polly: ['$end', 'chirped!'],
 				Priscilla: ['chirp', [[], 'hello!']]
 			})
 
@@ -38,7 +38,7 @@ describe('machines - conversing', () => {
 
 		expect(priscilla[2].val().toObject())
 			.toEqual({
-				Priscilla: ['$end', ['no-one to chirp to!']]
+				Priscilla: ['$end', 'no-one to chirp to!']
 			})
 
 		expect(priscilla[2].parents())

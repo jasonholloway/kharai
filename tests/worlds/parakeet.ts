@@ -6,11 +6,11 @@ import { Id } from '../lib';
 
 export const parakeet = World
   .shape({
-		listen: act([]),
+		listen: act(),
 		chirp: act([Many(Str), Str] as const)
 	})
   .impl({
-		async listen(x, d) {
+		async listen(x) {
 			const r = await x.attend({
 				chat([ids, m]) {
 					return <[[Id[], string]]>[[ids, m]];
