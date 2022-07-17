@@ -1,6 +1,7 @@
 import _Monoid from '../src/_Monoid'
 import { createRunner } from './shared';
 import { birds } from './worlds/birds2'
+import { Map } from 'immutable'
 
 describe('machines - watching', () => {
 	const world = birds.build();
@@ -26,10 +27,13 @@ describe('machines - watching', () => {
 	})
 
 	it('loaded state immediately visible; implies dispatch', async () => {
-		const x = createRunner(world, { save:false });
-			// phases: Map({
-			// 	Gwen: ['runAround', [13]]
-			// }),
+		const x = createRunner(world, {
+			loader: ids => Promise.resolve(
+				ids.reduce(
+					(ac, id) => ac.set(id, id == 'Gwen' ? ['runAround', 13] : ['$boot']),
+					Map())),
+			save: false
+		});
 
 		await Promise.all([
 			x.run.boot('Gareth', ['track', [['Gwen'], 2]]),
@@ -37,7 +41,7 @@ describe('machines - watching', () => {
 		]);
 
 		const gareth = x.view('Gareth');
-		const [p, [d]] = gareth[1].val().get('Gareth');
+		const [p, d] = gareth[1].val().get('Gareth');
 
 		expect(p).toEqual('$end');
 
@@ -57,8 +61,8 @@ describe('machines - watching', () => {
 			x.run.log$.toPromise()
 		]);
 
-		const kes = await x.logs('Kes');
-		const seen = kes.find(l => l[0][0] == '$end')?.[0][1];
+		const kesLogs = await x.logs('Kes');
+		const seen = kesLogs.find(l => l[0] == '$end')?.[1];
 
 		expect(seen).toEqual([
 			['Biff', ['runAround', 11]],

@@ -1,5 +1,3 @@
-import { FacNode } from "./facs";
-import { Any } from "./guards/Guard";
 
 export const $root = Symbol('root');
 export type $Root = typeof $root;

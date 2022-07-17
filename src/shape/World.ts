@@ -1,8 +1,8 @@
 import { List } from "immutable";
 import { Observable } from "rxjs/internal/Observable";
-import { Any } from "../guards/Guard";
+import { Any, Num } from "../guards/Guard";
 import { Attendee, Convener } from "../Mediator";
-import { Handler, $data, $Data, $Fac } from "../shapeShared";
+import { Handler, $data, $Data, $Fac, $Root, $root } from "../shapeShared";
 import { DeepMerge, delay, Merge, Simplify } from "../util";
 import { BuiltWorld } from "./BuiltWorld";
 import { act, ctx, FacContext, FacPath, formPath, Impls, PathFac, SchemaNode } from "./common";
@@ -178,7 +178,8 @@ export class World<N extends Nodes> {
       XA: CoreCtx //todo these could be collapsed into simple, single 'X' entry
       XI: CoreCtx
       D_$boot: never,
-      D_$end: unknown
+      D_$end: unknown,
+      D_$wait: [typeof Num, $Root]
     };
 
     reg = reg
@@ -205,6 +206,13 @@ export class World<N extends Nodes> {
       .addGuard('$end', Any)
       .addHandler('$end', async () => {
         return false;
+      });
+
+    reg = reg
+      .addGuard('$wait', [Num, $root])
+      .addHandler('$wait', async (_, [ms, nextPhase]: [number, unknown]) => {
+        await delay(ms); //temp hack
+        return nextPhase;
       });
     
     return <World.TryMerge<BuiltIns,Shape<S>>>new World<Shape<S>>(reg);

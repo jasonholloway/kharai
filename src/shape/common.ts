@@ -24,7 +24,10 @@ type _ExtractPath<A extends string, K> =
   : never
 
 
-export type Data<N extends Nodes, Inner = unknown> =
+export type Data<N extends Nodes> =
+  _Data<N, _Data<N>>
+
+type _Data<N extends Nodes, Inner = unknown> =
   keyof N extends infer K ?
   K extends `D${Separator}${infer P}` ?
   N[K] extends infer G ?
@@ -55,8 +58,8 @@ export type ReadResult = {
 
 
 export type Impls<N extends Nodes> =
-  [Data<N>] extends [infer DOne] ?
-  [Data<N, DOne>] extends [infer DFull] ?
+  [_Data<N>] extends [infer DOne] ?
+  [_Data<N, DOne>] extends [infer DFull] ?
   [_ImplSplit<N>] extends [infer Tups] ?
     _ImplCombine<[Tups], {}, DOne, DFull>
   : never : never : never

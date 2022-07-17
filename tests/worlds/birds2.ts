@@ -8,7 +8,6 @@ import { act } from '../../src/shape/common'
 
 export const birds = World
   .shape({
-    $wait: act([Num, $root] as const),
     track: act([Many(Str), Num] as const),
     runAround: act(Num),
   })
@@ -38,9 +37,8 @@ const Scraper = {
   notify: act([/http.*/] as const)
 };
 
-const w = World.shape({
-    $wait: act([Num, $root] as const),
-
+const w = World
+  .shape({
     AO: Scraper,
     Very: Scraper,
     Argos: Scraper
