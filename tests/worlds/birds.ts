@@ -1,63 +1,71 @@
 import _Monoid from '../../src/_Monoid'
-import { Id, SpecWorld, makeWorld, World, _Phase } from '../../src/lib'
-import { toArray, take, map, tap } from 'rxjs/operators'
+import { toArray, take } from 'rxjs/operators'
 import { delay } from '../../src/util'
-import { bootPhase, endPhase, waitPhase } from '../../src/phases'
+import { Str, Num, Many } from '../../src/guards/Guard'
+import { World } from '../../src/shape/World'
+import { act } from '../../src/shape/common'
 
-const log = console.log;
+export const birds = World
+  .shape({
+    track: act([Many(Str), Num] as const),
+    runAround: act(Num),
+  })
+  .impl({
+    async runAround(_, n) {
+      if(n > 0) {
+        await delay(20);
 
-export type TBirds<Me extends World = World> = SpecWorld<{
-	$boot: []
-	$end: [any[]]
-	$wait: [number, _Phase<Me>]
-	// $watch: [Id, string, Phase<Me>]
+        return ['runAround', n-1]
+      }
 
-	track: [Id[], number]
-	runAround: [number]
-	// sleepThen: [number, Phase<Me>]
-}>
+      return false;
+    },
 
-export type Birds = TBirds<TBirds>
+    async track(x, [ids, c]) {
+      const frames = await x.watch(ids)
+        .pipe(take(c), toArray())
+        .toPromise();
 
-export const birds = makeWorld<Birds>()(
-	{
-		contextFac: x => x
-	},
-	{
-		phases: {
-			$boot: bootPhase(),
-			$end: endPhase(),
-			$wait: waitPhase(),
+      return ['$end', frames];
+    }
+  });
 
-			track: x => ({
-				guard(d): d is [Id[], number] { return true },
-				async run([ids, c]) {
-					const frames = await x.watch(ids)
-						.pipe(take(c), toArray())
-						.toPromise();
 
-					return ['$end', [frames]];
-				}
-			}),
+const Scraper = {
+  scrape: act(Num),
+  notify: act([/http.*/] as const)
+};
 
-			runAround: x => ({
-				guard(d): d is [number] { return true },
-				async run([n]) {
-					if(n > 0) {
-						await delay(20);
-						return ['runAround', [n-1]]
-					}
-					
-					return false;
-				}
-			}),
+const w = World
+  .shape({
+    AO: Scraper,
+    Very: Scraper,
+    Argos: Scraper
+  })
+  .impl({
+    AO: {
+      async scrape(x, n) {
+        console.log(n + 13);
 
-			// sleepThen: x => ({
-			// 	guard(d): d is [number, Phase<Birds>] { return true },
-			// 	async run([timeout, next]) {
-			// 		await delay(timeout);
-			// 		return next;
-			// 	}
-			// })
-		}
-	});
+        //do something here...
+        await Promise.resolve();
+
+        return ['AO_notify', ['https://someurl']]
+      },
+
+      async notify(x, d) {
+        return ['$wait', [100, ['AO_scrape', 123]]]
+      }
+    },
+
+    Very: {
+      async scrape(x, d) {
+        //do something here...
+        await Promise.resolve();
+
+        return ['$wait', [100000, ['Very_notify', ['moo']]]]
+      }
+    }
+  });
+
+  

@@ -1,6 +1,6 @@
 import _Monoid from '../src/_Monoid'
 import { createRunner } from './shared';
-import { birds } from './worlds/birds2'
+import { birds } from './worlds/birds'
 import { Map } from 'immutable'
 
 describe('machines - watching', () => {
