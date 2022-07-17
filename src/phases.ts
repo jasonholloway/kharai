@@ -1,4 +1,4 @@
-import { Id, World, PhaseImpl, MachineContext, Phase } from "./lib";
+import { Id, World, PhaseImpl, MachineContext, _Phase } from "./lib";
 import { delay } from "./util";
 
 //TODO

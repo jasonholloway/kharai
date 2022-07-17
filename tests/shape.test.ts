@@ -1,4 +1,4 @@
-import { act, ctx } from "../src/shapeShared";
+import { act, ctx } from "../src/shape/common";
 import { Num } from "../src/guards/Guard";
 import { World } from "../src/shape/World";
 import { world } from "./shape.world";
@@ -59,7 +59,6 @@ describe('shape', () => {
 
   it('resolves handlers', () => {
     const w = w0.build();
-
     
 
     

@@ -10,14 +10,14 @@ describe('machines - running', () => {
     
     const [logs] = await Promise.all([
       x.allLogs(),
-      x.run.boot('bob', ['rat', ['wake', []]])
+      x.run.boot('bob', ['rat_wake'])
     ]);
 
     expect(logs).toEqual([
-      ['bob', ['$boot', []]],
-      ['bob', ['rat', ['wake', []]]],
-      ['bob', ['rat', ['squeak', [123]]]],
-      ['bob', ['$end', ['I have squeaked 123!']]]
+      ['bob', ['$boot']],
+      ['bob', ['rat_wake']],
+      ['bob', ['rat_squeak', 123]],
+      ['bob', ['$end', 'I have squeaked 123!']]
     ]);
   })
 
@@ -26,18 +26,18 @@ describe('machines - running', () => {
 
     const [logs] = await Promise.all([
       x.allLogs(),
-      x.run.boot('nib', ['hamster', ['wake', [77]]]),
-      x.run.boot('bob', ['rat', ['wake', []]])
+      x.run.boot('nib', ['hamster_wake', 77]),
+      x.run.boot('bob', ['rat_wake'])
     ]);
 
     expect(logs).toEqual([
-      ['nib', ['$boot', []]],
-      ['bob', ['$boot', []]],
-      ['nib', ['hamster', ['wake', [77]]]],
-      ['bob', ['rat', ['wake', []]]],
-      ['bob', ['rat', ['squeak', [123]]]],
-      ['bob', ['$end', ['I have squeaked 123!']]],
-      ['nib', ['$end', [77]]],
+      ['nib', ['$boot']],
+      ['bob', ['$boot']],
+      ['nib', ['hamster_wake', 77]],
+      ['bob', ['rat_wake', []]],
+      ['bob', ['rat_squeak', 123]],
+      ['bob', ['$end', 'I have squeaked 123!']],
+      ['nib', ['$end', 77]],
     ])
   })
 
@@ -46,8 +46,8 @@ describe('machines - running', () => {
 
     const [logs] = await Promise.all([
       x.allLogs(),
-      x.run.boot('gaz', ['guineaPig', ['runAbout', []]]),
-      x.run.boot('goz', ['guineaPig', ['gruntAt', ['gaz']]])
+      x.run.boot('gaz', ['guineaPig_runAbout']),
+      x.run.boot('goz', ['guineaPig_gruntAt', 'gaz'])
     ]);
 
     expect(logs).toEqual([

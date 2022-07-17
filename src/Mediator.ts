@@ -76,7 +76,7 @@ export class Mediator {
     }
   }
 
-  async attach<R>(item: object, attend: Attendee<R>): Promise<false|[R]> { //instead of returning false, should relock, retry till we get result
+  async attend<R>(item: object, attend: Attendee<R>): Promise<false|[R]> { //instead of returning false, should relock, retry till we get result
     let _state: false|[R] = false;
 
     const handle = await CancellablePromise.create<Lock>(

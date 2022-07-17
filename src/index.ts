@@ -1,5 +1,5 @@
 import { newRun } from "./Run";
-import { Phase, makeWorld, World, MachineContext, SpecWorld } from "./lib";
+import { _Phase, makeWorld, World, MachineContext, SpecWorld } from "./lib";
 import { Loader } from "./MachineSpace";
 import FakeStore from "./FakeStore";
 import Store from "./Store";
@@ -17,7 +17,7 @@ export {
 	SpecWorld,
 	makeWorld,
 	World,
-	Phase,
+	_Phase,
 
 	bootPhase,
 	endPhase,

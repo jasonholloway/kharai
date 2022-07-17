@@ -1,11 +1,11 @@
 import { List } from "immutable";
 import { Observable } from "rxjs/internal/Observable";
-import { Read } from "../guards/Guard";
+import { Any } from "../guards/Guard";
 import { Attendee, Convener } from "../Mediator";
-import { Handler, $Root, SchemaNode, $data, $Data, $Fac, act, ctx } from "../shapeShared";
+import { Handler, $data, $Data, $Fac } from "../shapeShared";
 import { DeepMerge, Merge, Simplify } from "../util";
 import { BuiltWorld } from "./BuiltWorld";
-import { formPath } from "./common";
+import { act, ctx, FacContext, FacPath, formPath, Impls, PathFac, SchemaNode } from "./common";
 import { Registry } from "./Registry";
 
 export const separator = '_'
@@ -66,7 +66,7 @@ export module World {
 
 
 
-  export type TryBuild<N> =
+  export type TryBuild<N extends Nodes> =
     [_FindUnimplementedFacs<N, keyof N>] extends [infer Results] ?
     [Results] extends [[]]
       ? BuiltWorld<N>
@@ -168,13 +168,41 @@ export class World<N extends Nodes> {
 
   
   static shape<S extends SchemaNode>(s: S) { //} : World<Shape<S>> {
-    const reg = _walk([], s)
+    let reg = _walk([], s)
       .reduce(
         (ac, [p, g]) => ac.addGuard(p, g),
         Registry.empty
       );
 
-    type Merged = World.TryMerge<{XA:CoreCtx,XI:CoreCtx},Shape<S>>
+    type BuiltIns = {
+      XA: CoreCtx
+      XI: CoreCtx
+      D_$boot: unknown,
+      D_$end: unknown
+    };
+
+    reg = reg
+      .addGuard('$boot', Any)
+      .addHandler('$boot', async (x: CoreCtx) => {
+        const received = await x.attend({
+          chat(initial) {
+            return [initial];
+          }
+        });
+
+        if(!received) throw Error();
+
+        const [initial] = received;
+        return initial;
+      });
+
+    reg = reg
+      .addGuard('$end', Any)
+      .addHandler('$end', async () => {
+        return false;
+      });
+    
+    type Merged = World.TryMerge<BuiltIns,Shape<S>>
     return <Merged>new World<Shape<S>>(reg);
 
     //TODO inject CoreCtx into reg
@@ -235,7 +263,7 @@ export class World<N extends Nodes> {
 export type CoreCtx = {
   id: string
   watch: (ids: string[]) => Observable<readonly [string, unknown]>
-  attach: <R>(attend: Attendee<R>) => Promise<false|[R]>
+  attend: <R>(attend: Attendee<R>) => Promise<false|[R]>
   convene: <R>(ids: string[], convene: Convener<R>) => Promise<R>
 }
 
@@ -305,138 +333,138 @@ type _Assemble<T extends readonly [string, unknown]> =
 }
 
 
-export type NodePath<N extends Nodes> = _ExtractPath<'S'|'D', keyof N> | ''
-export type DataPath<N extends Nodes> = _ExtractPath<'D', keyof N>
-export type FacPath<N extends Nodes> = _ExtractPath<'XA', keyof N>
+// export type NodePath<N extends Nodes> = _ExtractPath<'S'|'D', keyof N> | ''
+// export type DataPath<N extends Nodes> = _ExtractPath<'D', keyof N>
+// export type FacPath<N extends Nodes> = _ExtractPath<'XA', keyof N>
 
-type _ExtractPath<A extends string, K> =
-    K extends A ? ''
-  : K extends `${A}${Separator}${infer P}` ? P
-  : never
-
-
-export type Data<N extends Nodes, Inner = unknown> =
-  keyof N extends infer K ?
-  K extends `D${Separator}${infer P}` ?
-  N[K] extends infer G ?
-  Read<G, $Root, Inner> extends infer D ?
-  [P, D]
-  : never : never : never : never;
+// type _ExtractPath<A extends string, K> =
+//     K extends A ? ''
+//   : K extends `${A}${Separator}${infer P}` ? P
+//   : never
 
 
-
-export type Impls<N extends Nodes> =
-  [Data<N>] extends [infer DOne] ?
-  [Data<N, DOne>] extends [infer DFull] ?
-  [_ImplSplit<N>] extends [infer Tups] ?
-    _ImplCombine<[Tups], {}, DOne, DFull>
-  : never : never : never
-;
-
-type _ImplSplit<N extends Nodes> =
-  keyof N extends infer K ?
-  K extends keyof N ?
-  K extends string ?
-  TupPopHead<PathList<K>> extends [infer Tail, infer Popped, infer Head] ?
-  Popped extends true ?
-    readonly [Tail, Head, N[K]]
-  : never : never : never : never : never
-;
-
-type _ImplCombine<Tups, X0, DOne, DAll> =
-  (
-    [
-      Tups extends readonly [infer I] ?
-      I extends readonly [[], 'XA', infer V] ? V
-      : never : never
-    ] extends readonly [infer X1] ?
-    IsNotNever<X1> extends true ? Merge<X0, X1> : X0
-    : never
-  ) extends infer X ?
-
-  [
-    Tups extends readonly [infer I] ?
-    I extends readonly [[], 'D', infer V] ? V
-    : never : never
-  ] extends readonly [infer D] ?
-  IsNotNever<D> extends true ? ((x:X, d:Read<D, $Root, DOne>)=>Promise<DAll|false>)
-
-  : {
-    [Next in
-      Tups extends readonly [infer I] ?
-      I extends readonly [readonly [infer PH, ...infer PT], ...infer T] ?
-      PH extends string ?
-      [PH, [PT, ...T]]
-      : never : never : never
-     as Next[0]
-    ]?: _ImplCombine<[Next[1]], X, DOne, DAll>
-  }
-
-  : never : never
-;
-
-{
-  type W = {
-    XA: { a:1 },
-    D_rat_squeak: 123,
-    XA_cat: { b:2 },
-    D_cat_meeow: 456
-  };
-
-  type A = _ImplSplit<W>
-  type B = _ImplCombine<[A], {}, 'DOne', 'DAll'>
-  type C = Impls<W>
-
-  type _ = [A, B, C]
-}
-
-{
-  type N = {
-    S: true,
-    S_hamster: true
-    S_hamster_squeak: true
-    D_hamster_squeak_quietly: 123
-    D_hamster_bite: 456,
-  }
-
-  type A = NodePath<N>
-  type B = DataPath<N>
-  type I = Impls<N>
-
-  const i:I = {
-    hamster: {
-      squeak: {
-        async quietly(x, d) {
-          throw 123;
-        }
-      }
-    }
-  };
-
-  type _ = [A,B,I]
-  i
-}
+// export type Data<N extends Nodes, Inner = unknown> =
+//   keyof N extends infer K ?
+//   K extends `D${Separator}${infer P}` ?
+//   N[K] extends infer G ?
+//   Read<G, $Root, Inner> extends infer D ?
+//   [P, D]
+//   : never : never : never : never;
 
 
 
-export type PathFac<N extends Nodes, P extends string> =
-  _JoinPaths<'XA', P> extends infer XP ?
-  XP extends keyof N ?
-    N[XP]
-  : never : never;
+// export type Impls<N extends Nodes> =
+//   [Data<N>] extends [infer DOne] ?
+//   [Data<N, DOne>] extends [infer DFull] ?
+//   [_ImplSplit<N>] extends [infer Tups] ?
+//     _ImplCombine<[Tups], {}, DOne, DFull>
+//   : never : never : never
+// ;
+
+// type _ImplSplit<N extends Nodes> =
+//   keyof N extends infer K ?
+//   K extends keyof N ?
+//   K extends string ?
+//   TupPopHead<PathList<K>> extends [infer Tail, infer Popped, infer Head] ?
+//   Popped extends true ?
+//     readonly [Tail, Head, N[K]]
+//   : never : never : never : never : never
+// ;
+
+// type _ImplCombine<Tups, X0, DOne, DAll> =
+//   (
+//     [
+//       Tups extends readonly [infer I] ?
+//       I extends readonly [[], 'XA', infer V] ? V
+//       : never : never
+//     ] extends readonly [infer X1] ?
+//     IsNotNever<X1> extends true ? Merge<X0, X1> : X0
+//     : never
+//   ) extends infer X ?
+
+//   [
+//     Tups extends readonly [infer I] ?
+//     I extends readonly [[], 'D', infer V] ? V
+//     : never : never
+//   ] extends readonly [infer D] ?
+//   IsNotNever<D> extends true ? ((x:X, d:Read<D, $Root, DOne>)=>Promise<DAll|false>)
+
+//   : {
+//     [Next in
+//       Tups extends readonly [infer I] ?
+//       I extends readonly [readonly [infer PH, ...infer PT], ...infer T] ?
+//       PH extends string ?
+//       [PH, [PT, ...T]]
+//       : never : never : never
+//      as Next[0]
+//     ]?: _ImplCombine<[Next[1]], X, DOne, DAll>
+//   }
+
+//   : never : never
+// ;
+
+// {
+//   type W = {
+//     XA: { a:1 },
+//     D_rat_squeak: 123,
+//     XA_cat: { b:2 },
+//     D_cat_meeow: 456
+//   };
+
+//   type A = _ImplSplit<W>
+//   type B = _ImplCombine<[A], {}, 'DOne', 'DAll'>
+//   type C = Impls<W>
+
+//   type _ = [A, B, C]
+// }
+
+// {
+//   type N = {
+//     S: true,
+//     S_hamster: true
+//     S_hamster_squeak: true
+//     D_hamster_squeak_quietly: 123
+//     D_hamster_bite: 456,
+//   }
+
+//   type A = NodePath<N>
+//   type B = DataPath<N>
+//   type I = Impls<N>
+
+//   const i:I = {
+//     hamster: {
+//       squeak: {
+//         async quietly(x, d) {
+//           throw 123;
+//         }
+//       }
+//     }
+//   };
+
+//   type _ = [A,B,I]
+//   i
+// }
 
 
-export type FacContext<N extends Nodes, P extends string> =
-  Merge<
-    _PathContextMerge<N, _UpstreamFacPaths<N, P>>,
-    (
-      _JoinPaths<'XI', P> extends infer XIP ?
-      XIP extends keyof N ?
-        N[XIP]
-        : {}
-      : never
-    )
-  >
+
+// export type PathFac<N extends Nodes, P extends string> =
+//   _JoinPaths<'XA', P> extends infer XP ?
+//   XP extends keyof N ?
+//     N[XP]
+//   : never : never;
+
+
+// export type FacContext<N extends Nodes, P extends string> =
+//   Merge<
+//     _PathContextMerge<N, _UpstreamFacPaths<N, P>>,
+//     (
+//       _JoinPaths<'XI', P> extends infer XIP ?
+//       XIP extends keyof N ?
+//         N[XIP]
+//         : {}
+//       : never
+//     )
+//   >
 
 // on extending, if we promised to be last in the list, we could rely on XA
 // _but_ we couldn't extend the contract

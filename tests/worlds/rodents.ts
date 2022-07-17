@@ -1,28 +1,27 @@
 import _Monoid from '../../src/_Monoid'
 import { delay } from '../../src/util'
-import { Any, Many, Num, Str } from '../../src/guards/Guard'
-import { $root, act } from '../../src/shapeShared';
+import { Num, Str } from '../../src/guards/Guard'
+import { act } from '../../src/shape/common';
 import { World } from '../../src/shape/World';
+import { $root } from '../shapeShared';
 
 export const rodents = World
   .shape({
-    $boot: act([]),
-    $end: act(Many(Any)),
     $wait: act([Num, $root] as const),
 
     rat: {
-      wake: act([]),
-      squeak: act([Num] as const)
+      wake: act(),
+      squeak: act(Num)
     },
 
     hamster: {
-      wake: act([Num] as const),
-      nibble: act([])
+      wake: act(Num),
+      nibble: act()
     },
 
     guineaPig: {
-      runAbout: act([]),
-      gruntAt: act([Str] as const)
+      runAbout: act(),
+      gruntAt: act(Str)
     },
 
     gerbil: {
@@ -31,33 +30,33 @@ export const rodents = World
   })
   .impl({
     rat: {
-      async wake(_, [n]) {
-        return ['rat_squeak', [123]];
+      async wake() {
+        return ['rat_squeak', 123];
       },
 
-      async squeak(_, [d]) {
-        return ['$end', ['I have squeaked ${d}!']]
+      async squeak(_, d) {
+        return ['$end', `I have squeaked ${d}!`]
       }
     },
 
     hamster: {
       async wake(_, d) {
         await delay(100);
-        return ['$end', [d]];
+        return ['$end', d];
       },
 
       async nibble() {
-        return ['$end', []];
+        return ['$end', 'done'];
       }
     },
 
     guineaPig: {
       async runAbout(x) {
-        const a = await x.attach({ chat(m) { return [m, 'squeak!'] } });
-        return (a && ['$end', a]) || ['$end', ['BIG NASTY ERROR']]
+        const a = await x.attend({ chat(m) { return [m, 'squeak!'] } });
+        return (a && ['$end', a]) || ['$end', 'BIG NASTY ERROR']
       },
 
-      async gruntAt(x, [id]) {
+      async gruntAt(x, id) {
         const resp = await x.convene([id], {
           convene([p]) {
             const a = p.chat('grunt!');

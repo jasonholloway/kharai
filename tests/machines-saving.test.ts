@@ -11,8 +11,8 @@ describe('machines - saving', () => {
 		const x = createRunner(world, { save:false });
 
 		await Promise.all([
-			x.run.boot('baz', ['guineaPig', ['runAbout', []]]),
-			x.run.boot('loz', ['guineaPig', ['gruntAt', ['baz']]]),
+			x.run.boot('baz', ['guineaPig_runAbout']),
+			x.run.boot('loz', ['guineaPig_gruntAt', 'baz']),
 			x.run.log$.toPromise()
 		]);
 
@@ -54,8 +54,8 @@ describe('machines - saving', () => {
 		const x = createRunner(world);
 
 		await Promise.all([
-			x.run.boot('baz', ['guineaPig', ['runAbout', []]]),
-			x.run.boot('loz', ['guineaPig', ['gruntAt', ['baz']]]),
+			x.run.boot('baz', ['guineaPig_runAbout']),
+			x.run.boot('loz', ['guineaPig_gruntAt', 'baz']),
 			x.run.log$.toPromise()
 		]);
 
@@ -81,7 +81,7 @@ describe('machines - saving', () => {
 		const x = createRunner(world, { batchSize:2 });
 
 		await Promise.all([
-			x.run.boot('a', ['gerbil', ['spawn', [0, 2]]]),
+			x.run.boot('a', ['gerbil_spawn', [0, 2]]),
 			x.run.log$.toPromise()
 		]);
 
@@ -95,8 +95,8 @@ describe('machines - saving', () => {
 		const x = createRunner(world, { batchSize:1 });
 
 		await Promise.all([
-			x.run.boot('m', ['gerbil', ['spawn', [0, 2]]]),
-			x.run.boot('a', ['gerbil', ['spawn', [0, 2]]]),
+			x.run.boot('m', ['gerbil_spawn', [0, 2]]),
+			x.run.boot('a', ['gerbil_spawn', [0, 2]]),
 			x.run.log$.toPromise()
 		]);
 
@@ -107,8 +107,8 @@ describe('machines - saving', () => {
 		const x = createRunner(world, { batchSize:24, threshold:6 });
 
 		await Promise.all([
-			x.run.boot('m', ['gerbil', ['spawn', [0, 2]]]),
-			x.run.boot('a', ['gerbil', ['spawn', [0, 2]]]),
+			x.run.boot('m', ['gerbil_spawn', [0, 2]]),
+			x.run.boot('a', ['gerbil_spawn', [0, 2]]),
 			x.run.log$.toPromise()
 		]);
 
@@ -119,7 +119,7 @@ describe('machines - saving', () => {
 		const x = createRunner(world, { batchSize:24, threshold:3 });
 
 		await Promise.all([
-			x.run.boot('a', ['gerbil', ['spawn', [0, 2]]]),
+			x.run.boot('a', ['gerbil_spawn', [0, 2]]),
 			x.run.log$.toPromise()
 		]);
 
@@ -144,8 +144,8 @@ describe('machines - saving', () => {
 		const x = createRunner(world, { batchSize:5, threshold:4 });
 
 		await Promise.all([
-			x.run.boot('m', ['gerbil', ['spawn', [0, 2]]]),
-			x.run.boot('a', ['gerbil', ['spawn', [0, 2]]]),
+			x.run.boot('m', ['gerbil_spawn', [0, 2]]),
+			x.run.boot('a', ['gerbil_spawn', [0, 2]]),
 			x.run.log$.toPromise()
 		]);
 

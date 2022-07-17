@@ -1,4 +1,4 @@
-import { Id, PhaseMap, Phase, Data } from './lib'
+import { Id, DataMap } from './lib'
 import { Mediator, Convener } from './Mediator'
 import { Observable, ReplaySubject, of, concat, Subject, merge } from 'rxjs'
 import { startWith, endWith, scan, takeWhile, finalize, map, toArray, ignoreElements, concatMap, filter, takeUntil, shareReplay, mergeMap  } from 'rxjs/operators'
@@ -9,15 +9,16 @@ import MonoidData from './MonoidData'
 import Store from './Store'
 import { Preemptable } from './Preemptable'
 import { BuiltWorld } from './shape/BuiltWorld'
+import { Data, Nodes } from './shape/common'
 
 const MD = new MonoidData();
 const gather = <V>(v$: Observable<V>) => v$.pipe(toArray()).toPromise();
 
-export function newRun<W extends PhaseMap>
+export function newRun<N extends Nodes>
 (
-	world: BuiltWorld,
+	world: BuiltWorld<N>,
 	loader: Loader,
-	opts?: { threshold?: number, store?: Store<Data> }
+	opts?: { threshold?: number, store?: Store<DataMap> }
 ) {
 	const signal$ = new ReplaySubject<Signal>(1);
 	const kill$ = signal$.pipe(filter(s => s.stop), shareReplay(1));
@@ -89,12 +90,12 @@ export function newRun<W extends PhaseMap>
 				tell(m: any) {
 					return this.meet({
 						convene([p]) {
-							return p.chat([m])
+							return p.chat(m)
 						}
 					});
 				},
 
-				boot(p: Phase<W>) {
+				boot(p: Data<N>) {
 					return this.tell(p);
 				},
 
@@ -103,7 +104,7 @@ export function newRun<W extends PhaseMap>
 			}
 		},
 
-		async boot(id: Id, p: Phase<W>): Promise<boolean> {
+		async boot(id: Id, p: Data<N>): Promise<boolean> {
 			const ms = await this.summon([id]);
 			const [done] = ms.tell(p).preempt();
 			return done;

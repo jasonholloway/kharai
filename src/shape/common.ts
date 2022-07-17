@@ -1,6 +1,8 @@
+import { FacNode } from "../facs";
 import { Read } from "../guards/Guard";
-import { Handler, $Root, Fac } from "../shapeShared";
+import { Handler, $Root, Fac, $data, $space, $handler, $fac, $Fac } from "../shapeShared";
 import { Merge } from "../util";
+import { CoreCtx } from "./World";
 
 export const separator = '_'
 export type Separator = typeof separator;
@@ -27,8 +29,20 @@ export type Data<N extends Nodes, Inner = unknown> =
   K extends `D${Separator}${infer P}` ?
   N[K] extends infer G ?
   Read<G, $Root, Inner> extends infer D ?
-  [P, D]
+  IsNotNever<D> extends true ? [P, D] : [P]
   : never : never : never : never;
+
+{
+  type A = Data<{
+    XA: CoreCtx
+    XI: CoreCtx
+    D_rat: 123
+    D_guineapig: ['hello', 123]
+  }>;
+
+  type _ = [A];
+}
+
 
 
 export type ReadResult = {
@@ -71,10 +85,16 @@ type _ImplCombine<Tups, X0, DOne, DAll> =
 
   [
     Tups extends readonly [infer I] ?
-    I extends readonly [[], 'D', infer V] ? V
+      I extends readonly [[], 'D', infer V] ? [V]
     : never : never
-  ] extends readonly [infer D] ?
-  IsNotNever<D> extends true ? ((x:X, d:Read<D, $Root, DOne>)=>Promise<DAll|false>)
+  ] extends readonly [infer DD] ?
+    IsNotNever<DD> extends true ? (
+      DD extends readonly [infer D] ?
+      IsNotNever<D> extends true
+        ? (x:X, d:Read<D, $Root, DOne>)=>Promise<DAll|false>
+        : (x:X)=>Promise<DAll|false>
+      : never
+  )
 
   : {
     [Next in
@@ -83,7 +103,7 @@ type _ImplCombine<Tups, X0, DOne, DAll> =
       PH extends string ?
       [PH, [PT, ...T]]
       : never : never : never
-     as Next[0]
+    as Next[0]
     ]?: _ImplCombine<[Next[1]], X, DOne, DAll>
   }
 
@@ -93,6 +113,7 @@ type _ImplCombine<Tups, X0, DOne, DAll> =
 {
   type W = {
     XA: { a:1 },
+    D_dog_woof: never,
     D_rat_squeak: 123,
     XA_cat: { b:2 },
     D_cat_meeow: 456
@@ -343,3 +364,38 @@ type IsNotNever<T> =
   [T] extends [never] ? false : true;
 
 
+
+
+export type SchemaNode = DataNode<unknown> | { [k: string]: SchemaNode }
+export type DataNode<D> = { [$data]: D }
+export type SpaceNode<I> = { [$space]: I }
+export type HandlerNode = { [$handler]: Handler }
+export type ContextNode<X = unknown> = { [$fac]: FacNode<X> }
+
+export function isDataNode(v: SchemaNode): v is DataNode<any> {
+  return !!(<any>v)[$data];
+}
+
+export function isSpaceNode(v: any): v is SpaceNode<any> {
+  return !!(<any>v)[$space];
+}
+
+export function isContextNode(v: any): v is ContextNode {
+  return !!(<any>v)[$fac];
+}
+
+export function isHandlerNode(v: any): v is HandlerNode {
+  return !!(<any>v)[$handler];
+}
+
+export function act<S>(s?: S): DataNode<unknown extends S ? never : S> {
+  return { [$data]: <unknown extends S ? never : S><unknown>s };
+}
+
+export function space<S extends { [k in keyof S]: SchemaNode }>(s: S): SpaceNode<S> {
+  return { [$space]: s };
+}
+
+export function ctx<T>(): { [k in $Fac]: T } {
+  return { [$fac]: <T><unknown>'FAC' };
+}

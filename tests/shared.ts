@@ -1,8 +1,8 @@
 import { Map, Set, List } from 'immutable'
 import _Monoid from '../src/_Monoid'
-import { Id, Data } from '../src/lib'
+import { Id, DataMap } from '../src/lib'
 import { BehaviorSubject } from 'rxjs'
-import { shareReplay, scan, groupBy, map, filter,takeWhile, mergeMap } from 'rxjs/operators'
+import { shareReplay, scan, groupBy, map, filter, takeWhile, mergeMap, tap } from 'rxjs/operators'
 import { AtomRef, Atom, AtomLike } from '../src/atoms'
 import { gather } from './helpers'
 import { Loader, Log } from '../src/MachineSpace'
@@ -11,12 +11,13 @@ import { newRun } from '../src/Run'
 import { tracePath, renderAtoms } from '../src/AtomPath'
 import FakeStore from '../src/FakeStore'
 import { BuiltWorld } from './shape/BuiltWorld'
+import { Nodes } from './shape/common'
 
 const MD = new MonoidData();
 
 type Opts = { batchSize?: number, threshold?: number, save?: boolean, loader?: Loader };
 
-export function createRunner<N>(world: BuiltWorld<N>, opts?: Opts) {
+export function createRunner<N extends Nodes>(world: BuiltWorld<N>, opts?: Opts) {
   const save = opts?.save === undefined || opts?.save;
 
   const store = new FakeStore(MD, opts?.batchSize || 4);
@@ -30,23 +31,23 @@ export function createRunner<N>(world: BuiltWorld<N>, opts?: Opts) {
 
   const run = newRun(world, loader, { ...opts, store: (save ? store : undefined) });
 
-  const atomSub = new BehaviorSubject<Map<string, AtomRef<Data>[]>>(Map()); 
+  const atomSub = new BehaviorSubject<Map<string, AtomRef<DataMap>[]>>(Map()); 
 
   run.machine$.pipe(
     groupBy(m => m.id),
     mergeMap(m$ => m$.pipe(
       mergeMap(m => m.log$),
       mergeMap(([,r]) => r ? [r] : []),
-      scan<AtomRef<Data>, [string, AtomRef<Data>[]]>(([k, rs], r) => [k, [...rs, r]], [m$.key, []])
+      scan<AtomRef<DataMap>, [string, AtomRef<DataMap>[]]>(([k, rs], r) => [k, [...rs, r]], [m$.key, []])
     )),
-    scan((ac: Map<string, AtomRef<Data>[]>, [k, rs]) => {
+    scan((ac: Map<string, AtomRef<DataMap>[]>, [k, rs]) => {
       return ac.set(k, rs);
-    }, Map<string, AtomRef<Data>[]>()),
+    }, Map<string, AtomRef<DataMap>[]>()),
     shareReplay(1),
   ).subscribe(atomSub);
 
   const log$ = run.log$.pipe(
-    map(([id, p]) => [id, p] as const),
+    map(([id,[d,_]]) => [id, d] as const),
     shareReplay(1000)
   );
 
@@ -59,7 +60,7 @@ export function createRunner<N>(world: BuiltWorld<N>, opts?: Opts) {
     logs: (id: Id) =>
       gather(log$.pipe(
         filter(([i]) => i == id),
-        map(([,[p]]) => p),
+        map(([,p]) => p),
         takeWhile((p): p is [string, unknown] => !!p),
       )),
 

@@ -1,4 +1,4 @@
-import { Id, Data } from './lib'
+import { Id, DataMap } from './lib'
 import { Mediator, Convener, Attendee, Peer } from './Mediator'
 import { Observable, Subject, from, merge, ReplaySubject, EMPTY, of } from 'rxjs'
 import { toArray, filter, mergeMap, map, share, expand, startWith, takeUntil, finalize, shareReplay, tap } from 'rxjs/operators'
@@ -10,6 +10,7 @@ import { Commit } from './AtomSpace'
 import { BuiltWorld } from './shape/BuiltWorld'
 import { AtomRef } from './atoms'
 import { isArray } from 'util'
+import { Nodes } from './shape/common'
 
 export type Loader = (ids: Set<Id>) => Promise<Map<Id, unknown>>
 
@@ -17,20 +18,20 @@ const $Ahoy = Symbol('$Ahoy')
 
 export type Machine = {
   id: Id,
-  head: Head<Data>,
+  head: Head<DataMap>,
   log$: Observable<Log>
 }
 
-type CommitFac = (h: Head<Data>) => Committer<Data>
+type CommitFac = (h: Head<DataMap>) => Committer<DataMap>
 
-export type Log = [[string, unknown]|false, AtomRef<Data>?]
+export type Log = [[string, unknown]|false, AtomRef<DataMap>?]
 
-export class MachineSpace {
-  private readonly world: BuiltWorld
+export class MachineSpace<N extends Nodes> {
+  private readonly world: BuiltWorld<N>
   private readonly loader: Loader
   private readonly mediator: Mediator
 
-  private readonly _commit$ = new ReplaySubject<Commit<Data>>(1)
+  private readonly _commit$ = new ReplaySubject<Commit<DataMap>>(1)
   readonly commit$ = this._commit$;
 
   private machines: Map<Id, Promise<Machine>>
@@ -42,7 +43,7 @@ export class MachineSpace {
   private readonly MD = new MonoidData();
 
   constructor(
-    world: BuiltWorld,
+    world: BuiltWorld<N>,
     loader: Loader,
     mediator: Mediator,
     signal$: Observable<Signal>
@@ -87,7 +88,7 @@ export class MachineSpace {
                 id,
                 phase,
                 new Head(_this._commit$),
-                h => new Committer<Data>(_this.MD, h),
+                h => new Committer<DataMap>(_this.MD, h),
                 _this._signal$
               );
 
@@ -115,7 +116,7 @@ export class MachineSpace {
   private runMachine(
     id: Id,
     state: unknown,
-    head: Head<Data>,
+    head: Head<DataMap>,
     commitFac: CommitFac,
     signal$: Observable<Signal>
   ): Machine
@@ -128,23 +129,27 @@ export class MachineSpace {
       expand(([p]) => {
         if(!p) return EMPTY;
 
+        // console.log('phase',p)
+        const [path, data] = p;
+        // console.log('path',path)
+
         return from((async () => {
           const committer = commitFac(head);
 
           try {
             //read path out of phase here
-            const { guard, fac, handler } = _this.world.read('');
+            const { guard, fac, handler } = _this.world.read(path);
 
-            if(!handler) throw Error();
-            if(!fac) throw Error();
-            if(!guard) throw Error();
+            if(!handler) throw Error(`No handler at path ${path}`);
+            if(!fac) throw Error(`No fac at path ${path}`);
+            if(!guard) throw Error(`No guard at path ${path}`);
 
             //guard here
             //...
 
             const coreCtx = coreContext(id, committer);
             const ctx = fac(coreCtx);
-            const out = await handler(ctx, p);
+            const out = await handler(ctx, data);
 
             if(out) {
               const ref = await committer.complete(Map({ [id]: out }));
@@ -176,7 +181,7 @@ export class MachineSpace {
     return machine;
 
 
-    function coreContext(id: Id, commit: Committer<Data>): unknown {
+    function coreContext(id: Id, commit: Committer<DataMap>): unknown {
       return {
         id: id,
 
@@ -193,11 +198,11 @@ export class MachineSpace {
             );
         },
 
-        attach<R>(attend: Attendee<R>) {
-          return _this.mediator.attach(machine, {
+        attend<R>(attend: Attendee<R>) {
+          return _this.mediator.attend(machine, {
             chat(m, peers) {
               if(isArray(m) && m[0] == $Ahoy) {
-                Committer.combine(new MonoidData(), [commit, <Committer<Data>>m[1]]);
+                Committer.combine(new MonoidData(), [commit, <Committer<DataMap>>m[1]]);
                 m = m[2];
               }
 

@@ -3,7 +3,6 @@ import { createRunner } from './shared';
 import { birds } from './worlds/birds2'
 
 describe('machines - watching', () => {
-
 	const world = birds.build();
 
 	it('one can watch the other', async () => {
@@ -11,7 +10,7 @@ describe('machines - watching', () => {
 
 		await Promise.all([
 			x.run.boot('Kes', ['track', [['Stu'], 100]]),
-			x.run.boot('Stu', ['runAround', [3]]),
+			x.run.boot('Stu', ['runAround', 3]),
 			x.run.log$.toPromise()
 		]);
 
@@ -53,8 +52,8 @@ describe('machines - watching', () => {
 
 		await Promise.all([
 			x.run.boot('Kes', ['track', [['Biff', 'Kipper'], 4]]),
-			x.run.boot('Biff', ['runAround', [11]]),
-			x.run.boot('Kipper', ['runAround', [22]]),
+			x.run.boot('Biff', ['runAround', 11]),
+			x.run.boot('Kipper', ['runAround', 22]),
 			x.run.log$.toPromise()
 		]);
 
@@ -74,7 +73,7 @@ describe('machines - watching', () => {
 		const x = createRunner(world, { save:false });
 
 		await Promise.all([
-			x.run.boot('Gord', ['runAround', [1]]),
+			x.run.boot('Gord', ['runAround', 1]),
 			x.run.boot('Ed', ['track', [['Gord'], 1]]),
 			x.run.log$.toPromise()
 		]);
@@ -98,7 +97,7 @@ describe('machines - watching', () => {
 		const x = createRunner(world, { save:false });
 
 		await Promise.all([
-			x.run.boot('Gord', ['runAround', [2]]),
+			x.run.boot('Gord', ['runAround', 2]),
 			x.run.boot('Ed', ['$wait', [100, ['track', [['Gord'], 1]]]])
 		]);
 

@@ -1,4 +1,4 @@
-import { act, ctx } from "../src/shapeShared";
+import { act, ctx } from "../src/shape/common";
 import { Num } from "../src/guards/Guard";
 import { World } from "../src/shape/World";
 
@@ -20,7 +20,7 @@ export const world = World
       }
     }
   })
-  .ctxImpl('', () => ({ a:1 }))
+  .ctxImpl('', x => ({ a:1 }))
   .ctxImpl('jerboa', x => ({ b:[0, x.a], bb:0 }))
   .ctxImpl('jerboa_jump', () => ({ c:'hullo' }))
   .impl({

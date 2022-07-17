@@ -1,12 +1,12 @@
 import _Monoid from '../../src/_Monoid'
-import { Id, SpecWorld, makeWorld, World, Phase } from '../../src/lib'
+import { Id, SpecWorld, makeWorld, World, _Phase } from '../../src/lib'
 import { delay } from '../../src/util'
 import { bootPhase, endPhase, waitPhase } from '../../src/phases'
 
 export type TRodents<Me extends World = World> = SpecWorld<{
   $boot: []
   $end: [any]
-  $wait: [number, Phase<Me>]
+  $wait: [number, _Phase<Me>]
 
   rat: {
     wake: [],

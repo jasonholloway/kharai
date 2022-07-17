@@ -1,5 +1,5 @@
 import _Monoid from '../../src/_Monoid'
-import { Id, SpecWorld, makeWorld, World, Phase } from '../../src/lib'
+import { Id, SpecWorld, makeWorld, World, _Phase } from '../../src/lib'
 import { toArray, take, map, tap } from 'rxjs/operators'
 import { delay } from '../../src/util'
 import { bootPhase, endPhase, waitPhase } from '../../src/phases'
@@ -9,7 +9,7 @@ const log = console.log;
 export type TBirds<Me extends World = World> = SpecWorld<{
 	$boot: []
 	$end: [any[]]
-	$wait: [number, Phase<Me>]
+	$wait: [number, _Phase<Me>]
 	// $watch: [Id, string, Phase<Me>]
 
 	track: [Id[], number]

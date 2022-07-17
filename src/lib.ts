@@ -3,7 +3,7 @@ import { Attendee, Convener } from './Mediator'
 import { Observable } from 'rxjs/internal/Observable'
 
 
-export type Data = Map<string, any>
+export type DataMap = Map<string, any>
 export type Id = string
 
 export type Keyed<T> = { [key: string]: T }
@@ -17,7 +17,7 @@ export type PhaseSpec = {
 
 type PathVal<T, E> = { [K in keyof T]: [K, T[K] extends E ? T[K] : PathVal<T[K], E>] }[keyof T]
 
-export type Phase<P extends PhaseMap = PhaseMap> = PathVal<P, any[]>
+export type _Phase<P extends PhaseMap = PhaseMap> = PathVal<P, any[]>
 
 export interface MachineContext<P> {
 	readonly id: Id
@@ -35,7 +35,7 @@ export type World = PhaseMap
 export type PhaseMapImpl<X, MCurr extends PhaseMap, MAcc extends PhaseMap = {}> = {
 	[K in keyof MCurr]:
 		MCurr[K] extends any[]
-			? PhaseImpl<Phase<MCurr&MAcc>, X, MCurr[K]>
+			? PhaseImpl<_Phase<MCurr&MAcc>, X, MCurr[K]>
 			: (MCurr[K] extends PhaseMap
 				? PhaseMapImpl<X, MCurr[K], MCurr&MAcc>
 				: never)
@@ -63,7 +63,7 @@ export type ContextImpl<P, X extends MachineContext<P>> = {
 export type SpecWorld<W extends World> = W;
 
 // export const makeWorld = <P extends PhaseMap>() => <X>(w: WorldImpl<P, X>): WorldImpl<P, X> => w;
-export const makeWorld = <M extends PhaseMap, P = Phase<M>>() => <X extends MachineContext<P>>(c: ContextImpl<P, X>, w: WorldImpl<M, X>): WorldImpl<M, X> & ContextImpl<P, X>  => ({ ...c, ...w });
+export const makeWorld = <M extends PhaseMap, P = _Phase<M>>() => <X extends MachineContext<P>>(c: ContextImpl<P, X>, w: WorldImpl<M, X>): WorldImpl<M, X> & ContextImpl<P, X>  => ({ ...c, ...w });
 
 
 export type Cons<H, T extends readonly any[]> = ((h: H, ...t: T) => any) extends ((...l: infer L) => any) ? (L extends ReadonlyArray<any> ? L : never) : never;

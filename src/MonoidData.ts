@@ -1,10 +1,10 @@
 import _Monoid from './_Monoid'
-import { Data } from './lib'
+import { DataMap } from './lib'
 import { Map } from 'immutable'
 
-export default class MonoidData implements _Monoid<Data> {
-  zero: Data = Map()
-  add(a: Data, b: Data): Data {
+export default class MonoidData implements _Monoid<DataMap> {
+  zero: DataMap = Map()
+  add(a: DataMap, b: DataMap): DataMap {
     return a.merge(b);
   }
 }

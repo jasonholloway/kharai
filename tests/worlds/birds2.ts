@@ -2,39 +2,33 @@ import _Monoid from '../../src/_Monoid'
 import { toArray, take } from 'rxjs/operators'
 import { delay } from '../../src/util'
 import { Str, Num, Many, Any } from '../../src/guards/Guard'
-import { $root, act } from '../../src/shapeShared'
+import { $root } from '../../src/shapeShared'
 import { World } from '../../src/shape/World'
+import { act } from '../../src/shape/common'
 
 export const birds = World
   .shape({
-    $boot: act([]),
-    $end: act([Many(Any)] as const),
-    // $wait: data([Num, me] as const),
-
-    emu: {
-      track: act([Many(Str), Num] as const),
-      runAround: act([Num] as const),
-    }
+    $wait: act([Num, $root] as const),
+    track: act([Many(Str), Num] as const),
+    runAround: act(Num),
   })
   .impl({
-    emu: {
-      async runAround(x, [n]) {
-        if(n > 0) {
-          await delay(20);
-          
-          return ['emu_runAround', [n-1]]
-        }
+    async runAround(_, n) {
+      if(n > 0) {
+        await delay(20);
 
-        return false;
-      },
-
-      async track(x, [ids, c]) {
-        const frames = await x.watch(ids)
-          .pipe(take(c), toArray())
-          .toPromise();
-
-        return ['$end', [frames]];
+        return ['runAround', n-1]
       }
+
+      return false;
+    },
+
+    async track(x, [ids, c]) {
+      const frames = await x.watch(ids)
+        .pipe(take(c), toArray())
+        .toPromise();
+
+      return ['$end', frames];
     }
   });
 
@@ -45,8 +39,6 @@ const Scraper = {
 };
 
 const w = World.shape({
-    $boot: act([]),
-    $end: act([Many(Any)] as const),
     $wait: act([Num, $root] as const),
 
     AO: Scraper,

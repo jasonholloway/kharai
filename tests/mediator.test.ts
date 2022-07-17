@@ -23,7 +23,7 @@ describe('mediator', () => {
 		}
 
 		const convening = space.convene(p1, Set([p2]));
-		const attaching = space.attach(p2, p2);
+		const attaching = space.attend(p2, p2);
 
 
 		// convening.then(console.log)
@@ -54,8 +54,8 @@ describe('mediator', () => {
 		}
 
 		const meeting1 = space.convene(p1, Set([p2, p3]));
-		const meeting2 = space.attach(p2, p2);
-		const meeting3 = space.attach(p3, p3);
+		const meeting2 = space.attend(p2, p2);
+		const meeting3 = space.attend(p3, p3);
 
 		const result1 = await meeting1;
 		expect(result1).toEqual(Set(['reply2', 'reply3']));
@@ -72,7 +72,7 @@ describe('mediator', () => {
 			chat() { return [true] }
 		}
 
-		const attending = space.attach(attendee, attendee);
+		const attending = space.attend(attendee, attendee);
 
 		let released = false;
 		attending.then(() => released = true);
@@ -94,7 +94,7 @@ describe('mediator', () => {
 		}
 
 		const convening = space.convene(convener, Set([attendee]));
-		const attending = space.attach(attendee, attendee);
+		const attending = space.attend(attendee, attendee);
 
 		let released = false;
 		attending.then(() => released = true);

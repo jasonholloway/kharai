@@ -1,20 +1,17 @@
 import _Monoid from '../../src/_Monoid'
 import { World } from '../../src/shape/World';
-import { act } from '../../src/shapeShared';
-import { Any, Many, Str } from '../../src/guards/Guard';
+import { act } from '../../src/shape/common';
+import { Many, Str } from '../../src/guards/Guard';
 import { Id } from '../lib';
 
 export const parakeet = World
   .shape({
-		$boot: act([]),
-		$end: act(Any),
-
 		listen: act([]),
 		chirp: act([Many(Str), Str] as const)
 	})
   .impl({
 		async listen(x, d) {
-			const r = await x.attach({
+			const r = await x.attend({
 				chat([ids, m]) {
 					return <[[Id[], string]]>[[ids, m]];
 				}

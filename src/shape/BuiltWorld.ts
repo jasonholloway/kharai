@@ -1,10 +1,12 @@
 import { List } from "immutable";
 import { Fac, Handler } from "../shapeShared";
-import { formPath, separator } from "./common";
+import { Data, formPath, Nodes, separator } from "./common";
 import { Registry } from "./Registry";
 
-export class BuiltWorld<N = unknown> {
+export class BuiltWorld<N extends Nodes> {
   public readonly nodes: N = <N><unknown>{}
+  public readonly data: Data<N> = <Data<N>><unknown>undefined;
+  
   readonly reg: Registry
 
   constructor(reg?: Registry) {

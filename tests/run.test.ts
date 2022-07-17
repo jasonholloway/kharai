@@ -10,8 +10,8 @@ describe('running', () => {
 		const x = createRunner(world);
 
 		await Promise.all([
-			x.run.boot('a', ['gerbil', ['spawn', [0, 3]]]),
-			x.run.boot('b', ['gerbil', ['spawn', [0, 2]]]),
+			x.run.boot('a', ['gerbil_spawn', [0, 3]]),
+			x.run.boot('b', ['gerbil_spawn', [0, 2]]),
 		]);
 		
 		await x.run.log$.toPromise();
@@ -21,7 +21,7 @@ describe('running', () => {
 	it('starting fresh', async () => {
 		const x = createRunner(world);
 
-		const success = await x.run.boot('fresh', ['guineaPig', ['runAbout', []]]);
+		const success = await x.run.boot('fresh', ['guineaPig_runAbout']);
 		expect(success).toBeTruthy();
 	})
 
@@ -35,7 +35,7 @@ describe('running', () => {
 					Map()))
 		});
 
-		const success = await x.run.boot('existing', ['guineaPig', ['runAbout', []]]);
+		const success = await x.run.boot('existing', ['guineaPig_runAbout']);
 		expect(success).toBeFalsy();
 	})
 
@@ -55,8 +55,8 @@ describe('running', () => {
 
 		await x.session(async () => {
 			const [bootedExisting, bootedFresh] = await Promise.all([
-				x.run.boot('existing', ['hamster', ['wake', [123]]]),
-				x.run.boot('fresh', ['hamster', ['wake', [123]]])
+				x.run.boot('existing', ['hamster_wake', 123]),
+				x.run.boot('fresh', ['hamster_wake', 123])
 			]); 
 
 			expect(bootedExisting).toBeFalsy();
