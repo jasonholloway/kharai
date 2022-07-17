@@ -129,15 +129,12 @@ export class MachineSpace<N extends Nodes> {
       expand(([p]) => {
         if(!p) return EMPTY;
 
-        // console.log('phase',p)
         const [path, data] = p;
-        // console.log('path',path)
 
         return from((async () => {
           const committer = commitFac(head);
 
           try {
-            //read path out of phase here
             const { guard, fac, handler } = _this.world.read(path);
 
             if(!handler) throw Error(`No handler at path ${path}`);

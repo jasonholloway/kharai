@@ -26,7 +26,7 @@ export function createRunner<N extends Nodes>(world: BuiltWorld<N>, opts?: Opts)
   const loader: Loader =
     opts?.loader ??
     (ids => Promise.resolve(
-      ids.reduce((ac, id) => ac.set(id, ['$boot', []]), Map()))
+      ids.reduce((ac, id) => ac.set(id, ['$boot']), Map()))
     );
 
   const run = newRun(world, loader, { ...opts, store: (save ? store : undefined) });

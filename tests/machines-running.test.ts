@@ -34,7 +34,7 @@ describe('machines - running', () => {
       ['nib', ['$boot']],
       ['bob', ['$boot']],
       ['nib', ['hamster_wake', 77]],
-      ['bob', ['rat_wake', []]],
+      ['bob', ['rat_wake']],
       ['bob', ['rat_squeak', 123]],
       ['bob', ['$end', 'I have squeaked 123!']],
       ['nib', ['$end', 77]],
@@ -51,12 +51,12 @@ describe('machines - running', () => {
     ]);
 
     expect(logs).toEqual([
-      ['gaz', ['$boot', []]],
-      ['goz', ['$boot', []]],
-      ['gaz', ['guineaPig', ['runAbout', []]]],
-      ['goz', ['guineaPig', ['gruntAt', ['gaz']]]],
-      ['goz', ['$end', ['squeak!']]],
-      ['gaz', ['$end', ['grunt!']]],
+      ['gaz', ['$boot']],
+      ['goz', ['$boot']],
+      ['gaz', ['guineaPig_runAbout']],
+      ['goz', ['guineaPig_gruntAt', 'gaz']],
+      ['goz', ['$end', 'squeak!']],
+      ['gaz', ['$end', 'grunt!']],
     ])
   })
 })

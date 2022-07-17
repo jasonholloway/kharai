@@ -1,5 +1,5 @@
 import { FacNode } from "../facs";
-import { Read } from "../guards/Guard";
+import { Any, Read } from "../guards/Guard";
 import { Handler, $Root, Fac, $data, $space, $handler, $fac, $Fac } from "../shapeShared";
 import { Merge } from "../util";
 import { CoreCtx } from "./World";
@@ -389,7 +389,7 @@ export function isHandlerNode(v: any): v is HandlerNode {
 }
 
 export function act<S>(s?: S): DataNode<unknown extends S ? never : S> {
-  return { [$data]: <unknown extends S ? never : S><unknown>s };
+  return { [$data]: <unknown extends S ? never : S><unknown>(s ?? Any) };
 }
 
 export function space<S extends { [k in keyof S]: SchemaNode }>(s: S): SpaceNode<S> {

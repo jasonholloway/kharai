@@ -3,7 +3,7 @@ import { delay } from '../../src/util'
 import { Num, Str } from '../../src/guards/Guard'
 import { act } from '../../src/shape/common';
 import { World } from '../../src/shape/World';
-import { $root } from '../shapeShared';
+import { $root } from '../../src/shapeShared';
 
 export const rodents = World
   .shape({
@@ -53,7 +53,7 @@ export const rodents = World
     guineaPig: {
       async runAbout(x) {
         const a = await x.attend({ chat(m) { return [m, 'squeak!'] } });
-        return (a && ['$end', a]) || ['$end', 'BIG NASTY ERROR']
+        return (a && ['$end', a[0]]) || ['$end', 'BIG NASTY ERROR']
       },
 
       async gruntAt(x, id) {
@@ -64,7 +64,7 @@ export const rodents = World
             else throw Error('bad response from attendee')
           }
         });
-        return ['$end', resp]
+        return ['$end', resp[0]]
       }
     },
 
