@@ -1,13 +1,11 @@
 import _Monoid, { _MonoidNumber } from './_Monoid'
 import AtomSpace, { Lump } from './AtomSpace'
-import Store from './Store'
+import { Saver } from './Store'
 import { Set, List } from 'immutable'
 import { inspect } from 'util'
 import { AtomRef } from './atoms'
-import { renderAtoms } from './AtomPath'
 
 inspect.defaultOptions.depth = 10;
-const log = (...r: any[]) => console.dir(...r);
 
 type Acc = {}
 
@@ -27,7 +25,7 @@ export default class AtomSaver<V> {
 		this._space = space;
 	}
 
-	async save(store: Store<V>, refs: List<AtomRef<V>>): Promise<Lump<V>> {
+	async save(store: Saver<V>, refs: List<AtomRef<V>>): Promise<Lump<V>> {
 		const MV = this._monoidV;
 		const space = this._space;
 

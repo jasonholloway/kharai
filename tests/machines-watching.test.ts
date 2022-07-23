@@ -28,10 +28,9 @@ describe('machines - watching', () => {
 
 	it('loaded state immediately visible; implies dispatch', async () => {
 		const x = createRunner(world, {
-			loader: ids => Promise.resolve(
-				ids.reduce(
-					(ac, id) => ac.set(id, id == 'Gwen' ? ['runAround', 13] : ['$boot']),
-					Map())),
+			data: Map({
+				Gwen: ['runAround', 13]
+			}),
 			save: false
 		});
 

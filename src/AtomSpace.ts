@@ -4,12 +4,10 @@ import { Atom, AtomRef } from './atoms'
 import AtomPath from './AtomPath'
 import { Observable, of, combineLatest, EMPTY } from 'rxjs';
 import _Monoid from './_Monoid';
-import { filter, shareReplay, map, expand, mergeScan, takeUntil, share, concatMap, tap, finalize } from 'rxjs/operators';
+import { filter, shareReplay, map, expand, mergeScan, takeUntil, share, concatMap } from 'rxjs/operators';
 import { Signal } from './MachineSpace';
 import AtomSaver from './AtomSaver';
-import Store from './Store';
-
-const log = console.log;
+import { Saver } from './Store';
 
 const MonoidLump = <V>() => <_Monoid<Lump<V>>> {
   zero: [0, Set()],
@@ -21,7 +19,7 @@ export type Threshold = number
 export type Commit<V> = [Weight, AtomRef<V>]
 
 export type Lump<V> = [Weight, Set<AtomRef<V>>]
-export type Storer<V> = (s: Store<V>) => Promise<any>
+export type Storer<V> = (s: Saver<V>) => Promise<any>
 
 export const runSaver = <V>(signal$: Observable<Signal>, threshold$: Observable<Threshold>, MV: _Monoid<V>) =>
   (commit$: Observable<Commit<V>>) => {

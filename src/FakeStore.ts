@@ -1,17 +1,17 @@
-import Store from './Store'
-import { DataMap } from './lib'
+import { Saver, Loader } from './Store'
+import { DataMap, Id } from './lib'
 import _Monoid from './_Monoid'
-import { Map } from 'immutable'
+import { Map, Set } from 'immutable'
 
-export default class FakeStore extends Store<DataMap> {
-  saved: DataMap = Map()
+export default class FakeStore implements Loader, Saver<DataMap> {
+  saved: DataMap;
   readonly batches: DataMap[] = []
   
   private _maxBatch: number;
 
-  constructor(monoid: _Monoid<DataMap>, batchSize: number) {
-    super(monoid);
+  constructor(batchSize: number, data?: DataMap) {
     this._maxBatch = batchSize;
+    this.saved = data ?? Map();
   }
 
   prepare(v: DataMap): {save():Promise<void>}|false {
@@ -24,4 +24,17 @@ export default class FakeStore extends Store<DataMap> {
         }
       };
   }
+
+  async load(ids: Set<Id>) {
+    return ids.reduce(
+      (ac, id) => {
+        const found = this.saved.get(id, undefined);
+        return found
+          ? ac.set(id, found)
+          : ac.set(id, ['$boot']); //TODO this shouldn't be done here, but above
+      },
+      Map<Id, unknown>()
+    );
+  }
+
 }

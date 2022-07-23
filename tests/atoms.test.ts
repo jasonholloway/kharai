@@ -1,7 +1,7 @@
 import { List } from 'immutable'
-import { delay, gather } from './helpers'
+import { delay } from './helpers'
 import _Monoid from '../src/_Monoid'
-import Store from '../src/Store'
+import { Saver } from '../src/Store'
 import { Atom, AtomRef } from '../src/atoms'
 import AtomSpace from '../src/AtomSpace'
 import AtomSaver from '../src/AtomSaver'
@@ -11,7 +11,6 @@ import { concatMap, tap, map } from 'rxjs/operators'
 import { tracePath } from '../src/AtomPath'
 import { viewAtoms } from './shared'
 import Head from '../src/Head'
-const log = (...args: any[]) => console.log(...args);
 
 const MU: _Monoid<undefined> = {
 	zero: undefined,
@@ -45,7 +44,7 @@ describe('atoms and stuff', () => {
 		const killSub = new Subject<Signal>()
 		kill = () => killSub.next({ stop: true });
 		
-		store = new FakeStore(MS, 3);
+		store = new FakeStore(3);
 		space = new AtomSpace();
 		saver = new AtomSaver(MS, space);
 	})
@@ -531,13 +530,12 @@ describe('atoms and stuff', () => {
 
 //---------------------------------
 
-class FakeStore extends Store<string> {
+class FakeStore implements Saver<string> {
 	saved: string[] = []
 	private _maxBatch: number;
 	private _delay: number;
 
-	constructor(monoid: _Monoid<string>, batchSize: number, delay: number = 15) {
-		super(monoid);
+	constructor(batchSize: number, delay: number = 15) {
 		this._maxBatch = batchSize;
 		this._delay = delay;
 	}

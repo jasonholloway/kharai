@@ -2,34 +2,23 @@ import { Map, Set, List } from 'immutable'
 import _Monoid from '../src/_Monoid'
 import { Id, DataMap } from '../src/lib'
 import { BehaviorSubject } from 'rxjs'
-import { shareReplay, scan, groupBy, map, filter, takeWhile, mergeMap, tap } from 'rxjs/operators'
+import { shareReplay, scan, groupBy, map, filter, takeWhile, mergeMap } from 'rxjs/operators'
 import { AtomRef, Atom, AtomLike } from '../src/atoms'
 import { gather } from './helpers'
-import { Loader, Log } from '../src/MachineSpace'
-import MonoidData from '../src/MonoidData'
 import { newRun } from '../src/Run'
 import { tracePath, renderAtoms } from '../src/AtomPath'
 import FakeStore from '../src/FakeStore'
-import { BuiltWorld } from './shape/BuiltWorld'
-import { Nodes } from './shape/common'
+import { BuiltWorld } from '../src/shape/BuiltWorld'
+import { Nodes } from '../src/shape/common'
 
-const MD = new MonoidData();
-
-type Opts = { batchSize?: number, threshold?: number, save?: boolean, loader?: Loader };
+type Opts = { batchSize?: number, threshold?: number, save?: boolean, data?: DataMap };
 
 export function createRunner<N extends Nodes>(world: BuiltWorld<N>, opts?: Opts) {
   const save = opts?.save === undefined || opts?.save;
 
-  const store = new FakeStore(MD, opts?.batchSize || 4);
+  const store = new FakeStore(opts?.batchSize || 4, opts?.data);
 
-  //loader here seems bit daft: should have an injectable store
-  const loader: Loader =
-    opts?.loader ??
-    (ids => Promise.resolve(
-      ids.reduce((ac, id) => ac.set(id, ['$boot']), Map()))
-    );
-
-  const run = newRun(world, loader, { ...opts, store: (save ? store : undefined) });
+  const run = newRun(world, store, { ...opts, store: (save ? store : undefined) });
 
   const atomSub = new BehaviorSubject<Map<string, AtomRef<DataMap>[]>>(Map()); 
 

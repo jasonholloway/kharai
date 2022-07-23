@@ -29,10 +29,9 @@ describe('running', () => {
 
 	it('starting existing', async () => {
 		const x = createRunner(world, {
-			loader: ids => Promise.resolve(
-				ids.reduce(
-					(ac, id) => ac.set(id, ['gerbil_spawn', [0, 2]]),
-					Map()))
+			data: Map({
+				existing: ['gerbil_spawn', [0,2]]
+			})
 		});
 
 		const success = await x.run.boot('existing', ['guineaPig_runAbout']);
@@ -42,15 +41,9 @@ describe('running', () => {
 	it('starting both fresh and existing', async () => {
 		const x = createRunner(world,
 		{
-			loader: ids => Promise.resolve(
-				ids.reduce(
-					(ac, id) => {
-						switch(id) {
-							case 'existing': return ac.set(id, ['rat_wake']);
-							default: return ac.set(id, ['$boot']);
-						}
-					},
-					Map()))
+			data: Map({
+				existing: ['rat_wake']
+			})
 		});
 
 		await x.session(async () => {

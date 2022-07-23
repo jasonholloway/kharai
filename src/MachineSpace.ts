@@ -11,8 +11,7 @@ import { BuiltWorld } from './shape/BuiltWorld'
 import { AtomRef } from './atoms'
 import { isArray } from 'util'
 import { Nodes } from './shape/common'
-
-export type Loader = (ids: Set<Id>) => Promise<Map<Id, unknown>>
+import { Loader } from './Store'
 
 const $Ahoy = Symbol('$Ahoy')
 
@@ -73,7 +72,7 @@ export class MachineSpace<N extends Nodes> {
         return [false, id, found] as const;
       }
       else {
-        const loading = _this.loader(Set([id]));
+        const loading = _this.loader.load(Set([id]));
 
         //TODO should check loaded phases against schema guards!
 

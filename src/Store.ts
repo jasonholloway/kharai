@@ -1,11 +1,14 @@
-import _Monoid from './_Monoid'
+import { Id } from "./lib";
+import { Map, Set } from 'immutable'
 
-export default abstract class Store<V> {
-	protected _monoidV: _Monoid<V>;
+export interface Saver<V> {
+	prepare(v: V): {save(): Promise<void>}|false;
+}
 
-	constructor(monoidV: _Monoid<V>) {
-		this._monoidV = monoidV;
-	}
+// the monoid of commits
+// is fine - we will load the same monoid
+// but to do so we need a matching monoid of ids
 
-	abstract prepare(v: V): {save(): Promise<void>}|false;
+export interface Loader {
+	load(ids: Set<Id>): Promise<Map<Id, unknown>>
 }

@@ -1,4 +1,4 @@
-import { Set, Map, OrderedSet, Seq, List } from 'immutable'
+import { Set, Map, OrderedSet, List } from 'immutable'
 import { Atom, AtomRef, AtomLike } from './atoms'
 import { Lock } from './Locks'
 import { inspect } from 'util'

@@ -3,10 +3,10 @@ import { Mediator, Convener } from './Mediator'
 import { Observable, ReplaySubject, of, concat, Subject, merge } from 'rxjs'
 import { startWith, endWith, scan, takeWhile, finalize, map, toArray, ignoreElements, concatMap, filter, takeUntil, shareReplay, mergeMap  } from 'rxjs/operators'
 import { Set } from 'immutable'
-import { MachineSpace, Loader, Signal } from './MachineSpace'
+import { MachineSpace, Signal } from './MachineSpace'
 import { runSaver } from './AtomSpace'
 import MonoidData from './MonoidData'
-import Store from './Store'
+import { Saver, Loader } from './Store'
 import { Preemptable } from './Preemptable'
 import { BuiltWorld } from './shape/BuiltWorld'
 import { Data, Nodes } from './shape/common'
@@ -18,7 +18,7 @@ export function newRun<N extends Nodes>
 (
 	world: BuiltWorld<N>,
 	loader: Loader,
-	opts?: { threshold?: number, store?: Store<DataMap> }
+	opts?: { threshold?: number, store?: Saver<DataMap> }
 ) {
 	const signal$ = new ReplaySubject<Signal>(1);
 	const kill$ = signal$.pipe(filter(s => s.stop), shareReplay(1));
