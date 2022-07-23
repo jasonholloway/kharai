@@ -8,7 +8,7 @@ describe('machines - saving', () => {
 	const world = rodents.build();
 
 	it('atoms conjoin without consolidation (no saver or rewrites)', async () => {
-		const x = createRunner(world, { save:false });
+		const x = createRunner(world, { save: false });
 
 		await Promise.all([
 			x.run.boot('baz', ['guineaPig_runAbout']),

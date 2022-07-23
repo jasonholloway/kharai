@@ -5,20 +5,18 @@ import { BehaviorSubject } from 'rxjs'
 import { shareReplay, scan, groupBy, map, filter, takeWhile, mergeMap } from 'rxjs/operators'
 import { AtomRef, Atom, AtomLike } from '../src/atoms'
 import { gather } from './helpers'
-import { newRun } from '../src/Run'
+import { newRun, RunOpts } from '../src/Run'
 import { tracePath, renderAtoms } from '../src/AtomPath'
 import FakeStore from '../src/FakeStore'
 import { BuiltWorld } from '../src/shape/BuiltWorld'
 import { Nodes } from '../src/shape/common'
 
-type Opts = { batchSize?: number, threshold?: number, save?: boolean, data?: DataMap };
+type Opts = { batchSize?: number, data?: DataMap } & RunOpts;
 
 export function createRunner<N extends Nodes>(world: BuiltWorld<N>, opts?: Opts) {
-  const save = opts?.save === undefined || opts?.save;
-
   const store = new FakeStore(opts?.batchSize || 4, opts?.data);
 
-  const run = newRun(world, store, { ...opts, store: (save ? store : undefined) });
+  const run = newRun(world, store, store, { ...opts });
 
   const atomSub = new BehaviorSubject<Map<string, AtomRef<DataMap>[]>>(Map()); 
 

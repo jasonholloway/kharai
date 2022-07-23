@@ -7,7 +7,7 @@ describe('machines - conversing', () => {
 	const world = parakeet.build();
 
 	it('atom dependencies tracked', async () => {
-    const x = createRunner(world, {save:false});
+    const x = createRunner(world, { save: false });
 
 		await Promise.all([
 			x.run.boot('Polly', ['listen']),

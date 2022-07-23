@@ -14,38 +14,37 @@ import { Data, Nodes } from './shape/common'
 const MD = new MonoidData();
 const gather = <V>(v$: Observable<V>) => v$.pipe(toArray()).toPromise();
 
+export type RunOpts = {
+	threshold?: number,
+	save?: boolean
+};
+
 export function newRun<N extends Nodes>
 (
 	world: BuiltWorld<N>,
 	loader: Loader,
-	opts?: { threshold?: number, store?: Saver<DataMap> }
+	saver: Saver<DataMap>,
+	opts?: RunOpts
 ) {
 	const signal$ = new ReplaySubject<Signal>(1);
 	const kill$ = signal$.pipe(filter(s => s.stop), shareReplay(1));
 	const complete = () => signal$.next({ stop: true });
-	const store = opts?.store;
 
 	const mediator = new Mediator(signal$);
 	const space = new MachineSpace(world, loader, mediator, signal$)
 
-	if(store) {
-		const threshold$ = concat(
-			of(opts?.threshold ?? 3),
-			kill$.pipe(map(_ => 0))
-		).pipe(shareReplay(1));
+	const threshold$ = concat(
+		of(opts?.threshold ?? 3),
+		kill$.pipe(map(_ => 0))
+	).pipe(shareReplay(1));
 
-		space.commit$.pipe(
-			runSaver(signal$, threshold$, MD),
-			concatMap(fn => fn(store)),
-			takeUntil(kill$)
-		).subscribe();
-	}
-	else {
-		space.commit$.pipe(
-			takeUntil(kill$)
-		).subscribe();
-	}
-	
+	const save = opts?.save ?? true;
+
+	space.commit$.pipe(
+		runSaver(signal$, threshold$, MD),
+		concatMap(fn => save ? fn(saver) : []),
+		takeUntil(kill$)
+	).subscribe();
 
 	const machine$ = space.machine$;
 	const log$ = machine$.pipe(

@@ -2,12 +2,13 @@ import _Monoid from '../src/_Monoid'
 import { createRunner } from './shared';
 import { birds } from './worlds/birds'
 import { Map } from 'immutable'
+import { delay } from '../src/util';
 
 describe('machines - watching', () => {
 	const world = birds.build();
 
 	it('one can watch the other', async () => {
-		const x = createRunner(world, { save:false });
+		const x = createRunner(world);
 
 		await Promise.all([
 			x.run.boot('Kes', ['track', [['Stu'], 100]]),
@@ -30,8 +31,7 @@ describe('machines - watching', () => {
 		const x = createRunner(world, {
 			data: Map({
 				Gwen: ['runAround', 13]
-			}),
-			save: false
+			})
 		});
 
 		await Promise.all([
@@ -40,7 +40,8 @@ describe('machines - watching', () => {
 		]);
 
 		const gareth = x.view('Gareth');
-		const [p, d] = gareth[1].val().get('Gareth');
+		
+		const [p, d] = gareth[0].val().get('Gareth');
 
 		expect(p).toEqual('$end');
 
@@ -51,7 +52,7 @@ describe('machines - watching', () => {
 	})
 
 	it('can watch several at once', async () => {
-		const x = createRunner(world, { save:false });
+		const x = createRunner(world);
 
 		await Promise.all([
 			x.run.boot('Kes', ['track', [['Biff', 'Kipper'], 4]]),
@@ -73,7 +74,7 @@ describe('machines - watching', () => {
 
 
 	it('tracks causality in atom tree', async () => {
-		const x = createRunner(world, { save:false });
+		const x = createRunner(world, { save: false });
 
 		await Promise.all([
 			x.run.boot('Gord', ['runAround', 1]),
@@ -97,7 +98,7 @@ describe('machines - watching', () => {
 	})
 
 	it('past phases of target aren\'t seen', async () => {
-		const x = createRunner(world, { save:false });
+		const x = createRunner(world);
 
 		await Promise.all([
 			x.run.boot('Gord', ['runAround', 2]),
