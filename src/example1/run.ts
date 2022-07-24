@@ -20,17 +20,52 @@ const world = World
   .build();
 
 const store = new LocalStore();
-
 const x = newRun(world, store, store);
 
-(async () => {
-
-  await Promise.all([
-    x.log$,
-    x.boot('morris', ['mole_sayHello', 0])
-  ]);
-
-})();
+Promise.all([
+  x.log$,
+  x.boot('morris', ['mole_sayHello', 0])
+]);
 
 
 
+
+
+const Scraper = {
+  scrape: act(Num),
+  notify: act([/http.*/] as const)
+};
+
+const w = World
+  .shape({
+    AO: Scraper,
+    Very: Scraper,
+    Argos: Scraper
+  })
+  .impl({
+    AO: {
+      async scrape(x, n) {
+        console.log(n + 13);
+
+        //do something here...
+        await Promise.resolve();
+
+        return ['AO_notify', ['https://someurl']]
+      },
+
+      async notify(x, d) {
+        return ['$wait', [100, ['AO_scrape', 123]]]
+      }
+    },
+
+    Very: {
+      async scrape(x, d) {
+        //do something here...
+        await Promise.resolve();
+
+        return ['$wait', [100000, ['Very_notify', ['moo']]]]
+      }
+    }
+  });
+
+  

@@ -13,7 +13,7 @@ export const birds = World
   .impl({
     async runAround(_, n) {
       if(n > 0) {
-        await delay(20);
+        // await delay(20);
 
         return ['runAround', n-1]
       }
@@ -30,42 +30,3 @@ export const birds = World
     }
   });
 
-
-const Scraper = {
-  scrape: act(Num),
-  notify: act([/http.*/] as const)
-};
-
-const w = World
-  .shape({
-    AO: Scraper,
-    Very: Scraper,
-    Argos: Scraper
-  })
-  .impl({
-    AO: {
-      async scrape(x, n) {
-        console.log(n + 13);
-
-        //do something here...
-        await Promise.resolve();
-
-        return ['AO_notify', ['https://someurl']]
-      },
-
-      async notify(x, d) {
-        return ['$wait', [100, ['AO_scrape', 123]]]
-      }
-    },
-
-    Very: {
-      async scrape(x, d) {
-        //do something here...
-        await Promise.resolve();
-
-        return ['$wait', [100000, ['Very_notify', ['moo']]]]
-      }
-    }
-  });
-
-  

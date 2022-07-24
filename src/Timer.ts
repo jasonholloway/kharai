@@ -25,13 +25,9 @@ export class RealTimer implements Timer {
   schedule<V>(when: Date, fn: ()=>V): Promise<V> {
     return new CancellablePromise<V>(
       (resolve, reject) => {
-        const now = Date.now();
-        const start = when.valueOf();
-
-        let delay = (start - now);
-        if(delay <= 0) delay = 0;
-
-        console.log('schedule', now, start, delay)
+        const nowMs = Date.now();
+        const dueMs = when.valueOf();
+        const delayMs = Math.max(dueMs - nowMs, 0);
 
         const t = setTimeout(() => {
           if(this.active) {
@@ -46,7 +42,7 @@ export class RealTimer implements Timer {
           else {
             reject(Error('RealTimer deactivated'));
           }
-        }, delay);
+        }, delayMs);
 
         this.timeouts = this.timeouts.add(t);
     }).cancelOn(this.kill$);
