@@ -12,6 +12,7 @@ import { AtomRef } from './atoms'
 import { isArray } from 'util'
 import { Nodes } from './shape/common'
 import { Loader } from './Store'
+import { Timer } from './Timer'
 
 const $Ahoy = Symbol('$Ahoy')
 
@@ -29,6 +30,7 @@ export class MachineSpace<N extends Nodes> {
   private readonly world: BuiltWorld<N>
   private readonly loader: Loader
   private readonly mediator: Mediator
+  private readonly timer: Timer
 
   private readonly _commit$ = new ReplaySubject<Commit<DataMap>>(1)
   readonly commit$ = this._commit$;
@@ -45,11 +47,13 @@ export class MachineSpace<N extends Nodes> {
     world: BuiltWorld<N>,
     loader: Loader,
     mediator: Mediator,
+    timer: Timer,
     signal$: Observable<Signal>
   ) {
     this.world = world;
     this.loader = loader;
     this.mediator = mediator;
+    this.timer = timer;
 
     this.machines = Map();
     this._machine$ = new Subject();
@@ -180,6 +184,8 @@ export class MachineSpace<N extends Nodes> {
     function coreContext(id: Id, commit: Committer<DataMap>): unknown {
       return {
         id: id,
+
+        timer: _this.timer,
 
         watch(ids: Id[]): Observable<[Id, unknown]> {
           return _this.summon(Set(ids)) //TODO if the same thing is watched twice, commits will be added doubly

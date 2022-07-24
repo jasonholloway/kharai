@@ -59,4 +59,19 @@ describe('machines - running', () => {
       ['gaz', ['$end', 'grunt!']],
     ])
   })
+
+  it('one proceeds through brief wait', async () => {
+    const x = createRunner(world);
+
+    const [logs] = await Promise.all([
+      x.allLogs(),
+      x.run.boot('taz', ['$wait', [1000, ['$end', 123]]]),
+    ]);
+
+    expect(logs).toEqual([
+      ['taz', ['$boot']],
+      ['taz', ['$wait', [1000, ['$end', 123]]]],
+      ['taz', ['$end', 123]],
+    ])
+  })
 })

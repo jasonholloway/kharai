@@ -10,6 +10,7 @@ import { Saver, Loader } from './Store'
 import { Preemptable } from './Preemptable'
 import { BuiltWorld } from './shape/BuiltWorld'
 import { Data, Nodes } from './shape/common'
+import { RealTimer } from './Timer'
 
 const MD = new MonoidData();
 const gather = <V>(v$: Observable<V>) => v$.pipe(toArray()).toPromise();
@@ -30,8 +31,9 @@ export function newRun<N extends Nodes>
 	const kill$ = signal$.pipe(filter(s => s.stop), shareReplay(1));
 	const complete = () => signal$.next({ stop: true });
 
+	const timer = new RealTimer(kill$);
 	const mediator = new Mediator(signal$);
-	const space = new MachineSpace(world, loader, mediator, signal$)
+	const space = new MachineSpace(world, loader, mediator, timer, signal$)
 
 	const threshold$ = concat(
 		of(opts?.threshold ?? 3),

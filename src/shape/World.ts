@@ -1,8 +1,9 @@
 import { List } from "immutable";
 import { Observable } from "rxjs/internal/Observable";
-import { Any, Num } from "../guards/Guard";
+import { Any, Num, Str } from "../guards/Guard";
 import { Attendee, Convener } from "../Mediator";
 import { Handler, $data, $Data, $Fac, $Root, $root } from "../shapeShared";
+import { Timer } from "../Timer";
 import { DeepMerge, delay, Merge, Simplify } from "../util";
 import { BuiltWorld } from "./BuiltWorld";
 import { act, ctx, FacContext, FacPath, formPath, Impls, PathFac, SchemaNode } from "./common";
@@ -179,7 +180,7 @@ export class World<N extends Nodes> {
       XI: CoreCtx
       D_$boot: never,
       D_$end: unknown,
-      D_$wait: [typeof Num, $Root]
+      D_$wait: [typeof Num | typeof Str, $Root]
     };
 
     reg = reg
@@ -210,9 +211,8 @@ export class World<N extends Nodes> {
 
     reg = reg
       .addGuard('$wait', [Num, $root])
-      .addHandler('$wait', async (_, [ms, nextPhase]: [number, unknown]) => {
-        await delay(ms); //temp hack
-        return nextPhase;
+      .addHandler('$wait', (x: CoreCtx, [when, nextPhase]: [number|string, unknown]) => {
+        return x.timer.schedule(new Date(when), () => nextPhase);
       });
     
     return <World.TryMerge<BuiltIns,Shape<S>>>new World<Shape<S>>(reg);
@@ -274,6 +274,7 @@ export class World<N extends Nodes> {
 
 export type CoreCtx = {
   id: string
+  timer: Timer
   watch: (ids: string[]) => Observable<readonly [string, unknown]>
   attend: <R>(attend: Attendee<R>) => Promise<false|[R]>
   convene: <R>(ids: string[], convene: Convener<R>) => Promise<R>

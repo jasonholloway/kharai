@@ -7,8 +7,6 @@ import { $root } from '../../src/shapeShared';
 
 export const rodents = World
   .shape({
-    $wait: act([Num, $root] as const),
-
     rat: {
       wake: act(),
       squeak: act(Num)
@@ -16,7 +14,8 @@ export const rodents = World
 
     hamster: {
       wake: act(Num),
-      nibble: act()
+      nibble: act(),
+      tarry: act()
     },
 
     guineaPig: {
@@ -47,6 +46,10 @@ export const rodents = World
 
       async nibble() {
         return ['$end', 'done'];
+      },
+
+      async tarry() {
+        return ['$wait', [123, ['hamster_nibble']]];
       }
     },
 

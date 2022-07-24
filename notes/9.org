@@ -1,0 +1,198 @@
+
+
+When waiting, a machine still has to be pointed at
+or rather it needs to be summonable
+it must be registered with its waking time
+then on each invocation, on each tick of the overall app
+we can know which other machines are due to be run
+
+so on every wait, the machine id must be added to a data structure
+stored presumably itself via the usual mechanism
+this is an upstream dependency for us:
+
+a growable heap of (due,id) tuples
+
+each page of the heap will be one storable machine
+
+a most basic version would have a single page and limit
+
+#+begin_src js
+[[10132123,'baa1'],[10132224,'baa2']]
+#+end_src
+
+a registered waitee would be always awaiting a call from the mechanism
+so it would be /attentive/ by default
+in return for its reliable registration elsewhere, it would lapse into
+this receptive, vegatative state
+
+a request to wait, then, isn't just the return of a phase, but an interaction
+with the scheduler coupled with a vegetation
+
+what the scheduler does is its own business
+what we care about is that it receives our id happily
+with this we can lapse
+
+the intention to achieve this blissful relaxation and deference
+is furthered by a special phase: perhaps $wait lapsing into $waiting
+
+#+begin_src js
+  ['$scheduling', [[100000,'m1']]]
+    ['$wait', [1041651, ['doSummat']]] //convenes scheduler
+
+  ['$scheduling', [[100000,'m1'],[1041651,'m2']]]
+    ['$waiting', ['doSummat']] //attends to incoming pings
+
+  ['doSummat']
+#+end_src
+
+scheduler has a single phase here:
+it just attends to attempts to enqueue
+but also convenes due targets when they're due
+
+so this is two responsibilities
+it has two things to do: attend and await the actual timer
+the timer could itself be a separate, very simple machine
+a machine that will convene the attending scheduler
+in series with enqueue attempts
+
+but would the timer be unique to the scheduler then? I think it would
+$schedule would talk to $timer
+I can imagine the two halves sharing an apartment
+
+$schedule would receive calls, either from the timer or from clients
+when receiving from the timer, then it is its role to dispatch
+but given the possibility of delays on the dispatch
+this would close it to further timer events
+on the receipt of a timer, it should then reprogram the timer
+while also handing over, somehow, the dispatch to another
+
+this is all zooming in on the apartment idea from yonks back
+in which multiple machines can share the same state
+by allowing immediate read-only access of other apartments
+though such watching of others can already be done at the machine level:
+
+a dispatcher could watch the progress of the scheduler,
+and as soon as any items became visibly due
+it could start sending them out
+the problem here is with lossiness: no guarantee of intermediate states being seen
+monotonic values only ever going in one direction required
+
+with the apartments, each one can commit to its own part, and others
+can see it, but others can't change the original data
+they would need to communicate with its owner
+it's the same case with machines: the same systems are possible at a bigger granularity
+
+but - no shared state! only agreed communications between parties
+so to hand over an item to a potential receiver, the sender would have to delegate to another via comms
+
+how else can we do anything concurrently? we can await concurrently, and we can convene concurrently
+but we can't send and receive concurrently
+we can receive concurrently, but we effectively lock all clients until we service their requests
+given an incoming message we should be able to stow it away in one apartment
+
+it's almost like we need an interrupt: given an incoming meeting, our current attempt at joining another meeting should be gazumpable
+though even better would be being able to do both simultaneously
+but if each part has such independence, how can they coordinate, if only one communication can be happening at a time?
+
+two-way communication is actually possible between things monitoring each other (via either watches or the polling of neighbouring parts)
+as long as one can observe each other
+given two apartments, the receiver always adds to its queue, unless it sees that its downstream processer friend has caught up,
+in which case it can cull messages that it knows are already handled
+the downside here is that it can only collect its garbage when it's free of waiting
+waiting itself can have a timeout? or maybe the interrupt to clean up can itself be queued as a message
+
+---------
+
+one issue with this:
+when restarting the system, we'd naturally revive the scheduler, and then the scheduler would revive its clients
+
+but clients aren't always in the scheduler queue: sometimes they're doing normal things; and if they are, we won't know
+to revive them unless we have them registered elsewhere
+so the function of the scheduler as a kind of register is misleading: it can't be its responsibility in any way
+
+does the scheduler need to be persistent, then?
+couldn't it just be populated as clients are revived?
+
+if a client is in the $wait state, when revived it could rehook itself into the transient timer of the runtime
+and in the $wait state, it just listens for messages that might tell it to revive
+
+$wait is special then: when the runtime sees it, the runtime enqueues it
+
+no other state is special like this
+
+modelling this system within the states themselves is evidently possible and even /nice/
+and would simplify the runtime at the cost of having to pursue its design in other areas
+
+the choice: arbitrary timer subsystem or some fancy-pants investigation. hmm
+
+---------
+
+The registry itself is interesting: it will get bigger and bigger as more machines are made
+
+Not all machines need to register with it, but if they don't, they'll always be at risk of disappearing
+ie if we need a machine to return to us at some point, it must be registered
+maybe not with the base registry, but somewhere
+in fact components could include their own localised registries
+there is then no need for a central registry in which everything is registered in a massive list
+
+but we do need roots, which we will manually summon
+
+---------
+
+if machines keep others alive, it can only be via the meeting mechanism
+and it can only be by convene or watch, as these are the only targeting forms
+watching, then keeps a machine performing
+
+and if the watch is forgotten at any time, then the clients can be forgotten unless they are grounded
+which seems like it would harm the reliability of the system
+outages should not grossly affect the output of the whole
+
+------------
+
+We'll have our chosen roots, which will need to watch their sub-machines
+so it's not just about keeping refs, it's also about watching those refs
+
+------------
+
+Keeping it simple: we can lean on there being a registry of machines
+and watching being the only way to keep another alive
+
+so - a special behaviour in the dispatcher is needed:
+but this just means we need $wait to be pre-populated, just as $boot is now
+wait just hooks in a delay for completion, returning the follow-on state
+quite simple!
+
+testing this needs a programmable clock
+when time is shoved forwards, then the schedule progresses to that point
+like, in tests we want a fake timer
+
+
+
+---
+
+the mechanism of watching, though... when one machine has created another
+it then takes on responsibility for it
+instead of booting directly, maybe a communication is made to a registrar machine instead
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
