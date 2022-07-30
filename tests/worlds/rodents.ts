@@ -55,13 +55,13 @@ export const rodents = World
 
     guineaPig: {
       async runAbout(x) {
-        const a = await x.attend({ chat(m) { return [m, 'squeak!'] } });
+        const a = await x.attend({ receive(m) { return [m, 'squeak!'] } });
         return (a && ['$end', a[0]]) || ['$end', 'BIG NASTY ERROR']
       },
 
       async gruntAt(x, id) {
         const resp = await x.convene([id], {
-          convene([p]) {
+          receive([p]) {
             const a = p.chat('grunt!');
             if(a) return a;
             else throw Error('bad response from attendee')
@@ -80,7 +80,7 @@ export const rodents = World
             const other = `${x.id}${appendage}`;
 
             await x.convene([other], {
-              convene([p]) {
+              receive([p]) {
                 p.chat(['gerbil_spawn', [0, max]])
               }
             })

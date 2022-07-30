@@ -76,7 +76,7 @@ export const rodents = () => makeWorld<Rodents>()(
         runAbout: x => ({
           guard(d): d is [] { return true },
           async run() {
-            const a = await x.attach({ chat(m) { return [m, 'squeak!'] } });
+            const a = await x.attach({ receive(m) { return [m, 'squeak!'] } });
             return (a && ['$end', a]) || ['$end', ['BIG NASTY ERROR']]
           }
         }),
@@ -85,7 +85,7 @@ export const rodents = () => makeWorld<Rodents>()(
           guard(d): d is [Id] { return true },
           async run([id]) {
             const resp = await x.convene([id], {
-              convene([p]) {
+              receive([p]) {
                 const a = p.chat('grunt!');
                 if(a) return a;
                 else throw Error('bad response from attendee')
@@ -108,7 +108,7 @@ export const rodents = () => makeWorld<Rodents>()(
                 const other = `${x.id}${appendage}`;
 
                 await x.convene([other], {
-                  convene([p]) {
+                  receive([p]) {
                     p.chat([['gerbil', ['spawn', [0, max]]]])
                   }
                 })

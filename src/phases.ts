@@ -10,7 +10,7 @@ export const bootPhase = <P>(): PhaseImpl<P, MachineContext<P>, []> =>
     async run() {
       while(true) {
         const answer = await x.attach<P>({
-          chat(c) { return c; } //should be checking this here...
+          receive(c) { return c; } //should be checking this here...
         });
 
         if(answer) {

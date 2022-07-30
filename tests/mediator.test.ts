@@ -12,14 +12,14 @@ describe('mediator', () => {
 
 	it('simplest convene/attach', async () => {
 		const p1: Convener<string> = {
-			convene([peer]) {
+			receive([peer]) {
 				const [reply] = peer.chat(['hello']) || [];
 				return reply;
 			}
 		}
 
 		const p2: Attendee<string> = {
-			chat() { return ['banana', 'pineapple']; }
+			receive() { return ['banana', 'pineapple']; }
 		}
 
 		const convening = space.convene(p1, Set([p2]));
@@ -35,20 +35,20 @@ describe('mediator', () => {
 
 	it('convention occurs', async () => {
 		const p1: Convener<Set<any>> = {
-			convene(peers) {
+			receive(peers) {
 				const reply = peers.flatMap(p => p.chat(['hello']) || []);
 				return reply;
 			},
 		}
 
 		const p2: Attendee<string> = {
-			chat(m) {
+			receive(m) {
 				return [`${m}2`, 'reply2'];
 			}
 		}
 
 		const p3: Attendee<string> = {
-			chat(m) {
+			receive(m) {
 				return [`${m}3`, 'reply3'];
 			}
 		}
@@ -69,7 +69,7 @@ describe('mediator', () => {
 
 	it('attendee doesn\'t immediately release', async () => {
 		const attendee: Attendee<true> = {
-			chat() { return [true] }
+			receive() { return [true] }
 		}
 
 		const attending = space.attend(attendee, attendee);
@@ -83,14 +83,14 @@ describe('mediator', () => {
 
 	it('attendee released after chat', async () => {
 		const convener: Convener<number> = {
-			convene([peer]) {
+			receive([peer]) {
 				peer.chat(['hello']);
 				return 1;
 			}
 		}
 
 		const attendee: Attendee<number> = {
-			chat() { return [1] }
+			receive() { return [1] }
 		}
 
 		const convening = space.convene(convener, Set([attendee]));

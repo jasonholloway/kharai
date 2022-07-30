@@ -215,7 +215,7 @@ export class MachineSpace<N extends Nodes> {
 
         attend<R>(attend: Attendee<R>) {
           return _this.mediator.attend(machine, {
-            chat(m, peers) {
+            receive(m, peers) {
               if(isArray(m) && m[0] == $Ahoy) {
                 Committer.combine(new MonoidData(), [commit, <Committer<DataMap>>m[1]]);
                 m = m[2];
@@ -226,7 +226,7 @@ export class MachineSpace<N extends Nodes> {
                   return p.chat([$Ahoy, commit, m]);
                 }
               }));
-              return attend.chat(m, proxied);
+              return attend.receive(m, proxied);
             }
           });
         },
@@ -237,13 +237,13 @@ export class MachineSpace<N extends Nodes> {
 
           const result = await _this.mediator
             .convene({
-              convene(peers) {
+              receive(peers) {
                 const proxied = peers.map(p => <Peer>({
                   chat(m) {
                     return p.chat([$Ahoy, commit, m]);
                   }
                 }));
-                return convene.convene(proxied);
+                return convene.receive(proxied);
               }
             }, Set(ms));
 

@@ -90,7 +90,7 @@ export function newRun<N extends Nodes>
 
 				tell(m: any) {
 					return this.meet({
-						convene([p]) {
+						receive([p]) {
 							return p.chat(m)
 						}
 					});

@@ -12,11 +12,11 @@ export interface Peer {
 }
 
 export interface Convener<R = any> {
-  convene(peers: Set<Peer>): R
+  receive(peers: Set<Peer>): R
 }
 
 export interface Attendee<R = any> {
-  chat(m: any, peers: Set<Peer>): [R]|[R, any]
+  receive(m: any, peers: Set<Peer>): [R]|[R, any]
 }
 
 export class Mediator {
@@ -33,7 +33,7 @@ export class Mediator {
       .map(claim => {
         try {
           const peers = claim.offers(); //peer interface needs to be wrapped here, to remove special messages
-          const answer = convener.convene(peers);
+          const answer = convener.receive(peers);
 
           //only live peers should be bothered here - maybe its up to the peers themselves; they will return head when done
           peers.forEach(p => {
@@ -61,7 +61,7 @@ export class Mediator {
 
     try {
       const peers = claim.offers(); //peer interface needs to be wrapped here, to remove special messages
-      const answer = convener.convene(peers);
+      const answer = convener.receive(peers);
 
       //only live peers should be bothered here - maybe its up to the peers themselves; they will return head when done
       peers.forEach(p => {
@@ -92,7 +92,7 @@ export class Mediator {
                   return _go = false;
                 }
 
-                const [state, reply] = attend.chat(m, Set());
+                const [state, reply] = attend.receive(m, Set());
                 _state = [state];
 
                 if(reply === undefined) {

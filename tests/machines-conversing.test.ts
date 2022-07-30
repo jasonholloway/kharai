@@ -44,5 +44,15 @@ describe('machines - conversing', () => {
 		expect(priscilla[2].parents())
 			.toContainEqual(priscilla[1])
 	})
+
+	it('via rendesvous', async () => {
+    const x = createRunner(world, { save: false });
+
+		await Promise.all([
+			x.run.boot('spot', ['listen']),
+			x.run.boot('a', ['listen']),
+			x.run.boot('b', ['chirp', [['a', 'baz'], 'hello!']])
+		]);
+	})
 })
 

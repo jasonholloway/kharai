@@ -74,4 +74,16 @@ describe('machines - running', () => {
       ['taz', ['$end', 123]],
     ])
   })
+
+  it('refuses to boot into stange phase', async () => {
+    const x = createRunner(world);
+
+    const summoned = await x.run.summon(['nibbles']);
+    const result = await summoned.tell(['someRubbish']).promise();
+
+    expect(result).toBe(false);
+
+    await x.allLogs();
+  })
+
 })

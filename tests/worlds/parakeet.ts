@@ -12,7 +12,7 @@ export const parakeet = World
   .impl({
 		async listen(x) {
 			const r = await x.attend({
-				chat([ids, m]) {
+				receive([ids, m]) {
 					return <[[Id[], string]]>[[ids, m]];
 				}
 			});
@@ -30,7 +30,7 @@ export const parakeet = World
 
 			if(id) {
 				const r = await x.convene([id], {
-					convene(peers) {
+					receive(peers) {
 						peers.forEach(p => p.chat([otherIds, message]));
 						return 'chirped!';
 					}

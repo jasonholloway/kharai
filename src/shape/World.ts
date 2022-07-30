@@ -191,7 +191,13 @@ export class World<N extends Nodes> {
       .addHandler('$boot', async (x: CoreCtx) => {
         while(true) {
           const answer = await x.attend({
-            chat(m) { return [m]; }
+            receive(m) {
+              //protect here
+              //or more like it, can we frisk using the read func?
+              //return false if not special message
+              
+              return [m];
+            }
           });
 
           if(answer) {
