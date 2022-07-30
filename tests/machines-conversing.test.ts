@@ -51,7 +51,8 @@ describe('machines - conversing', () => {
 		await Promise.all([
 			x.run.boot('spot', ['listen']),
 			x.run.boot('a', ['listen']),
-			x.run.boot('b', ['chirp', [['a', 'baz'], 'hello!']])
+			x.run.boot('b', ['chirp', [['a', 'baz'], 'hello!']]),
+			x.allLogs()
 		]);
 	})
 })

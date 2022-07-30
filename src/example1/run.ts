@@ -16,11 +16,11 @@ const world = World
         if(n < 20) {
           console.log(`Hello! (I have been saying hello for ${n} seconds)`)
 
-          await x.attend({
-            chat(m, peers) {
+          // await x.attend({
+          //   chat(m, peers) {
 
-            }
-          });
+          //   }
+          // });
 
           // but if two try to invite each other...
           // they should happily find each other, surely...

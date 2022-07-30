@@ -165,7 +165,7 @@ export class MachineSpace<N extends Nodes> {
             throw Error(`Handler output no good: ${out}`);
           }
           catch(e) {
-            console.error(e);
+            // console.error(e);
             committer.abort();
             throw e;
           }

@@ -1,8 +1,8 @@
 import { Map, Set, List } from 'immutable'
 import _Monoid from '../src/_Monoid'
 import { Id, DataMap } from '../src/lib'
-import { BehaviorSubject } from 'rxjs'
-import { shareReplay, scan, groupBy, map, filter, takeWhile, mergeMap } from 'rxjs/operators'
+import { BehaviorSubject, EMPTY, empty } from 'rxjs'
+import { shareReplay, scan, groupBy, map, filter, takeWhile, mergeMap, catchError } from 'rxjs/operators'
 import { AtomRef, Atom, AtomLike } from '../src/atoms'
 import { gather } from './helpers'
 import { newRun, RunOpts } from '../src/Run'
@@ -38,7 +38,9 @@ export function createRunner<N extends Nodes>(world: BuiltWorld<N>, opts?: Opts)
     shareReplay(1000)
   );
 
-  log$.subscribe();
+  log$
+    .pipe(catchError(() => EMPTY))
+    .subscribe();
 
   return {
     store,

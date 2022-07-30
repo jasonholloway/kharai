@@ -1,7 +1,7 @@
 import { Id, DataMap } from './lib'
 import { Mediator, Convener } from './Mediator'
-import { Observable, ReplaySubject, of, concat, Subject, merge } from 'rxjs'
-import { startWith, endWith, scan, takeWhile, finalize, map, toArray, ignoreElements, concatMap, filter, takeUntil, shareReplay, mergeMap  } from 'rxjs/operators'
+import { Observable, ReplaySubject, of, concat, Subject, merge, EMPTY } from 'rxjs'
+import { startWith, endWith, scan, takeWhile, finalize, map, toArray, ignoreElements, concatMap, filter, takeUntil, shareReplay, mergeMap, catchError  } from 'rxjs/operators'
 import { Set } from 'immutable'
 import { MachineSpace, Signal } from './MachineSpace'
 import { runSaver } from './AtomSpace'
@@ -16,108 +16,111 @@ const MD = new MonoidData();
 const gather = <V>(v$: Observable<V>) => v$.pipe(toArray()).toPromise();
 
 export type RunOpts = {
-	threshold?: number,
-	save?: boolean
+  threshold?: number,
+  save?: boolean
 };
 
 export function newRun<N extends Nodes>
 (
-	world: BuiltWorld<N>,
-	loader: Loader,
-	saver: Saver<DataMap>,
-	opts?: RunOpts
+  world: BuiltWorld<N>,
+  loader: Loader,
+  saver: Saver<DataMap>,
+  opts?: RunOpts
 ) {
-	const signal$ = new ReplaySubject<Signal>(1);
-	const kill$ = signal$.pipe(filter(s => s.stop), shareReplay(1));
-	const complete = () => signal$.next({ stop: true });
+  const signal$ = new ReplaySubject<Signal>(1);
+  const kill$ = signal$.pipe(filter(s => s.stop), shareReplay(1));
+  const complete = () => signal$.next({ stop: true });
 
-	const timer = new RealTimer(kill$);
-	const mediator = new Mediator(signal$);
-	const space = new MachineSpace(world, loader, mediator, timer, signal$)
+  const timer = new RealTimer(kill$);
+  const mediator = new Mediator(signal$);
+  const space = new MachineSpace(world, loader, mediator, timer, signal$)
 
-	const threshold$ = concat(
-		of(opts?.threshold ?? 3),
-		kill$.pipe(map(_ => 0))
-	).pipe(shareReplay(1));
+  const threshold$ = concat(
+    of(opts?.threshold ?? 3),
+    kill$.pipe(map(_ => 0))
+  ).pipe(shareReplay(1));
 
-	const save = opts?.save ?? true;
+  const save = opts?.save ?? true;
 
-	space.commit$.pipe(
-		runSaver(signal$, threshold$, MD),
-		concatMap(fn => save ? fn(saver) : []),
-		takeUntil(kill$)
-	).subscribe();
+  space.commit$.pipe(
+    runSaver(signal$, threshold$, MD),
+    concatMap(fn => save ? fn(saver) : []),
+    takeUntil(kill$)
+  ).subscribe();
 
-	const machine$ = space.machine$;
-	const log$ = machine$.pipe(
-		mergeMap(m => m.log$.pipe(
-			map(l => [m.id, l] as const)
-		)));
+  const machine$ = space.machine$;
+  const log$ = machine$.pipe(
+    mergeMap(m => m.log$.pipe(
+      map(l => [m.id, l] as const)
+    )));
 
-	const keepAlive$ = new Subject<number>();
+  const keepAlive$ = new Subject<number>();
 
-	const count$ = merge(
-		machine$.pipe(
-			mergeMap(m => m.log$.pipe(
-				ignoreElements(),
-				startWith<number>(1),
-				endWith<number>(-1),
-			))),
-		keepAlive$
-	).pipe(
-		scan((c, n) => c + n, 0)
-	);
+  const count$ = merge(
+    machine$.pipe(
+      mergeMap(m => m.log$.pipe(
+        ignoreElements(),
+        startWith<number>(1),
+        endWith<number>(-1),
+      ))),
+    keepAlive$
+  ).pipe(
+    scan((c, n) => c + n, 0)
+  );
 
-	count$.pipe(
-		takeWhile(c => c > 0),
-		finalize(() => complete())
-	).subscribe();
+  //todo: on any error, cancel eveything cleanly and stop
 
-	return {
-		machine$,
-		log$,
-		complete,
+  count$.pipe(
+    takeWhile(c => c > 0),
+    finalize(() => complete()),
+    catchError(() => EMPTY)
+  ).subscribe();
 
-		async summon(ids: Id[]) {
-			const machines = Set(await gather(
-				space.summon(Set(ids))
-			));
+  return {
+    machine$,
+    log$,
+    complete,
 
-			return {
-				meet<R = any>(convener: Convener<R>): Preemptable<R> {
-					return mediator.convene2(convener, machines)
-				},
+    async summon(ids: Id[]) {
+      const machines = Set(await gather(
+        space.summon(Set(ids))
+      ));
 
-				tell(m: any) {
-					return this.meet({
-						receive([p]) {
-							return p.chat(m)
-						}
-					});
-				},
+      return {
+        meet<R = any>(convener: Convener<R>): Preemptable<R> {
+          return mediator.convene2(convener, machines)
+        },
 
-				boot(p: Data<N>) {
-					return this.tell(p);
-				},
+        tell(m: any) {
+          return this.meet({
+            receive([p]) {
+              return p.chat(m)
+            }
+          });
+        },
 
-				log$: of(...machines).pipe(
-					mergeMap(m => m.log$))
-			}
-		},
+        boot(p: Data<N>) {
+          return this.tell(p);
+        },
 
-		async boot(id: Id, p: Data<N>): Promise<boolean> {
-			const ms = await this.summon([id]);
-			const [done] = ms.tell(p).preempt();
-			return done;
-		},
+        log$: of(...machines).pipe(
+          mergeMap(m => m.log$))
+      }
+    },
 
-		keepAlive(): (()=>void) {
-			keepAlive$.next(1);
-			return () => {
-				keepAlive$.next(-1);
-			};
-		}
-	};
+    async boot(id: Id, p: Data<N>): Promise<boolean> {
+      const ms = await this.summon([id]);
+      const [done] = ms.tell(p).preempt();
+      return done;
+    },
+
+    keepAlive(): (()=>void) {
+      keepAlive$.next(1);
+      return () => {
+        keepAlive$.next(-1);
+      };
+    }
+  };
 }
 
 
