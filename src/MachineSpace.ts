@@ -13,6 +13,7 @@ import { isArray } from 'util'
 import { Nodes } from './shape/common'
 import { Loader } from './Store'
 import { Timer } from './Timer'
+import { isString } from './util'
 
 const $Ahoy = Symbol('$Ahoy')
 
@@ -130,6 +131,7 @@ export class MachineSpace<N extends Nodes> {
 
     const log$ = of(<Log>[state]).pipe(
       expand(([p]) => {
+        // console.error('RUN', id, p)
         if(!p) return EMPTY;
 
         const [path, data] = p;
@@ -151,12 +153,16 @@ export class MachineSpace<N extends Nodes> {
             const ctx = fac(coreCtx);
             const out = await handler(ctx, data);
 
-            if(out) {
+            if(isPhase(out)) {
               const ref = await committer.complete(Map({ [id]: out }));
               return <Log>[out, ref];
             }
 
-            return <Log>[out];
+            if(out === false) {
+              return <Log>[out];
+            }
+
+            throw Error(`Handler output no good: ${out}`);
           }
           catch(e) {
             console.error(e);
@@ -180,6 +186,13 @@ export class MachineSpace<N extends Nodes> {
 
     return machine;
 
+
+    function isPhase(p: unknown): p is [string, unknown] {
+      return isArray(p)
+        && p.length > 0
+        && isString(p[0])
+        && !!_this.world.read(p[0]).handler;
+    }
 
     function coreContext(id: Id, commit: Committer<DataMap>): unknown {
       return {
