@@ -174,6 +174,218 @@ the mechanism of watching, though... when one machine has created another
 it then takes on responsibility for it
 instead of booting directly, maybe a communication is made to a registrar machine instead
 
+-------------------
+
+
+So, meetings around a rendevous point:
+the problem with invite/attend is that there's a clear priority of initiative (isn't this inescable?)
+also that the inviter must know the name of the attendee, whereas the attendee has no control at all
+
+it's like there's an outer layer of equality, and then within this there's an inescable ordering of communication
+(one party must talk before the other, and each is always free to either command or yield)
+the first convener could in fact, when the attendee is reached, ask for the command of the other
+it would /grovel/ - it would go to the source of commands and /ask/
+ 
+but, even when so ingratiating, it knows the id of the other
+
+--------------------
+
+starting from a known thorny clump:
+an actual meeting of peers to share things
+each one has to both convene and attend
+
+each one needs to know the other's name
+and each one has to attend and convene simultaneously
+the rendesvous point solves this
+though on each change at the rendesvous point
+each needs the chance to meet or not meet
+
+but if one always says 'meet' and the other always says 'no'
+where does that leave us? stuck
+
+the rendesvous establishes a pool
+and then the parties need to group from there
+voting? on each change, each has a voice in whether to meet or not
+
+seems like a constraint problem: each party advertises its demands
+and if we can meet them, we all meet
+
+a simple constraint would be a minimum number of parties (surely in almost all cases this would be 2)
+or maybe a selection of tags could be offered?
+different protocols can be imagined here
+
+and the simplest and most capable (though not simplifying) of all would be pure laziness:
+each party gets to say true/false to... /what?/
+it couldn't be to the group as a whole: then one single bad apple would get us stuck
+even though there could be a happy meeting of others all this time
+
+with perfect fairness, each would propose its set of attendees
+and would then have a veto; all would be churned through until we got a maximal group size
+(though what about the residue - this really is a constraint-solving problem)
+
+or, each would state its demands of others, though still we get into the same problem
+of establishing a quorum, and of most efficient series of meetings
+
+----------------------
+
+a rendesvous could be an attentive machine, always receiving others
+but it would have to be able to keep on receiving new machines, just as it keeps others on
+
+if stowed into state, then it reliably takes on responsibility for calling the the other machines back
+attendees themselves would go into a holding state, waiting to be called back
+(though they'd need to be selectivey-attentive, ie not accepting meetings from others)
+
+though it's also nice to rely on reliable retries here
+where the meeting will reliably always happen in some form
+as the machines will always demand it again
+
+for this, if done by machine, a named machine would need to have a way of receiving multiple attendees
+and not binding their atoms until the actual meeting was convened (given some constraints would have to be met)
+
+or, it would be done by the runtime
+(though with the same atom semantics - can only bind on accepted meeting)
+
+-----------------------
+
+if it were done by the runtime...
+we'd still need a quorum constraint system (unless we tied it down to 2 - nice and simple, though disappointing)
+
+the point of having larger meetings was to enable group decisions...
+and if we're going to use this, it would fit with using states also (which should be cheap...)
+
+and so a rendesvous would accumulate attendees
+and each attendee would go into its frozen state (or at least a flow in which they promise to be attentive again)
+and they can promise this by being put to sleep in a state in which they're /selectively attentive/
+but this could also be done by receiving the first message of the meeting, and expecting a special code
+
+and attendees, when accepted, would be put in a holding pattern
+with the promise they'll be available when needed
+
+the rendesvous machine would now be on ice: the only source of life from now on
+would be new machines wanting to meet: they'd kick the entire mechanism into action again
+
+but even with this, how would it work?
+
+a rendesvous machine would attend, and on each new peer it would stash it in its list of ids
+then check if it could do anything, this would be by checking its demands
+if not it would go back to attending, until the next appeared
+
+on the peer side, the meeting would be done by entering a special prelude state and flow
+#+begin_src typescript
+  spot: ['$rm_receive', []]
+
+  a: ['$r_meet', ['spot', ['cb', ...]]] 
+
+  spot: ['$rm_receive', ['a']]
+  a: ['$r_hold', ['spot', ['cb', ...]]]
+
+  b: ['$r_meet', ['spot', ['cb', ...]]] 
+
+  spot: ['$rm_arrange', [['a', 'b'], []]]
+  b: ['$r_hold', ['spot', ['cb', ...]]] 
+
+  spot: ['$rm_arrange', [['a'], ['b']]]
+  b: ['$r_await', ['spot', ['cb', ...]]]  //!!!!!!! wot
+
+  spot: ['$rm_arrange', [[], ['b', 'a']]]
+  a: ['$r_invite', ['spot', ['cb', ...]]]  //!!!!!!! wot
+
+  spot: ['$rm_receive', []]
+
+  //await/invite would be done for us
+  //but what of the callback???
+  //it would have to attend, one would think, and be given what it's given
+  //tho the mediator actually makes one the convener arbitrarily
+  //so peers could declare their roles up front
+  //enqueued conveners could be in charge of quorums (defaulting to one for simplicity)
+  //and callbacks would have to promise to convene or await
+  //but these callbacks would also need to have parameters passed to them
+  //i'm imagining a second argument of a certain rendesvous-set type
+  //comprising id and key, but also arbitrary client-set well-typed state too
+  //the rendesvous states don't care about the rest, only the second arg
+  //
+  //so we'd not be mediating away the master/slave dynamic here
+  //but at least we'd have a mediator in place
+  //both parties would need to be slaves to the mediator for fairness
+  //and the mediator would be barking orders at both
+  //which would be he consolidated demands of all parties
+
+  //if the callback always attends, then stuff is much simpler on the peer side
+  //the issue is that the mediator is then involved in all subsequent comms
+  //but isn't that the point?
+  //
+  //so the peers would attend, and would be prompted for messages by the mediator
+  //the callback functions would receive messages
+  //and the mediation would be heavily stateful
+  //
+  //what processing would occur on the mediator side?
+  //not much, each attendee would have the chance to take charge and issue a statement
+  //which all submissive attendees would receive
+
+  //but here we're back at the same old scheme of say something/return something
+  //the difference is, on the client side, it's all done by one function (which is good actually)
+  //all behaviours must be both passive and assertive in potential
+
+  //the stateful mediation:
+  //it will accumulate peers one-by-one
+  //once we reach quorum, with all peers assumed to be on hold
+  //then the meeting begins: it is convened from above
+  //and now the mediation happens in real time, without saving
+
+#+end_src
+
+a simple implementation would have a baked-in quorum of 2
+as soon as there are two peers in the list,
+then one of the two is given the id of the other
+and the rest are told to attend, with a secret key to frisk for on receipt
+
+having other quorums is difficult
+because if they don't match, then they have to be mediated somehow
+a constant quorum sidesteps this
+and constants can also be specified in the id...
+
+so the spot calls the peers one-by-one
+telling them to be attentive
+
+
+
+
+
+but then the callback would itself have to be 
+
+-----
+
+as a general approach, putting more into the phases
+focuses the runtime on getting the right primitives:
+we want to stress the bottom layer as much as possible
+with daft demands
+
+----------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
