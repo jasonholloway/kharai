@@ -222,7 +222,7 @@ export class World<N extends Nodes> {
       .addHandler('$boot', async (x: CoreCtx) => {
         while(true) {
           const answer = await x.attend({
-            receive(m) {
+            attended(m) {
               return [m];
             }
           });
@@ -256,7 +256,7 @@ export class World<N extends Nodes> {
       .addGuard('$m_meet', [Str, $root])
       .addHandler('$m_meet', (x: CoreCtx, [spotId, hold]: [Id, [string,unknown?]]) => {
         return x.convene([spotId], {
-          receive([spot]) {
+          convened([spot]) {
             console.debug('saying hi', x.id);
             const r = spot.chat('hi');
 
@@ -264,14 +264,19 @@ export class World<N extends Nodes> {
               const [m] = r;
               if(isMediatorMessage(m)) {
                 const [,key] = m;
-                spot.chat(false);
+                // spot.chat(false);
+
+                //Second communication not being received by spot
+                //
+                //
 
                 return ['$end', ['HOLD', key]]
                 // return [...hold, [key]]; //TODO: cb needs space for custom state
               }
             }
             
-            throw `Meeting rejected by mediator ${spotId}: is it the right type of machine?`;
+            console.error('Assumed mediator says no to message \'hi\':', r);
+            throw `Meeting rejected by mediator ${spotId}: message:?`;
           }
         });
       });
@@ -287,7 +292,10 @@ export class World<N extends Nodes> {
       .addGuard('$m_gather', [Str, Many(Str)])
       .addHandler('$m_gather', async (x: CoreCtx, [key, ids]: [string, Id[]]) => {
         const result = await x.attend({
-          receive(m, mid) {
+          attended(m, mid) {
+
+            console.debug('RECEIVIN', x.id, m)
+            
             if(isPeerMessage(m)) {
               ids = [...ids, mid];
 
@@ -317,7 +325,7 @@ export class World<N extends Nodes> {
       .addGuard('$m_mediate', [Str,Many(Str),Many(Str)])
       .addHandler('$m_mediate', (x: CoreCtx, [key,ids,remnants]: [string,Id[],Id[]]) => {
         return x.convene(ids, {
-          receive(m) {
+          convened(m) {
 
             throw 'NOTIMPL'
 

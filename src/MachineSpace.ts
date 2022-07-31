@@ -16,7 +16,7 @@ import { Timer } from './Timer'
 import { isString } from './util'
 
 const log = console.debug;
-const logChat = (id0:Id[], m:unknown, id1:Id) => log('CHAT', ...id0, '->', inspect(m, {colors:true}), '->', id1);
+const logChat = (id0:Id[], id1:Id, m:unknown) => log('CHAT', ...id0, '->', id1, inspect(m, {colors:true}));
 
 const $Ahoy = Symbol('$Ahoy')
 
@@ -222,24 +222,28 @@ export class MachineSpace<N extends Nodes> {
         attend<R>(attendee: Attendee<R>) {
           return _this.mediator.attend(machine, {
             id,
-            receive([mid, m], peers) {
+            attended([mid, m], peers) {
+              //here the attendee is receiving a message from its convener
+
               if(isArray(m) && m[0] === $Ahoy) {
                 Committer.combine(new MonoidData(), [commit, <Committer<DataMap>>m[1]]);
                 m = m[2];
               }
 
-              logChat([mid], m, id);
+              // logChat([mid], id, 'C>A', m);
 
               const proxied = peers.map(p => <Peer>({
                 chat(m) {
-                  logChat([id], m, p.id);
+                  logChat(['A:'+id], 'A:'+p.id, m);
                   return p.chat([[$Ahoy, commit, m]]);
                 }
               }));
 
-              const result = attendee.receive(m, mid, proxied);
+              const result = attendee.attended(m, mid, proxied);
 
-              if(result[1]) logChat([id], result[1], mid);
+              if(result[1]) logChat(['A:'+id], 'C:'+mid, result[1]);
+
+              // if(result[1]) logChat(['AR',id], result[1], mid);
 
               return result;
             }
@@ -253,15 +257,17 @@ export class MachineSpace<N extends Nodes> {
           const result = await _this.mediator
             .convene({
               id,
-              receive(peers) {
+              convened(peers) {
+                //here the convener is given some peers to chat to
+                
                 const proxied = peers.map(p => <Peer>({
                   chat(m) {
-                    logChat([id], m, p.id);
+                    logChat(['C:'+id], 'A:'+p.id, m);
                     return p.chat([[$Ahoy, commit, m]]);
                   }
                 }));
 
-                const result = convene.receive(proxied);
+                const result = convene.convened(proxied);
 
                 // logChat([...peers.map(p => p.id)], result, id);
 
@@ -285,9 +291,9 @@ export interface Peer {
 }
 
 export interface Convener<R = unknown> {
-  receive(peers: Set<Peer>): R
+  convened(peers: Set<Peer>): R
 }
 
 export interface Attendee<R = unknown> {
-  receive(m: unknown, id: Id, peers: Set<Peer>): [R]|[R, unknown]
+  attended(m: unknown, id: Id, peers: Set<Peer>): [R]|[R, unknown]
 }

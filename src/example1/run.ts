@@ -27,7 +27,7 @@ const world = World
           //
 
           await x.convene([friend], {
-            receive([met]) {
+            convened([met]) {
               if(met) {
                 met.chat('hullo');
               }

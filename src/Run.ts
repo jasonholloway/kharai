@@ -89,8 +89,8 @@ export function newRun<N extends Nodes>
         meet<R = unknown>(convener: Convener<R>): Preemptable<R> {
           return mediator.convene2({
             id: '',
-            receive(peers: Set<ConvenedPeer>) {
-              return convener.receive(peers.map<Peer>(p => ({
+            convened(peers: Set<ConvenedPeer>) {
+              return convener.convened(peers.map<Peer>(p => ({
                 chat(m: [unknown]|false): false|[any] {
                   return p.chat(m);
                 }
@@ -101,7 +101,7 @@ export function newRun<N extends Nodes>
 
         tell(m: unknown) {
           return this.meet({
-            receive([p]) {
+            convened([p]) {
               return p.chat([m])
             }
           });

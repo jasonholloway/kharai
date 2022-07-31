@@ -13,7 +13,7 @@ describe('mediator', () => {
 	it('simplest convene/attach', async () => {
 		const p1: MConvener<string> = {
 			id: 'a',
-			receive([peer]) {
+			convened([peer]) {
 				const [reply] = peer.chat(['hello']) || [];
 				return <string>reply;
 			}
@@ -21,7 +21,7 @@ describe('mediator', () => {
 
 		const p2: MAttendee<string> = {
 			id: 'b',
-			receive() { return ['banana', 'pineapple']; }
+			attended() { return ['banana', 'pineapple']; }
 		}
 
 		const convening = space.convene(p1, Set([p2]));
@@ -38,7 +38,7 @@ describe('mediator', () => {
 	it('convention occurs', async () => {
 		const p1: MConvener<Set<any>> = {
 			id: 'a',
-			receive(peers) {
+			convened(peers) {
 				const reply = peers.flatMap(p => p.chat(['hello']) || []);
 				return reply;
 			},
@@ -46,14 +46,14 @@ describe('mediator', () => {
 
 		const p2: MAttendee<string> = {
 			id: 'b',
-			receive([,m]) {
+			attended([,m]) {
 				return [`${m}2`, 'reply2'];
 			}
 		}
 
 		const p3: MAttendee<string> = {
 			id: 'c',
-			receive([,m]) {
+			attended([,m]) {
 				return [`${m}3`, 'reply3'];
 			}
 		}
@@ -75,7 +75,7 @@ describe('mediator', () => {
 	it('attendee doesn\'t immediately release', async () => {
 		const attendee: MAttendee<true> = {
 			id: 'a',
-			receive() { return [true] }
+			attended() { return [true] }
 		}
 
 		const attending = space.attend(attendee, attendee);
@@ -90,7 +90,7 @@ describe('mediator', () => {
 	it('attendee released after chat', async () => {
 		const convener: MConvener<number> = {
 			id: 'a',
-			receive([peer]) {
+			convened([peer]) {
 				peer.chat(['hello']);
 				return 1;
 			}
@@ -98,7 +98,7 @@ describe('mediator', () => {
 
 		const attendee: MAttendee<number> = {
 			id: 'b',
-			receive() { return [1] }
+			attended() { return [1] }
 		}
 
 		const convening = space.convene(convener, Set([attendee]));
