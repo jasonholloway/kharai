@@ -1,5 +1,5 @@
 import { isString } from 'util'
-import { Bool, Guard, Num, Str, Many } from '../../src/guards/Guard'
+import { Bool, Guard, Num, Str, Many, Any } from '../../src/guards/Guard'
 import { tryMatch as test } from './helpers'
 
 describe('Guards', () => {
@@ -11,6 +11,13 @@ describe('Guards', () => {
     Guard([Num] as const).to<[123]>();
     Guard({ n: Num } as const).to<{ n: number }>();
     Guard({ n: Num } as const).to<{ n: 123 }>();
+  })
+
+  it('using directly', () => {
+    expect(Guard(Str)('boo')).toBeTruthy();
+    expect(Guard([Str])(['boo'])).toBeTruthy();
+    expect(Guard(['a',Str] as const)(['a','boo'])).toBeTruthy();
+    expect(Guard(['a',Str] as const)(['b','boo'])).toBeFalsy();
   })
   
 })
@@ -46,6 +53,20 @@ describe('match' , () => {
       null,
       false,
       []
+    ]
+  })
+
+  test({
+    pattern: Any,
+    yes: [
+      'plops',
+      123,
+      true,
+      [],
+      {},
+      undefined
+    ],
+    no: [
     ]
   })
 
@@ -208,6 +229,30 @@ describe('match' , () => {
         [true],
         [true, []],
         [true, [123]]
+      ]
+    })
+
+    test({
+      pattern: ['moo', Str] as const,
+      yes: [
+        ['moo', ''],
+        ['moo', 'baa'],
+      ],
+      no: [
+        [],
+        ['moo']
+      ]
+    })
+
+    test({
+      pattern: [Str, Any] as const,
+      yes: [
+        ['moo', ''],
+        ['moo', 'baa'],
+        ['moo']
+      ],
+      no: [
+        [],
       ]
     })
   })

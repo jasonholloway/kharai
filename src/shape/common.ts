@@ -24,7 +24,7 @@ type _ExtractPath<A extends string, K> =
   : never
 
 
-export type Data<N extends Nodes> =
+export type Data<N extends Nodes = Nodes> =
   _Data<N, _Data<N>>
 
 type _Data<N extends Nodes, Inner = unknown> =
@@ -33,7 +33,7 @@ type _Data<N extends Nodes, Inner = unknown> =
   N[K] extends infer G ?
   Read<G, $Root, Inner> extends infer D ?
   IsNotNever<D> extends true ? [P, D] : [P]
-  : never : never : never : never;
+: never : never : never : never;
 
 {
   type A = Data<{
@@ -43,7 +43,9 @@ type _Data<N extends Nodes, Inner = unknown> =
     D_guineapig: ['hello', 123]
   }>;
 
-  type _ = [A];
+  type B = Data;
+
+  type _ = [A,B];
 }
 
 

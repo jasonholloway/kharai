@@ -1,5 +1,5 @@
 import { Map } from 'immutable'
-import { Attendee, Convener } from './Mediator'
+import { MAttendee, MConvener } from './Mediator'
 import { Observable } from 'rxjs/internal/Observable'
 
 
@@ -22,8 +22,8 @@ export type _Phase<P extends PhaseMap = PhaseMap> = PathVal<P, any[]>
 export interface MachineContext<P> {
 	readonly id: Id
 	watch(ids: Id[]): Observable<[Id, P]>
-	attach<R>(attend: Attendee<R>): Promise<false|[R]>
-	convene<R>(ids: Id[], convener: Convener<R>): Promise<R>
+	attach<R>(attend: MAttendee<R>): Promise<false|[R]>
+	convene<R>(ids: Id[], convener: MConvener<R>): Promise<R>
 }
 
 export type PhaseMap = {

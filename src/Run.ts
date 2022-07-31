@@ -1,9 +1,9 @@
 import { Id, DataMap } from './lib'
-import { Mediator, Convener } from './Mediator'
+import { Mediator, MConvener, MPeer } from './Mediator'
 import { Observable, ReplaySubject, of, concat, Subject, merge, EMPTY } from 'rxjs'
-import { startWith, endWith, scan, takeWhile, finalize, map, toArray, ignoreElements, concatMap, filter, takeUntil, shareReplay, mergeMap, catchError  } from 'rxjs/operators'
+import { startWith, endWith, scan, takeWhile, finalize, map, toArray, ignoreElements, concatMap, filter, takeUntil, shareReplay, mergeMap } from 'rxjs/operators'
 import { Set } from 'immutable'
-import { MachineSpace, Signal } from './MachineSpace'
+import { Convener, MachineSpace, Peer, Signal } from './MachineSpace'
 import { runSaver } from './AtomSpace'
 import MonoidData from './MonoidData'
 import { Saver, Loader } from './Store'
@@ -73,7 +73,6 @@ export function newRun<N extends Nodes>
   count$.pipe(
     takeWhile(c => c > 0),
     finalize(() => complete()),
-    catchError(() => EMPTY)
   ).subscribe();
 
   return {
@@ -87,11 +86,19 @@ export function newRun<N extends Nodes>
       ));
 
       return {
-        meet<R = any>(convener: Convener<R>): Preemptable<R> {
-          return mediator.convene2(convener, machines)
+        meet<R = unknown>(convener: Convener<R>): Preemptable<R> {
+          return mediator.convene2(<MConvener<R>>{
+            receive(peers: Set<MPeer>): R {
+              return convener.receive(peers.map<Peer>(p => ({
+                chat(m: unknown): false|[any] {
+                  return p.chat(['',m]);
+                }
+              })));
+            }
+          }, machines)
         },
 
-        tell(m: any) {
+        tell(m: unknown) {
           return this.meet({
             receive([p]) {
               return p.chat(m)

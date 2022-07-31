@@ -1,12 +1,15 @@
 import { List } from "immutable";
 import { Observable } from "rxjs/internal/Observable";
-import { Any, Num, Str } from "../guards/Guard";
-import { Attendee, Convener } from "../Mediator";
+import { isFunction } from "util";
+import { Any, Guard, Many, Never, Num, Str } from "../guards/Guard";
+import { Id } from "../lib";
+import { Attendee, Convener } from "../MachineSpace";
+import { MAttendee, MConvener } from "../Mediator";
 import { Handler, $data, $Data, $Fac, $Root, $root } from "../shapeShared";
 import { Timer } from "../Timer";
-import { DeepMerge, delay, Merge, Simplify } from "../util";
+import { DeepMerge, delay, isString, Merge, Simplify } from "../util";
 import { BuiltWorld } from "./BuiltWorld";
-import { act, ctx, FacContext, FacPath, formPath, Impls, PathFac, SchemaNode } from "./common";
+import { act, ctx, Data, FacContext, FacPath, formPath, Impls, PathFac, SchemaNode } from "./common";
 import { Registry } from "./Registry";
 
 export const separator = '_'
@@ -123,6 +126,25 @@ export module World {
 // }
 
 
+
+class ImplHelper<N extends Nodes> {
+  isPhase(v: unknown): v is Data<N> {
+    //TODO IMPLEMENT!!!
+    return true;
+  }
+
+  isPhaseOrFalse(v: unknown): v is Data<N>|false {
+    return true;
+  }
+
+  castPhaseOrFalse<V extends (Data<N>|false)>(v: V): V {
+    return v;
+  }
+
+  //todo nicely generated next helpers
+}
+
+
 export class World<N extends Nodes> {
   public readonly nodes: N = <N><unknown>{}
   readonly reg: Registry
@@ -136,7 +158,9 @@ export class World<N extends Nodes> {
     return <World.TryMerge<N,N2>><unknown>new World(Registry.merge(this.reg, other.reg));
   }
 
-  impl<S extends Impls<N>>(s: S): World<N> {
+  impl<S extends Impls<N>>(arg: (S&object)|((h:ImplHelper<N>)=>S)): World<N> {
+    const s = (typeof arg === 'function') ? arg(new ImplHelper<N>()) : arg;
+
     const reg2 = _walk(s, [], this.reg);
     return new World<N>(reg2);
 
@@ -179,8 +203,15 @@ export class World<N extends Nodes> {
       XA: CoreCtx //todo these could be collapsed into simple, single 'X' entry
       XI: CoreCtx
       D_$boot: never,
-      D_$end: unknown,
-      D_$wait: [typeof Num | typeof Str, $Root]
+      D_$end: typeof Any,
+      D_$wait: [typeof Num | typeof Str, $Root],
+
+
+      D_$m_meet: [typeof Str, $Root],
+
+      D_$m_place: never,
+      D_$m_gather: [typeof Str, typeof Str[]], //[key, ids]
+      D_$m_mediate: [typeof Str, typeof Str[], typeof Str[]] //[key, ids, remnants]
     };
 
     reg = reg
@@ -192,10 +223,6 @@ export class World<N extends Nodes> {
         while(true) {
           const answer = await x.attend({
             receive(m) {
-              //protect here
-              //or more like it, can we frisk using the read func?
-              //return false if not special message
-              
               return [m];
             }
           });
@@ -220,6 +247,87 @@ export class World<N extends Nodes> {
       .addHandler('$wait', (x: CoreCtx, [when, nextPhase]: [number|string, unknown]) => {
         return x.timer.schedule(new Date(when), () => nextPhase);
       });
+
+
+    const isPeerMessage = Guard(['hi', Str] as const);
+    const isMediatorMessage = Guard(['yo', Str, Any] as const);
+
+    reg = reg
+      .addGuard('$m_meet', [Str, $root])
+      .addHandler('$m_meet', (x: CoreCtx, [spotId, hold]: [Id, [string,unknown?]]) => {
+        return x.convene([spotId], {
+          receive([spot]) {
+            const r = spot.chat(['hi', x.id]); //would be nice if this id were available on the message context
+            console.debug(spotId, '->', `<${r}>`, '->', x.id);
+
+            if(r && isMediatorMessage(r[0])) {
+              const [[,key]] = r;
+
+              //below is where we go into our custom holding state
+
+
+              return [...hold, [key]]; //TODO: cb needs space for custom state
+            }
+            
+            throw `Meeting rejected by mediator ${spotId}: is it the right type of machine?`;
+          }
+        });
+      });
+
+    reg = reg
+      .addGuard('$m_place', Never)
+      .addHandler('$m_place', async (x: CoreCtx) => {
+        const key = `K${x.id}${Date.now()}${Math.random()}`;
+        return ['$m_gather', [key, []]]
+      });
+
+    reg = reg
+      .addGuard('$m_gather', [Str, Many(Str)])
+      .addHandler('$m_gather', (x: CoreCtx, [key, ids]: [string, Id[]]) => {
+        return x.attend({
+          receive(m) {
+            console.debug(`<${m}>`, '->', x.id);
+            
+            if(isPeerMessage(m)) {
+              ids = [...ids, m[1]];
+
+              const quorum = 2;
+              if(ids.length >= quorum) {
+                console.debug('$m_mediate', 'sending', key);
+                return [
+                  ['$m_mediate', [key, ids, []]],//remnant always empty currently
+                  ['yo', key]
+                ]; 
+              }
+              else {
+                return [
+                  ['$m_gather', [key, ids]],
+                  ['yo', key]
+                ];
+              }
+            }
+
+            console.debug('$m_mediate', 'finishing');
+            return [['$m_gather', [key,ids]]];
+          }
+        });
+      });
+
+    reg = reg
+      .addGuard('$m_mediate', [Str,Many(Str),Many(Str)])
+      .addHandler('$m_mediate', (x: CoreCtx, [key,ids,remnants]: [string,Id[],Id[]]) => {
+        return x.convene(ids, {
+          receive(m) {
+            console.debug('$m_mediate', m);
+
+            //after happily mediating, go back to gathering, with fresh key
+            //todo could go back to place here, if there was an optional way to pass remnant ids
+            const key = `K${x.id}${Date.now()}${Math.random()}`;
+            return ['$m_gather', [key, remnants]];
+          }
+        });
+      });
+
     
     return <World.TryMerge<BuiltIns,Shape<S>>>new World<Shape<S>>(reg);
 

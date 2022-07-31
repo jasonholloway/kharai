@@ -1,24 +1,27 @@
 import { Set } from 'immutable'
-import { Mediator, Convener, Attendee } from '../src/Mediator'
+import { EMPTY } from 'rxjs'
+import { Mediator, MConvener, MAttendee } from '../src/Mediator'
 import { delay } from '../src/util'
-import { empty } from 'rxjs/internal/observable/empty'
 
 describe('mediator', () => {
 	let space: Mediator
+	const id = 'id';
 
 	beforeEach(() => {
-		space = new Mediator(empty());
+		space = new Mediator(EMPTY);
 	})
 
 	it('simplest convene/attach', async () => {
-		const p1: Convener<string> = {
+		const p1: MConvener<string> = {
+			id: 'a',
 			receive([peer]) {
-				const [reply] = peer.chat(['hello']) || [];
+				const [reply] = peer.chat(['a','hello']) || [];
 				return reply;
 			}
 		}
 
-		const p2: Attendee<string> = {
+		const p2: MAttendee<string> = {
+			id: 'b',
 			receive() { return ['banana', 'pineapple']; }
 		}
 
@@ -34,20 +37,23 @@ describe('mediator', () => {
 	})
 
 	it('convention occurs', async () => {
-		const p1: Convener<Set<any>> = {
+		const p1: MConvener<Set<any>> = {
+			id: 'a',
 			receive(peers) {
-				const reply = peers.flatMap(p => p.chat(['hello']) || []);
+				const reply = peers.flatMap(p => p.chat(['a','hello']) || []);
 				return reply;
 			},
 		}
 
-		const p2: Attendee<string> = {
+		const p2: MAttendee<string> = {
+			id: 'b',
 			receive(m) {
 				return [`${m}2`, 'reply2'];
 			}
 		}
 
-		const p3: Attendee<string> = {
+		const p3: MAttendee<string> = {
+			id: 'c',
 			receive(m) {
 				return [`${m}3`, 'reply3'];
 			}
@@ -68,7 +74,8 @@ describe('mediator', () => {
 	})
 
 	it('attendee doesn\'t immediately release', async () => {
-		const attendee: Attendee<true> = {
+		const attendee: MAttendee<true> = {
+			id: 'a',
 			receive() { return [true] }
 		}
 
@@ -82,14 +89,16 @@ describe('mediator', () => {
 	})
 
 	it('attendee released after chat', async () => {
-		const convener: Convener<number> = {
+		const convener: MConvener<number> = {
+			id: 'a',
 			receive([peer]) {
-				peer.chat(['hello']);
+				peer.chat([id,'hello']);
 				return 1;
 			}
 		}
 
-		const attendee: Attendee<number> = {
+		const attendee: MAttendee<number> = {
+			id: 'b',
 			receive() { return [1] }
 		}
 

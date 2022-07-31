@@ -2,32 +2,47 @@ import { Exchange, Lock } from './Locks'
 import { Set } from 'immutable'
 import { Observable } from 'rxjs';
 import { Signal } from './MachineSpace';
-import { filter, tap, share, shareReplay } from 'rxjs/operators';
+import { filter, shareReplay } from 'rxjs/operators';
 import CancellablePromise from './CancellablePromise';
 import { Preemptable } from './Preemptable';
-const log = console.log;
+import { Id } from './lib';
 
-export interface Peer {
-  chat(m: any): false|[any]
+export interface MPeer {
+  id: Id
+  chat(m: [Id,unknown]|false): false|[any]
 }
 
-export interface Convener<R = any> {
-  receive(peers: Set<Peer>): R
+export interface ConvenedPeer {
+  id: Id
+  chat(m: [unknown]|false): false|[any]
 }
 
-export interface Attendee<R = any> {
-  receive(m: any, peers: Set<Peer>): [R]|[R, any]
+export interface AttendingPeer {
+  id: Id
+  chat(m: [Id,unknown]|false): false|[any]
+}
+
+export interface MConvener<R = any> {
+  id: Id
+  receive(peers: Set<MPeer>): R
+}
+
+export interface MAttendee<R = any> {
+  id: Id
+  receive(m: [Id,unknown], peers: Set<MPeer>): [R]|[R, any]
 }
 
 export class Mediator {
   private kill$ : Observable<any>;
-  private locks = new Exchange<Peer>();
+  private locks = new Exchange<MPeer>();
 
   constructor(signal$: Observable<Signal>) {
     this.kill$ = signal$.pipe(filter(s => s.stop), shareReplay(1));
   }
 
-  convene2<R>(convener: Convener<R>, others: Set<object>): Preemptable<R> {
+  //below is well-intentioned, but half-baked
+  //todo: map should be able to do async
+  convene2<R>(convener: MConvener<R>, others: Set<object>): Preemptable<R> {
     return this.locks
       .claim(...others)
       .map(claim => {
@@ -37,7 +52,7 @@ export class Mediator {
 
           //only live peers should be bothered here - maybe its up to the peers themselves; they will return head when done
           peers.forEach(p => {
-            const a = p.chat(false); //should be better, more inscrutable value here
+            const a = p.chat(false);
             if(a) throw Error('peer responded badly to kill');
           });
 
@@ -48,12 +63,10 @@ export class Mediator {
           // await claim.release();
         }
       });
-    
       // .cancelOn(this.kill$);
-
   }
 
-  async convene<R>(convener: Convener<R>, others: Set<object>): Promise<R> {
+  async convene<R>(convener: MConvener<R>, others: Set<object>): Promise<R> {
     const claim = await this.locks
       .claim(...others)
       .promise()
@@ -65,7 +78,7 @@ export class Mediator {
 
       //only live peers should be bothered here - maybe its up to the peers themselves; they will return head when done
       peers.forEach(p => {
-        const a = p.chat(false); //should be better, more inscrutable value here
+        const a = p.chat(false);
         if(a) throw Error('peer responded badly to kill');
       });
 
@@ -76,41 +89,43 @@ export class Mediator {
     }
   }
 
-  async attend<R>(item: object, attend: Attendee<R>): Promise<false|[R]> { //instead of returning false, should relock, retry till we get result
+  async attend<R>(item: object, attend: MAttendee<R>): Promise<false|[R]> { //instead of returning false, should relock, retry till we get result
     let _state: false|[R] = false;
 
     const handle = await CancellablePromise.create<Lock>(
       (resolve, reject) => {
         let _go = true;
         const _handle = this.locks.offer([item],
-          {
-            chat(m: false|[any]) {
-              try {
-                if(!_go) return false;
-                if(!m) {
-                  resolve(_handle);
-                  return _go = false;
-                }
+        <MPeer>{
+          id: attend.id,
 
-                const [state, reply] = attend.receive(m, Set());
-                _state = [state];
-
-                if(reply === undefined) {
-                  resolve(_handle);
-                  return _go = false;
-                }
-                else {
-                  return [reply];
-                }
-              }
-              catch(err) {
-                reject(err);
+          chat(m: [Id,unknown]|false) {
+            try {
+              if(!_go) return false;
+              if(!m) {
+                resolve(_handle);
                 return _go = false;
               }
+
+              const [state, reply] = attend.receive(m, Set());
+              _state = [state];
+
+              if(reply === undefined) {
+                resolve(_handle);
+                return _go = false;
+              }
+              else {
+                return [reply];
+              }
             }
-          }).promise();
-        })
-        .cancelOn(this.kill$);
+            catch(err) {
+              reject(err);
+              return _go = false;
+            }
+          }
+        }).promise();
+      })
+      .cancelOn(this.kill$);
   
     await handle.release();
 

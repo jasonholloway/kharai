@@ -1,7 +1,7 @@
 import { Id, DataMap } from './lib'
-import { Mediator, Convener, Attendee, Peer } from './Mediator'
-import { Observable, Subject, from, merge, ReplaySubject, EMPTY, of } from 'rxjs'
-import { toArray, filter, mergeMap, map, share, expand, startWith, takeUntil, finalize, shareReplay, tap } from 'rxjs/operators'
+import { Mediator, MConvener, MAttendee, MPeer } from './Mediator'
+import { Observable, Subject, merge, ReplaySubject, EMPTY, of, from, fromEvent } from 'rxjs'
+import { toArray, filter, mergeMap, map, share, expand, startWith, takeUntil, finalize, shareReplay, tap, catchError } from 'rxjs/operators'
 import Committer from './Committer'
 import { List, Map, Set } from 'immutable'
 import MonoidData from './MonoidData'
@@ -14,6 +14,7 @@ import { Nodes } from './shape/common'
 import { Loader } from './Store'
 import { Timer } from './Timer'
 import { isString } from './util'
+const debug = console.debug;
 
 const $Ahoy = Symbol('$Ahoy')
 
@@ -131,7 +132,7 @@ export class MachineSpace<N extends Nodes> {
 
     const log$ = of(<Log>[state]).pipe(
       expand(([p]) => {
-        // console.error('RUN', id, p)
+        console.debug('RUN', id, p)
         if(!p) return EMPTY;
 
         const [path, data] = p;
@@ -165,9 +166,10 @@ export class MachineSpace<N extends Nodes> {
             throw Error(`Handler output no good: ${out}`);
           }
           catch(e) {
-            // console.error(e);
             committer.abort();
-            throw e;
+            console.error(e);
+            return <Log>[false];
+            // throw e;
           }
         })())
       }),
@@ -215,7 +217,8 @@ export class MachineSpace<N extends Nodes> {
 
         attend<R>(attend: Attendee<R>) {
           return _this.mediator.attend(machine, {
-            receive(m, peers) {
+            id,
+            receive([mid, m], peers) {
               if(isArray(m) && m[0] == $Ahoy) {
                 Committer.combine(new MonoidData(), [commit, <Committer<DataMap>>m[1]]);
                 m = m[2];
@@ -223,10 +226,11 @@ export class MachineSpace<N extends Nodes> {
 
               const proxied = peers.map(p => <Peer>({
                 chat(m) {
-                  return p.chat([$Ahoy, commit, m]);
+                  debug(id, '->', `<${m}>`, '->', p.id);
+                  return p.chat([id, [$Ahoy, commit, m]]);
                 }
               }));
-              return attend.receive(m, proxied);
+              return attend.receive(m, mid, proxied);
             }
           });
         },
@@ -237,10 +241,11 @@ export class MachineSpace<N extends Nodes> {
 
           const result = await _this.mediator
             .convene({
+              id,
               receive(peers) {
                 const proxied = peers.map(p => <Peer>({
                   chat(m) {
-                    return p.chat([$Ahoy, commit, m]);
+                    return p.chat([id, [$Ahoy, commit, m]]);
                   }
                 }));
                 return convene.receive(proxied);
@@ -256,4 +261,16 @@ export class MachineSpace<N extends Nodes> {
 
 export type Signal = {
   stop: boolean
+}
+
+export interface Peer {
+  chat(m: unknown): false|[any]
+}
+
+export interface Convener<R = any> {
+  receive(peers: Set<Peer>): R
+}
+
+export interface Attendee<R = any> {
+  receive(m: unknown, id: Id, peers: Set<Peer>): [R]|[R, any]
 }

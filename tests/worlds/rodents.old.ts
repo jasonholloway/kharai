@@ -1,125 +1,125 @@
-import _Monoid from '../../src/_Monoid'
-import { Id, SpecWorld, makeWorld, World, _Phase } from '../../src/lib'
-import { delay } from '../../src/util'
-import { bootPhase, endPhase, waitPhase } from '../../src/phases'
+// import _Monoid from '../../src/_Monoid'
+// import { Id, SpecWorld, makeWorld, World, _Phase } from '../../src/lib'
+// import { delay } from '../../src/util'
+// import { bootPhase, endPhase, waitPhase } from '../../src/phases'
 
-export type TRodents<Me extends World = World> = SpecWorld<{
-  $boot: []
-  $end: [any]
-  $wait: [number, _Phase<Me>]
+// export type TRodents<Me extends World = World> = SpecWorld<{
+//   $boot: []
+//   $end: [any]
+//   $wait: [number, _Phase<Me>]
 
-  rat: {
-    wake: [],
-    squeak: [number]
-  }
+//   rat: {
+//     wake: [],
+//     squeak: [number]
+//   }
 
-  hamster: {
-    wake: [number]
-    nibble: []
-  }
+//   hamster: {
+//     wake: [number]
+//     nibble: []
+//   }
 
-  guineaPig: {
-    runAbout: []
-    gruntAt: [Id]
-  }
+//   guineaPig: {
+//     runAbout: []
+//     gruntAt: [Id]
+//   }
 
-  gerbil: {
-    spawn: [number, number]
-  }
-}>
+//   gerbil: {
+//     spawn: [number, number]
+//   }
+// }>
 
-export type Rodents = TRodents<TRodents>
+// export type Rodents = TRodents<TRodents>
 
-export const rodents = () => makeWorld<Rodents>()(
-  {
-    contextFac: x => x
-  },
-  {
-    phases: {
-      $boot: bootPhase(),
-      $end: endPhase(),
-      $wait: waitPhase(),
+// export const rodents = () => makeWorld<Rodents>()(
+//   {
+//     contextFac: x => x
+//   },
+//   {
+//     phases: {
+//       $boot: bootPhase(),
+//       $end: endPhase(),
+//       $wait: waitPhase(),
 
-      rat: {
-        wake: x => ({
-          guard(d): d is [] { return true },
-          async run() {
-            return ['squeak', [123]]
-          }
-        }),
+//       rat: {
+//         wake: x => ({
+//           guard(d): d is [] { return true },
+//           async run() {
+//             return ['squeak', [123]]
+//           }
+//         }),
 
-        squeak: x => ({
-          guard(d): d is [number] { return true },
-          async run([d]) {
-            return ['$end', [`I have squeaked ${d}!`]]
-          }
-        })
-      },
+//         squeak: x => ({
+//           guard(d): d is [number] { return true },
+//           async run([d]) {
+//             return ['$end', [`I have squeaked ${d}!`]]
+//           }
+//         })
+//       },
 
-      hamster: {
-        wake: x => ({
-          guard(d): d is [number] { return true },
-          async run([d]) {
-            await delay(100);
-            return ['$end', [d]]
-          }
-        }),
-        nibble: x => ({
-          guard(d): d is [] { return true },
-          async run() {
-            return false;
-          }
-        })
-      },
+//       hamster: {
+//         wake: x => ({
+//           guard(d): d is [number] { return true },
+//           async run([d]) {
+//             await delay(100);
+//             return ['$end', [d]]
+//           }
+//         }),
+//         nibble: x => ({
+//           guard(d): d is [] { return true },
+//           async run() {
+//             return false;
+//           }
+//         })
+//       },
 
-      guineaPig: {
-        runAbout: x => ({
-          guard(d): d is [] { return true },
-          async run() {
-            const a = await x.attach({ receive(m) { return [m, 'squeak!'] } });
-            return (a && ['$end', a]) || ['$end', ['BIG NASTY ERROR']]
-          }
-        }),
+//       guineaPig: {
+//         runAbout: x => ({
+//           guard(d): d is [] { return true },
+//           async run() {
+//             const a = await x.attach({ receive(m) { return [m, 'squeak!'] } });
+//             return (a && ['$end', a]) || ['$end', ['BIG NASTY ERROR']]
+//           }
+//         }),
 
-        gruntAt: x => ({
-          guard(d): d is [Id] { return true },
-          async run([id]) {
-            const resp = await x.convene([id], {
-              receive([p]) {
-                const a = p.chat('grunt!');
-                if(a) return a;
-                else throw Error('bad response from attendee')
-              }
-            });
+//         gruntAt: x => ({
+//           guard(d): d is [Id] { return true },
+//           async run([id]) {
+//             const resp = await x.convene([id], {
+//               receive([p]) {
+//                 const a = p.chat('grunt!');
+//                 if(a) return a;
+//                 else throw Error('bad response from attendee')
+//               }
+//             });
 
-            return ['$end', resp]
-          }
-        })
-      },
+//             return ['$end', resp]
+//           }
+//         })
+//       },
 
-      gerbil: {
-        spawn: x => ({
-          guard(d): d is [number, number] { return true; },
-          async run([step, max]) {
-            if(step < max) {
-              const appendage = String.fromCharCode('a'.charCodeAt(0) + step);
+//       gerbil: {
+//         spawn: x => ({
+//           guard(d): d is [number, number] { return true; },
+//           async run([step, max]) {
+//             if(step < max) {
+//               const appendage = String.fromCharCode('a'.charCodeAt(0) + step);
 
-              if(x.id.length < max) {
-                const other = `${x.id}${appendage}`;
+//               if(x.id.length < max) {
+//                 const other = `${x.id}${appendage}`;
 
-                await x.convene([other], {
-                  receive([p]) {
-                    p.chat([['gerbil', ['spawn', [0, max]]]])
-                  }
-                })
+//                 await x.convene([other], {
+//                   receive([p]) {
+//                     p.chat([['gerbil', ['spawn', [0, max]]]])
+//                   }
+//                 })
 
-                return ['spawn', [step + 1, max]]
-              }
-            }
+//                 return ['spawn', [step + 1, max]]
+//               }
+//             }
 
-            return false;
-          }
-        })
-      },
-    }
-  })
+//             return false;
+//           }
+//         })
+//       },
+//     }
+//   })

@@ -3,7 +3,7 @@ import { _Phase, makeWorld, World, MachineContext, SpecWorld } from "./lib";
 import FakeStore from "./FakeStore";
 import {Loader,Saver} from "./Store";
 import MonoidData from "./MonoidData";
-import { bootPhase, endPhase, waitPhase } from "./phases";
+// import { bootPhase, endPhase, waitPhase } from "./phases";
 
 export {
 	Loader,
@@ -18,7 +18,7 @@ export {
 	World,
 	_Phase,
 
-	bootPhase,
-	endPhase,
-	waitPhase
+	// bootPhase,
+	// endPhase,
+	// waitPhase
 };

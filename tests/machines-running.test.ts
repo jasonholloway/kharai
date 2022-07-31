@@ -1,5 +1,6 @@
 import _Monoid from '../src/_Monoid'
 import { createRunner } from './shared'
+import { delay } from '../src/util';
 import { rodents } from './worlds/rodents'
 
 describe('machines - running', () => {
@@ -79,11 +80,9 @@ describe('machines - running', () => {
     const x = createRunner(world);
 
     const summoned = await x.run.summon(['nibbles']);
-    const result = await summoned.tell(['someRubbish']).promise();
+    const r = await summoned.tell(['someRubbish']).promise();
 
-    expect(result).toBe(false);
-
-    await x.allLogs();
+    expect(r).toBeFalsy();
   })
 
 })

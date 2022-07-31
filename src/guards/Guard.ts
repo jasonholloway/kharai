@@ -105,6 +105,7 @@ export function match(s: any, v: any, cb?: ((s:any,v:any)=>undefined|boolean)): 
   }
 
   switch(s) {
+    case Any: return true;
     case Str: return isString(v);
     case Num: return isNumber(v);
     case Bool: return isBoolean(v);
