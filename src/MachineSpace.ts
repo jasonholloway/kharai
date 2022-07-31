@@ -16,7 +16,7 @@ import { Timer } from './Timer'
 import { isString } from './util'
 
 const log = console.debug;
-const logChat = (id0:Id, m:unknown, id1:Id) => log('CHAT', id0, '->', inspect(m, {colors:true}), '->', id1);
+const logChat = (id0:Id[], m:unknown, id1:Id) => log('CHAT', ...id0, '->', inspect(m, {colors:true}), '->', id1);
 
 const $Ahoy = Symbol('$Ahoy')
 
@@ -156,6 +156,7 @@ export class MachineSpace<N extends Nodes> {
             const coreCtx = coreContext(id, committer);
             const ctx = fac(coreCtx);
             const out = await handler(ctx, data);
+            console.debug('OUT', id, inspect(out,{colors:true}))
 
             if(isPhase(out)) {
               const ref = await committer.complete(Map({ [id]: out }));
@@ -218,7 +219,7 @@ export class MachineSpace<N extends Nodes> {
             );
         },
 
-        attend<R>(attend: Attendee<R>) {
+        attend<R>(attendee: Attendee<R>) {
           return _this.mediator.attend(machine, {
             id,
             receive([mid, m], peers) {
@@ -227,15 +228,20 @@ export class MachineSpace<N extends Nodes> {
                 m = m[2];
               }
 
-              logChat(mid, m, id);
+              logChat([mid], m, id);
 
               const proxied = peers.map(p => <Peer>({
                 chat(m) {
-                  logChat(id, m, p.id);
+                  logChat([id], m, p.id);
                   return p.chat([[$Ahoy, commit, m]]);
                 }
               }));
-              return attend.receive(m, mid, proxied);
+
+              const result = attendee.receive(m, mid, proxied);
+
+              if(result[1]) logChat([id], result[1], mid);
+
+              return result;
             }
           });
         },
@@ -250,11 +256,16 @@ export class MachineSpace<N extends Nodes> {
               receive(peers) {
                 const proxied = peers.map(p => <Peer>({
                   chat(m) {
-                    logChat(id, m, p.id);
+                    logChat([id], m, p.id);
                     return p.chat([[$Ahoy, commit, m]]);
                   }
                 }));
-                return convene.receive(proxied);
+
+                const result = convene.receive(proxied);
+
+                // logChat([...peers.map(p => p.id)], result, id);
+
+                return result;
               }
             }, Set(ms));
 

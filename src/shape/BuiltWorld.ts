@@ -38,7 +38,13 @@ export class BuiltWorld<N extends Nodes> {
       return facs.reduce(
         (ac, [_,fn]) => x => {
           const r = ac(x);
-          return { ...r, ...fn(r) };
+          const r2 = fn(r);
+
+          if(typeof r === 'object' && typeof r2 === 'object') {
+            return { ...r, ...r2 };
+          }
+
+          throw Error('fac output is not an object...');
         },
         (x => x));
     }

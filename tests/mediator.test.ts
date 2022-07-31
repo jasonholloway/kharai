@@ -5,7 +5,6 @@ import { delay } from '../src/util'
 
 describe('mediator', () => {
 	let space: Mediator
-	const id = 'id';
 
 	beforeEach(() => {
 		space = new Mediator(EMPTY);
@@ -16,7 +15,7 @@ describe('mediator', () => {
 			id: 'a',
 			receive([peer]) {
 				const [reply] = peer.chat(['hello']) || [];
-				return reply;
+				return <string>reply;
 			}
 		}
 

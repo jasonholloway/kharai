@@ -1,6 +1,6 @@
 import { List } from "immutable";
 import { Observable } from "rxjs/internal/Observable";
-import { inspect, isFunction } from "util";
+import { inspect, isArray, isFunction } from "util";
 import { Any, Guard, Many, Never, Num, Str } from "../guards/Guard";
 import { Id } from "../lib";
 import { Attendee, Convener } from "../MachineSpace";
@@ -249,7 +249,7 @@ export class World<N extends Nodes> {
       });
 
 
-    const isPeerMessage = Guard(['hi', Str] as const);
+    const isPeerMessage = Guard('hi');
     const isMediatorMessage = Guard(['yo', Str, Any] as const);
 
     reg = reg
@@ -257,16 +257,18 @@ export class World<N extends Nodes> {
       .addHandler('$m_meet', (x: CoreCtx, [spotId, hold]: [Id, [string,unknown?]]) => {
         return x.convene([spotId], {
           receive([spot]) {
-            const r = spot.chat(['hi', x.id]); //would be nice if this id were available on the message context
-            console.debug(spotId, '->', `<${r}>`, '->', x.id);
+            console.debug('saying hi', x.id);
+            const r = spot.chat('hi');
 
-            if(r && isMediatorMessage(r[0])) {
-              const [[,key]] = r;
+            if(r) {
+              const [m] = r;
+              if(isMediatorMessage(m)) {
+                const [,key] = m;
+                spot.chat(false);
 
-              //below is where we go into our custom holding state
-
-
-              return [...hold, [key]]; //TODO: cb needs space for custom state
+                return ['$end', ['HOLD', key]]
+                // return [...hold, [key]]; //TODO: cb needs space for custom state
+              }
             }
             
             throw `Meeting rejected by mediator ${spotId}: is it the right type of machine?`;
@@ -283,17 +285,14 @@ export class World<N extends Nodes> {
 
     reg = reg
       .addGuard('$m_gather', [Str, Many(Str)])
-      .addHandler('$m_gather', (x: CoreCtx, [key, ids]: [string, Id[]]) => {
-        return x.attend({
-          receive(m) {
-            console.debug(`<${m}>`, '->', x.id);
-            
+      .addHandler('$m_gather', async (x: CoreCtx, [key, ids]: [string, Id[]]) => {
+        const result = await x.attend({
+          receive(m, mid) {
             if(isPeerMessage(m)) {
-              ids = [...ids, m[1]];
+              ids = [...ids, mid];
 
               const quorum = 2;
               if(ids.length >= quorum) {
-                console.debug('$m_mediate', 'sending', key);
                 return [
                   ['$m_mediate', [key, ids, []]],//remnant always empty currently
                   ['yo', key]
@@ -307,10 +306,11 @@ export class World<N extends Nodes> {
               }
             }
 
-            console.debug('$m_mediate', 'finishing');
-            return [['$m_gather', [key,ids]]];
+            return [['$m_gather', [key, ids]]];
           }
         });
+
+        return isArray(result) ? result[0] : false;
       });
 
     reg = reg
@@ -318,7 +318,8 @@ export class World<N extends Nodes> {
       .addHandler('$m_mediate', (x: CoreCtx, [key,ids,remnants]: [string,Id[],Id[]]) => {
         return x.convene(ids, {
           receive(m) {
-            console.debug('$m_mediate', m);
+
+            throw 'NOTIMPL'
 
             //after happily mediating, go back to gathering, with fresh key
             //todo could go back to place here, if there was an optional way to pass remnant ids

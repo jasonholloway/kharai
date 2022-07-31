@@ -54,8 +54,6 @@ describe('machines - conversing', () => {
       x.run.boot('b', ['$m_meet', ['spot', ['$end', {}]]]),
       x.allLogs()
     ]);
-
-    console.debug('logs',logs)
   })
 })
 

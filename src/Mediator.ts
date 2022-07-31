@@ -13,27 +13,27 @@ const logFlow = (id0:Id, m:unknown, id1:Id) => {}; // log(id0, '->', inspect(m, 
 
 export interface MPeer {
   id: Id
-  chat(m: [Id,unknown]|false): false|[any]
+  chat(m: [Id,unknown]|false): false|[unknown]
 }
 
 export interface ConvenedPeer {
   id: Id
-  chat(m: [unknown]|false): false|[any]
+  chat(m: [unknown]|false): false|[unknown]
 }
 
 export interface AttendingPeer {
   id: Id
-  chat(m: [unknown]|false): false|[any]
+  chat(m: [unknown]|false): false|[unknown]
 }
 
-export interface MConvener<R = any> {
+export interface MConvener<R = unknown> {
   id: Id
   receive(peers: Set<ConvenedPeer>): R
 }
 
-export interface MAttendee<R = any> {
+export interface MAttendee<R = unknown> {
   id: Id
-  receive(m: [Id,unknown], peers: Set<AttendingPeer>): [R]|[R, any]
+  receive(m: [Id,unknown], peers: Set<AttendingPeer>): [R]|[R, unknown]
 }
 
 export class Mediator {
@@ -116,7 +116,7 @@ export class Mediator {
   }
 
   async attend<R>(item: object, attend: MAttendee<R>): Promise<false|[R]> { //instead of returning false, should relock, retry till we get result
-    let _state: false|[R] = false;
+    let _state = <[R]|false>false;
 
     const handle = await CancellablePromise.create<Lock>(
       (resolve, reject) => {
