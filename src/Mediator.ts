@@ -6,6 +6,10 @@ import { filter, shareReplay } from 'rxjs/operators';
 import CancellablePromise from './CancellablePromise';
 import { Preemptable } from './Preemptable';
 import { Id } from './lib';
+import { inspect } from 'util';
+
+const log = console.debug;
+const logFlow = (id0:Id, m:unknown, id1:Id) => {}; // log(id0, '->', inspect(m, {colors:true}), '->', id1);
 
 export interface MPeer {
   id: Id
@@ -19,17 +23,17 @@ export interface ConvenedPeer {
 
 export interface AttendingPeer {
   id: Id
-  chat(m: [Id,unknown]|false): false|[any]
+  chat(m: [unknown]|false): false|[any]
 }
 
 export interface MConvener<R = any> {
   id: Id
-  receive(peers: Set<MPeer>): R
+  receive(peers: Set<ConvenedPeer>): R
 }
 
 export interface MAttendee<R = any> {
   id: Id
-  receive(m: [Id,unknown], peers: Set<MPeer>): [R]|[R, any]
+  receive(m: [Id,unknown], peers: Set<AttendingPeer>): [R]|[R, any]
 }
 
 export class Mediator {
@@ -48,10 +52,21 @@ export class Mediator {
       .map(claim => {
         try {
           const peers = claim.offers(); //peer interface needs to be wrapped here, to remove special messages
-          const answer = convener.receive(peers);
+
+          const answer = convener.receive(
+            peers.map<ConvenedPeer>(p => ({
+              id: p.id,
+              chat(m: [unknown]|false) {
+                logFlow(convener.id, m, p.id);
+                if(m) return p.chat([convener.id, ...m])
+                else return p.chat(false);
+              }
+            }))
+          );
 
           //only live peers should be bothered here - maybe its up to the peers themselves; they will return head when done
           peers.forEach(p => {
+            logFlow('.', false, p.id);
             const a = p.chat(false);
             if(a) throw Error('peer responded badly to kill');
           });
@@ -74,10 +89,21 @@ export class Mediator {
 
     try {
       const peers = claim.offers(); //peer interface needs to be wrapped here, to remove special messages
-      const answer = convener.receive(peers);
+
+      const answer = convener.receive(
+        peers.map<ConvenedPeer>(p => ({
+          id: p.id,
+          chat(m: [unknown]|false) {
+            logFlow(convener.id, m, p.id);
+            if(m) return p.chat([convener.id, ...m])
+            else return p.chat(false);
+          }
+        }))
+      );
 
       //only live peers should be bothered here - maybe its up to the peers themselves; they will return head when done
       peers.forEach(p => {
+        logFlow('.', false, p.id);
         const a = p.chat(false);
         if(a) throw Error('peer responded badly to kill');
       });
@@ -107,7 +133,7 @@ export class Mediator {
                 return _go = false;
               }
 
-              const [state, reply] = attend.receive(m, Set());
+              const [state, reply] = attend.receive(m, Set()); //todo Set here needs proxying to include attend.id
               _state = [state];
 
               if(reply === undefined) {

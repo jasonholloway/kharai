@@ -9,12 +9,14 @@ import Head from './Head'
 import { Commit } from './AtomSpace'
 import { BuiltWorld } from './shape/BuiltWorld'
 import { AtomRef } from './atoms'
-import { isArray } from 'util'
+import { inspect, isArray } from 'util'
 import { Nodes } from './shape/common'
 import { Loader } from './Store'
 import { Timer } from './Timer'
 import { isString } from './util'
-const debug = console.debug;
+
+const log = console.debug;
+const logChat = (id0:Id, m:unknown, id1:Id) => log('CHAT', id0, '->', inspect(m, {colors:true}), '->', id1);
 
 const $Ahoy = Symbol('$Ahoy')
 
@@ -132,7 +134,8 @@ export class MachineSpace<N extends Nodes> {
 
     const log$ = of(<Log>[state]).pipe(
       expand(([p]) => {
-        console.debug('RUN', id, p)
+        log('PHASE', id, inspect(p, {colors:true}));
+
         if(!p) return EMPTY;
 
         const [path, data] = p;
@@ -219,15 +222,17 @@ export class MachineSpace<N extends Nodes> {
           return _this.mediator.attend(machine, {
             id,
             receive([mid, m], peers) {
-              if(isArray(m) && m[0] == $Ahoy) {
+              if(isArray(m) && m[0] === $Ahoy) {
                 Committer.combine(new MonoidData(), [commit, <Committer<DataMap>>m[1]]);
                 m = m[2];
               }
 
+              logChat(mid, m, id);
+
               const proxied = peers.map(p => <Peer>({
                 chat(m) {
-                  debug(id, '->', `<${m}>`, '->', p.id);
-                  return p.chat([id, [$Ahoy, commit, m]]);
+                  logChat(id, m, p.id);
+                  return p.chat([[$Ahoy, commit, m]]);
                 }
               }));
               return attend.receive(m, mid, proxied);
@@ -245,7 +250,8 @@ export class MachineSpace<N extends Nodes> {
               receive(peers) {
                 const proxied = peers.map(p => <Peer>({
                   chat(m) {
-                    return p.chat([id, [$Ahoy, commit, m]]);
+                    logChat(id, m, p.id);
+                    return p.chat([[$Ahoy, commit, m]]);
                   }
                 }));
                 return convene.receive(proxied);
@@ -264,13 +270,13 @@ export type Signal = {
 }
 
 export interface Peer {
-  chat(m: unknown): false|[any]
+  chat(m: unknown): false|[unknown]
 }
 
-export interface Convener<R = any> {
+export interface Convener<R = unknown> {
   receive(peers: Set<Peer>): R
 }
 
-export interface Attendee<R = any> {
-  receive(m: unknown, id: Id, peers: Set<Peer>): [R]|[R, any]
+export interface Attendee<R = unknown> {
+  receive(m: unknown, id: Id, peers: Set<Peer>): [R]|[R, unknown]
 }

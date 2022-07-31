@@ -15,7 +15,7 @@ describe('mediator', () => {
 		const p1: MConvener<string> = {
 			id: 'a',
 			receive([peer]) {
-				const [reply] = peer.chat(['a','hello']) || [];
+				const [reply] = peer.chat(['hello']) || [];
 				return reply;
 			}
 		}
@@ -40,21 +40,21 @@ describe('mediator', () => {
 		const p1: MConvener<Set<any>> = {
 			id: 'a',
 			receive(peers) {
-				const reply = peers.flatMap(p => p.chat(['a','hello']) || []);
+				const reply = peers.flatMap(p => p.chat(['hello']) || []);
 				return reply;
 			},
 		}
 
 		const p2: MAttendee<string> = {
 			id: 'b',
-			receive(m) {
+			receive([,m]) {
 				return [`${m}2`, 'reply2'];
 			}
 		}
 
 		const p3: MAttendee<string> = {
 			id: 'c',
-			receive(m) {
+			receive([,m]) {
 				return [`${m}3`, 'reply3'];
 			}
 		}
@@ -92,7 +92,7 @@ describe('mediator', () => {
 		const convener: MConvener<number> = {
 			id: 'a',
 			receive([peer]) {
-				peer.chat([id,'hello']);
+				peer.chat(['hello']);
 				return 1;
 			}
 		}

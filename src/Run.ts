@@ -1,5 +1,5 @@
 import { Id, DataMap } from './lib'
-import { Mediator, MConvener, MPeer } from './Mediator'
+import { Mediator, MConvener, MPeer, ConvenedPeer } from './Mediator'
 import { Observable, ReplaySubject, of, concat, Subject, merge, EMPTY } from 'rxjs'
 import { startWith, endWith, scan, takeWhile, finalize, map, toArray, ignoreElements, concatMap, filter, takeUntil, shareReplay, mergeMap } from 'rxjs/operators'
 import { Set } from 'immutable'
@@ -87,11 +87,12 @@ export function newRun<N extends Nodes>
 
       return {
         meet<R = unknown>(convener: Convener<R>): Preemptable<R> {
-          return mediator.convene2(<MConvener<R>>{
-            receive(peers: Set<MPeer>): R {
+          return mediator.convene2({
+            id: '',
+            receive(peers: Set<ConvenedPeer>) {
               return convener.receive(peers.map<Peer>(p => ({
-                chat(m: unknown): false|[any] {
-                  return p.chat(['',m]);
+                chat(m: [unknown]|false): false|[any] {
+                  return p.chat(m);
                 }
               })));
             }
@@ -101,7 +102,7 @@ export function newRun<N extends Nodes>
         tell(m: unknown) {
           return this.meet({
             receive([p]) {
-              return p.chat(m)
+              return p.chat([m])
             }
           });
         },

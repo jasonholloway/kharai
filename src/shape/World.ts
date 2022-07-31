@@ -1,6 +1,6 @@
 import { List } from "immutable";
 import { Observable } from "rxjs/internal/Observable";
-import { isFunction } from "util";
+import { inspect, isFunction } from "util";
 import { Any, Guard, Many, Never, Num, Str } from "../guards/Guard";
 import { Id } from "../lib";
 import { Attendee, Convener } from "../MachineSpace";
