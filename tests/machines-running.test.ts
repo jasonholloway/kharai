@@ -1,6 +1,5 @@
 import _Monoid from '../src/_Monoid'
 import { createRunner } from './shared'
-import { delay } from '../src/util';
 import { rodents } from './worlds/rodents'
 
 describe('machines - running', () => {
@@ -56,8 +55,8 @@ describe('machines - running', () => {
       ['goz', ['$boot']],
       ['gaz', ['guineaPig_runAbout']],
       ['goz', ['guineaPig_gruntAt', 'gaz']],
-      ['goz', ['$end', 'squeak!']],
       ['gaz', ['$end', 'grunt!']],
+      ['goz', ['$end', 'squeak!']]
     ])
   })
 

@@ -1,5 +1,4 @@
 import CancellablePromise from './CancellablePromise'
-import { isFunction } from 'util';
 
 type CancellableFn<A> = (resolve: (v:A|PromiseLike<A>)=>void, reject: (r:any)=>void, onCancel: (h:()=>void)=>void ) => void
 

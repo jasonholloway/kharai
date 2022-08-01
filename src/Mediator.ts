@@ -1,4 +1,4 @@
-import { Exchange, Lock } from './Locks'
+import { Exchange } from './Locks'
 import { Set } from 'immutable'
 import { Observable, Subject } from 'rxjs';
 import { Signal } from './MachineSpace';
@@ -58,7 +58,7 @@ export class Mediator {
             peers.map<ConvenedPeer>(p => ({
               id: p.id,
               chat(m: [unknown]|false) {
-                logFlow(convener.id, m, p.id);
+                logFlow(convener.id+'!', m, p.id);
                 if(m) return p.chat([convener.id, ...m])
                 else return p.chat(false);
               }
@@ -127,18 +127,22 @@ export class Mediator {
     }
   }
 
+  //we don't need to await the release of all the attendees...
+  //we just need to make sure we fire false at all of them before
+  //we do
+
   async attend<R>(item: object, attend: MAttendee<R>): Promise<false|[R]> { //instead of returning false, should relock, retry till we get result
     return await CancellablePromise.create<[R]|false>(
       (resolve, reject) => {
-        let _go = true;
+        let _alive = true;
         let _state = <[R]|false>false;
         const _complete$ = new Subject();
         
         const _handle = this.locks.offer([item],
-        <MPeer>{
+        {
           id: attend.id,
 
-          complete: _complete$.toPromise(),
+          complete: <Promise<void>>_complete$.toPromise(),
 
           // the problem is that the handle itself
           // doesn't return until the claimant releases, which is too late
@@ -148,10 +152,10 @@ export class Mediator {
           chat(m: [Id,unknown]|false) {
             log('ATTEND CHAT BEGIN')
 
-            const end = (err?: unknown) => {
+            const fin = (err?: unknown): false => {
               log('ATTEND ENDING')
-              if(_go) {
-                _go = false;
+              if(_alive) {
+                _alive = false;
 
                 log('ATTEND GETTING HANDLE')
                 _handle.then(h => {
@@ -165,35 +169,29 @@ export class Mediator {
                   log('ATTEND ENDED')
                 });
               }
-              else {
-                log('ATTEND _go is false! This is wrong. The attendee must be being used multiple times... FIX THIS!')
-              }
 
               return false;
             };
             
             try {
-              if(!_go) {
-                log('ATTEND INACTIVE', attend.id);
-                return end();
-              }
               if(!m) {
-                //convener closes us down - but state should still be returned
-                return end();
+                //been told to clear off; state still returned
+                return fin();
+              }
+
+              if(!_alive) {
+                //a dead machine can't receive non-false messages
+                throw Error('DEAD ATTENDEE SENT MESSAGE!');
               }
 
               const [s, reply] = attend.attended(m, Set()); //todo Set here needs proxying to include attend.id
               _state = [s];
 
-              //!!!!!!!!!!!!!!!!!!!!!!
-              //state does need stowing in a field mate...
-              //!!!!!!!!!!!!!!!!!!!!!!
-
               logFlow(attend.id, reply, m[0]+'!');
 
               if(reply === undefined) {
                 //attendee talks no more
-                return end();
+                return fin();
               }
               else {
                 //attendee replies
@@ -201,7 +199,7 @@ export class Mediator {
               }
             }
             catch(err) {
-              return end(err);
+              return fin(err);
             }
             finally {
               log('ATTEND CHAT END')

@@ -63,10 +63,10 @@ export class Exchange<X> {
       }));
   }
 
-  offer(items: object[], context: X): Preemptable<Lock> {
+  offer(items: object[], thing: X): Preemptable<Lock> {
     return this._inner.app(items, {
       canApp: ([x]) => !x,
-      app: _ => [context],
+      app: _ => [thing],
       reverse: () => ({
         canApp: ([x, b]) => (!!x && !b),
         app: _ => [],
