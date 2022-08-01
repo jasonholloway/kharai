@@ -18,7 +18,7 @@ export class Locks {
   };
   
   lock(...items: object[]) {
-    return this._inner.app(items, Locks.claim);
+    return this._inner.app(items, [Locks.claim]);
   }
 
   canLock(item: object) {
@@ -42,7 +42,7 @@ export class Exchange<X> {
     let offers = Set<X>();
     
     return this._inner.app(items,
-      {
+      _ => ({
         canApp: ([x, b]) => (!!x && !b),
         app: ([x]) => {
           offers = offers.add(<X>x);
@@ -56,23 +56,24 @@ export class Exchange<X> {
           },
           vip: true
         })
-      })
+      }))
       .map(h => ({
         ...h,
         offers: () => offers
       }));
   }
 
-  offer(items: object[], thing: X): Preemptable<Lock> {
-    return this._inner.app(items, {
-      canApp: ([x]) => !x,
-      app: _ => [thing],
-      reverse: () => ({
-        canApp: ([x, b]) => (!!x && !b),
-        app: _ => [],
-        vip: true
-      })
-    });
+  offer(items: object[], x: ((r:Releasable)=>X)|[X]): Preemptable<Lock> {
+    return this._inner.app(items,
+      r => ({
+        canApp: ([x]) => !x,
+        app: _ => [typeof x === 'function' ? x(r) : x[0]],
+        reverse: () => ({
+          canApp: ([x, b]) => (!!x && !b),
+          app: _ => [],
+          vip: true
+        })
+      }));
   }
 }
 
@@ -89,7 +90,7 @@ export class Semaphores {
   });
 
   inc(items: object[], c: number) {
-    return this._inner.app(items, Semaphores.claim(c));
+    return this._inner.app(items, () => Semaphores.claim(c));
   }
 
   canInc(items: object[], c: number) {
@@ -98,8 +99,11 @@ export class Semaphores {
 }
 
 
-export interface Lock {
+export interface Releasable {
   release(): Promise<void>
+}
+
+export interface Lock extends Releasable {
   extend(extras: Set<object>): void
 }
 
@@ -112,14 +116,14 @@ class Allocator<X> {
     this._entries = new WeakMap<object, Entry<X>>();
   }
 
-  app(_items: object[], c: Claim<X>): Preemptable<Lock> {
+  app(_items: object[], cArg: ((r:Releasable)=>Claim<X>)|[Claim<X>]): Preemptable<Lock> {
     const _this = this;
     const items = Set(_items);
     const token = new Object();
+    let _lock: Lock;
 
     if(tryIncAllNow(items)) {
-      const locked = handle(items);
-      return Preemptable.lift(locked);
+      return Preemptable.lift(handle(items));
     }
     else {
       return Preemptable.continuable((resolve, _, onCancel)=> {
@@ -129,6 +133,7 @@ class Allocator<X> {
         });
       });
     }
+    
 
     function tryIncAllNow(items: Set<object>): boolean {
       const answers = items.map(tryIncOne);
@@ -160,17 +165,22 @@ class Allocator<X> {
     }
 
     function tryIncOne(item: object) {
-      return _this.summonEntry(item).tryApp(token, c);
+      return _this
+        .summonEntry(item)
+        .tryApp(token,
+          getClaim({
+            release() { return _lock.release(); }
+        }));
     }
 
     function handle(items: Set<object>): Lock {
-      return {
+      return _lock = {
         release: async () => {
           const entries = items.map(i => _this.summonEntry(i));
 
           await Promise.all(entries.map(entry => {
             return new Promise<void>(resolve => {
-              const ans = entry.tryApp(token, c.reverse());
+              const ans = entry.tryApp(token, getClaim(_lock).reverse());
               if(ans[0] == 'canAdd') {
                 ans[1]();
                 resolve();
@@ -188,7 +198,13 @@ class Allocator<X> {
           }
           else throw 'can\'t extend onto locked items!';
         }
-      }
+      };
+    }
+
+    function getClaim(r:Releasable) {
+      return typeof cArg === 'function'
+        ? cArg(r)
+        : cArg[0];
     }
   }
 

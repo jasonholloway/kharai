@@ -52,7 +52,7 @@ describe('machines - conversing', () => {
       x.run.boot('spot', ['$m_place']),
       x.run.boot('a', ['$m_meet', ['spot', ['$end', {}]]]),
       x.run.boot('b', ['$m_meet', ['spot', ['$end', {}]]]),
-      // x.allLogs()
+      x.allLogs()
     ]);
   })
 })

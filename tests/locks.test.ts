@@ -37,11 +37,11 @@ describe('locks', () => {
 			const claiming = exchange.claim(_1, _2, _3).promise();
 			claiming.then(() => claimed = true);
 
-			await exchange.offer([_1, _2], {}).promise();
+			await exchange.offer([_1, _2], [{}]).promise();
 			await delay(30);
 			expect(claimed).toBeFalsy();
 
-			await exchange.offer([_3], {}).promise();
+			await exchange.offer([_3], [{}]).promise();
 			await delay(30);
 			expect(claimed).toBeTruthy();
 		})
@@ -49,7 +49,7 @@ describe('locks', () => {
 		it('doesnt release immediately', async () => {
 			let released = false;
 
-			const offer = await exchange.offer([_1, _2], {}).promise();
+			const offer = await exchange.offer([_1, _2], [{}]).promise();
 			const claim = await exchange.claim(_1, _2).promise();
 
 			const releasing = offer.release();
@@ -65,8 +65,8 @@ describe('locks', () => {
 			const x1 = '1';
 			const x2 = '2';
 			
-			await exchange.offer([_1, _2], x1).promise();
-			await exchange.offer([_3], x2).promise();
+			await exchange.offer([_1, _2], [x1]).promise();
+			await exchange.offer([_3], [x2]).promise();
 
 			const claim1 = await exchange.claim(_1).promise();
 			const claim2 = await exchange.claim(_2, _3).promise();
@@ -83,8 +83,8 @@ describe('locks', () => {
 
 			const claiming = exchange.claim(_1).promise();
 
-			await exchange.offer([_2], 'blocker').promise();
-			const offering = exchange.offer([_2], {}).promise();
+			await exchange.offer([_2], ['blocker']).promise();
+			const offering = exchange.offer([_2], [{}]).promise();
 
 			claiming.cancel();
 			offering.cancel();
@@ -105,7 +105,7 @@ describe('locks', () => {
 			let claim2Taken = false;
 			let offerReleased = false;
 
-			const offer = await exchange.offer([_1], x1).promise();
+			const offer = await exchange.offer([_1], [x1]).promise();
 
 			const [claiming1] = [
 				exchange.claim(_1).promise(),
@@ -131,7 +131,7 @@ describe('locks', () => {
 			let claim2Taken = false;
 			let offerReleased = false;
 
-			const offer = await exchange.offer([_1], x1).promise();
+			const offer = await exchange.offer([_1], [x1]).promise();
 
 			const [claiming1] = [
 				exchange.claim(_1).promise(),

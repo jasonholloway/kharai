@@ -14,7 +14,6 @@ const logFlow = (id0:Id, m:unknown, id1:Id) => log('CHAT', id0, '->', id1, inspe
 export interface MPeer {
   id: Id
   chat(m: [Id,unknown]|false): false|[unknown]
-  complete: Promise<void>
 }
 
 export interface ConvenedPeer {
@@ -47,6 +46,7 @@ export class Mediator {
 
   //below is well-intentioned, but half-baked
   //todo: map should be able to do async
+  //and cancellation should be appliable to preemptable
   convene2<R>(convener: MConvener<R>, others: Set<object>): Preemptable<R> {
     return this.locks
       .claim(...others)
@@ -78,7 +78,7 @@ export class Mediator {
           claim.release(); //NOTE async!!!!
           // await claim.release();
         }
-      });
+      })
       // .cancelOn(this.kill$);
   }
 
@@ -120,92 +120,67 @@ export class Mediator {
       return answer;
     }
     finally {
-      console.debug('CONVENE ENDING');
-      await Promise.all(peers.map(p => p.complete));
-      await claim.release();
+      claim.release();
       console.debug('CONVENE RELEASED');
     }
   }
 
-  //we don't need to await the release of all the attendees...
-  //we just need to make sure we fire false at all of them before
-  //we do
-
   async attend<R>(item: object, attend: MAttendee<R>): Promise<false|[R]> { //instead of returning false, should relock, retry till we get result
     return await CancellablePromise.create<[R]|false>(
       (resolve, reject) => {
-        let _alive = true;
+        let _active = true;
         let _state = <[R]|false>false;
-        const _complete$ = new Subject();
         
-        const _handle = this.locks.offer([item],
-        {
-          id: attend.id,
+        this.locks.offer([item],
+          handle => (
+          {
+            id: attend.id,
 
-          complete: <Promise<void>>_complete$.toPromise(),
+            chat(m: [Id,unknown]|false) {
+              log('ATTEND CHAT BEGIN')
 
-          // the problem is that the handle itself
-          // doesn't return until the claimant releases, which is too late
-          // it makes sense that the release should wait for the claimant
-          // but not the handle itself!
+              try {
+                if(!m) return fin(); //been told to clear off; state still returned
+                if(!_active) throw Error('DEAD ATTENDEE SENT MESSAGE!'); //a dead machine can't receive non-false messages
 
-          chat(m: [Id,unknown]|false) {
-            log('ATTEND CHAT BEGIN')
+                const [s, reply] = attend.attended(m, Set()); //todo Set here needs proxying to include attend.id
+                _state = [s];
 
-            const fin = (err?: unknown): false => {
-              log('ATTEND ENDING')
-              if(_alive) {
-                _alive = false;
+                logFlow(attend.id, reply, m[0]+'!');
 
-                log('ATTEND GETTING HANDLE')
-                _handle.then(h => {
-                  h.release();
-                  log('ATTEND RELEASING HANDLE')
+                if(reply === undefined) {
+                  //attendee talks no more
+                  return fin();
+                }
+                else {
+                  //attendee replies
+                  return [reply];
+                }
+              }
+              catch(err) {
+                return fin(err);
+              }
+              finally {
+                log('ATTEND CHAT END')
+              }
+
+
+              function fin(err?: unknown): false {
+                if(_active) {
+                  _active = false;
+                  handle.release();
 
                   if(err) reject(err);
                   else resolve(_state);
 
-                  _complete$.complete();
                   log('ATTEND ENDED')
-                });
-              }
+                }
 
-              return false;
-            };
-            
-            try {
-              if(!m) {
-                //been told to clear off; state still returned
-                return fin();
-              }
-
-              if(!_alive) {
-                //a dead machine can't receive non-false messages
-                throw Error('DEAD ATTENDEE SENT MESSAGE!');
-              }
-
-              const [s, reply] = attend.attended(m, Set()); //todo Set here needs proxying to include attend.id
-              _state = [s];
-
-              logFlow(attend.id, reply, m[0]+'!');
-
-              if(reply === undefined) {
-                //attendee talks no more
-                return fin();
-              }
-              else {
-                //attendee replies
-                return [reply];
+                return false;
               }
             }
-            catch(err) {
-              return fin(err);
-            }
-            finally {
-              log('ATTEND CHAT END')
-            }
-          }
-        }).promise();
+          })
+        ).promise();
       })
       .cancelOn(this.kill$);
   }
