@@ -1,6 +1,6 @@
 import { Exchange } from './Locks'
 import { Set } from 'immutable'
-import { Observable, Subject } from 'rxjs';
+import { Observable } from 'rxjs';
 import { Signal } from './MachineSpace';
 import { filter, shareReplay } from 'rxjs/operators';
 import CancellablePromise from './CancellablePromise';
@@ -9,7 +9,7 @@ import { Id } from './lib';
 import { inspect } from 'util';
 
 const log = console.log;
-const logFlow = (id0:Id, m:unknown, id1:Id) => log('CHAT', id0, '->', id1, inspect(m, {depth:1, colors:true}));
+const logFlow = (id0:Id, m:unknown, id1:Id) => log('CHAT', id0, '->', id1, inspect(m, {depth:2, colors:true}));
 
 export interface MPeer {
   id: Id
@@ -67,7 +67,7 @@ export class Mediator {
 
           //only live peers should be bothered here - maybe its up to the peers themselves; they will return head when done
           peers.forEach(p => {
-            logFlow('!!', false, p.id);
+            // logFlow('!!', false, p.id);
             const a = p.chat(false);
             if(a) throw Error('peer responded badly to kill');
           });
@@ -112,7 +112,7 @@ export class Mediator {
 
       //only live peers should be bothered here - maybe its up to the peers themselves; they will return head when done
       peers.forEach(p => {
-        logFlow('!!', false, p.id);
+        // logFlow('!!', false, p.id);
         const a = p.chat(false);
         if(a) throw Error('peer responded badly to kill');
       });
@@ -146,7 +146,7 @@ export class Mediator {
                 const [s, reply] = attend.attended(m, Set()); //todo Set here needs proxying to include attend.id
                 _state = [s];
 
-                logFlow(attend.id, reply, m[0]+'!');
+                // logFlow(attend.id, reply, m[0]+'!');
 
                 if(reply === undefined) {
                   //attendee talks no more
@@ -154,6 +154,7 @@ export class Mediator {
                 }
                 else {
                   //attendee replies
+                  // logFlow(attend.id, reply, m[0]+'!');
                   return [reply];
                 }
               }

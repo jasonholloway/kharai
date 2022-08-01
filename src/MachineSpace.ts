@@ -16,7 +16,7 @@ import { Timer } from './Timer'
 import { isString } from './util'
 
 const log = console.debug;
-const logChat = (id0:Id[], id1:Id, m:unknown) => log('CHAT', ...id0, '->', id1, inspect(m, {colors:true}));
+// const logChat = (id0:Id[], id1:Id, m:unknown) => log('CHAT', ...id0, '->', id1, inspect(m, {colors:true}));
 
 const $Ahoy = Symbol('$Ahoy')
 
@@ -156,7 +156,7 @@ export class MachineSpace<N extends Nodes> {
             const coreCtx = coreContext(id, committer);
             const ctx = fac(coreCtx);
             const out = await handler(ctx, data);
-            console.debug('OUT', id, inspect(out,{colors:true}))
+            // console.debug('OUT', id, inspect(out,{colors:true}))
 
             if(isPhase(out)) {
               const ref = await committer.complete(Map({ [id]: out }));
@@ -234,14 +234,14 @@ export class MachineSpace<N extends Nodes> {
 
               const proxied = peers.map(p => <Peer>({
                 chat(m) {
-                  logChat(['A:'+id], 'A:'+p.id, m);
+                  // logChat(['A:'+id], 'A:'+p.id, m);
                   return p.chat([[$Ahoy, commit, m]]);
                 }
               }));
 
               const result = attendee.attended(m, mid, proxied);
 
-              if(result[1]) logChat(['A:'+id], 'C:'+mid, result[1]);
+              // if(result[1]) logChat(['A:'+id], 'C:'+mid, result[1]);
 
               // if(result[1]) logChat(['AR',id], result[1], mid);
 
@@ -262,7 +262,7 @@ export class MachineSpace<N extends Nodes> {
                 
                 const proxied = peers.map(p => <Peer>({
                   chat(m) {
-                    logChat(['C:'+id], 'A:'+p.id, m);
+                    // logChat(['C:'+id], 'A:'+p.id, m);
                     return p.chat([[$Ahoy, commit, m]]);
                   }
                 }));

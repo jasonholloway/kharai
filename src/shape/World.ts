@@ -257,7 +257,7 @@ export class World<N extends Nodes> {
       .addHandler('$m_meet', (x: CoreCtx, [spotId, hold]: [Id, [string,unknown?]]) => {
         return x.convene([spotId], {
           convened([spot]) {
-            console.debug('saying hi', x.id);
+            // console.debug('saying hi', x.id);
             const r = spot.chat('hi');
 
             if(r) {
@@ -293,8 +293,7 @@ export class World<N extends Nodes> {
       .addHandler('$m_gather', async (x: CoreCtx, [key, ids]: [string, Id[]]) => {
         const result = await x.attend({
           attended(m, mid) {
-
-            console.debug('RECEIVIN', x.id, m)
+            // console.debug('RECEIVIN', x.id, m)
             
             if(isPeerMessage(m)) {
               ids = [...ids, mid];
