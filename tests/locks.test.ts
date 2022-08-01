@@ -97,6 +97,58 @@ describe('locks', () => {
 					.catch(e => expect(e).toEqual(Error('Cancelled')))
 			])
 		})
+
+		it('claim released first, offer passes to next queued claim', async () => {
+			const x1 = '1';
+
+			let claim1Released = false;
+			let claim2Taken = false;
+			let offerReleased = false;
+
+			const offer = await exchange.offer([_1], x1).promise();
+
+			const [claiming1] = [
+				exchange.claim(_1).promise(),
+				exchange.claim(_1).promise().then(() => claim2Taken = true)
+			];
+
+			const claim1 = await claiming1;
+
+			claim1.release().then(() => claim1Released = true);
+			offer.release().then(() => offerReleased = true);
+			
+			await delay(60);
+
+			expect(claim1Released).toBeTruthy();
+			expect(claim2Taken).toBeTruthy();
+			expect(offerReleased).toBeFalsy();
+		})
+
+		it('offer released first, queued claims deferred', async () => {
+			const x1 = '1';
+
+			let claim1Released = false;
+			let claim2Taken = false;
+			let offerReleased = false;
+
+			const offer = await exchange.offer([_1], x1).promise();
+
+			const [claiming1] = [
+				exchange.claim(_1).promise(),
+				exchange.claim(_1).promise().then(() => claim2Taken = true)
+			];
+
+			const claim1 = await claiming1;
+
+			offer.release().then(() => offerReleased = true);
+			claim1.release().then(() => claim1Released = true);
+			
+			await delay(60);
+
+			expect(claim1Released).toBeTruthy();
+			expect(claim2Taken).toBeFalsy();
+			expect(offerReleased).toBeTruthy();
+		})
 	})
 
 	describe('Semaphore, requiring supply', () => {
@@ -162,6 +214,7 @@ describe('locks', () => {
 			await delay(10);
 			expect(isLocked2).toBeFalsy();
 		})
+
 	})
 
 	describe('Lock, take only', () => {

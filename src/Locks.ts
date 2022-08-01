@@ -1,4 +1,4 @@
-import {Set, OrderedMap} from 'immutable'
+import { Set, OrderedMap } from 'immutable'
 import { Preemptable } from './Preemptable';
 
 type Token = object
@@ -53,7 +53,8 @@ export class Exchange<X> {
           app: ([x]) => {
             offers = offers.remove(<X>x);
             return [x];
-          }
+          },
+          vip: true
         })
       })
       .map(h => ({
@@ -68,7 +69,8 @@ export class Exchange<X> {
       app: _ => [context],
       reverse: () => ({
         canApp: ([x, b]) => (!!x && !b),
-        app: _ => []
+        app: _ => [],
+        vip: true
       })
     });
   }
@@ -209,6 +211,7 @@ class Allocator<X> {
 interface Appl<X> {
   canApp(x: X): boolean
   app(x: X): X
+  vip?: boolean
 }
 
 interface Claim<X> extends Appl<X> {
@@ -217,10 +220,12 @@ interface Claim<X> extends Appl<X> {
 
 class Entry<X> {
   private _x: X
+  private _vips: OrderedMap<Token, [Appl<X>, Waiter]> //presumably Claim can replace Token
   private _waits: OrderedMap<Token, [Appl<X>, Waiter]> //presumably Claim can replace Token
 
   constructor(x: X) {
     this._x = x;
+    this._vips = OrderedMap();
     this._waits = OrderedMap();
   }
 
@@ -238,7 +243,7 @@ class Entry<X> {
   private app(c: Appl<X>) {
     this._x = c.app(this._x);
 
-    for(const [k, [cc, waiter]] of this._waits) {
+    for(const [k, [cc, waiter]] of this.waits()) { //this._waits) {
       if(cc.canApp(this._x)) {
         this.removeWait(k);
         const cb = waiter();
@@ -251,11 +256,26 @@ class Entry<X> {
     }
   }
 
-  private addWait(k: Token, tup: [Appl<X>, Waiter]) {
-    this._waits = this._waits.set(k, tup);
+  private addWait(k: Token, [a,w]: [Appl<X>, Waiter]) {
+    if(a.vip) {
+      this._vips = this._vips.set(k, [a,w]);
+    }
+    else {
+      this._waits = this._waits.set(k, [a,w]);
+    }
+  }
+
+  private waits() {
+    return this._vips.entrySeq()
+      .concat(this._waits.entrySeq());
   }
   
   private removeWait(k: Token) {
-    this._waits = this._waits.delete(k);
+    if(this._vips.has(k)) {
+      this._vips = this._vips.delete(k);
+    }
+    else {
+      this._waits = this._waits.delete(k);
+    }
   }
 }

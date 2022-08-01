@@ -362,44 +362,162 @@ with daft demands
 
 ----------------------
 
+ERROR SQUISHING
 
+the go flag shouldn't be needed
+as soon as the first convener is done,
+the lock should be released,
+which only at that moment allows the next convener to attach
+with its own separate offering
 
+in the world of locks
+it's claiming and offering:
+conveners try to claim a lock
+eventually attendees make offers that match these claims
 
+the old offer must be being left in the lock
+and then given to the very next claimant without pause
+this is inevitable, in fact
+normal behaviour, expectable if unanticipated
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+--> *the offer needs to be removed before the claim is removed* <--
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
+so currently it will be hapenning in the wrong order
+the attendee needs to be removed from the lock before the convener
 
+and what releases? the Mediator surely
 
+as of now, the claiming convener must be releasing first
 
+and the offering attendee releases the handle only after the lock is
+released - I wonder why? a distinctive pattern that must have had some rationale
 
+maybe it's the self-reference pattern that threw me off, leading me
+to go for the supposedly safe final unlocking (but not safe at all)
 
+---
 
+it's because we can't await inside the chat itself
+all we can do is put asynchronous things on the queue
+releasing a lock actually seems like it shouldn't be async...
+but it is for reasons
 
+so the problem here is that we can't release on the attendee side
+on quits, we need to pass the promise to the convener side
+so that it can itself release only when the attendee lock has released
 
+this is a dance between attendee and convener:
+chat doesn't have to be the limit of the interface
+the promise could be exposed on the attendee, visible to the convener
 
+---
 
+It turns out offerers can't release until claimers do
+the previous scheme was probably a way to enforce 
 
+-------
 
+So it seems things are ganging up on us here...
+the locks insist that the claimant releases first
 
+but this immediately makes the offerer available to the next claimant
+which causes the offer, with its commit and state etc,
+to be reused: or rather, an attempt is made at reuse
+which then gets fobbed off by the go guard
 
+there shouldn't be a go guard - it's only there
+because the rest of the mechanism is deficient
+and... it turns out it's not a suficient bodge anyway
 
+--------
 
+it should be possible to release an offer,
+even when another is using it
+or - it should be possible to enqueue such a release
+such that it will happen as soon as the other releases it
 
+--------
 
+releasing the offer should stop next queued claims taking effect
+what we're saying is, is that offer releases should jump in at the head of the queue
+in some kind of heap structure
 
+but then does claim2 languish till another offer is made? yup
+nicest thing would be to give it a choice
 
+we have extended claims as well
+a claim can cover multiple offers, forming multiple into one
 
+if an offer releases as part of a clump
+it can't actually escape until all others agree
+but when the changeover happens,
+they're left to themselves again
 
+each item then has its queue of applications
 
+again, the release just has to be preferred
+priority lane access
 
+what if there are multiple releases?
+that's impossible
+actually it is possible
+nothing ties down the lock to only being released once
+if there are two releases
 
+when we release
+we're specifically reversing the particular claim
+but that claim must have already been applied
+all well and good
 
+but if the order changes
+actually it doesn't matter
+each release relates only to its originating claim
+beyond this we're free to rearrange
+and all will still make sense
 
+------
 
+so when we release, then we don't queue as normal
+we gazump
+in fact, do we wait for anything?
+we only wait for the conclusion of the current claim
 
+when we release, we're releasing
+all the items we currently own
+and we own them
 
+for every item, we try to apply our unapply
+and maybe it takes a while for the item to get around to executing it
 
+there is no runtime, only parasitic fragments of logic nested
+inside a wider structure of interactions from outside
 
+-------
 
+makes sense that claims accumulate, wait in a line
+the release also has to wait its turn
+but won't wait for another claim to get in
+
+there can only be one release at a time
+so there can only be
+
+Entry has a vip App
+
+-------------
+
+a release of an offer is a vip:
+it should always nip in before other waiters
+
+how about a release of a claim?
+
+currently a claim, if it releases
+won't be able to escape if there's
+another claim in the queue
+
+TODO: this needs changing and testing also
+claim releases should be vips too *****
 
 
 

@@ -1,6 +1,6 @@
 import { Exchange, Lock } from './Locks'
 import { Set } from 'immutable'
-import { Observable } from 'rxjs';
+import { Observable, Subject } from 'rxjs';
 import { Signal } from './MachineSpace';
 import { filter, shareReplay } from 'rxjs/operators';
 import CancellablePromise from './CancellablePromise';
@@ -14,6 +14,7 @@ const logFlow = (id0:Id, m:unknown, id1:Id) => log('CHAT', id0, '->', id1, inspe
 export interface MPeer {
   id: Id
   chat(m: [Id,unknown]|false): false|[unknown]
+  complete: Promise<void>
 }
 
 export interface ConvenedPeer {
@@ -87,9 +88,11 @@ export class Mediator {
       .promise()
       .cancelOn(this.kill$);
 
-    try {
-      const peers = claim.offers(); //peer interface needs to be wrapped here, to remove special messages
+    console.debug('CONVENE LOCKED');
 
+    const peers = claim.offers(); //peer interface needs to be wrapped here, to remove special messages
+
+    try {
       const answer = convener.convened(
         peers.map<ConvenedPeer>(p => ({
           id: p.id,
@@ -114,89 +117,99 @@ export class Mediator {
         if(a) throw Error('peer responded badly to kill');
       });
 
-      console.debug('convene end');
-
       return answer;
     }
     finally {
+      console.debug('CONVENE ENDING');
+      await Promise.all(peers.map(p => p.complete));
       await claim.release();
+      console.debug('CONVENE RELEASED');
     }
   }
 
   async attend<R>(item: object, attend: MAttendee<R>): Promise<false|[R]> { //instead of returning false, should relock, retry till we get result
-    let _state = <[R]|false>false;
-
-    const handle = await CancellablePromise.create<Lock>(
+    return await CancellablePromise.create<[R]|false>(
       (resolve, reject) => {
         let _go = true;
+        let _state = <[R]|false>false;
+        const _complete$ = new Subject();
+        
         const _handle = this.locks.offer([item],
         <MPeer>{
           id: attend.id,
 
-          //if _go is false, 
-          //this must be because our conveners are joining the same attendance
-          //or rather... spot is the attendee here
-          //and the two attempts to convene spot
-          //are being passed to the same handler
+          complete: _complete$.toPromise(),
 
-          //but is this right?
-          //if the mechanism says false here, then the convener should retry?
-          //false is a blunt device - how can the convener know it just needs to retry?
-          //also retrying is wasteful if another convener is already queued
-
-          //but: given spot has just successfully attended,
-          //it has to have a break, at least to yield its next phase to the mechanism
-          //and in this break it would work,
-          //as the locking mechanism forms a queue of claimants
-          //and the convener would be waiting for the attendee to appear
-
-          //the problem then is that the same attendee is being found:
-          //the attendee disables itself before it is removed from the lock
-          //it should disable itself exactly as it is removed
-          //so - a hook on the lock release
-          //as soon as the lock is released, in the same movement, we disable the handler
-          //but if the handler is unreachable from that moment, we have no need to self-disable
-          //the _go flag is _BAD_ then, and should be removed in favour on relying on an atomic removal from the lock
+          // the problem is that the handle itself
+          // doesn't return until the claimant releases, which is too late
+          // it makes sense that the release should wait for the claimant
+          // but not the handle itself!
 
           chat(m: [Id,unknown]|false) {
+            log('ATTEND CHAT BEGIN')
 
-            if(m) console.log('A', m[0], '>>>>', inspect( m[1], {depth:1}));
+            const end = (err?: unknown) => {
+              log('ATTEND ENDING')
+              if(_go) {
+                _go = false;
+
+                log('ATTEND GETTING HANDLE')
+                _handle.then(h => {
+                  h.release();
+                  log('ATTEND RELEASING HANDLE')
+
+                  if(err) reject(err);
+                  else resolve(_state);
+
+                  _complete$.complete();
+                  log('ATTEND ENDED')
+                });
+              }
+              else {
+                log('ATTEND _go is false! This is wrong. The attendee must be being used multiple times... FIX THIS!')
+              }
+
+              return false;
+            };
             
             try {
               if(!_go) {
-                console.log('A _go=false', attend.id);
-                return false;
+                log('ATTEND INACTIVE', attend.id);
+                return end();
               }
               if(!m) {
-                resolve(_handle);
-                console.log('A !m');
-                return _go = false;
+                //convener closes us down - but state should still be returned
+                return end();
               }
 
-              const [state, reply] = attend.attended(m, Set()); //todo Set here needs proxying to include attend.id
-              _state = [state];
+              const [s, reply] = attend.attended(m, Set()); //todo Set here needs proxying to include attend.id
+              _state = [s];
+
+              //!!!!!!!!!!!!!!!!!!!!!!
+              //state does need stowing in a field mate...
+              //!!!!!!!!!!!!!!!!!!!!!!
+
+              logFlow(attend.id, reply, m[0]+'!');
 
               if(reply === undefined) {
-                resolve(_handle);
-                console.log('A reply === undefined');
-                return _go = false;
+                //attendee talks no more
+                return end();
               }
               else {
+                //attendee replies
                 return [reply];
               }
             }
             catch(err) {
-              reject(err);
-              console.log('A err');
-              return _go = false;
+              return end(err);
+            }
+            finally {
+              log('ATTEND CHAT END')
             }
           }
         }).promise();
       })
       .cancelOn(this.kill$);
-  
-    await handle.release();
-
-    return _state;
   }
+
 }
