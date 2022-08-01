@@ -88,7 +88,7 @@ export class Mediator {
       .promise()
       .cancelOn(this.kill$);
 
-    console.debug('CONVENE LOCKED');
+    // console.debug('CONVENE LOCKED');
 
     const peers = claim.offers(); //peer interface needs to be wrapped here, to remove special messages
 
@@ -121,7 +121,7 @@ export class Mediator {
     }
     finally {
       claim.release();
-      console.debug('CONVENE RELEASED');
+      // console.debug('CONVENE RELEASED');
     }
   }
 
@@ -137,7 +137,7 @@ export class Mediator {
             id: attend.id,
 
             chat(m: [Id,unknown]|false) {
-              log('ATTEND CHAT BEGIN')
+              // log('ATTEND CHAT BEGIN')
 
               try {
                 if(!m) return fin(); //been told to clear off; state still returned
@@ -161,7 +161,7 @@ export class Mediator {
                 return fin(err);
               }
               finally {
-                log('ATTEND CHAT END')
+                // log('ATTEND CHAT END')
               }
 
 
@@ -173,7 +173,7 @@ export class Mediator {
                   if(err) reject(err);
                   else resolve(_state);
 
-                  log('ATTEND ENDED')
+                  // log('ATTEND ENDED')
                 }
 
                 return false;
