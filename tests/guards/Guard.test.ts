@@ -11,6 +11,7 @@ describe('Guards', () => {
     Guard([Num] as const).to<[123]>();
     Guard({ n: Num } as const).to<{ n: number }>();
     Guard({ n: Num } as const).to<{ n: 123 }>();
+    Guard(And(Num,3 as const)).to<3>();
   })
 
   it('using directly', () => {
@@ -373,6 +374,58 @@ describe('match' , () => {
         [[], [1], [true]],
         [[[]]]
       ]
+    })
+  })
+
+  describe('ands', () => {
+    test({
+      pattern: And(Any,Any),
+      yes: [
+        1, 'blah', {}
+      ],
+      no: []
+    })
+
+    test({
+      pattern: And(Any,Num),
+      yes: [
+        1, 2, 3, 4
+      ],
+      no: [
+        {}, ''
+      ]
+    })
+
+    test({
+      pattern: And(Num,1),
+      yes: [1],
+      no: [2]
+    })
+  })
+
+  describe('ors', () => {
+    test({
+      pattern: Or(Any,Any),
+      yes: [
+        1, 'blah', {}
+      ],
+      no: []
+    })
+
+    test({
+      pattern: Or({},Num),
+      yes: [
+        1, 100, {}
+      ],
+      no: [
+        ''
+      ]
+    })
+
+    test({
+      pattern: Or(Num,1),
+      yes: [1,2,3,4],
+      no: ['']
     })
   })
 

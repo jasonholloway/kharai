@@ -10,12 +10,48 @@ export const Bool = Symbol('Bool');
 export const Str = Symbol('Str');
 export const Never = Symbol('Never');
 
+
+
+export const $and = Symbol('And');
+
+type And<A,B> = {
+  _type: typeof $and,
+  a: A,
+  b: B
+}
+
+export function And<A,B>(a:A, b:B): And<A,B> {
+  return <And<A,B>>{
+    _type: $and,
+    a,
+    b
+  };
+}
+
+
+export const $or = Symbol('Or');
+
+type Or<A,B> = {
+  _type: typeof $or,
+  a: A,
+  b: B
+}
+
+export function Or<A,B>(a:A, b:B): Or<A,B> {
+  return <Or<A,B>>{
+    _type: $or,
+    a,
+    b
+  };
+}
+
+
 export const $many = Symbol('Many');
+
 type Many<V> = {
   _type: typeof $many,
   inner: V
 }
-
 
 export function Many<V>(m: V) : Many<V> {
   return <Many<V>>{
@@ -34,6 +70,8 @@ export type Read<S, X=never, Y=never> =
   : S extends typeof Str ? string
   : S extends typeof Bool ? boolean
   : S extends typeof Never ? never
+  : S extends And<infer A, infer B> ? Read<A, X, Y> & Read<B, X, Y> 
+  : S extends Or<infer A, infer B> ? Read<A, X, Y> | Read<B, X, Y> 
   : S extends Many<infer V> ? Read<V, X, Y>[]
   : S extends (v:any) => v is (infer V) ? V
   : S extends RegExp ? string
@@ -73,8 +111,16 @@ export function match(s: any, v: any, cb?: ((s:any,v:any)=>undefined|boolean)): 
     return false;
   }
 
+  if(isAnd(s)) {
+    return match(s.a, v, cb) && match(s.b, v, cb);
+  }
+
+  if(isOr(s)) {
+    return match(s.a, v, cb) || match(s.b, v, cb);
+  }
+
   if(isMany(s) && isArray(v)) {
-    return v.every(vv => match(s.inner, vv));
+    return v.every(vv => match(s.inner, vv, cb));
   }
 
   if(isArray(s) && isArray(v)) {
@@ -112,6 +158,14 @@ export function match(s: any, v: any, cb?: ((s:any,v:any)=>undefined|boolean)): 
   }
   
   return false;
+}
+
+function isAnd(v: any): v is And<unknown, unknown> {
+  return v._type === $and;
+}
+
+function isOr(v: any): v is Or<unknown, unknown> {
+  return v._type === $or;
 }
 
 function isMany(v: any): v is Many<any> {
