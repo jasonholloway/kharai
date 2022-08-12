@@ -38,7 +38,8 @@ export default class Committer<V> {
 		if(newInner.state == 'invalid')
 			throw Error('Invalid commit combination!');
 
-    cs.forEach(c => c.inner = newInner);
+    const updatables = Set(cs).flatMap(c => c.inner.todo);
+    updatables.forEach(c => c.inner = newInner);
   }
 }
 

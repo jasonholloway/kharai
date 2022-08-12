@@ -64,6 +64,36 @@ describe('committable', () => {
 		expect(atoms(h3.refs())[0]?.val).toEqual(15);
 	})
 
+	it('commits trebly, in series', async () => {
+		const h1 = newHead();
+		const c1 = newCommit(h1);
+
+		const h2 = newHead();
+		const c2 = newCommit(h2);
+
+		const h3 = newHead();
+		const c3 = newCommit(h3);
+
+		Committer.combine(new MonoidNumber(), [c1, c2]);
+		Committer.combine(new MonoidNumber(), [c2, c3]);
+		
+		const committing1 = c1.complete(3);
+		await delay(15);
+		expect(atoms(h1.refs())).toEqual([]);
+
+		const committing2 = c2.complete(5);
+		await delay(15);
+		expect(atoms(h1.refs())).toEqual([]);
+		expect(atoms(h2.refs())).toEqual([]);
+
+		await Promise
+			.all([c3.complete(7), committing1, committing2]);
+
+		expect(atoms(h1.refs())[0]?.val).toEqual(15);
+		expect(atoms(h2.refs())[0]?.val).toEqual(15);
+		expect(atoms(h3.refs())[0]?.val).toEqual(15);
+	})
+
 	it('commits twice in one swoop', async () => {
 		const h1 = newHead();
 		const c1 = newCommit(h1);

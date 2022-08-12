@@ -159,9 +159,7 @@ export class MachineSpace<N extends Nodes> {
             // console.debug('OUT', id, inspect(out,{colors:true}))
 
             if(isPhase(out)) {
-              console.log('COMMITTING', id, inspect(out,{colors:true}))
               const ref = await committer.complete(Map({ [id]: out }));
-              console.log('COMMITTED', id)
               return <Log>[out, ref];
             }
 
