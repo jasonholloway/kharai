@@ -1,5 +1,5 @@
 import { isString } from 'util'
-import { Bool, Guard, Num, Str, Many, Any } from '../../src/guards/Guard'
+import { Bool, Guard, Num, Str, Many, Any, And, Or } from '../../src/guards/Guard'
 import { tryMatch as test } from './helpers'
 
 describe('Guards', () => {
@@ -12,6 +12,10 @@ describe('Guards', () => {
     Guard({ n: Num } as const).to<{ n: number }>();
     Guard({ n: Num } as const).to<{ n: 123 }>();
     Guard(And(Num,3 as const)).to<3>();
+
+    Guard(<[...typeof Any[]]><unknown>undefined).to<[]>();
+    Guard(<[...typeof Any[]]><unknown>undefined).to<[1, 2, 3]>();
+    Guard(<[...typeof Any[], typeof Str]><unknown>undefined).to<[1, 2, 'three']>();
   })
 
   it('using directly', () => {

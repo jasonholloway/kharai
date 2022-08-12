@@ -1,7 +1,7 @@
 import { Id, DataMap } from './lib'
-import { Mediator, MConvener, MAttendee, MPeer } from './Mediator'
-import { Observable, Subject, merge, ReplaySubject, EMPTY, of, from, fromEvent } from 'rxjs'
-import { toArray, filter, mergeMap, map, share, expand, startWith, takeUntil, finalize, shareReplay, tap, catchError } from 'rxjs/operators'
+import { Mediator } from './Mediator'
+import { Observable, Subject, merge, ReplaySubject, EMPTY, of, from } from 'rxjs'
+import { toArray, filter, mergeMap, map, share, expand, startWith, takeUntil, finalize, shareReplay, tap } from 'rxjs/operators'
 import Committer from './Committer'
 import { List, Map, Set } from 'immutable'
 import MonoidData from './MonoidData'
@@ -159,7 +159,9 @@ export class MachineSpace<N extends Nodes> {
             // console.debug('OUT', id, inspect(out,{colors:true}))
 
             if(isPhase(out)) {
+              console.log('COMMITTING', id, inspect(out,{colors:true}))
               const ref = await committer.complete(Map({ [id]: out }));
+              console.log('COMMITTED', id)
               return <Log>[out, ref];
             }
 
@@ -167,11 +169,13 @@ export class MachineSpace<N extends Nodes> {
               return <Log>[out];
             }
 
-            throw Error(`Handler output no good: ${out}`);
+            throw Error(`Handler output no good: ${inspect(out,{depth:4})}`);
           }
           catch(e) {
             committer.abort();
             console.error(e);
+
+            //false here kills without committing
             return <Log>[false];
             // throw e;
           }
@@ -287,7 +291,7 @@ export type Signal = {
 }
 
 export interface Peer {
-  chat(m: unknown): false|[unknown]
+  chat(m: unknown): false|readonly [unknown]
 }
 
 export interface Convener<R = unknown> {
@@ -295,5 +299,5 @@ export interface Convener<R = unknown> {
 }
 
 export interface Attendee<R = unknown> {
-  attended(m: unknown, id: Id, peers: Set<Peer>): [R]|[R, unknown]
+  attended(m: unknown, mid: Id, peers: Set<Peer>): [R]|[R, unknown]
 }

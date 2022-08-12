@@ -14,7 +14,7 @@ export const Never = Symbol('Never');
 
 export const $and = Symbol('And');
 
-type And<A,B> = {
+export type And<A,B> = {
   _type: typeof $and,
   a: A,
   b: B
@@ -31,7 +31,7 @@ export function And<A,B>(a:A, b:B): And<A,B> {
 
 export const $or = Symbol('Or');
 
-type Or<A,B> = {
+export type Or<A,B> = {
   _type: typeof $or,
   a: A,
   b: B
@@ -48,7 +48,7 @@ export function Or<A,B>(a:A, b:B): Or<A,B> {
 
 export const $many = Symbol('Many');
 
-type Many<V> = {
+export type Many<V> = {
   _type: typeof $many,
   inner: V
 }

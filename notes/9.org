@@ -519,7 +519,22 @@ another claim in the queue
 TODO: this needs changing and testing also
 claim releases should be vips too *****
 
+-----------------------------------------------------
 
+here we are again
+and what do we want to do
+need to polish off a simple protocol of meeting via a mediator
+and from there, do $sleep
+
+there's the side-goal of a nice way of accessing successor states somehow
+
+but really, we want to get to scraping
+
+and to scrape, we just need scraping machines, and some kind of sink
+that is, a pipeline of processing
+
+todo: errors should be caught and trapped, to protect the gulf between peers
+currently they leak, which is naff
 
 
 

@@ -1,13 +1,12 @@
-import { List } from "immutable";
+import { List, Map } from "immutable";
 import { Observable } from "rxjs/internal/Observable";
 import { inspect, isArray, isFunction } from "util";
-import { Any, Guard, Many, Never, Num, Str } from "../guards/Guard";
+import { Any, Guard, Many, Never, Num, Str, And } from "../guards/Guard";
 import { Id } from "../lib";
-import { Attendee, Convener } from "../MachineSpace";
-import { MAttendee, MConvener } from "../Mediator";
+import { Attendee, Convener, Peer } from "../MachineSpace";
 import { Handler, $data, $Data, $Fac, $Root, $root } from "../shapeShared";
 import { Timer } from "../Timer";
-import { DeepMerge, delay, isString, Merge, Simplify } from "../util";
+import { DeepMerge, delay, Merge, Simplify } from "../util";
 import { BuiltWorld } from "./BuiltWorld";
 import { act, ctx, Data, FacContext, FacPath, formPath, Impls, PathFac, SchemaNode } from "./common";
 import { Registry } from "./Registry";
@@ -207,11 +206,12 @@ export class World<N extends Nodes> {
       D_$wait: [typeof Num | typeof Str, $Root],
 
 
-      D_$m_meet: [typeof Str, $Root],
+      //BELOW NEED TO BE ABLE TO DO ANDS IN GUARDS!
+      D_$meetAt: [typeof Str, And<$Root, [...typeof Any[], typeof Str]>],
 
       D_$m_place: never,
-      D_$m_gather: [typeof Str, typeof Str[]], //[key, ids]
-      D_$m_mediate: [typeof Str, typeof Str[], typeof Str[]] //[key, ids, remnants]
+      D_$m_gather: [typeof Num, typeof Str[]], //[version, ids]
+      D_$m_mediate: [typeof Num, typeof Str, typeof Str[], typeof Str[]] //[version, key, ids, remnants]
     };
 
     reg = reg
@@ -252,31 +252,26 @@ export class World<N extends Nodes> {
     const isPeerMessage = Guard('hi');
     const isMediatorMessage = Guard(['yo', Str, Any] as const);
 
+      // D_$meetAt: [typeof Str, And<$Root, [...typeof Any[], typeof Str]>],
     reg = reg
-      .addGuard('$m_meet', [Str, $root])
-      .addHandler('$m_meet', (x: CoreCtx, [spotId, hold]: [Id, [string,unknown?]]) => {
+      .addGuard('$meetAt', [Str, $root])
+      .addHandler('$meetAt', (x: CoreCtx, [spotId, hold]: [Id, [string,unknown?]]) => {
         return x.convene([spotId], {
           convened([spot]) {
-            // console.debug('saying hi', x.id);
-            const r = spot.chat('hi');
+            const resp = spot.chat('hi');
+            if(!resp) throw `Meeting rejected by mediator ${spotId}: message:?`;
 
-            if(r) {
-              const [m] = r;
-              if(isMediatorMessage(m)) {
-                const [,key] = m;
-                // spot.chat(false);
+            const [m] = resp;
+            if(!isMediatorMessage(m)) return;
 
-                //Second communication not being received by spot
-                //
-                //
+            const [,key] = m;
 
-                return ['$end', ['HOLD', key]]
-                // return [...hold, [key]]; //TODO: cb needs space for custom state
-              }
-            }
-            
-            console.error('Assumed mediator says no to message \'hi\':', r);
-            throw `Meeting rejected by mediator ${spotId}: message:?`;
+            //emplace key as last arg
+            const [h0, h1] = hold;
+            if(!isArray(h1)) throw 'Bad callback';
+
+            h1[h1.length-1] = key;
+            return [h0, h1];
           }
         });
       });
@@ -284,36 +279,35 @@ export class World<N extends Nodes> {
     reg = reg
       .addGuard('$m_place', Never)
       .addHandler('$m_place', async (x: CoreCtx) => {
-        const key = `K${x.id}${Date.now()}${Math.random()}`;
-        return ['$m_gather', [key, []]]
+        return ['$m_gather', [0, []]]
       });
 
     reg = reg
-      .addGuard('$m_gather', [Str, Many(Str)])
-      .addHandler('$m_gather', async (x: CoreCtx, [key, ids]: [string, Id[]]) => {
+      .addGuard('$m_gather', [Num, Many(Str)])
+      .addHandler('$m_gather', async (x: CoreCtx, [v, ids]: [number, Id[]]) => {
         const result = await x.attend({
           attended(m, mid) {
-            // console.debug('RECEIVIN', x.id, m)
-            
             if(isPeerMessage(m)) {
               ids = [...ids, mid];
+
+              const k = `K${v}`;
 
               const quorum = 2;
               if(ids.length >= quorum) {
                 return [
-                  ['$m_mediate', [key, ids, []]],//remnant always empty currently
-                  ['yo', key]
+                  ['$m_mediate', [v, k, ids, []]],//remnant always empty currently
+                  ['yo', k]
                 ]; 
               }
               else {
                 return [
-                  ['$m_gather', [key, ids]],
-                  ['yo', key]
+                  ['$m_gather', [v, ids]],
+                  ['yo', k]
                 ];
               }
             }
 
-            return [['$m_gather', [key, ids]]];
+            return [['$m_gather', [v, ids]]];
           }
         });
 
@@ -321,17 +315,29 @@ export class World<N extends Nodes> {
       });
 
     reg = reg
-      .addGuard('$m_mediate', [Str,Many(Str),Many(Str)])
-      .addHandler('$m_mediate', (x: CoreCtx, [key,ids,remnants]: [string,Id[],Id[]]) => {
+      .addGuard('$m_mediate', [Num,Str,Many(Str),Many(Str)])
+      .addHandler('$m_mediate', (x: CoreCtx, [v,k,ids,remnants]: [number,string,Id[],Id[]]) => {
         return x.convene(ids, {
-          convened(m) {
+          convened(peers) {
+            const answers: { [id:Id]:unknown } = {};
 
-            throw 'NOTIMPL'
+            for(const p of peers) {
+              const r = p.chat([k, 'contribute'])
+              if(!r) return fin({kickOut:[p]});
 
-            //after happily mediating, go back to gathering, with fresh key
-            //todo could go back to place here, if there was an optional way to pass remnant ids
-            const key = `K${x.id}${Date.now()}${Math.random()}`;
-            return ['$m_gather', [key, remnants]];
+              answers[''] = r[0];
+            }
+
+            for(const p of peers) {
+              p.chat([k, 'fin', answers]);
+            }
+
+            return fin({kickOut:[...peers]});
+
+
+            function fin(p:{kickOut:Peer[]}) {
+              return ['$m_gather', [v+1, [remnants, ...peers.subtract(p.kickOut)]]] as const;
+            }
           }
         });
       });
