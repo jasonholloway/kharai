@@ -235,6 +235,7 @@ export class MachineSpace<N extends Nodes> {
               // logChat([mid], id, 'C>A', m);
 
               const proxied = peers.map(p => <Peer>({
+                id: p.id,
                 chat(m) {
                   // logChat(['A:'+id], 'A:'+p.id, m);
                   return p.chat([[$Ahoy, commit, m]]);
@@ -263,6 +264,7 @@ export class MachineSpace<N extends Nodes> {
                 //here the convener is given some peers to chat to
                 
                 const proxied = peers.map(p => <Peer>({
+                  id: p.id,
                   chat(m) {
                     // logChat(['C:'+id], 'A:'+p.id, m);
                     return p.chat([[$Ahoy, commit, m]]);
@@ -289,6 +291,7 @@ export type Signal = {
 }
 
 export interface Peer {
+  id: Id,
   chat(m: unknown): false|readonly [unknown]
 }
 

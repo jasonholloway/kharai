@@ -2,6 +2,7 @@ import _Monoid from '../src/_Monoid'
 import { parakeet } from './worlds/parakeet'
 import { delay } from '../src/util';
 import { createRunner } from './shared';
+import { inspect } from 'util';
 
 describe('machines - conversing', () => {
   const world = parakeet.build();
@@ -51,29 +52,23 @@ describe('machines - conversing', () => {
   it('via rendesvous', async () => {
     const x = createRunner(world, { save: false });
 
-    const [,,,logs] = await Promise.all([
-      x.run.boot('skolmer', ['$m_place']),
-      x.run.boot('a', ['migrate', 'skolmer']),
-      x.run.boot('b', ['migrate', 'skolmer']),
-      x.allLogs()
-    ]);
+    await x.session(async () => {
+      await Promise.all([
+        x.run.boot('skolmer', ['$m_place']),
+        x.run.boot('a', ['migrate', 'skolmer']),
+        x.run.boot('b', ['migrate', 'skolmer']),
+        x.run.summon(['a', 'b']).then(s => s.log$.toPromise()),
+      ]);
 
+      const a = x.view('a');
+      const b = x.view('b');
 
-    //what do we want to test here??
-    //that all the machines have got to a reasonable place, having conversed via a mediator
-    //simplest result would be: each contributes to a map
-    //which would be via noddy mediation
-    //each recipient 
+      expect(a[3].val().get('a'))
+        .toEqual(['$end', {a:'hello', b:'hello'}])
 
-
-    //meeting context, or indeed the simple string key
-    //should be appended on the end as a final value
-
-    
-
-    //TODO: need way of nicely typing the callback state
-    //the callback state also needs to promise to immediately attend
-    //when it attends, it will be in meeting with its peers, under a common convener
+      expect(b[3].val().get('b'))
+        .toEqual(['$end', {a:'hello', b:'hello'}])
+    });
   })
 })
 

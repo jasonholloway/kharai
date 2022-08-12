@@ -91,6 +91,7 @@ export function newRun<N extends Nodes>
             id: '',
             convened(peers: Set<ConvenedPeer>) {
               return convener.convened(peers.map<Peer>(p => ({
+                id: p.id,
                 chat(m: [unknown]|false): false|[any] {
                   return p.chat(m);
                 }

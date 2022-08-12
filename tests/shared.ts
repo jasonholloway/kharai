@@ -47,12 +47,14 @@ export function createRunner<N extends Nodes>(world: BuiltWorld<N>, opts?: Opts)
 
     log$,
 
-    logs: (id: Id) =>
-      gather(log$.pipe(
-        filter(([i]) => i == id),
+    logs: (...ids: Id[]) => {
+      const idSet = Set(ids);
+      return gather(log$.pipe(
+        filter(([i]) => idSet.contains(i)),
         map(([,p]) => p),
         takeWhile((p): p is [string, unknown] => !!p),
-      )),
+      ));
+    },
 
     allLogs: () => gather(log$),
 

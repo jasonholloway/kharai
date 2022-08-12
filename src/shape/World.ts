@@ -325,7 +325,7 @@ export class World<N extends Nodes> {
               const r = p.chat([k, 'contribute'])
               if(!r) return fin({kickOut:[p]});
 
-              answers[''] = r[0];
+              answers[p.id] = r[0];
             }
 
             for(const p of peers) {
