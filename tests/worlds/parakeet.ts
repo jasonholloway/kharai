@@ -25,10 +25,10 @@ export const parakeet = World
 
       if(r) {
         const [[ids, m]] = r;
-        return ['chirp', [ids, m]]
+        return x.act.chirp([ids, m]);
       }
 
-      return ['$end', true];
+      return x.act.$end(true);
     },
 
     async chirp(x, [ids, message]) {
@@ -41,37 +41,37 @@ export const parakeet = World
             return 'chirped!';
           }
         });
-        return ['$end', r];
+        return x.act.$end(r);
       }
 
-      return ['$end', 'no-one to chirp to!'];
+      return x.act.$end('no-one to chirp to!');
     },
 
 
     async migrate(x, destination) {
-      return ['$meetAt', [destination, ['nest', [{}, '']]]];
+      return x.act.$meetAt([destination, x.act.nest([{}, ''])]);
     },
 
 
 
-    async nest(x, d) {
-      const r = await x.attend(<Attendee<['nest',[{},string]]|['$end',unknown]>>{
+    async nest({act,attend}, d) {
+      const r = await attend(<Attendee<['nest',[{},string]]|['$end',unknown]>>{
         attended(m) {
           const k = d[1];
 
           if(isArray(m) && m[0]==k) {
             switch(m[1]) {
               case 'contribute':
-                return [['nest',[{},k]], 'hello'];
+                return [act.nest([{},k]), 'hello'];
 
               case 'fin':
-                return [['$end', m[2]]];
+                return [act.$end(m[2])];
             }
           }
         }
       });
 
-      return r ? r[0] : ['migrate','somewhere...'];
+      return r ? r[0] : act.migrate('somewhere...');
     }
   });
 

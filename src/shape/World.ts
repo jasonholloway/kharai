@@ -130,7 +130,7 @@ type _ExtractData<N> = {
   [k in keyof N as (k extends _JoinPaths<'D', infer P> ? P : never)]: N[k]
 };
 
-type _WalkData<P extends string, D, DAll, Out> = 
+type _WalkData<P extends string, D, DAll, Out> =
   (
     P extends keyof D
       ? (
