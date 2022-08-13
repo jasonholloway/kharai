@@ -1,4 +1,4 @@
-import { List, Map } from 'immutable'
+import { List, Map, Seq } from 'immutable'
 import { Fac, Handler } from '../shapeShared';
 
 export class Registry {
@@ -52,6 +52,10 @@ export class Registry {
   getFacs(p: string): List<Fac> {
     return List(this.facs.get(p, []));
   } 
+
+  getHandlerPaths() {
+    return this.handlers.keys();
+  }
 
   static merge(a: Registry, b: Registry) {
     return new Registry(

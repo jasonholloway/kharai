@@ -3,14 +3,14 @@ import { Mediator } from './Mediator'
 import { Observable, Subject, merge, ReplaySubject, EMPTY, of, from } from 'rxjs'
 import { toArray, filter, mergeMap, map, share, expand, startWith, takeUntil, finalize, shareReplay, tap } from 'rxjs/operators'
 import Committer from './Committer'
-import { List, Map, Set } from 'immutable'
+import { Collection, List, Map, Seq, Set } from 'immutable'
 import MonoidData from './MonoidData'
 import Head from './Head'
 import { Commit } from './AtomSpace'
 import { BuiltWorld } from './shape/BuiltWorld'
 import { AtomRef } from './atoms'
 import { inspect, isArray } from 'util'
-import { Nodes } from './shape/common'
+import { Nodes, separator } from './shape/common'
 import { Loader } from './Store'
 import { Timer } from './Timer'
 import { isString } from './util'
@@ -157,7 +157,7 @@ export class MachineSpace<N extends Nodes> {
             //build phase helper (or rather, use singleton) here
 
             const coreCtx = coreContext(id, committer);
-            const ctx = { ...<object>fac(coreCtx), next: {} };
+            const ctx = { ...<object>fac(coreCtx), next: createPhaseFacTree(), act: createPhaseFacTree() };
             const out = await handler(ctx, data);
             // console.debug('OUT', id, inspect(out,{colors:true}))
 
@@ -285,6 +285,31 @@ export class MachineSpace<N extends Nodes> {
           return result;
         }
       };
+    }
+
+    function createPhaseFacTree(): object {
+      return _create(
+        List(),
+        List(_this.world.reg.getHandlerPaths()).map(p => List(p.split(separator)))
+      );
+
+      function _create(route: List<string>, paths: List<List<string>>): object {
+        const routePath = route.join(separator);
+        
+        return Object.assign(
+          ((d:unknown) => [routePath, d]),
+          paths
+            .filter(p => !p.isEmpty())
+            .groupBy(p => p.first()!)
+            .map(ps => ps.map(p => p.skip(1)).toList())
+            .reduce((ac, ps, k) => ({
+                ...ac,
+                [k]: _create(route.concat([k]), ps)
+              }),
+              <{[k:string]:unknown}>{}
+            )
+        );
+      }
     }
   }
 }

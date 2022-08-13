@@ -124,46 +124,26 @@ export module World {
 //   type _ = [A,H];
 // }
 
-
-
-class ImplHelper<N extends Nodes> {
-  isPhase(v: unknown): v is Data<N> {
-    //TODO IMPLEMENT!!!
-    return true;
-  }
-
-  isPhaseOrFalse(v: unknown): v is Data<N>|false {
-    return true;
-  }
-
-  castPhaseOrFalse<V extends (Data<N>|false)>(v: V): V {
-    return v;
-  }
-
-  //todo nicely generated next helpers
-
-  // next = <PhaseHelper<N>>new Proxy({}, {
-  //   get(target, prop, receiver) {
-  //     console.log('WOWZERS', target, prop, receiver);
-  //     return 'hello!';
-  //   }
-  // });
-}
-
-export type PhaseHelper<N,Out> = _WalkData<'',_ExtractData<N>,Out>
+export type PhaseHelper<N extends Nodes, Out> = _WalkData<'',_ExtractData<N>, Data<N>, Out>
 
 type _ExtractData<N> = {
   [k in keyof N as (k extends _JoinPaths<'D', infer P> ? P : never)]: N[k]
 };
 
-type _WalkData<P extends string, D, Out> = 
+type _WalkData<P extends string, D, DAll, Out> = 
   (
     P extends keyof D
-      ? ((d: Read<D[P]>) => Out)
+      ? (
+        Read<D[P], $Root, DAll> extends infer V ?
+        IsNotNever<V> extends true
+          ? ((d: V) => Out)
+          : (() => Out)
+        : never
+      )
       : unknown
   )
   & ({
-    [N in _ExtractNextPrefixes<P,D> & string]: _WalkData<_JoinPaths<P,N>, D, Out>
+    [N in _ExtractNextPrefixes<P,D> & string]: _WalkData<_JoinPaths<P,N>, D, DAll, Out>
   });
 
 type _ExtractNextPrefixes<P extends string, D> =
@@ -179,17 +159,19 @@ try {
     D_hello_again: [typeof Num]
     D_hello_moo: [3]
     D_tara: [4]
+    D_tara_moo: never
   };
 
   type A = _ExtractData<W>;
   type B = _ExtractNextPrefixes<'', A>
   type C = _ExtractNextPrefixes<'hello', A>
-  type Z = _WalkData<'',A,'OUT'>
+  type Z = _WalkData<'',A,'DAll','OUT'>
 
   const z = <Z><unknown>undefined;
 
   z.hello.again([2]);
   z.tara([4]);
+  z.tara.moo();
 
   type _ = [A,B,C,Z];
 }

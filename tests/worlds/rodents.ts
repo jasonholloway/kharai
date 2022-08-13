@@ -3,7 +3,6 @@ import { delay } from '../../src/util'
 import { Num, Str } from '../../src/guards/Guard'
 import { act } from '../../src/shape/common';
 import { World } from '../../src/shape/World';
-import { $root } from '../../src/shapeShared';
 
 export const rodents = World
   .shape({
@@ -30,33 +29,33 @@ export const rodents = World
   .impl({
     rat: {
       async wake({next}) {
-        return next.rat.squeak(123); //  ['rat_squeak', 123];
+        return next.rat.squeak(123);
       },
 
       async squeak({next}, d) {
-        return next.$end(`I have squeaked ${d}!`); //     ['$end', `I have squeaked ${d}!`]
+        return next.$end(`I have squeaked ${d}!`);
       }
     },
 
     hamster: {
-      async wake(_, d) {
+      async wake(x, d) {
         await delay(100);
-        return ['$end', d];
+        return x.act.$end(d);
       },
 
-      async nibble() {
-        return ['$end', 'done'];
+      async nibble(x) {
+        return x.act.$end('done');
       },
 
-      async tarry() {
-        return ['$wait', [123, ['hamster_nibble']]];
+      async tarry(x) {
+        return x.act.$wait([123, x.act.hamster.nibble()]);
       }
     },
 
     guineaPig: {
       async runAbout(x) {
         const a = await x.attend({ attended(m) { return [m, 'squeak!'] } });
-        return (a && ['$end', a[0]]) || ['$end', 'BIG NASTY ERROR']
+        return a ? x.act.$end(a[0]) : x.act.$end('BIG NASTY ERROR');
       },
 
       async gruntAt(x, id) {
@@ -67,7 +66,7 @@ export const rodents = World
             else throw Error('bad response from attendee')
           }
         });
-        return ['$end', resp[0]]
+        return x.act.$end(resp[0]);
       }
     },
 
@@ -81,11 +80,11 @@ export const rodents = World
 
             await x.convene([other], {
               convened([p]) {
-                p.chat(['gerbil_spawn', [0, max]])
+                p.chat(x.act.gerbil.spawn([0, max]));
               }
             })
 
-            return ['gerbil_spawn', [step + 1, max]]
+            return x.act.gerbil.spawn([step + 1, max]);
           }
         }
 
