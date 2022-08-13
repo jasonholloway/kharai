@@ -11,7 +11,6 @@ export const Str = Symbol('Str');
 export const Never = Symbol('Never');
 
 
-
 export const $and = Symbol('And');
 
 export type And<A,B> = {
@@ -59,6 +58,11 @@ export function Many<V>(m: V) : Many<V> {
     inner: m,
     [$inspect]() { return `${inspect(m)}[]` }
   };
+}
+
+
+export function Tup<R extends unknown[]>(...r: R) : R {
+  return r;
 }
 
 

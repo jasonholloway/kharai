@@ -1,7 +1,7 @@
 import _Monoid from '../../src/_Monoid'
 import { World } from '../../src/shape/World';
 import { act } from '../../src/shape/common';
-import { Many, Str } from '../../src/guards/Guard';
+import { Many, Str, Tup } from '../../src/guards/Guard';
 import { Id } from '../lib';
 import { Attendee } from '../MachineSpace';
 import { isArray } from 'util';
@@ -9,10 +9,10 @@ import { isArray } from 'util';
 export const parakeet = World
   .shape({
     listen: act(),
-    chirp: act([Many(Str), Str] as const),
+    chirp: act(Tup(Many(Str), Str)),
 
     migrate: act(Str),
-    nest: act([{}, Str] as const),
+    nest: act(Tup({}, Str)),
   })
   .impl({
 

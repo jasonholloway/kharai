@@ -1,6 +1,6 @@
 import _Monoid from '../../src/_Monoid'
 import { delay } from '../../src/util'
-import { Num, Str } from '../../src/guards/Guard'
+import { Num, Str, Tup } from '../../src/guards/Guard'
 import { act } from '../../src/shape/common';
 import { World } from '../../src/shape/World';
 
@@ -23,7 +23,7 @@ export const rodents = World
     },
 
     gerbil: {
-      spawn: act([Num, Num] as const)
+      spawn: act(Tup(Num, Num))
     }
   })
   .impl({
@@ -55,7 +55,9 @@ export const rodents = World
     guineaPig: {
       async runAbout(x) {
         const a = await x.attend({ attended(m) { return [m, 'squeak!'] } });
-        return a ? x.act.$end(a[0]) : x.act.$end('BIG NASTY ERROR');
+        return a
+          ? x.act.$end(a[0])
+          : x.act.$end('BIG NASTY ERROR');
       },
 
       async gruntAt(x, id) {
