@@ -1,8 +1,8 @@
 import { FacNode } from "../facs";
 import { Any, Read } from "../guards/Guard";
 import { Handler, $Root, Fac, $data, $space, $handler, $fac, $Fac } from "../shapeShared";
-import { Merge } from "../util";
-import { CoreCtx } from "./World";
+import { Merge, Simplify } from "../util";
+import { CoreCtx, PhaseHelper } from "./World";
 
 export const separator = '_'
 export type Separator = typeof separator;
@@ -63,7 +63,7 @@ export type Impls<N extends Nodes> =
   [_Data<N>] extends [infer DOne] ?
   [_Data<N, DOne>] extends [infer DFull] ?
   [_ImplSplit<N>] extends [infer Tups] ?
-    _ImplCombine<[Tups], {}, DOne, DFull>
+  _ImplCombine<[Tups], {}, DOne, DFull, {next:PhaseHelper<N,DFull>}>
   : never : never : never
 ;
 
@@ -77,16 +77,19 @@ type _ImplSplit<N extends Nodes> =
   : never : never : never : never : never
 ;
 
-type _ImplCombine<Tups, X0, DOne, DAll> =
-  (
-    [
-      Tups extends readonly [infer I] ?
-      I extends readonly [[], 'XA', infer V] ? V
-      : never : never
-    ] extends readonly [infer X1] ?
-    IsNotNever<X1> extends true ? Merge<X0, X1> : X0
-    : never
-  ) extends infer X ?
+type _ImplCombine<Tups, X0, DOne, DAll, XExtra> =
+  Simplify<(
+    (
+      [
+        Tups extends readonly [infer I] ?
+        I extends readonly [[], 'XA', infer V] ? V
+        : never : never
+      ] extends readonly [infer X1] ?
+      IsNotNever<X1> extends true ? Merge<X0, X1> : X0
+      : never
+    )
+    & XExtra
+  )> extends infer X ?
 
   [
     Tups extends readonly [infer I] ?
@@ -109,7 +112,7 @@ type _ImplCombine<Tups, X0, DOne, DAll> =
       [PH, [PT, ...T]]
       : never : never : never
     as Next[0]
-    ]?: _ImplCombine<[Next[1]], X, DOne, DAll>
+    ]?: _ImplCombine<[Next[1]], X, DOne, DAll, XExtra>
   }
 
   : never : never
@@ -125,7 +128,7 @@ type _ImplCombine<Tups, X0, DOne, DAll> =
   };
 
   type A = _ImplSplit<W>
-  type B = _ImplCombine<[A], {}, 'DOne', 'DAll'>
+  type B = _ImplCombine<[A], {}, 'DOne', 'DAll','OUT'>
   type C = Impls<W>
 
   type _ = [A, B, C]

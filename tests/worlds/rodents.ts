@@ -29,12 +29,12 @@ export const rodents = World
   })
   .impl({
     rat: {
-      async wake() {
-        return ['rat_squeak', 123];
+      async wake({next}) {
+        return next.rat.squeak(123); //  ['rat_squeak', 123];
       },
 
-      async squeak(_, d) {
-        return ['$end', `I have squeaked ${d}!`]
+      async squeak({next}, d) {
+        return next.$end(`I have squeaked ${d}!`); //     ['$end', `I have squeaked ${d}!`]
       }
     },
 

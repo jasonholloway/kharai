@@ -153,8 +153,11 @@ export class MachineSpace<N extends Nodes> {
             //guard here
             //...
 
+            //TODO
+            //build phase helper (or rather, use singleton) here
+
             const coreCtx = coreContext(id, committer);
-            const ctx = fac(coreCtx);
+            const ctx = { ...<object>fac(coreCtx), next: {} };
             const out = await handler(ctx, data);
             // console.debug('OUT', id, inspect(out,{colors:true}))
 

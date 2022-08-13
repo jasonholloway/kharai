@@ -1,7 +1,7 @@
 import { List, Map } from "immutable";
 import { Observable } from "rxjs/internal/Observable";
 import { inspect, isArray, isFunction } from "util";
-import { Any, Guard, Many, Never, Num, Str, And } from "../guards/Guard";
+import { Any, Guard, Many, Never, Num, Str, And, Read } from "../guards/Guard";
 import { Id } from "../lib";
 import { Attendee, Convener, Peer } from "../MachineSpace";
 import { Handler, $data, $Data, $Fac, $Root, $root } from "../shapeShared";
@@ -141,7 +141,62 @@ class ImplHelper<N extends Nodes> {
   }
 
   //todo nicely generated next helpers
+
+  // next = <PhaseHelper<N>>new Proxy({}, {
+  //   get(target, prop, receiver) {
+  //     console.log('WOWZERS', target, prop, receiver);
+  //     return 'hello!';
+  //   }
+  // });
 }
+
+export type PhaseHelper<N,Out> = _WalkData<'',_ExtractData<N>,Out>
+
+type _ExtractData<N> = {
+  [k in keyof N as (k extends _JoinPaths<'D', infer P> ? P : never)]: N[k]
+};
+
+type _WalkData<P extends string, D, Out> = 
+  (
+    P extends keyof D
+      ? ((d: Read<D[P]>) => Out)
+      : unknown
+  )
+  & ({
+    [N in _ExtractNextPrefixes<P,D> & string]: _WalkData<_JoinPaths<P,N>, D, Out>
+  });
+
+type _ExtractNextPrefixes<P extends string, D> =
+  keyof D extends infer K ?
+  K extends _JoinPaths<P, _JoinPaths<infer N, any>> ?
+  N
+  : never : never;
+
+
+try {
+  type W = {
+    D_: [1]
+    D_hello_again: [typeof Num]
+    D_hello_moo: [3]
+    D_tara: [4]
+  };
+
+  type A = _ExtractData<W>;
+  type B = _ExtractNextPrefixes<'', A>
+  type C = _ExtractNextPrefixes<'hello', A>
+  type Z = _WalkData<'',A,'OUT'>
+
+  const z = <Z><unknown>undefined;
+
+  z.hello.again([2]);
+  z.tara([4]);
+
+  type _ = [A,B,C,Z];
+}
+catch {}
+
+
+
 
 
 export class World<N extends Nodes> {
@@ -157,9 +212,7 @@ export class World<N extends Nodes> {
     return <World.TryMerge<N,N2>><unknown>new World(Registry.merge(this.reg, other.reg));
   }
 
-  impl<S extends Impls<N>>(arg: (S&object)|((h:ImplHelper<N>)=>S)): World<N> {
-    const s = (typeof arg === 'function') ? arg(new ImplHelper<N>()) : arg;
-
+  impl<S extends Impls<N>>(s: S): World<N> {
     const reg2 = _walk(s, [], this.reg);
     return new World<N>(reg2);
 
@@ -473,175 +526,6 @@ type _Assemble<T extends readonly [string, unknown]> =
   type _ = [A,B,C]
 }
 
-
-// export type NodePath<N extends Nodes> = _ExtractPath<'S'|'D', keyof N> | ''
-// export type DataPath<N extends Nodes> = _ExtractPath<'D', keyof N>
-// export type FacPath<N extends Nodes> = _ExtractPath<'XA', keyof N>
-
-// type _ExtractPath<A extends string, K> =
-//     K extends A ? ''
-//   : K extends `${A}${Separator}${infer P}` ? P
-//   : never
-
-
-// export type Data<N extends Nodes, Inner = unknown> =
-//   keyof N extends infer K ?
-//   K extends `D${Separator}${infer P}` ?
-//   N[K] extends infer G ?
-//   Read<G, $Root, Inner> extends infer D ?
-//   [P, D]
-//   : never : never : never : never;
-
-
-
-// export type Impls<N extends Nodes> =
-//   [Data<N>] extends [infer DOne] ?
-//   [Data<N, DOne>] extends [infer DFull] ?
-//   [_ImplSplit<N>] extends [infer Tups] ?
-//     _ImplCombine<[Tups], {}, DOne, DFull>
-//   : never : never : never
-// ;
-
-// type _ImplSplit<N extends Nodes> =
-//   keyof N extends infer K ?
-//   K extends keyof N ?
-//   K extends string ?
-//   TupPopHead<PathList<K>> extends [infer Tail, infer Popped, infer Head] ?
-//   Popped extends true ?
-//     readonly [Tail, Head, N[K]]
-//   : never : never : never : never : never
-// ;
-
-// type _ImplCombine<Tups, X0, DOne, DAll> =
-//   (
-//     [
-//       Tups extends readonly [infer I] ?
-//       I extends readonly [[], 'XA', infer V] ? V
-//       : never : never
-//     ] extends readonly [infer X1] ?
-//     IsNotNever<X1> extends true ? Merge<X0, X1> : X0
-//     : never
-//   ) extends infer X ?
-
-//   [
-//     Tups extends readonly [infer I] ?
-//     I extends readonly [[], 'D', infer V] ? V
-//     : never : never
-//   ] extends readonly [infer D] ?
-//   IsNotNever<D> extends true ? ((x:X, d:Read<D, $Root, DOne>)=>Promise<DAll|false>)
-
-//   : {
-//     [Next in
-//       Tups extends readonly [infer I] ?
-//       I extends readonly [readonly [infer PH, ...infer PT], ...infer T] ?
-//       PH extends string ?
-//       [PH, [PT, ...T]]
-//       : never : never : never
-//      as Next[0]
-//     ]?: _ImplCombine<[Next[1]], X, DOne, DAll>
-//   }
-
-//   : never : never
-// ;
-
-// {
-//   type W = {
-//     XA: { a:1 },
-//     D_rat_squeak: 123,
-//     XA_cat: { b:2 },
-//     D_cat_meeow: 456
-//   };
-
-//   type A = _ImplSplit<W>
-//   type B = _ImplCombine<[A], {}, 'DOne', 'DAll'>
-//   type C = Impls<W>
-
-//   type _ = [A, B, C]
-// }
-
-// {
-//   type N = {
-//     S: true,
-//     S_hamster: true
-//     S_hamster_squeak: true
-//     D_hamster_squeak_quietly: 123
-//     D_hamster_bite: 456,
-//   }
-
-//   type A = NodePath<N>
-//   type B = DataPath<N>
-//   type I = Impls<N>
-
-//   const i:I = {
-//     hamster: {
-//       squeak: {
-//         async quietly(x, d) {
-//           throw 123;
-//         }
-//       }
-//     }
-//   };
-
-//   type _ = [A,B,I]
-//   i
-// }
-
-
-
-// export type PathFac<N extends Nodes, P extends string> =
-//   _JoinPaths<'XA', P> extends infer XP ?
-//   XP extends keyof N ?
-//     N[XP]
-//   : never : never;
-
-
-// export type FacContext<N extends Nodes, P extends string> =
-//   Merge<
-//     _PathContextMerge<N, _UpstreamFacPaths<N, P>>,
-//     (
-//       _JoinPaths<'XI', P> extends infer XIP ?
-//       XIP extends keyof N ?
-//         N[XIP]
-//         : {}
-//       : never
-//     )
-//   >
-
-// on extending, if we promised to be last in the list, we could rely on XA
-// _but_ we couldn't extend the contract
-// but that's how things are already
-// only XAs can extend the contract
-//
-// what it would mean, this other mode, is that the impls own output wouldn't be consumable by followers
-// unless they themselves opted to go on the end as well
-//
-// why would any fac not go on the end then?
-// because you might want purposely to provide for future siblings
-//
-// so if you opted into being up front, you can only extend what's already in the list (ie XI)
-// then other front-loaders can see you because you've added to XI0 
-// the action is a split between XI0 and XI1, downstream acts are of course oblivious
-//
-// XI1s can't stack... last must mean last: you can'thave more than one last, receiving the full breadth of the XA
-// so it's an ordered list of types, from <never> to XI to XA
-// pinning to the end doesn't really work anyway, as some of the XA will be self-provided (unless we are to be purely parasitical)
-//
-// but pinning to the beginning might work
-// in fact, multiple facs can pin to the beginning, basically opting out of receiving any upstream sibling contexts
-// this pinning must be registered on the XA - it makes 
-//
-// I can try and settlethis later...
-// for now, lets bring all the tests up to date eh
-//
-
-type _PathContextMerge<N, PL> =
-    PL extends readonly [] ? {}
-  : PL extends readonly [infer H, ...infer T] ? (
-      H extends keyof N ?
-      Merge<N[H], _PathContextMerge<N, T>>
-      : never
-    )
-  : never;
 
 
 type _UpstreamFacPaths<N extends Nodes, P extends string> =
