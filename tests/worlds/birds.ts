@@ -1,6 +1,5 @@
 import _Monoid from '../../src/_Monoid'
 import { toArray, take } from 'rxjs/operators'
-import { delay } from '../../src/util'
 import { Str, Num, Many } from '../../src/guards/Guard'
 import { World } from '../../src/shape/World'
 import { act } from '../../src/shape/common'
@@ -26,7 +25,7 @@ export const birds = World
         .pipe(take(c), toArray())
         .toPromise();
 
-      return ['$end', frames];
+      return ['end', frames];
     }
   });
 

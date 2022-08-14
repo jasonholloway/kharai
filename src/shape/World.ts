@@ -236,9 +236,9 @@ export class World<N extends Nodes> {
     type BuiltIns = {
       XA: CoreCtx //todo these could be collapsed into simple, single 'X' entry
       XI: CoreCtx
-      D_$boot: never,
-      D_$end: typeof Any,
-      D_$wait: [typeof Num | typeof Str, $Root],
+      D_boot: never,
+      D_end: typeof Any,
+      D_wait: [typeof Num | typeof Str, $Root],
 
 
       //BELOW NEED TO BE ABLE TO DO ANDS IN GUARDS!
@@ -253,8 +253,8 @@ export class World<N extends Nodes> {
       .addFac('', x => x);
 
     reg = reg
-      .addGuard('$boot', Any)
-      .addHandler('$boot', async (x: CoreCtx) => {
+      .addGuard('boot', Any)
+      .addHandler('boot', async (x: CoreCtx) => {
         while(true) {
           const answer = await x.attend({
             attended(m) {
@@ -272,14 +272,14 @@ export class World<N extends Nodes> {
       });
 
     reg = reg
-      .addGuard('$end', Any)
-      .addHandler('$end', async () => {
+      .addGuard('end', Any)
+      .addHandler('end', async () => {
         return false;
       });
 
     reg = reg
-      .addGuard('$wait', [Num, $root])
-      .addHandler('$wait', (x: CoreCtx, [when, nextPhase]: [number|string, unknown]) => {
+      .addGuard('wait', [Num, $root])
+      .addHandler('wait', (x: CoreCtx, [when, nextPhase]: [number|string, unknown]) => {
         return x.timer.schedule(new Date(when), () => nextPhase);
       });
 

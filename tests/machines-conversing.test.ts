@@ -27,7 +27,7 @@ describe('machines - conversing', () => {
 
     expect(priscilla[1].val().toObject())
       .toEqual({
-        Polly: ['$end', 'chirped!'],
+        Polly: ['end', 'chirped!'],
         Priscilla: ['chirp', [[], 'hello!']]
       })
 
@@ -39,7 +39,7 @@ describe('machines - conversing', () => {
 
     expect(priscilla[2].val().toObject())
       .toEqual({
-        Priscilla: ['$end', 'no-one to chirp to!']
+        Priscilla: ['end', 'no-one to chirp to!']
       })
 
     expect(priscilla[2].parents())
@@ -64,10 +64,10 @@ describe('machines - conversing', () => {
       const b = x.view('b');
 
       expect(a[3].val().get('a'))
-        .toEqual(['$end', {a:'hello', b:'hello'}])
+        .toEqual(['end', {a:'hello', b:'hello'}])
 
       expect(b[3].val().get('b'))
-        .toEqual(['$end', {a:'hello', b:'hello'}])
+        .toEqual(['end', {a:'hello', b:'hello'}])
     });
   })
 })

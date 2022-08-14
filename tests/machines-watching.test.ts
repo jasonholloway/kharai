@@ -16,7 +16,7 @@ describe('machines - watching', () => {
 		]);
 
 		const kes = await x.logs('Kes');
-		const [,seen] = kes.find(([p]) => p == '$end')!;
+		const [,seen] = kes.find(([p]) => p == 'end')!;
 
 		expect(seen).toEqual([
 			['Stu', ['runAround', 3]],
@@ -43,7 +43,7 @@ describe('machines - watching', () => {
 		
 		const [p, d] = gareth[1].val().get('Gareth');
 
-		expect(p).toEqual('$end');
+		expect(p).toEqual('end');
 
 		expect(d).toEqual([
 			['Gwen', ['runAround', 13]],
@@ -62,7 +62,7 @@ describe('machines - watching', () => {
 		]);
 
 		const kesLogs = await x.logs('Kes');
-		const seen = kesLogs.find(l => l[0] == '$end')?.[1];
+		const seen = kesLogs.find(l => l[0] == 'end')?.[1];
 
 		expect(seen).toEqual([
 			['Biff', ['runAround', 11]],
@@ -102,21 +102,21 @@ describe('machines - watching', () => {
 
 		await Promise.all([
 			x.run.boot('Gord', ['runAround', 2]),
-			x.run.boot('Ed', ['$wait', [100, ['track', [['Gord'], 1]]]])
+			x.run.boot('Ed', ['wait', [100, ['track', [['Gord'], 1]]]])
 		]);
 
 		const logs = await x.allLogs();
 
     expect(logs).toEqual([
-			['Gord', ['$boot']],
-			['Ed', ['$boot']],
+			['Gord', ['boot']],
+			['Ed', ['boot']],
 			['Gord', ['runAround', 2]],
-			['Ed', ['$wait', [100, ['track', [['Gord'], 1]]]]],
+			['Ed', ['wait', [100, ['track', [['Gord'], 1]]]]],
 			['Gord', ['runAround', 1]],
 			['Gord', ['runAround', 0]],
 			['Ed', ['track', [['Gord'], 1]]],
 
-			['Ed', ['$end', [['Gord', ['runAround', 0]]]]],
+			['Ed', ['end', [['Gord', ['runAround', 0]]]]],
 		]);
 	})
 

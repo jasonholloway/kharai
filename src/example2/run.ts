@@ -17,29 +17,28 @@ const world = World
   })
   .impl({
     AO: {
-      async scrape(x, n) {
+      async scrape({and}, n) {
         console.log(n + 13);
 
         //do something here...
 
-        return ['AO_notify', ['https://someurl']]
+        return and.AO.notify(['https://someurl']);
       },
 
-      async notify(x, d) {
-        return ['$wait', [500, ['AO_scrape', 123]]]
+      async notify({and}, d) {
+        return and.wait([500, and.AO.scrape(123)]);
       }
     },
 
     Very: {
-      async scrape(x, d) {
+      async scrape({and}, d) {
         //do something here...
         await Promise.resolve();
-
-        return ['$wait', [5000, ['Very_notify', ['moo']]]]
+        return and.wait([5000, and.Very.notify(['moo'])]);
       },
 
-      async notify(x, d) {
-        return ['$wait', [5000, ['Very_scrape', 123]]]
+      async notify({and}, d) {
+        return and.wait([5000, and.Very.scrape(123)]);
       }
     }
   })

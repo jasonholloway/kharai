@@ -63,7 +63,7 @@ export type Impls<N extends Nodes> =
   [_Data<N>] extends [infer DOne] ?
   [_Data<N, DOne>] extends [infer DFull] ?
   [_ImplSplit<N>] extends [infer Tups] ?
-  _ImplCombine<[Tups], {}, DOne, DFull, {next:PhaseHelper<N,DFull>, act:PhaseHelper<N,DFull>}>
+  _ImplCombine<[Tups], {}, DOne, DFull, {and:PhaseHelper<N,DFull>}>
   : never : never : never
 ;
 

@@ -157,7 +157,7 @@ export class MachineSpace<N extends Nodes> {
             //build phase helper (or rather, use singleton) here
 
             const coreCtx = coreContext(id, committer);
-            const ctx = { ...<object>fac(coreCtx), next: createPhaseFacTree(), act: createPhaseFacTree() };
+            const ctx = { ...<object>fac(coreCtx), and: createPhaseFacTree() };
             const out = await handler(ctx, data);
             // console.debug('OUT', id, inspect(out,{colors:true}))
 

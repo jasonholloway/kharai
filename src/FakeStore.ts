@@ -30,7 +30,7 @@ export default class FakeStore implements Loader, Saver<DataMap> {
         const found = this.saved.get(id, undefined);
         return found
           ? ac.set(id, found)
-          : ac.set(id, ['$boot']); //TODO this shouldn't be done here, but above
+          : ac.set(id, ['boot']); //TODO this shouldn't be done here, but above
       },
       Map<Id, unknown>()
     );

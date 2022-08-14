@@ -25,8 +25,8 @@ describe('machines - saving', () => {
 					baz: ['guineaPig_runAbout']
 				},
 				{
-					baz: ['$end', 'grunt!'],
-					loz: ['$end', 'squeak!']
+					baz: ['end', 'grunt!'],
+					loz: ['end', 'squeak!']
 				}
 			]);
 
@@ -40,8 +40,8 @@ describe('machines - saving', () => {
 					loz: ['guineaPig_gruntAt', 'baz']
 				},
 				{
-					baz: ['$end', 'grunt!'],
-					loz: ['$end', 'squeak!']
+					baz: ['end', 'grunt!'],
+					loz: ['end', 'squeak!']
 				}
 			]);
 
@@ -64,15 +64,15 @@ describe('machines - saving', () => {
 
 		expect(baz).toHaveLength(1);
 		expect(baz[0].val().toObject()).toEqual({
-			baz: ['$end', 'grunt!'],
-			loz: ['$end', 'squeak!']
+			baz: ['end', 'grunt!'],
+			loz: ['end', 'squeak!']
 		});
 		expect(baz[0].parents()).toHaveLength(0);
 
 		expect(loz).toHaveLength(1);
 		expect(loz[0].val().toObject()).toEqual({
-			baz: ['$end', 'grunt!'],
-			loz: ['$end', 'squeak!']
+			baz: ['end', 'grunt!'],
+			loz: ['end', 'squeak!']
 		});
 		expect(loz[0].parents()).toHaveLength(0);
 	})
@@ -88,7 +88,7 @@ describe('machines - saving', () => {
 		expect([...List(x.store.batches)
 			.flatMap(b => b.valueSeq())
 			.map(a => a[0])])
-			.not.toContain('$boot')
+			.not.toContain('boot')
 	})
 
 	xit('too small batch size throws error', async () => {

@@ -28,65 +28,65 @@ export const rodents = World
   })
   .impl({
     rat: {
-      async wake({next}) {
-        return next.rat.squeak(123);
+      async wake({and}) {
+        return and.rat.squeak(123);
       },
 
-      async squeak({next}, d) {
-        return next.$end(`I have squeaked ${d}!`);
+      async squeak({and}, d) {
+        return and.end(`I have squeaked ${d}!`);
       }
     },
 
     hamster: {
-      async wake(x, d) {
+      async wake({and}, d) {
         await delay(100);
-        return x.act.$end(d);
+        return and.end(d);
       },
 
-      async nibble(x) {
-        return x.act.$end('done');
+      async nibble({and}) {
+        return and.end('done');
       },
 
-      async tarry(x) {
-        return x.act.$wait([123, x.act.hamster.nibble()]);
+      async tarry({and}) {
+        return and.wait([123, and.hamster.nibble()]);
       }
     },
 
     guineaPig: {
-      async runAbout(x) {
-        const a = await x.attend({ attended(m) { return [m, 'squeak!'] } });
+      async runAbout({and,attend}) {
+        const a = await attend({ attended(m) { return [m, 'squeak!'] } });
         return a
-          ? x.act.$end(a[0])
-          : x.act.$end('BIG NASTY ERROR');
+          ? and.end(a[0])
+          : and.end('BIG NASTY ERROR');
       },
 
-      async gruntAt(x, id) {
-        const resp = await x.convene([id], {
+      async gruntAt({and,convene}, id) {
+        const resp = await convene([id], {
           convened([p]) {
             const a = p.chat('grunt!');
             if(a) return a;
             else throw Error('bad response from attendee')
           }
         });
-        return x.act.$end(resp[0]);
+        return and.end(resp[0]);
       }
     },
 
     gerbil: {
-      async spawn(x, [step, max]) {
+      async spawn({and,convene,id}, [step, max]) {
         if(step < max) {
           const appendage = String.fromCharCode('a'.charCodeAt(0) + step);
 
-          if(x.id.length < max) {
-            const other = `${x.id}${appendage}`;
+          if(id.length < max) {
+            const other = `${id}${appendage}`;
 
-            await x.convene([other], {
+            await convene([other], {
               convened([p]) {
-                p.chat(x.act.gerbil.spawn([0, max]));
+                p.chat(and.gerbil.spawn([0, max]));
               }
             })
 
-            return x.act.gerbil.spawn([step + 1, max]);
+            return and.gerbil.spawn([step + 1, max]);
           }
         }
 

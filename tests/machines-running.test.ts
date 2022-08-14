@@ -14,10 +14,10 @@ describe('machines - running', () => {
     ]);
 
     expect(logs).toEqual([
-      ['bob', ['$boot']],
+      ['bob', ['boot']],
       ['bob', ['rat_wake']],
       ['bob', ['rat_squeak', 123]],
-      ['bob', ['$end', 'I have squeaked 123!']]
+      ['bob', ['end', 'I have squeaked 123!']]
     ]);
   })
 
@@ -31,13 +31,13 @@ describe('machines - running', () => {
     ]);
 
     expect(logs).toEqual([
-      ['nib', ['$boot']],
-      ['bob', ['$boot']],
+      ['nib', ['boot']],
+      ['bob', ['boot']],
       ['nib', ['hamster_wake', 77]],
       ['bob', ['rat_wake']],
       ['bob', ['rat_squeak', 123]],
-      ['bob', ['$end', 'I have squeaked 123!']],
-      ['nib', ['$end', 77]],
+      ['bob', ['end', 'I have squeaked 123!']],
+      ['nib', ['end', 77]],
     ])
   })
 
@@ -51,12 +51,12 @@ describe('machines - running', () => {
     ]);
 
     expect(logs).toEqual([
-      ['gaz', ['$boot']],
-      ['goz', ['$boot']],
+      ['gaz', ['boot']],
+      ['goz', ['boot']],
       ['gaz', ['guineaPig_runAbout']],
       ['goz', ['guineaPig_gruntAt', 'gaz']],
-      ['goz', ['$end', 'squeak!']],
-      ['gaz', ['$end', 'grunt!']],
+      ['goz', ['end', 'squeak!']],
+      ['gaz', ['end', 'grunt!']],
     ])
   })
 
@@ -65,13 +65,13 @@ describe('machines - running', () => {
 
     const [logs] = await Promise.all([
       x.allLogs(),
-      x.run.boot('taz', ['$wait', [1000, ['$end', 123]]]),
+      x.run.boot('taz', ['wait', [1000, ['end', 123]]]),
     ]);
 
     expect(logs).toEqual([
-      ['taz', ['$boot']],
-      ['taz', ['$wait', [1000, ['$end', 123]]]],
-      ['taz', ['$end', 123]],
+      ['taz', ['boot']],
+      ['taz', ['wait', [1000, ['end', 123]]]],
+      ['taz', ['end', 123]],
     ])
   })
 

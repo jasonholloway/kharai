@@ -144,7 +144,7 @@ describe('shape', () => {
 
   //   const w2 = w1
   //     .ctxImpl('jerboa', x => ({ b: [2, x.b[1]] }));
-
+2
   //   const b = w2
   //     .build();
 

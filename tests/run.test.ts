@@ -62,14 +62,14 @@ describe('running', () => {
 		expect(existing).toEqual([
 			['rat_wake'],
 			['rat_squeak', 123],
-			['$end', 'I have squeaked 123!']
+			['end', 'I have squeaked 123!']
 		]);
 
 		const fresh = await x.logs('fresh');
 		expect(fresh).toEqual([
-			['$boot'],
+			['boot'],
 			['hamster_wake', 123],
-			['$end', 123]
+			['end', 123]
 		]);
 	})
 

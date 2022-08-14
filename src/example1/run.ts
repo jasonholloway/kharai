@@ -34,10 +34,10 @@ const world = World
             }
           });
           
-          return ['$wait', [Date.now() + 1000, ['mole_sayHello', [friend, n + 1]]]];
+          return ['wait', [Date.now() + 1000, ['mole_sayHello', [friend, n + 1]]]];
         }
         else {
-          return ['$end', 'RIP']
+          return ['end', 'RIP']
         }
       }
     }
