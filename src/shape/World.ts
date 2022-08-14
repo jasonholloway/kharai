@@ -6,7 +6,7 @@ import { Id } from "../lib";
 import { Attendee, Convener, Peer } from "../MachineSpace";
 import { Handler, $data, $Data, $Fac, $Root, $root } from "../shapeShared";
 import { Timer } from "../Timer";
-import { DeepMerge, delay, Merge, Simplify } from "../util";
+import { DeepMerge, DeepSimplify, delay, Merge, Simplify } from "../util";
 import { BuiltWorld } from "./BuiltWorld";
 import { act, ctx, Data, FacContext, FacPath, formPath, Impls, PathFac, SchemaNode } from "./common";
 import { Registry } from "./Registry";
@@ -130,7 +130,7 @@ type _ExtractData<N> = {
   [k in keyof N as (k extends _JoinPaths<'D', infer P> ? P : never)]: N[k]
 };
 
-type _WalkData<P extends string, D, DAll, Out> =
+type _WalkData<P extends string, D, DAll, Out> = DeepSimplify<
   (
     P extends keyof D
       ? (
@@ -144,7 +144,8 @@ type _WalkData<P extends string, D, DAll, Out> =
   )
   & ({
     [N in _ExtractNextPrefixes<P,D> & string]: _WalkData<_JoinPaths<P,N>, D, DAll, Out>
-  });
+  })
+>;
 
 type _ExtractNextPrefixes<P extends string, D> =
   keyof D extends infer K ?
@@ -226,7 +227,7 @@ export class World<N extends Nodes> {
   }
 
   
-  static shape<S extends SchemaNode>(s: S) { //} : World<Shape<S>> {
+  static shape<S extends SchemaNode>(s: S) {
     let reg = _walk([], s)
       .reduce(
         (ac, [p, g]) => ac.addGuard(p, g),
@@ -284,10 +285,10 @@ export class World<N extends Nodes> {
       });
 
 
+
     const isPeerMessage = Guard('hi');
     const isMediatorMessage = Guard(['yo', Str, Any] as const);
 
-      // D_$meetAt: [typeof Str, And<$Root, [...typeof Any[], typeof Str]>],
     reg = reg
       .addGuard('$meetAt', [Str, $root])
       .addHandler('$meetAt', (x: CoreCtx, [spotId, hold]: [Id, [string,unknown?]]) => {

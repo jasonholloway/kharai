@@ -1,4 +1,4 @@
-import { Num } from "../guards/Guard";
+import { Num, Tup } from "../guards/Guard";
 import { LocalStore } from "../LocalStore";
 import { newRun } from "../Run";
 import { act } from "../shape/common";
@@ -6,7 +6,7 @@ import { World } from "../shape/World";
 
 const Scraper = {
   scrape: act(Num),
-  notify: act([/http.*/] as const)
+  notify: act(Tup(/http.*/))
 };
 
 const world = World

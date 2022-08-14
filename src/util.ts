@@ -97,6 +97,19 @@ type SimplifyArray<R extends readonly unknown[]> =
   ? [Simplify<Head>, ...SimplifyArray<Tail>]
   : [...R];
 
+
+export type DeepSimplify<T> =
+  T extends readonly unknown[] ? DeepSimplifyArray<T>
+  : T extends Function ? T
+  : T extends object ? { [k in keyof T]: DeepSimplify<T[k]> }
+  : never;
+
+type DeepSimplifyArray<R extends readonly unknown[]> =
+  R extends [infer Head, ...infer Tail]
+  ? [DeepSimplify<Head>, ...DeepSimplifyArray<Tail>]
+  : [...R];
+
+
 export function merge<A, B>(a: A, b: B) : Merge<A, B> {
   return <Merge<A, B>>Object.assign({}, a, b);
 }
