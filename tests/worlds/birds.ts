@@ -10,22 +10,22 @@ export const birds = World
     runAround: act(Num),
   })
   .impl({
-    async runAround(_, n) {
+    async runAround({and}, n) {
       if(n > 0) {
         // await delay(20);
 
-        return ['runAround', n-1]
+        return and.runAround(n-1);
       }
 
       return false;
     },
 
-    async track(x, [ids, c]) {
-      const frames = await x.watch(ids)
+    async track({and,watch}, [ids, c]) {
+      const frames = await watch(ids)
         .pipe(take(c), toArray())
         .toPromise();
 
-      return ['end', frames];
+      return and.end(frames);
     }
   });
 

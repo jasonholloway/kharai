@@ -3,7 +3,7 @@ import { Mediator } from './Mediator'
 import { Observable, Subject, merge, ReplaySubject, EMPTY, of, from } from 'rxjs'
 import { toArray, filter, mergeMap, map, share, expand, startWith, takeUntil, finalize, shareReplay, tap } from 'rxjs/operators'
 import Committer from './Committer'
-import { Collection, List, Map, Seq, Set } from 'immutable'
+import { List, Map, Seq, Set } from 'immutable'
 import MonoidData from './MonoidData'
 import Head from './Head'
 import { Commit } from './AtomSpace'
@@ -251,7 +251,7 @@ export class MachineSpace<N extends Nodes> {
 
               // if(result[1]) logChat(['AR',id], result[1], mid);
 
-              return result;
+              return result ?? false;
             }
           });
         },
@@ -328,5 +328,5 @@ export interface Convener<R = unknown> {
 }
 
 export interface Attendee<R = unknown> {
-  attended(m: unknown, mid: Id, peers: Set<Peer>): [R]|[R, unknown]
+  attended(m: unknown, mid: Id, peers: Set<Peer>): [R]|[R, unknown]|false|undefined
 }

@@ -21,7 +21,6 @@ const world = World
         console.log(n + 13);
 
         //do something here...
-
         return and.AO.notify(['https://someurl']);
       },
 

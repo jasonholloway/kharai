@@ -12,7 +12,7 @@ const world = World
   })
   .impl({
     mole: {
-      async sayHello(x, [friend, n]) {
+      async sayHello({and, convene}, [friend, n]) {
         if(n < 20) {
           console.log(`Hello! (I have been saying hello for ${n} seconds)`)
 
@@ -26,7 +26,7 @@ const world = World
           // they should happily find each other, surely...
           //
 
-          await x.convene([friend], {
+          await convene([friend], {
             convened([met]) {
               if(met) {
                 met.chat('hullo');
@@ -34,10 +34,10 @@ const world = World
             }
           });
           
-          return ['wait', [Date.now() + 1000, ['mole_sayHello', [friend, n + 1]]]];
+          return and.wait([Date.now() + 1000, and.mole.sayHello([friend, n+1])]);
         }
         else {
-          return ['end', 'RIP']
+          return and.end('RIP');
         }
       }
     }

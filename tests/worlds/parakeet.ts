@@ -3,7 +3,6 @@ import { World } from '../../src/shape/World';
 import { act } from '../../src/shape/common';
 import { Many, Str, Tup } from '../../src/guards/Guard';
 import { Id } from '../lib';
-import { Attendee } from '../MachineSpace';
 import { isArray } from 'util';
 
 export const parakeet = World
@@ -55,7 +54,7 @@ export const parakeet = World
 
 
     async nest({and,attend}, d) {
-      const r = await attend(<Attendee<['nest',[{},string]]|['end',unknown]>>{
+      const r = await attend({
         attended(m) {
           const k = d[1];
 

@@ -25,22 +25,18 @@ export const world = World
   .ctxImpl('jerboa_jump', () => ({ c:'hullo' }))
   .impl({
     jerboa: {
-      async squeak(x, d) {
-
-        x;
-        return ['jerboa_squeak', d];
+      async squeak({and}, d) {
+        return and.jerboa.squeak(d);
       },
 
-      async burrow(x, d) {
-        x; d
-        return ['jerboa_jump_quickly', 789]
+      async burrow({and}, d) {
+        return and.jerboa.jump.quickly(789);
       },
 
       jump: {
-        async slovenly(x, d) {
-          x;
+        async slovenly({and}, d) {
           console.log(`hello ${d}`);
-          return ['jerboa_jump_quickly', 789];
+          return and.jerboa.jump.quickly(789);
         }
       }
     }

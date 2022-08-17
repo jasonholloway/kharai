@@ -33,7 +33,7 @@ export interface MConvener<R = unknown> {
 
 export interface MAttendee<R = unknown> {
   id: Id
-  attended(m: [Id,unknown], peers: Set<AttendingPeer>): [R]|[R, unknown]
+  attended(m: [Id,unknown], peers: Set<AttendingPeer>): [R]|[R, unknown]|false
 }
 
 export class Mediator {
@@ -143,7 +143,11 @@ export class Mediator {
                 if(!m) return fin(); //been told to clear off; state still returned
                 if(!_active) throw Error('DEAD ATTENDEE SENT MESSAGE!'); //a dead machine can't receive non-false messages
 
-                const [s, reply] = attend.attended(m, Set()); //todo Set here needs proxying to include attend.id
+                //TODO below can also return false!!!!
+                const r = attend.attended(m, Set());
+                if(!r) return fin();
+                
+                const [s, reply] = r;
                 _state = [s];
 
                 // logFlow(attend.id, reply, m[0]+'!');

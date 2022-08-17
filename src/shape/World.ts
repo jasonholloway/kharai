@@ -1,6 +1,6 @@
-import { List, Map } from "immutable";
+import { List } from "immutable";
 import { Observable } from "rxjs/internal/Observable";
-import { inspect, isArray, isFunction } from "util";
+import { isArray } from "util";
 import { Any, Guard, Many, Never, Num, Str, And, Read } from "../guards/Guard";
 import { Id } from "../lib";
 import { Attendee, Convener, Peer } from "../MachineSpace";
@@ -124,6 +124,9 @@ export module World {
 //   type _ = [A,H];
 // }
 
+
+
+
 export type PhaseHelper<N extends Nodes, Out> = _WalkData<'',_ExtractData<N>, Data<N>, Out>
 
 type _ExtractData<N> = {
@@ -134,7 +137,7 @@ type _WalkData<P extends string, D, DAll, Out> = DeepSimplify<
   (
     P extends keyof D
       ? (
-        Read<D[P], $Root, DAll> extends infer V ?
+        Read<D[P], $Root, Out> extends infer V ?
         IsNotNever<V> extends true
           ? ((d: V) => Out)
           : (() => Out)
@@ -179,8 +182,10 @@ try {
 catch {}
 
 
-
-
+const $unique = Symbol('');
+interface AndNext {
+  tag: typeof $unique
+}
 
 export class World<N extends Nodes> {
   public readonly nodes: N = <N><unknown>{}
@@ -195,7 +200,7 @@ export class World<N extends Nodes> {
     return <World.TryMerge<N,N2>><unknown>new World(Registry.merge(this.reg, other.reg));
   }
 
-  impl<S extends Impls<N>>(s: S): World<N> {
+  impl<S extends Impls<N,AndNext>>(s: S): World<N> {
     const reg2 = _walk(s, [], this.reg);
     return new World<N>(reg2);
 
@@ -222,6 +227,12 @@ export class World<N extends Nodes> {
     return <World.MergeFacImpl<N,P,X>>new World(this.reg.addFac(path, fn));
   }
 
+  //we don't need no special symbols or owt
+  //as long as we can only access Phase via helpers
+  //so the exact type returned by the helpers has to be generic parameter
+  //unique to that impl block
+  //so we can't mix and match by strange means
+
   build(): World.TryBuild<N> {
     return <World.TryBuild<N>><unknown>new BuiltWorld<N>(this.reg);
   }
@@ -243,7 +254,7 @@ export class World<N extends Nodes> {
 
 
       //BELOW NEED TO BE ABLE TO DO ANDS IN GUARDS!
-      D_$meetAt: [typeof Str, And<$Root, [...typeof Any[], typeof Str]>],
+      D_$meetAt: [typeof Str, $Root],
 
       D_$m_place: never,
       D_$m_gather: [typeof Num, typeof Str[]], //[version, ids]

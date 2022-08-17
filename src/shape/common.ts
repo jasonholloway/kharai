@@ -57,13 +57,12 @@ export type ReadResult = {
 }
 
 
-
-
-export type Impls<N extends Nodes> =
+// O below is the monolithic phase output type
+export type Impls<N extends Nodes, O> =
   [_Data<N>] extends [infer DOne] ?
   [_Data<N, DOne>] extends [infer DFull] ?
   [_ImplSplit<N>] extends [infer Tups] ?
-  _ImplCombine<[Tups], {}, DOne, DFull, {and:PhaseHelper<N,DFull>}>
+  _ImplCombine<[Tups], {}, DOne, DFull, {and:PhaseHelper<N,O>}, O>
   : never : never : never
 ;
 
@@ -77,7 +76,7 @@ type _ImplSplit<N extends Nodes> =
   : never : never : never : never : never
 ;
 
-type _ImplCombine<Tups, X0, DOne, DAll, XExtra> =
+type _ImplCombine<Tups, X0, DOne, DAll, XExtra, O> =
   Simplify<(
     (
       [
@@ -99,8 +98,8 @@ type _ImplCombine<Tups, X0, DOne, DAll, XExtra> =
     IsNotNever<DD> extends true ? (
       DD extends readonly [infer D] ?
       IsNotNever<D> extends true
-        ? (x:X, d:Read<D, $Root, DOne>)=>Promise<DAll|false>
-        : (x:X)=>Promise<DAll|false>
+        ? (x:X, d:Read<D, $Root, O>)=>Promise<O|false>
+        : (x:X)=>Promise<O|false>
       : never
   )
 
@@ -112,7 +111,7 @@ type _ImplCombine<Tups, X0, DOne, DAll, XExtra> =
       [PH, [PT, ...T]]
       : never : never : never
     as Next[0]
-    ]?: _ImplCombine<[Next[1]], X, DOne, DAll, XExtra>
+    ]?: _ImplCombine<[Next[1]], X, DOne, DAll, XExtra, O>
   }
 
   : never : never
@@ -128,8 +127,8 @@ type _ImplCombine<Tups, X0, DOne, DAll, XExtra> =
   };
 
   type A = _ImplSplit<W>
-  type B = _ImplCombine<[A], {}, 'DOne', 'DAll','OUT'>
-  type C = Impls<W>
+  type B = _ImplCombine<[A], {}, 'DOne', 'DAll','XTRA','O'>
+  type C = Impls<W,'O'>
 
   type _ = [A, B, C]
 }
@@ -145,7 +144,7 @@ type _ImplCombine<Tups, X0, DOne, DAll, XExtra> =
 
   type A = NodePath<N>
   type B = DataPath<N>
-  type I = Impls<N>
+  type I = Impls<N,'O'>
 
   const i:I = {
     hamster: {
