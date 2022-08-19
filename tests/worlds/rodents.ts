@@ -54,7 +54,7 @@ export const rodents = World
 
     guineaPig: {
       async runAbout({and,attend}) {
-        const a = await attend({ attended(m) { return [m, 'squeak!'] } });
+        const a = await attend(m => [m, 'squeak!']);
         return a
           ? and.end(a[0])
           : and.end('BIG NASTY ERROR');

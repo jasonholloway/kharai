@@ -16,11 +16,7 @@ export const parakeet = World
   .impl({
 
     async listen({and,attend}) {
-      const r = await attend({
-        attended([ids, m]) {
-          return <[[Id[], string]]>[[ids, m]];
-        }
-      });
+      const r = await attend(m => [<[Id[], string]>m]);
 
       if(r) {
         const [[ids, m]] = r;
@@ -54,18 +50,16 @@ export const parakeet = World
 
 
     async nest({and,attend}, d) {
-      const r = await attend({
-        attended(m) {
-          const k = d[1];
+      const r = await attend(m => {
+        const k = d[1];
 
-          if(isArray(m) && m[0]==k) {
-            switch(m[1]) {
-              case 'contribute':
-                return [and.nest([{},k]), 'hello'];
+        if(isArray(m) && m[0]==k) {
+          switch(m[1]) {
+            case 'contribute':
+              return [and.nest([{},k]), 'hello'];
 
-              case 'fin':
-                return [and.end(m[2])];
-            }
+            case 'fin':
+              return [and.end(m[2])];
           }
         }
       });

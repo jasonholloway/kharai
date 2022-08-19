@@ -9,7 +9,7 @@ import Head from './Head'
 import { Commit } from './AtomSpace'
 import { BuiltWorld } from './shape/BuiltWorld'
 import { AtomRef } from './atoms'
-import { inspect, isArray } from 'util'
+import { inspect, isArray, isFunction } from 'util'
 import { Nodes, separator } from './shape/common'
 import { Loader } from './Store'
 import { Timer } from './Timer'
@@ -224,7 +224,9 @@ export class MachineSpace<N extends Nodes> {
             );
         },
 
-        attend<R>(attendee: Attendee<R>) {
+        attend<R>(arg: Attendee<R>|AttendedFn<R>) {
+          const attended = isAttendee(arg) ? arg.attended : arg;
+
           return _this.mediator.attend(machine, {
             id,
             attended([mid, m], peers) {
@@ -245,7 +247,7 @@ export class MachineSpace<N extends Nodes> {
                 }
               }));
 
-              const result = attendee.attended(m, mid, proxied);
+              const result = attended(m, mid, proxied);
 
               // if(result[1]) logChat(['A:'+id], 'C:'+mid, result[1]);
 
@@ -254,6 +256,10 @@ export class MachineSpace<N extends Nodes> {
               return result ?? false;
             }
           });
+
+          function isAttendee(v: unknown): v is Attendee<R> {
+            return !!(<any>v).attended;
+          }
         },
 
         async convene<R>(ids: Id[], convene: Convener<R>) {
@@ -328,5 +334,8 @@ export interface Convener<R = unknown> {
 }
 
 export interface Attendee<R = unknown> {
-  attended(m: unknown, mid: Id, peers: Set<Peer>): [R]|[R, unknown]|false|undefined
+  attended: AttendedFn<R>
 }
+
+export type AttendedFn<R> = (m:unknown, mid:Id, peers:Set<Peer>) => ([R]|[R,unknown]|false|undefined);
+
