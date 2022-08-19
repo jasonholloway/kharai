@@ -61,12 +61,10 @@ export const rodents = World
       },
 
       async gruntAt({and,convene}, id) {
-        const resp = await convene([id], {
-          convened([p]) {
-            const a = p.chat('grunt!');
-            if(a) return a;
-            else throw Error('bad response from attendee')
-          }
+        const resp = await convene([id], ([p]) => {
+          const a = p.chat('grunt!');
+          if(a) return a;
+          else throw Error('bad response from attendee')
         });
         return and.end(resp[0]);
       }
@@ -80,11 +78,9 @@ export const rodents = World
           if(id.length < max) {
             const other = `${id}${appendage}`;
 
-            await convene([other], {
-              convened([p]) {
-                p.chat(and.gerbil.spawn([0, max]));
-              }
-            })
+            await convene([other], ([p]) => {
+              p.chat(and.gerbil.spawn([0, max]));
+            });
 
             return and.gerbil.spawn([step + 1, max]);
           }

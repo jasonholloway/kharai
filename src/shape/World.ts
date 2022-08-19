@@ -3,7 +3,7 @@ import { Observable } from "rxjs/internal/Observable";
 import { isArray } from "util";
 import { Any, Guard, Many, Never, Num, Str, And, Read } from "../guards/Guard";
 import { Id } from "../lib";
-import { AttendedFn, Attendee, Convener, Peer } from "../MachineSpace";
+import { AttendedFn, Attendee, ConvenedFn, Convener, Peer } from "../MachineSpace";
 import { Handler, $data, $Data, $Fac, $Root, $root } from "../shapeShared";
 import { Timer } from "../Timer";
 import { DeepMerge, DeepSimplify, delay, Merge, Simplify } from "../util";
@@ -452,7 +452,7 @@ export type CoreCtx = {
   timer: Timer
   watch: (ids: string[]) => Observable<readonly [string, unknown]>
   attend: <R>(attend: Attendee<R>|AttendedFn<R>) => Promise<false|[R]>
-  convene: <R>(ids: string[], convene: Convener<R>) => Promise<R>
+  convene: <R>(ids: string[], convene: Convener<R>|ConvenedFn<R>) => Promise<R>
 }
 
 

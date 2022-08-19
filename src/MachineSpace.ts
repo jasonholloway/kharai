@@ -262,7 +262,9 @@ export class MachineSpace<N extends Nodes> {
           }
         },
 
-        async convene<R>(ids: Id[], convene: Convener<R>) {
+        async convene<R>(ids: Id[], arg: Convener<R>|ConvenedFn<R>) {
+          const convened = isConvener(arg) ? arg.convened : arg;
+          
           const m$ = _this.summon(Set(ids));
           const ms = await m$.pipe(toArray()).toPromise(); //summoning should be cancellable (from loader?)
 
@@ -280,7 +282,7 @@ export class MachineSpace<N extends Nodes> {
                   }
                 }));
 
-                const result = convene.convened(proxied);
+                const result = convened(proxied);
 
                 // logChat([...peers.map(p => p.id)], result, id);
 
@@ -289,6 +291,10 @@ export class MachineSpace<N extends Nodes> {
             }, Set(ms));
 
           return result;
+
+          function isConvener(v: unknown): v is Convener<R> {
+            return !!(<any>v).convened;
+          }
         }
       };
     }
@@ -324,14 +330,20 @@ export type Signal = {
   stop: boolean
 }
 
+
+
 export interface Peer {
   id: Id,
   chat(m: unknown): false|readonly [unknown]
 }
 
+
 export interface Convener<R = unknown> {
-  convened(peers: Set<Peer>): R
+  convened: ConvenedFn<R>
 }
+
+export type ConvenedFn<R> = (peers: Set<Peer>) => R;
+
 
 export interface Attendee<R = unknown> {
   attended: AttendedFn<R>

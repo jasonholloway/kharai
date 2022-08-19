@@ -26,11 +26,9 @@ const world = World
           // they should happily find each other, surely...
           //
 
-          await convene([friend], {
-            convened([met]) {
-              if(met) {
-                met.chat('hullo');
-              }
+          await convene([friend], ([met]) => {
+            if(met) {
+              met.chat('hullo');
             }
           });
           

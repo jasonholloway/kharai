@@ -31,11 +31,9 @@ export const parakeet = World
       const [id, ...otherIds] = ids;
 
       if(id) {
-        const r = await convene([id], {
-          convened(peers) {
-            peers.forEach(p => p.chat([otherIds, message]));
-            return 'chirped!';
-          }
+        const r = await convene([id], peers => {
+          peers.forEach(p => p.chat([otherIds, message]));
+          return 'chirped!';
         });
         return and.end(r);
       }
