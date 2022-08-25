@@ -129,6 +129,7 @@ export class MachineSpace<N extends Nodes> {
   ): Machine
   {
     const _this = this;
+    let sideData = <unknown>undefined;
     
     const kill$ = signal$.pipe(filter(s => s.stop), share());
 
@@ -210,6 +211,15 @@ export class MachineSpace<N extends Nodes> {
         id: id,
 
         timer: _this.timer,
+
+        side: {
+          get() {
+            return sideData;
+          },
+          set(d:unknown) {
+            sideData = d;
+          }
+        },
 
         watch(ids: Id[]): Observable<[Id, unknown]> {
           return _this.summon(Set(ids)) //TODO if the same thing is watched twice, commits will be added doubly

@@ -1,6 +1,6 @@
 import _Monoid from '../../src/_Monoid'
 import { delay } from '../../src/util'
-import { Num, Str, Tup } from '../../src/guards/Guard'
+import { Any, Many, Num, Str, Tup } from '../../src/guards/Guard'
 import { act } from '../../src/shape/common';
 import { World } from '../../src/shape/World';
 
@@ -24,6 +24,10 @@ export const rodents = World
 
     gerbil: {
       spawn: act(Tup(Num, Num))
+    },
+
+    capybara: {
+      nip: act(Num)
     }
   })
   .impl({
@@ -87,6 +91,16 @@ export const rodents = World
         }
 
         return false;
+      }
+    },
+
+    capybara: {
+      async nip({and,side}, d) {
+        const prevSideVal = (<number|undefined><unknown>side.get()) || 0;
+        side.set(prevSideVal + 1);
+
+        if(d > 2) return and.end('yip');
+        else return and.capybara.nip(prevSideVal);
       }
     }
   });

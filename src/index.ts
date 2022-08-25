@@ -1,24 +1,20 @@
 import { newRun } from "./Run";
-import { _Phase, makeWorld, World, MachineContext, SpecWorld } from "./lib";
+import { act } from "./shape/common";
+import { World } from "./shape/World";
+import { LocalStore } from "./LocalStore";
 import FakeStore from "./FakeStore";
-import {Loader,Saver} from "./Store";
-import MonoidData from "./MonoidData";
-// import { bootPhase, endPhase, waitPhase } from "./phases";
+import { Any, Guard, Many, Num, Str, Tup } from "./guards/Guard";
 
 export {
-	Loader,
-	newRun,
-	MachineContext,
-	Saver,
-	FakeStore,
-	MonoidData,
-
-	SpecWorld,
-	makeWorld,
 	World,
-	_Phase,
-
-	// bootPhase,
-	// endPhase,
-	// waitPhase
+	act,
+	newRun,
+	FakeStore,
+	LocalStore,
+	Num,
+	Tup,
+	Any,
+	Many,
+	Str,
+	Guard
 };

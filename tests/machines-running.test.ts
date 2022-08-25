@@ -84,4 +84,23 @@ describe('machines - running', () => {
     expect(r).toBeFalsy();
   })
 
+  it('has access to untyped transient per-run per-machine data', async () => {
+    const x = createRunner(world);
+
+    const [logs] = await Promise.all([
+      x.allLogs(),
+      x.run.boot('caz', ['capybara_nip', 0])
+    ]);
+
+    expect(logs).toEqual([
+      ['caz', ['boot']],
+      ['caz', ['capybara_nip', 0]],
+      ['caz', ['capybara_nip', 0]],
+      ['caz', ['capybara_nip', 1]],
+      ['caz', ['capybara_nip', 2]],
+      ['caz', ['capybara_nip', 3]],
+      ['caz', ['end', 'yip']]
+    ]);
+  })
+
 })

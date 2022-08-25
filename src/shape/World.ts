@@ -453,6 +453,7 @@ export type CoreCtx = {
   watch: (ids: string[]) => Observable<readonly [string, unknown]>
   attend: <R>(attend: Attendee<R>|AttendedFn<R>) => Promise<false|[R]>
   convene: <R>(ids: string[], convene: Convener<R>|ConvenedFn<R>) => Promise<R>
+  side: { get():unknown, set(d:unknown):void } 
 }
 
 
