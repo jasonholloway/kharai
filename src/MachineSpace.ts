@@ -130,11 +130,14 @@ export class MachineSpace<N extends Nodes> {
   {
     const _this = this;
     let sideData = <unknown>undefined;
+    let v = -1;
     
     const kill$ = signal$.pipe(filter(s => s.stop), share());
 
     const log$ = of(<Log>[state]).pipe(
       expand(([p]) => {
+        v++;
+        
         log('PHASE', id, inspect(p, {colors:true}));
 
         if(!p) return EMPTY;
@@ -157,7 +160,7 @@ export class MachineSpace<N extends Nodes> {
             //TODO
             //build phase helper (or rather, use singleton) here
 
-            const coreCtx = coreContext(id, committer);
+            const coreCtx = coreContext(id, v, committer);
             const ctx = { ...<object>fac(coreCtx), and: createPhaseFacTree() };
             const out = await handler(ctx, data);
             // console.debug('OUT', id, inspect(out,{colors:true}))
@@ -206,7 +209,7 @@ export class MachineSpace<N extends Nodes> {
         && !!_this.world.read(p[0]).handler;
     }
 
-    function coreContext(id: Id, commit: Committer<DataMap>): unknown {
+    function coreContext(id:Id, v:number, commit:Committer<DataMap>): unknown {
       return {
         id: id,
 
@@ -219,6 +222,10 @@ export class MachineSpace<N extends Nodes> {
           set(d:unknown) {
             sideData = d;
           }
+        },
+
+        isFresh() {
+          return v == 0;
         },
 
         watch(ids: Id[]): Observable<[Id, unknown]> {

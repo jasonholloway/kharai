@@ -1,6 +1,6 @@
 import _Monoid from '../../src/_Monoid'
 import { delay } from '../../src/util'
-import { Any, Many, Num, Str, Tup } from '../../src/guards/Guard'
+import { Any, Bool, Many, Num, Str, Tup } from '../../src/guards/Guard'
 import { act } from '../../src/shape/common';
 import { World } from '../../src/shape/World';
 
@@ -28,7 +28,9 @@ export const rodents = World
 
     capybara: {
       nip: act(Num)
-    }
+    },
+
+    shrew: act(Tup(Num,Bool))
   })
   .impl({
     rat: {
@@ -102,5 +104,13 @@ export const rodents = World
         if(d > 2) return and.end('yip');
         else return and.capybara.nip(prevSideVal);
       }
+    },
+
+    async shrew({and,isFresh}, [v, _]) {
+      if(v >= 2) {
+        return and.end('yip');
+      }
+
+      return and.shrew([v+1, isFresh()]);
     }
   });

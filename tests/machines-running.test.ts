@@ -1,6 +1,7 @@
 import _Monoid from '../src/_Monoid'
 import { createRunner } from './shared'
 import { rodents } from './worlds/rodents'
+import { Map } from 'immutable'
 
 describe('machines - running', () => {
   const world = rodents.build();
@@ -100,6 +101,43 @@ describe('machines - running', () => {
       ['caz', ['capybara_nip', 2]],
       ['caz', ['capybara_nip', 3]],
       ['caz', ['end', 'yip']]
+    ]);
+  })
+
+  it('isFresh false when boot is first', async () => {
+    const x = createRunner(world);
+
+    const [logs1] = await Promise.all([
+      x.allLogs(),
+      x.run.boot('saz', ['shrew', [0, false]])
+    ]);
+
+    expect(logs1).toEqual([
+      ['saz', ['boot']],
+      ['saz', ['shrew', [0, false]]],
+      ['saz', ['shrew', [1, false]]],
+      ['saz', ['shrew', [2, false]]],
+      ['saz', ['end', 'yip']]
+    ]);
+  })
+
+  it('isFresh false when boot is first', async () => {
+		const x = createRunner(world, {
+			data: Map({
+				saz: ['shrew', [0, false]]
+			})
+		});
+
+    const [logs1] = await Promise.all([
+      x.allLogs(),
+      x.run.summon(['saz'])
+    ]);
+
+    expect(logs1).toEqual([
+      ['saz', ['shrew', [0, false]]],
+      ['saz', ['shrew', [1, true]]], //sure sign that previous phase was 'fresh'
+      ['saz', ['shrew', [2, false]]],
+      ['saz', ['end', 'yip']]
     ]);
   })
 
