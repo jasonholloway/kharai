@@ -1,6 +1,6 @@
 import _Monoid from '../../src/_Monoid'
 import { delay } from '../../src/util'
-import { Any, Bool, Many, Num, Str, Tup } from '../../src/guards/Guard'
+import { Bool, Num, Str, Tup } from '../../src/guards/Guard'
 import { act } from '../../src/shape/common';
 import { World } from '../../src/shape/World';
 

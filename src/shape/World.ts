@@ -17,12 +17,12 @@ export type Separator = typeof separator;
 type Nodes = { [k in string]: unknown }
 
 
-export module World {
+export module Builder {
 
   export type TryMerge<A extends Nodes, B extends Nodes> =
     Merge<A,_MergeNew<A,B>> extends infer Merged ?
     Merged extends Nodes ?
-    World<Merged>
+    Builder<Merged>
     : never : never;
 
   type _MergeNew<A,B> = {
@@ -97,7 +97,7 @@ export module World {
           : X
       }> extends infer Merged ?
     Merged extends Nodes ?
-    World<Merged>
+    Builder<Merged>
     : never : never;
 }
 
@@ -187,22 +187,23 @@ interface AndNext {
   tag: typeof $unique
 }
 
-export class World<N extends Nodes> {
+
+
+export class Builder<N extends Nodes> {
   public readonly nodes: N = <N><unknown>{}
   readonly reg: Registry
-  static TryMerge: any;
   
   constructor(reg?: Registry) {
     this.reg = reg ?? Registry.empty;
   }
 
-  mergeWith<N2 extends Nodes>(other: World<N2>): World.TryMerge<N,N2> {
-    return <World.TryMerge<N,N2>><unknown>new World(Registry.merge(this.reg, other.reg));
+  mergeWith<N2 extends Nodes>(other: Builder<N2>): Builder.TryMerge<N,N2> {
+    return <Builder.TryMerge<N,N2>><unknown>new Builder(Registry.merge(this.reg, other.reg));
   }
 
-  impl<S extends Impls<N,AndNext>>(s: S): World<N> {
+  impl<S extends Impls<N,AndNext>>(s: S): Builder<N> {
     const reg2 = _walk(s, [], this.reg);
-    return new World<N>(reg2);
+    return new Builder<N>(reg2);
 
     function _walk(n: unknown, pl: string[], r: Registry): Registry {
       switch(typeof n) {
@@ -223,8 +224,8 @@ export class World<N extends Nodes> {
     throw 'err';
   }
 
-  ctxImpl<P extends FacPath<N>, X extends Partial<PathFac<N,P>>>(path: P, fn: (x: FacContext<N,P>)=>X) : World.MergeFacImpl<N,P,X> {
-    return <World.MergeFacImpl<N,P,X>>new World(this.reg.addFac(path, fn));
+  ctxImpl<P extends FacPath<N>, X extends Partial<PathFac<N,P>>>(path: P, fn: (x: FacContext<N,P>)=>X) : Builder.MergeFacImpl<N,P,X> {
+    return <Builder.MergeFacImpl<N,P,X>>new Builder(this.reg.addFac(path, fn));
   }
 
   //we don't need no special symbols or owt
@@ -233,164 +234,18 @@ export class World<N extends Nodes> {
   //unique to that impl block
   //so we can't mix and match by strange means
 
-  build(): World.TryBuild<N> {
-    return <World.TryBuild<N>><unknown>new BuiltWorld<N>(this.reg);
+  build(): Builder.TryBuild<N> {
+    return <Builder.TryBuild<N>><unknown>new BuiltWorld<N>(this.reg);
   }
 
-  
-  static shape<S extends SchemaNode>(s: S) {
+  shape<S extends SchemaNode>(s: S): Builder.TryMerge<N, Shape<S>> {
     let reg = _walk([], s)
       .reduce(
         (ac, [p, g]) => ac.addGuard(p, g),
-        Registry.empty
+        this.reg
       );
 
-    type BuiltIns = {
-      XA: CoreCtx //todo these could be collapsed into simple, single 'X' entry
-      XI: CoreCtx
-      D_boot: never,
-      D_end: typeof Any,
-      D_wait: [typeof Num | typeof Str, $Root],
-
-
-      //BELOW NEED TO BE ABLE TO DO ANDS IN GUARDS!
-      D_$meetAt: [typeof Str, $Root],
-
-      D_$m_place: never,
-      D_$m_gather: [typeof Num, typeof Str[]], //[version, ids]
-      D_$m_mediate: [typeof Num, typeof Str, typeof Str[], typeof Str[]] //[version, key, ids, remnants]
-    };
-
-    reg = reg
-      .addFac('', x => x);
-
-    reg = reg
-      .addGuard('boot', Any)
-      .addHandler('boot', async (x: CoreCtx) => {
-        while(true) {
-          const answer = await x.attend({
-            attended(m) {
-              return [m];
-            }
-          });
-
-          if(answer) {
-            return answer[0];
-          }
-          else {
-            await delay(30); //when we release properly, this can be removed (cryptic note!)
-          }
-        }
-      });
-
-    reg = reg
-      .addGuard('end', Any)
-      .addHandler('end', async () => {
-        return false;
-      });
-
-    reg = reg
-      .addGuard('wait', [Num, $root])
-      .addHandler('wait', (x: CoreCtx, [when, nextPhase]: [number|string, unknown]) => {
-        return x.timer.schedule(new Date(when), () => nextPhase);
-      });
-
-
-
-    const isPeerMessage = Guard('hi');
-    const isMediatorMessage = Guard(['yo', Str, Any] as const);
-
-    reg = reg
-      .addGuard('$meetAt', [Str, $root])
-      .addHandler('$meetAt', (x: CoreCtx, [spotId, hold]: [Id, [string,unknown?]]) => {
-        return x.convene([spotId], {
-          convened([spot]) {
-            const resp = spot.chat('hi');
-            if(!resp) throw `Meeting rejected by mediator ${spotId}: message:?`;
-
-            const [m] = resp;
-            if(!isMediatorMessage(m)) return;
-
-            const [,key] = m;
-
-            //emplace key as last arg
-            const [h0, h1] = hold;
-            if(!isArray(h1)) throw 'Bad callback';
-
-            h1[h1.length-1] = key;
-            return [h0, h1];
-          }
-        });
-      });
-
-    reg = reg
-      .addGuard('$m_place', Never)
-      .addHandler('$m_place', async (x: CoreCtx) => {
-        return ['$m_gather', [0, []]]
-      });
-
-    reg = reg
-      .addGuard('$m_gather', [Num, Many(Str)])
-      .addHandler('$m_gather', async (x: CoreCtx, [v, ids]: [number, Id[]]) => {
-        const result = await x.attend({
-          attended(m, mid) {
-            if(isPeerMessage(m)) {
-              ids = [...ids, mid];
-
-              const k = `K${v}`;
-
-              const quorum = 2;
-              if(ids.length >= quorum) {
-                return [
-                  ['$m_mediate', [v, k, ids, []]],//remnant always empty currently
-                  ['yo', k]
-                ]; 
-              }
-              else {
-                return [
-                  ['$m_gather', [v, ids]],
-                  ['yo', k]
-                ];
-              }
-            }
-
-            return [['$m_gather', [v, ids]]];
-          }
-        });
-
-        return isArray(result) ? result[0] : false;
-      });
-
-    reg = reg
-      .addGuard('$m_mediate', [Num,Str,Many(Str),Many(Str)])
-      .addHandler('$m_mediate', (x: CoreCtx, [v,k,ids,remnants]: [number,string,Id[],Id[]]) => {
-        return x.convene(ids, {
-          convened(peers) {
-            const answers: { [id:Id]:unknown } = {};
-
-            for(const p of peers) {
-              const r = p.chat([k, 'contribute'])
-              if(!r) return fin({kickOut:[p]});
-
-              answers[p.id] = r[0];
-            }
-
-            for(const p of peers) {
-              p.chat([k, 'fin', answers]);
-            }
-
-            return fin({kickOut:[...peers]});
-
-
-            function fin(p:{kickOut:Peer[]}) {
-              return ['$m_gather', [v+1, [remnants, ...peers.subtract(p.kickOut)]]] as const;
-            }
-          }
-        });
-      });
-
-    
-    return <World.TryMerge<BuiltIns,Shape<S>>>new World<Shape<S>>(reg);
+    return <Builder.TryMerge<N,Shape<S>>>new Builder<Shape<S>>(reg);
 
     //TODO inject CoreCtx into reg
 
@@ -412,6 +267,163 @@ export class World<N extends Nodes> {
     }
   }
 }
+
+
+
+type BuiltIns = {
+  XA: CoreCtx //todo these could be collapsed into simple, single 'X' entry
+  XI: CoreCtx
+  D_boot: never,
+  D_end: typeof Any,
+  D_wait: [typeof Num | typeof Str, $Root],
+
+
+  //BELOW NEED TO BE ABLE TO DO ANDS IN GUARDS!
+  D_$meetAt: [typeof Str, $Root],
+
+  D_$m_place: never,
+  D_$m_gather: [typeof Num, typeof Str[]], //[version, ids]
+  D_$m_mediate: [typeof Num, typeof Str, typeof Str[], typeof Str[]] //[version, key, ids, remnants]
+};
+
+let reg = Registry.empty;
+
+reg = reg
+  .addFac('', x => x);
+
+reg = reg
+  .addGuard('boot', Any)
+  .addHandler('boot', async (x: CoreCtx) => {
+    while(true) {
+      const answer = await x.attend({
+        attended(m) {
+          return [m];
+        }
+      });
+
+      if(answer) {
+        return answer[0];
+      }
+      else {
+        await delay(30); //when we release properly, this can be removed (cryptic note!)
+      }
+    }
+  });
+
+reg = reg
+  .addGuard('end', Any)
+  .addHandler('end', async () => {
+    return false;
+  });
+
+reg = reg
+  .addGuard('wait', [Num, $root])
+  .addHandler('wait', (x: CoreCtx, [when, nextPhase]: [number|string, unknown]) => {
+    return x.timer.schedule(new Date(when), () => nextPhase);
+  });
+
+
+
+const isPeerMessage = Guard('hi');
+const isMediatorMessage = Guard(['yo', Str, Any] as const);
+
+reg = reg
+  .addGuard('$meetAt', [Str, $root])
+  .addHandler('$meetAt', (x: CoreCtx, [spotId, hold]: [Id, [string,unknown?]]) => {
+    return x.convene([spotId], {
+      convened([spot]) {
+        const resp = spot.chat('hi');
+        if(!resp) throw `Meeting rejected by mediator ${spotId}: message:?`;
+
+        const [m] = resp;
+        if(!isMediatorMessage(m)) return;
+
+        const [,key] = m;
+
+        //emplace key as last arg
+        const [h0, h1] = hold;
+        if(!isArray(h1)) throw 'Bad callback';
+
+        h1[h1.length-1] = key;
+        return [h0, h1];
+      }
+    });
+  });
+
+reg = reg
+  .addGuard('$m_place', Never)
+  .addHandler('$m_place', async (x: CoreCtx) => {
+    return ['$m_gather', [0, []]]
+  });
+
+reg = reg
+  .addGuard('$m_gather', [Num, Many(Str)])
+  .addHandler('$m_gather', async (x: CoreCtx, [v, ids]: [number, Id[]]) => {
+    const result = await x.attend({
+      attended(m, mid) {
+        if(isPeerMessage(m)) {
+          ids = [...ids, mid];
+
+          const k = `K${v}`;
+
+          const quorum = 2;
+          if(ids.length >= quorum) {
+            return [
+              ['$m_mediate', [v, k, ids, []]],//remnant always empty currently
+              ['yo', k]
+            ]; 
+          }
+          else {
+            return [
+              ['$m_gather', [v, ids]],
+              ['yo', k]
+            ];
+          }
+        }
+
+        return [['$m_gather', [v, ids]]];
+      }
+    });
+
+    return isArray(result) ? result[0] : false;
+  });
+
+reg = reg
+  .addGuard('$m_mediate', [Num,Str,Many(Str),Many(Str)])
+  .addHandler('$m_mediate', (x: CoreCtx, [v,k,ids,remnants]: [number,string,Id[],Id[]]) => {
+    return x.convene(ids, {
+      convened(peers) {
+        const answers: { [id:Id]:unknown } = {};
+
+        for(const p of peers) {
+          const r = p.chat([k, 'contribute'])
+          if(!r) return fin({kickOut:[p]});
+
+          answers[p.id] = r[0];
+        }
+
+        for(const p of peers) {
+          p.chat([k, 'fin', answers]);
+        }
+
+        return fin({kickOut:[...peers]});
+
+
+        function fin(p:{kickOut:Peer[]}) {
+          return ['$m_gather', [v+1, [remnants, ...peers.subtract(p.kickOut)]]] as const;
+        }
+      }
+    });
+  });
+
+
+export const World = new Builder<BuiltIns>(reg);
+
+
+
+
+
+
 
         // watch(ids: Id[]): Observable<[Id, unknown]> {
         //   return _this.summon(Set(ids)) //TODO if the same thing is watched twice, commits will be added doubly
