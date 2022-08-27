@@ -57,6 +57,14 @@ export class Registry {
     return this.handlers.keys();
   }
 
+  mapPaths(fn: ((orig:string)=>string)): Registry {
+    return new Registry(
+      this.guards.mapKeys(fn),
+      this.handlers.mapKeys(fn),
+      this.facs.mapKeys(fn)
+    );
+  }
+
   static merge(a: Registry, b: Registry) {
     return new Registry(
       a.guards.merge(b.guards),

@@ -326,7 +326,7 @@ export class MachineSpace<N extends Nodes> {
         const routePath = route.join(separator);
         
         return Object.assign(
-          ((d:unknown) => [routePath, d]),
+          ((d:unknown) => d !== undefined ? [routePath, d] : [routePath]),
           paths
             .filter(p => !p.isEmpty())
             .groupBy(p => p.first()!)

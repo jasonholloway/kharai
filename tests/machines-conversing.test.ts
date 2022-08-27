@@ -2,7 +2,6 @@ import _Monoid from '../src/_Monoid'
 import { parakeet } from './worlds/parakeet'
 import { delay } from '../src/util';
 import { createRunner } from './shared';
-import { inspect } from 'util';
 
 describe('machines - conversing', () => {
   const world = parakeet.build();

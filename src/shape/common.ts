@@ -2,7 +2,7 @@ import { FacNode } from "../facs";
 import { Any, Read } from "../guards/Guard";
 import { Handler, $Root, Fac, $data, $space, $handler, $fac, $Fac } from "../shapeShared";
 import { Merge, Simplify } from "../util";
-import { CoreCtx, PhaseHelper } from "./World";
+import { BuiltIns, CoreCtx, PhaseHelper } from "./World";
 
 export const separator = '_'
 export type Separator = typeof separator;
@@ -62,7 +62,7 @@ export type Impls<N extends Nodes, O> =
   [_Data<N>] extends [infer DOne] ?
   [_Data<N, DOne>] extends [infer DFull] ?
   [_ImplSplit<N>] extends [infer Tups] ?
-  _ImplCombine<[Tups], {}, DOne, DFull, {and:PhaseHelper<N,O>}, O>
+  _ImplCombine<[Tups], {}, DOne, DFull, {and:PhaseHelper<N&BuiltIns,O>}&CoreCtx, O>
   : never : never : never
 ;
 

@@ -99,6 +99,16 @@ export module Builder {
     Merged extends Nodes ?
     Builder<Merged>
     : never : never;
+
+
+  export type AtPath<P extends string, N extends Nodes> =
+    Builder<{
+      [k in keyof N as
+       k extends _JoinPaths<infer PH, infer PT>
+        ? _JoinPaths<PH, _JoinPaths<P, PT>>
+        : never
+      ]: N[k]
+    }>;
 }
 
 // {
@@ -197,7 +207,7 @@ export class Builder<N extends Nodes> {
     this.reg = reg ?? Registry.empty;
   }
 
-  mergeWith<N2 extends Nodes>(other: Builder<N2>): Builder.TryMerge<N,N2> {
+  with<N2 extends Nodes>(other: Builder<N2>): Builder.TryMerge<N,N2> {
     return <Builder.TryMerge<N,N2>><unknown>new Builder(Registry.merge(this.reg, other.reg));
   }
 
@@ -234,8 +244,8 @@ export class Builder<N extends Nodes> {
   //unique to that impl block
   //so we can't mix and match by strange means
 
-  build(): Builder.TryBuild<N> {
-    return <Builder.TryBuild<N>><unknown>new BuiltWorld<N>(this.reg);
+  build(): Builder.TryBuild<N&BuiltIns> {
+    return <Builder.TryBuild<N&BuiltIns>><unknown>new BuiltWorld(this.reg);
   }
 
   shape<S extends SchemaNode>(s: S): Builder.TryMerge<N, Shape<S>> {
@@ -266,11 +276,26 @@ export class Builder<N extends Nodes> {
       throw 'strange node encountered';
     }
   }
+
+  atPath<P extends string>(prefix:P): Builder.AtPath<P, N> {
+    return new Builder(this.reg.mapPaths(p => `${prefix}${separator}${p}`));
+  }
+}
+
+{
+  type W = {
+    XA: {}
+    D_hello: typeof Num
+  }
+
+  type A = Builder.AtPath<'blah', W>;
+
+  type _ = [A];
 }
 
 
 
-type BuiltIns = {
+export type BuiltIns = {
   XA: CoreCtx //todo these could be collapsed into simple, single 'X' entry
   XI: CoreCtx
   D_boot: never,
@@ -417,7 +442,7 @@ reg = reg
   });
 
 
-export const World = new Builder<BuiltIns>(reg);
+export const World = new Builder<{}>(reg);
 
 
 
