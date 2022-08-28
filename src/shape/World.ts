@@ -6,7 +6,7 @@ import { Id } from "../lib";
 import { AttendedFn, Attendee, ConvenedFn, Convener, Peer } from "../MachineSpace";
 import { Handler, $data, $Data, $Fac, $Root, $root } from "../shapeShared";
 import { Timer } from "../Timer";
-import { DeepMerge, DeepSimplify, delay, isString, Merge, Simplify } from "../util";
+import { DeepMerge, DeepSimplify, delay, IsAny, IsNever, isString, Merge, Simplify } from "../util";
 import { BuiltWorld } from "./BuiltWorld";
 import { act, ctx, Data, FacContext, FacPath, formPath, Impls, PathFac, SchemaNode } from "./common";
 import { Registry } from "./Registry";
@@ -207,9 +207,11 @@ export class Builder<N extends Nodes> {
     this.reg = reg ?? Registry.empty;
   }
 
-  with<N2 extends Nodes>(other: Builder<N2>): Builder.TryMerge<N,N2> {
+  with<N2 extends Nodes>(other:Builder<N2>): Builder.TryMerge<N, N2> {
     return <Builder.TryMerge<N,N2>><unknown>new Builder(Registry.merge(this.reg, other.reg));
   }
+
+
 
   impl<S extends Impls<N,AndNext>>(s: S): Builder<N> {
     const reg = Registry.merge(this.reg, _walk(s));
@@ -325,7 +327,7 @@ export class Builder<N extends Nodes> {
     }
   }
 
-  atPath<P extends string>(prefix:P): Builder.AtPath<P, N> {
+  as<P extends string>(prefix:P): Builder.AtPath<P, N> {
     return new Builder(
       this.reg
         .mapPaths(p => `${prefix}${separator}${p}`)
@@ -561,17 +563,22 @@ export type CoreCtx = {
 }
 
 
+
 export type Shape<S> =
   Simplify<_Assemble<_Walk<S>>> extends infer N ?
   N extends Nodes ?
   N
   : never : never;
-  
 
 type _Walk<O, P extends string = ''> =
-    _DataWalk<O, P>
-  | _FacWalk<O, P>
-  | _SpaceWalk<O, P>
+  [IsNever<O>] extends [false] ?
+  [IsAny<O>] extends [false] ?
+    (
+      _DataWalk<O, P>
+    | _FacWalk<O, P>
+    | _SpaceWalk<O, P>
+    )
+  : never : never
 ;
 
 type _DataWalk<O, P extends string> =

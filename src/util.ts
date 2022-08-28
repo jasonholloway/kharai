@@ -177,3 +177,9 @@ export function mergeDeep<A, B>(a: A, b: B) : MergeDeep<A, B> {
 
 
 
+export type IsAny<T> =
+  0 extends (1 & T) ? true : false;
+
+export type IsNever<T> =
+  [T] extends [never] ? true : false;
+

@@ -20,14 +20,11 @@ const animal = (says:string) =>
       }
     });
 
-//TODO
-//returned phases need prepending too
-
 const world = World
-  .with(animal('oink').atPath('pig'))
-  .with(animal('woof').atPath('dog'))
+  .with(animal('oink').as('pig'))
+  .with(animal('woof').as('dog'))
   .shape({
-    speakToAnimals: act()
+    speakToAnimals: act(),
   })
   .impl({
     async speakToAnimals({and}) {

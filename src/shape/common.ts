@@ -373,27 +373,11 @@ type IsNotNever<T> =
 
 
 
-export type SchemaNode = DataNode<unknown> | { [k: string]: SchemaNode }
+export type SchemaNode = DataNode<unknown> | object
 export type DataNode<D> = { [$data]: D }
 export type SpaceNode<I> = { [$space]: I }
 export type HandlerNode = { [$handler]: Handler }
 export type ContextNode<X = unknown> = { [$fac]: FacNode<X> }
-
-export function isDataNode(v: SchemaNode): v is DataNode<any> {
-  return !!(<any>v)[$data];
-}
-
-export function isSpaceNode(v: any): v is SpaceNode<any> {
-  return !!(<any>v)[$space];
-}
-
-export function isContextNode(v: any): v is ContextNode {
-  return !!(<any>v)[$fac];
-}
-
-export function isHandlerNode(v: any): v is HandlerNode {
-  return !!(<any>v)[$handler];
-}
 
 export function act<S>(s?: S): DataNode<unknown extends S ? never : S> {
   return { [$data]: <unknown extends S ? never : S><unknown>(s ?? Any) };
