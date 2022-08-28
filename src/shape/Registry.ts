@@ -65,6 +65,18 @@ export class Registry {
     );
   }
 
+  mapHandlers(fn: ((orig:Handler)=>Handler)): Registry {
+    return new Registry(
+      this.guards,
+      this.handlers.map(fn),
+      this.facs,
+    );
+  }
+
+  dump() {
+    console.debug([...this.handlers.keys()]);
+  }
+
   static merge(a: Registry, b: Registry) {
     return new Registry(
       a.guards.merge(b.guards),

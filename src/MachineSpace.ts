@@ -160,8 +160,7 @@ export class MachineSpace<N extends Nodes> {
             //TODO
             //build phase helper (or rather, use singleton) here
 
-            const coreCtx = coreContext(id, v, committer);
-            const ctx = { ...<object>fac(coreCtx), and: createPhaseFacTree() };
+            const ctx = fac(coreContext(id, v, committer));
             const out = await handler(ctx, data);
             // console.debug('OUT', id, inspect(out,{colors:true}))
 
@@ -316,30 +315,30 @@ export class MachineSpace<N extends Nodes> {
       };
     }
 
-    function createPhaseFacTree(): object {
-      return _create(
-        List(),
-        List(_this.world.reg.getHandlerPaths()).map(p => List(p.split(separator)))
-      );
+    // function createPhaseFacTree(): object {
+    //   return _create(
+    //     List(),
+    //     List(_this.world.reg.getHandlerPaths()).map(p => List(p.split(separator)))
+    //   );
 
-      function _create(route: List<string>, paths: List<List<string>>): object {
-        const routePath = route.join(separator);
+    //   function _create(route: List<string>, paths: List<List<string>>): object {
+    //     const routePath = route.join(separator);
         
-        return Object.assign(
-          ((d:unknown) => d !== undefined ? [routePath, d] : [routePath]),
-          paths
-            .filter(p => !p.isEmpty())
-            .groupBy(p => p.first()!)
-            .map(ps => ps.map(p => p.skip(1)).toList())
-            .reduce((ac, ps, k) => ({
-                ...ac,
-                [k]: _create(route.concat([k]), ps)
-              }),
-              <{[k:string]:unknown}>{}
-            )
-        );
-      }
-    }
+    //     return Object.assign(
+    //       ((d:unknown) => d !== undefined ? [routePath, d] : [routePath]),
+    //       paths
+    //         .filter(p => !p.isEmpty())
+    //         .groupBy(p => p.first()!)
+    //         .map(ps => ps.map(p => p.skip(1)).toList())
+    //         .reduce((ac, ps, k) => ({
+    //             ...ac,
+    //             [k]: _create(route.concat([k]), ps)
+    //           }),
+    //           <{[k:string]:unknown}>{}
+    //         )
+    //     );
+    //   }
+    // }
   }
 }
 

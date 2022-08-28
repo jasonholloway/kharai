@@ -1,4 +1,4 @@
-import { List } from "immutable";
+import { List, Set } from "immutable";
 import { Observable } from "rxjs/internal/Observable";
 import { isArray } from "util";
 import { Any, Guard, Many, Never, Num, Str, And, Read } from "../guards/Guard";
@@ -6,7 +6,7 @@ import { Id } from "../lib";
 import { AttendedFn, Attendee, ConvenedFn, Convener, Peer } from "../MachineSpace";
 import { Handler, $data, $Data, $Fac, $Root, $root } from "../shapeShared";
 import { Timer } from "../Timer";
-import { DeepMerge, DeepSimplify, delay, Merge, Simplify } from "../util";
+import { DeepMerge, DeepSimplify, delay, isString, Merge, Simplify } from "../util";
 import { BuiltWorld } from "./BuiltWorld";
 import { act, ctx, Data, FacContext, FacPath, formPath, Impls, PathFac, SchemaNode } from "./common";
 import { Registry } from "./Registry";
@@ -212,20 +212,68 @@ export class Builder<N extends Nodes> {
   }
 
   impl<S extends Impls<N,AndNext>>(s: S): Builder<N> {
-    const reg2 = _walk(s, [], this.reg);
+    const reg = Registry.merge(this.reg, _walk(s));
+
+    const fullAnd = _buildAnd(reg);
+    const reg2 = reg.mapHandlers(h => (x:object, d:unknown) => {
+      return h({ ...x, and: fullAnd }, d); //and should be merged here
+    });
+    
     return new Builder<N>(reg2);
 
-    function _walk(n: unknown, pl: string[], r: Registry): Registry {
-      switch(typeof n) {
-        case 'function':
-          return r.addHandler(formPath(pl), <Handler>n);
 
-        case 'object':
-          return Object.getOwnPropertyNames(n)
-              .reduce((ac, pn) => _walk((<any>n)[pn], [...pl, pn], ac), r);
+    function _walk(n:object): Registry {
+      return Object
+        .getOwnPropertyNames(n)
+        .reduce(
+          (r, pn) => {
+            const prop = (<{[k:string]:unknown}>n)[pn];
+            switch(typeof prop) {
+              case 'function':
+                return r.addHandler(pn, (x:object, d:unknown) => {
+                  return (<Handler>prop)(x, d);
+                });
 
-        default:
-          throw Error('strange item encountered');
+              case 'object':
+                if(prop) {
+                  const r2 = _walk(prop);
+
+                  const and = _buildAnd(r2);
+                  //relative ands here
+                  //reg.mapHandlers needed
+                  
+                  return Registry.merge(r, r2.mapPaths(p => `${pn}${separator}${p}`));
+                }
+            }
+
+            return r;
+          },
+          Registry.empty
+        );
+    }
+
+    function _buildAnd(r:Registry): object {
+      return _create(
+        List(),
+        List(r.getHandlerPaths()).map(p => List(p.split(separator)))
+      );
+
+      function _create(route: List<string>, paths: List<List<string>>): object {
+        const routePath = route.join(separator);
+        
+        return Object.assign(
+          ((d:unknown) => d !== undefined ? [routePath, d] : [routePath]),
+          paths
+            .filter(p => !p.isEmpty())
+            .groupBy(p => p.first()!)
+            .map(ps => ps.map(p => p.skip(1)).toList())
+            .reduce((ac, ps, k) => ({
+                ...ac,
+                [k]: _create(route.concat([k]), ps)
+              }),
+              <{[k:string]:unknown}>{}
+            )
+        );
       }
     }
   }
@@ -278,7 +326,23 @@ export class Builder<N extends Nodes> {
   }
 
   atPath<P extends string>(prefix:P): Builder.AtPath<P, N> {
-    return new Builder(this.reg.mapPaths(p => `${prefix}${separator}${p}`));
+    return new Builder(
+      this.reg
+        .mapPaths(p => `${prefix}${separator}${p}`)
+        .mapHandlers(h => async (x:unknown,d:unknown) => {
+          const next = await h(x, d);
+
+          if(next
+            && isArray(next)
+            && isString(next[0])
+            && !builtInPaths.contains(next[0])) {
+
+            next[0] = `${prefix}${separator}${next[0]}`;
+          }
+          
+          return next;
+        })
+    );
   }
 }
 
@@ -440,6 +504,8 @@ reg = reg
       }
     });
   });
+
+export const builtInPaths = Set(reg.getHandlerPaths());
 
 
 export const World = new Builder<{}>(reg);
