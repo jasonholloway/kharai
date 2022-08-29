@@ -1,0 +1,66 @@
+
+some preliminary wibbling about scraping
+
+scrapable sources such as the AO website
+should be wrapped in some kind of standardised API
+by this means the difference engine can proceed generically
+
+alternatively, we can continue to scrape when we have info,
+that is, to push pellets of info into the system
+(of course these should be generically expressable)
+
+fundamentally we have sets of objects, with indices of these objects
+but if these indices are updated only via push
+then we have to design them up front
+
+we want both
+
+----------
+
+* Sets
+
+To know what's changed in a set, we must have the entire set each time
+
+If the set is ordered, this isn't true, and we can update step by step
+
+I don't think in general we can rely on ordering
+at the same time sets might be very large - even if we download all pages sequentially,
+there may be inconsistencies introduced by the inevitable gaps between fetches
+
+ordering would improve things, at any time we could ask for a certain range
+and notice what had changed
+another optimisation would be just sampling inclusion in the set
+rather than full details of the items
+which could be sought after
+
+in sets, items appear and disappear
+and once an item has appeared, its properties are stated
+on the stating and removing of every property, indices can be updated
+
+but props appear under categories
+or fields
+
+that then need to be mapped to be standardised
+every source has its owns categories
+the mapping of these will need manual intervension
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

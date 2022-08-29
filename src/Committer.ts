@@ -15,6 +15,17 @@ export default class Committer<V> {
     this.inner = new Inner(mv, Set([this]));
   }
 
+  //if we were to add blobs
+  //they would be added to the head as they were pulled in
+  //wouldn't they be machines then???
+  //items of binary data would be given
+  //simple default behaviour
+  //the store would detect the binary data
+  //and return ['blob', Buffer]
+  //which would always be receptive to reads and writes
+  //in a single-threaded fashion
+  //the store would also compress on final save
+
   add(rs: List<AtomRef<V>>) {
     this.head.addUpstreams(rs.toSet());
   }
