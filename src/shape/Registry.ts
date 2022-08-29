@@ -56,10 +56,10 @@ export class Registry {
     );
   }
 
-  mapHandlers(fn: ((orig:Handler)=>Handler)): Registry {
+  mapHandlers(fn: ((orig:Handler,n:Node)=>Handler)): Registry {
     return new Registry(
       this.nodes
-        .map(n => n.mapHandler(fn))
+        .map(n => n.mapHandler(h => fn(h, n)))
     );
   }
 

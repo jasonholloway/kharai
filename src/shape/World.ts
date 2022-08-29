@@ -198,7 +198,6 @@ interface AndNext {
 }
 
 
-
 export class Builder<N extends Nodes> {
   public readonly nodes: N = <N><unknown>{}
   readonly reg: Registry
@@ -211,20 +210,13 @@ export class Builder<N extends Nodes> {
     return <Builder.TryMerge<N,N2>><unknown>new Builder(Registry.merge(this.reg, other.reg));
   }
 
-
-
   impl<S extends Impls<N,AndNext>>(s: S): Builder<N> {
+    const blockPaths = Set(this.reg.getHandlerPaths());
+
     const reg = Registry.merge(this.reg, _walk(s));
 
-    //instead of building the and here
-    //path mappings per node instead eh
+    return new Builder<N>(reg);
 
-    const fullAnd = _buildAnd(reg);
-    const reg2 = reg.mapHandlers(h => (x:object, d:unknown) => {
-      return h({ ...x, and: fullAnd }, d); //and should be merged here
-    });
-    
-    return new Builder<N>(reg2);
 
     function _walk(n:object): Registry {
       return Object
@@ -234,17 +226,20 @@ export class Builder<N extends Nodes> {
             const prop = (<{[k:string]:unknown}>n)[pn];
             switch(typeof prop) {
               case 'function':
-                return r.addHandler(pn, (x:object, d:unknown) => {
-                  return (<Handler>prop)(x, d);
-                });
+                return r
+                  .prependAvailPaths(pn, blockPaths)
+                  .addHandler(pn, (x:object, d:unknown) => {
+                    return (<Handler>prop)(x, d);
+                  });
 
               case 'object':
                 if(prop) {
                   const r2 = _walk(prop);
 
+                  //TODO
                   //add relative availPaths here
                   //need some kind of weighting too
-                  //(really, shouldn't be uniquely-keyed map, but ordered list of tuples)
+                  //but: needs to be reflected in types _first_
                   
                   return Registry.merge(r, r2.mapPaths(p => `${pn}${separator}${p}`));
                 }
@@ -256,6 +251,34 @@ export class Builder<N extends Nodes> {
         );
     }
 
+  }
+
+  paths(): FacPath<N> {
+    throw 'err';
+  }
+
+  ctxImpl<P extends FacPath<N>, X extends Partial<PathFac<N,P>>>(path: P, fn: (x: FacContext<N,P>)=>X) : Builder.MergeFacImpl<N,P,X> {
+    return <Builder.MergeFacImpl<N,P,X>>new Builder(this.reg.addFac(path, fn));
+  }
+
+  build(): Builder.TryBuild<N&BuiltIns> {
+    const reg1 = Registry.merge(this.reg, builtIns());
+
+    //TODO
+    //gather GLOBAL paths here
+
+    const reg2 = reg1
+      .mapHandlers((h, n) => {
+        //build node-specific and here
+        //from combo of global paths prepended before node.availPaths
+        const and = _buildAnd(reg1);
+
+        return (x:object, d:unknown) => h({ ...x, and }, d);
+      });
+
+    return <Builder.TryBuild<N&BuiltIns>><unknown>new BuiltWorld(reg2);
+
+    
     function _buildAnd(r:Registry): object {
       return _create(
         List(),
@@ -282,21 +305,8 @@ export class Builder<N extends Nodes> {
     }
   }
 
-  paths(): FacPath<N> {
-    throw 'err';
-  }
-
-  ctxImpl<P extends FacPath<N>, X extends Partial<PathFac<N,P>>>(path: P, fn: (x: FacContext<N,P>)=>X) : Builder.MergeFacImpl<N,P,X> {
-    return <Builder.MergeFacImpl<N,P,X>>new Builder(this.reg.addFac(path, fn));
-  }
-
-  build(): Builder.TryBuild<N&BuiltIns> {
-    const reg = Registry.merge(this.reg, builtIns());
-    return <Builder.TryBuild<N&BuiltIns>><unknown>new BuiltWorld(reg);
-  }
-
   shape<S extends SchemaNode>(s: S): Builder.TryMerge<N, Shape<S>> {
-    let reg = _walk(this.reg, [], s);
+    const reg = _walk(this.reg, [], s);
     return <Builder.TryMerge<N,Shape<S>>>new Builder<Shape<S>>(reg);
 
     function _walk(reg: Registry, pl: string[], n: SchemaNode): Registry {
