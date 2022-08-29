@@ -4,7 +4,7 @@ import { isArray } from "util";
 import { Any, Guard, Many, Never, Num, Str, And, Read } from "../guards/Guard";
 import { Id } from "../lib";
 import { AttendedFn, Attendee, ConvenedFn, Convener, Peer } from "../MachineSpace";
-import { Handler, $data, $Data, $Fac, $Root, $root, $Incl } from "../shapeShared";
+import { Handler, $data, $Data, $Fac, $Root, $root, $Incl, $incl } from "../shapeShared";
 import { Timer } from "../Timer";
 import { DeepMerge, DeepSimplify, delay, IsAny, IsNever, isString, Merge, Simplify } from "../util";
 import { BuiltWorld } from "./BuiltWorld";
@@ -216,13 +216,15 @@ export class Builder<N extends Nodes> {
   impl<S extends Impls<N,AndNext>>(s: S): Builder<N> {
     const reg = Registry.merge(this.reg, _walk(s));
 
+    //instead of building the and here
+    //path mappings per node instead eh
+
     const fullAnd = _buildAnd(reg);
     const reg2 = reg.mapHandlers(h => (x:object, d:unknown) => {
       return h({ ...x, and: fullAnd }, d); //and should be merged here
     });
     
     return new Builder<N>(reg2);
-
 
     function _walk(n:object): Registry {
       return Object
@@ -240,9 +242,9 @@ export class Builder<N extends Nodes> {
                 if(prop) {
                   const r2 = _walk(prop);
 
-                  const and = _buildAnd(r2);
-                  //relative ands here
-                  //reg.mapHandlers needed
+                  //add relative availPaths here
+                  //need some kind of weighting too
+                  //(really, shouldn't be uniquely-keyed map, but ordered list of tuples)
                   
                   return Registry.merge(r, r2.mapPaths(p => `${pn}${separator}${p}`));
                 }
@@ -288,39 +290,54 @@ export class Builder<N extends Nodes> {
     return <Builder.MergeFacImpl<N,P,X>>new Builder(this.reg.addFac(path, fn));
   }
 
-  //we don't need no special symbols or owt
-  //as long as we can only access Phase via helpers
-  //so the exact type returned by the helpers has to be generic parameter
-  //unique to that impl block
-  //so we can't mix and match by strange means
-
   build(): Builder.TryBuild<N&BuiltIns> {
-    return <Builder.TryBuild<N&BuiltIns>><unknown>new BuiltWorld(this.reg);
+    const reg = Registry.merge(this.reg, builtIns());
+    return <Builder.TryBuild<N&BuiltIns>><unknown>new BuiltWorld(reg);
   }
 
   shape<S extends SchemaNode>(s: S): Builder.TryMerge<N, Shape<S>> {
-    let reg = _walk([], s)
-      .reduce(
-        (ac, [p, g]) => ac.addGuard(p, g),
-        this.reg
-      );
-
+    let reg = _walk(this.reg, [], s);
     return <Builder.TryMerge<N,Shape<S>>>new Builder<Shape<S>>(reg);
 
-    //TODO inject CoreCtx into reg
-
-    function _walk(pl: string[], n: SchemaNode) : List<readonly [string, unknown]> {
-      if((<any>n)[$data]) {
-        const data = <unknown>(<any>n)[$data];
-        return List([[pl.join(separator), data] as const]);
-      }
-
+    function _walk(reg: Registry, pl: string[], n: SchemaNode): Registry {
       if(typeof n === 'object') {
-        return List(Object.getOwnPropertyNames(n))
-          .flatMap(pn => {
-            const child = (<any>n)[pn];
-            return _walk([...pl, pn], child)
-          });
+
+        if((<any>n)[$data]) {
+          const data = <unknown>(<any>n)[$data];
+          return reg.addGuard(pl.join(separator), data);
+        }
+
+        if((<any>n)[$incl]) {
+          const incl = <Builder<Nodes>>(<any>n)[$incl];
+          const ownedPaths = Set(incl.reg.getHandlerPaths());
+
+          console.debug(...ownedPaths);
+          
+          const reg2 = incl.reg
+            .mapPaths(p => [...pl, p].join(separator))
+            .mapHandlers(h => async (x:unknown, d:unknown) => {
+              const r = await h(x, d);
+
+              //the only other approach here
+              //would be to magically update the helpers
+              //but they've been absorbed into the intractalbe layers of the computation already
+              //this after-the-fact bodging gets us somewhere
+
+              if(isArray(r) && isString(r[0]) && ownedPaths.contains(r[0])) {
+                r[0] = [...pl, r[0]].join(separator);
+              }
+              
+              return r;
+            });
+          
+          return Registry.merge(reg, reg2);
+        }
+
+        return Object.getOwnPropertyNames(n)
+          .reduce(
+            (r, pn) => _walk(r, [...pl, pn], (<any>n)[pn]),
+            reg
+          );
       }
 
       throw 'strange node encountered';
@@ -328,6 +345,7 @@ export class Builder<N extends Nodes> {
   }
 
   as<P extends string>(prefix:P): Builder.AtPath<P, N> {
+    const ownedPaths = Set(this.reg.getHandlerPaths());
     return new Builder(
       this.reg
         .mapPaths(p => `${prefix}${separator}${p}`)
@@ -337,8 +355,7 @@ export class Builder<N extends Nodes> {
           if(next
             && isArray(next)
             && isString(next[0])
-            && !builtInPaths.contains(next[0])) {
-
+            && ownedPaths.contains(next[0])) {
             next[0] = `${prefix}${separator}${next[0]}`;
           }
           
@@ -377,140 +394,146 @@ export type BuiltIns = {
   D_$m_mediate: [typeof Num, typeof Str, typeof Str[], typeof Str[]] //[version, key, ids, remnants]
 };
 
-let reg = Registry.empty;
 
-reg = reg
-  .addFac('', x => x);
+function builtIns() {
+  let reg = Registry.empty;
 
-reg = reg
-  .addGuard('boot', Any)
-  .addHandler('boot', async (x: CoreCtx) => {
-    while(true) {
-      const answer = await x.attend({
-        attended(m) {
-          return [m];
+  reg = reg
+    .addFac('', x => x);
+
+  reg = reg
+    .addGuard('boot', Any)
+    .addHandler('boot', async (x: CoreCtx) => {
+      while(true) {
+        const answer = await x.attend({
+          attended(m) {
+            return [m];
+          }
+        });
+
+        if(answer) {
+          return answer[0];
+        }
+        else {
+          await delay(30); //when we release properly, this can be removed (cryptic note!)
+        }
+      }
+    });
+
+  reg = reg
+    .addGuard('end', Any)
+    .addHandler('end', async () => {
+      return false;
+    });
+
+  reg = reg
+    .addGuard('wait', [Num, $root])
+    .addHandler('wait', (x: CoreCtx, [when, nextPhase]: [number|string, unknown]) => {
+      return x.timer.schedule(new Date(when), () => nextPhase);
+    });
+
+
+
+  const isPeerMessage = Guard('hi');
+  const isMediatorMessage = Guard(['yo', Str, Any] as const);
+
+  reg = reg
+    .addGuard('$meetAt', [Str, $root])
+    .addHandler('$meetAt', (x: CoreCtx, [spotId, hold]: [Id, [string,unknown?]]) => {
+      return x.convene([spotId], {
+        convened([spot]) {
+          const resp = spot.chat('hi');
+          if(!resp) throw `Meeting rejected by mediator ${spotId}: message:?`;
+
+          const [m] = resp;
+          if(!isMediatorMessage(m)) return;
+
+          const [,key] = m;
+
+          //emplace key as last arg
+          const [h0, h1] = hold;
+          if(!isArray(h1)) throw 'Bad callback';
+
+          h1[h1.length-1] = key;
+          return [h0, h1];
+        }
+      });
+    });
+
+  reg = reg
+    .addGuard('$m_place', Never)
+    .addHandler('$m_place', async (x: CoreCtx) => {
+      return ['$m_gather', [0, []]]
+    });
+
+  reg = reg
+    .addGuard('$m_gather', [Num, Many(Str)])
+    .addHandler('$m_gather', async (x: CoreCtx, [v, ids]: [number, Id[]]) => {
+      const result = await x.attend({
+        attended(m, mid) {
+          if(isPeerMessage(m)) {
+            ids = [...ids, mid];
+
+            const k = `K${v}`;
+
+            const quorum = 2;
+            if(ids.length >= quorum) {
+              return [
+                ['$m_mediate', [v, k, ids, []]],//remnant always empty currently
+                ['yo', k]
+              ]; 
+            }
+            else {
+              return [
+                ['$m_gather', [v, ids]],
+                ['yo', k]
+              ];
+            }
+          }
+
+          return [['$m_gather', [v, ids]]];
         }
       });
 
-      if(answer) {
-        return answer[0];
-      }
-      else {
-        await delay(30); //when we release properly, this can be removed (cryptic note!)
-      }
-    }
-  });
-
-reg = reg
-  .addGuard('end', Any)
-  .addHandler('end', async () => {
-    return false;
-  });
-
-reg = reg
-  .addGuard('wait', [Num, $root])
-  .addHandler('wait', (x: CoreCtx, [when, nextPhase]: [number|string, unknown]) => {
-    return x.timer.schedule(new Date(when), () => nextPhase);
-  });
-
-
-
-const isPeerMessage = Guard('hi');
-const isMediatorMessage = Guard(['yo', Str, Any] as const);
-
-reg = reg
-  .addGuard('$meetAt', [Str, $root])
-  .addHandler('$meetAt', (x: CoreCtx, [spotId, hold]: [Id, [string,unknown?]]) => {
-    return x.convene([spotId], {
-      convened([spot]) {
-        const resp = spot.chat('hi');
-        if(!resp) throw `Meeting rejected by mediator ${spotId}: message:?`;
-
-        const [m] = resp;
-        if(!isMediatorMessage(m)) return;
-
-        const [,key] = m;
-
-        //emplace key as last arg
-        const [h0, h1] = hold;
-        if(!isArray(h1)) throw 'Bad callback';
-
-        h1[h1.length-1] = key;
-        return [h0, h1];
-      }
+      return isArray(result) ? result[0] : false;
     });
-  });
 
-reg = reg
-  .addGuard('$m_place', Never)
-  .addHandler('$m_place', async (x: CoreCtx) => {
-    return ['$m_gather', [0, []]]
-  });
+  reg = reg
+    .addGuard('$m_mediate', [Num,Str,Many(Str),Many(Str)])
+    .addHandler('$m_mediate', (x: CoreCtx, [v,k,ids,remnants]: [number,string,Id[],Id[]]) => {
+      return x.convene(ids, {
+        convened(peers) {
+          const answers: { [id:Id]:unknown } = {};
 
-reg = reg
-  .addGuard('$m_gather', [Num, Many(Str)])
-  .addHandler('$m_gather', async (x: CoreCtx, [v, ids]: [number, Id[]]) => {
-    const result = await x.attend({
-      attended(m, mid) {
-        if(isPeerMessage(m)) {
-          ids = [...ids, mid];
+          for(const p of peers) {
+            const r = p.chat([k, 'contribute'])
+            if(!r) return fin({kickOut:[p]});
 
-          const k = `K${v}`;
-
-          const quorum = 2;
-          if(ids.length >= quorum) {
-            return [
-              ['$m_mediate', [v, k, ids, []]],//remnant always empty currently
-              ['yo', k]
-            ]; 
+            answers[p.id] = r[0];
           }
-          else {
-            return [
-              ['$m_gather', [v, ids]],
-              ['yo', k]
-            ];
+
+          for(const p of peers) {
+            p.chat([k, 'fin', answers]);
+          }
+
+          return fin({kickOut:[...peers]});
+
+
+          function fin(p:{kickOut:Peer[]}) {
+            return ['$m_gather', [v+1, [remnants, ...peers.subtract(p.kickOut)]]] as const;
           }
         }
-
-        return [['$m_gather', [v, ids]]];
-      }
+      });
     });
 
-    return isArray(result) ? result[0] : false;
-  });
-
-reg = reg
-  .addGuard('$m_mediate', [Num,Str,Many(Str),Many(Str)])
-  .addHandler('$m_mediate', (x: CoreCtx, [v,k,ids,remnants]: [number,string,Id[],Id[]]) => {
-    return x.convene(ids, {
-      convened(peers) {
-        const answers: { [id:Id]:unknown } = {};
-
-        for(const p of peers) {
-          const r = p.chat([k, 'contribute'])
-          if(!r) return fin({kickOut:[p]});
-
-          answers[p.id] = r[0];
-        }
-
-        for(const p of peers) {
-          p.chat([k, 'fin', answers]);
-        }
-
-        return fin({kickOut:[...peers]});
+  return reg;
+}
 
 
-        function fin(p:{kickOut:Peer[]}) {
-          return ['$m_gather', [v+1, [remnants, ...peers.subtract(p.kickOut)]]] as const;
-        }
-      }
-    });
-  });
-
-export const builtInPaths = Set(reg.getHandlerPaths());
+// export const builtInPaths = Set(reg.getHandlerPaths());
 
 
-export const World = new Builder<{}>(reg);
+export const World = new Builder<{}>(Registry.empty)
 
 
 

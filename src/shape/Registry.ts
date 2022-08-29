@@ -1,87 +1,133 @@
-import { List, Map, Seq } from 'immutable'
+import { List, Map, Set } from 'immutable'
 import { Fac, Handler } from '../shapeShared';
 
 export class Registry {
-  private guards: Map<string, unknown> = Map();
-  private handlers: Map<string, Handler> = Map();
-  private facs: Map<string, Fac[]> = Map();
+  private nodes: Map<string, Node> = Map();
 
-  private constructor(guards: Map<string, unknown>, handlers: Map<string, Handler>, facs: Map<string, Fac[]>) {
-    this.guards = guards;
-    this.handlers = handlers;
-    this.facs = facs;
+  private constructor(nodes: Map<string, Node>) {
+    this.nodes = nodes;
   }
 
-  static empty = new Registry(Map(), Map(), Map());
-  private static $notFound = Symbol('notFound');
+  static empty = new Registry(Map());
 
   addGuard(p: string, guard: unknown): Registry {
-    return new Registry(
-      this.guards.set(p, guard),
-      this.handlers,
-      this.facs
-    );
+    return this.mapNode(p, n => n.setGuard(guard));
   }
 
-  getGuard(p: string): [unknown] | undefined {
-    const result = this.guards.get(p, Registry.$notFound);
-    return result !== Registry.$notFound
-      ? [result] : undefined;
+  getGuard(p: string): [unknown]|undefined {
+    return this.getFromNode(p, n => n.guard);
   }
 
   addHandler(p: string, h: Handler): Registry {
-    return new Registry(
-      this.guards,
-      this.handlers.set(p, h),
-      this.facs
-    );
+    return this.mapNode(p, n => n.setHandler(h));
   }
 
-  getHandler(p: string): Handler | undefined {
-    return this.handlers.get(p);
+  prependAvailPaths(p: string, availPaths: Set<string>) {
+    return this.mapNode(p, n => n.prependAvailPaths(availPaths.map(ap => <[string, string]>[ap,ap]).toList()));
+  }
+
+  appendAvailPaths(p: string, availPaths: Set<string>) {
+    return this.mapNode(p, n => n.appendAvailPaths(availPaths.map(ap => <[string, string]>[ap,ap]).toList()));
+  }
+
+  getHandler(p: string): Handler|undefined {
+    return this.getFromNode(p, n => n.handler);
   }
 
   addFac(p: string, fac: Fac): Registry {
-    return new Registry(
-      this.guards,
-      this.handlers,
-      this.facs.mergeDeep({ [p]: [fac] })
-   );
+    return this.mapNode(p, n => n.addFacs(fac));
   } 
 
   getFacs(p: string): List<Fac> {
-    return List(this.facs.get(p, []));
+    return this.getFromNode(p, n => List(n.facs)) ?? List();
   } 
 
   getHandlerPaths() {
-    return this.handlers.keys();
+    return this.nodes.entrySeq()
+      .flatMap(([k,n]) => n.handler ? [k] : [])
+      .toArray();
   }
 
   mapPaths(fn: ((orig:string)=>string)): Registry {
     return new Registry(
-      this.guards.mapKeys(fn),
-      this.handlers.mapKeys(fn),
-      this.facs.mapKeys(fn)
+      this.nodes
+        .mapKeys(fn)
+        .map(n => n.mapAvailPaths(fn))
     );
   }
 
   mapHandlers(fn: ((orig:Handler)=>Handler)): Registry {
     return new Registry(
-      this.guards,
-      this.handlers.map(fn),
-      this.facs,
+      this.nodes
+        .map(n => n.mapHandler(fn))
     );
   }
 
-  dump() {
-    console.debug([...this.handlers.keys()]);
+  private mapNode(p:string, fn: (n:Node)=>Node): Registry {
+    const n0 = this.nodes.get(p, false) || Node.empty;
+    const n1 = fn(n0);
+    return new Registry(this.nodes.set(p, n1));
+  }
+
+  private getFromNode<T>(p:string, fn:(n:Node)=>T): T|undefined {
+    const n = this.nodes.get(p, false);
+    return n ? fn(n) : undefined;
   }
 
   static merge(a: Registry, b: Registry) {
-    return new Registry(
-      a.guards.merge(b.guards),
-      a.handlers.merge(b.handlers),
-      a.facs.mergeDeep(b.facs)
+    return new Registry(a.nodes.mergeWith(Node.merge, b.nodes));
+  }
+}
+
+class Node {
+  guard?: [unknown] = undefined;
+  handler?: Handler = undefined;
+  facs: Fac[] = [];
+  availPaths: List<[string,string]> = List();
+
+  constructor(guard:[unknown]|undefined, handler:Handler|undefined, facs:Fac[], paths:List<[string,string]>) {
+    this.guard = guard;
+    this.handler = handler;
+    this.facs = facs;
+    this.availPaths = paths;
+  }
+
+  static empty = new Node(undefined, undefined, [], List());
+
+  setGuard(g:unknown) {
+    return new Node([g], this.handler, this.facs, this.availPaths);
+  }
+
+  setHandler(h:Handler) {
+    return new Node(this.guard, h, this.facs, this.availPaths);
+  }
+
+  addFacs(...fs:Fac[]) {
+    return new Node(this.guard, this.handler, [...this.facs,...fs], this.availPaths);
+  }
+
+  prependAvailPaths(aps: List<[string,string]>) {
+    return new Node(this.guard, this.handler, this.facs, aps.concat(this.availPaths));
+  }
+
+  appendAvailPaths(aps: List<[string,string]>) {
+    return new Node(this.guard, this.handler, this.facs, this.availPaths.concat(aps));
+  }
+
+  mapAvailPaths(fn: (p:string)=>string) {
+    return new Node(this.guard, this.handler, this.facs, this.availPaths.map(([a,z]) => [a, fn(z)]));
+  }
+
+  mapHandler(fn: (h:Handler)=>Handler) {
+    return new Node(this.guard, this.handler ? fn(this.handler) : undefined, this.facs, this.availPaths);
+  }
+
+  static merge(a:Node, b:Node) {
+    return new Node(
+      b.guard ?? a.guard,
+      b.handler ?? a.handler,
+      [...a.facs, ...b.facs],
+      a.availPaths.merge(b.availPaths)
     );
   }
 }

@@ -46,16 +46,34 @@ the mapping of these will need manual intervension
 
 
 
-
-
-
-
-
-
-
-
-
 * Templates 
+
+
+* Ands
+the and helper is built from three layers:
+- relative paths from local handler
+- current globals from impl block
+- global paths known about at build time, including root and builtins
+
+problem currently is that we don't know the relative paths at the build stage
+as it's all been pre-emptively flattened (for efficieny gains)
+
+knownPaths could be kept tabs on per node
+these would be assembled per handler
+and would be mapped across translations
+
+but these would have to be added to after every impl block as well,
+to capture intermediate 'globals'
+
+the knownPaths would be mappings from local routes to full routes
+each time we translate, the 'full' routes will be prepended
+
+these knownPaths would ultimately include hyperlocal relatives also
+and these would have to take precedence over globals of various stages
+so the mappings will have weight also
+
+
+
 
 
 
