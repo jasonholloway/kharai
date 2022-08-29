@@ -20,16 +20,60 @@ const animal = (says:string) =>
       }
     });
 
+
+const Template = {
+  shape<S>(s:S) {
+    return Template;
+  },
+
+  args() {
+    return Template;
+  },
+
+  impl<I>(i:I) {
+    return Template;
+  }
+};
+
+
+const vegetable = (tastes:string) =>
+  Template
+    .shape({
+      sits: act()
+    })
+    .param({
+      
+    })
+    .impl({
+      async sits({and}) {
+        return and.end(tastes);
+      }
+    });
+
 const world = World
   .with(animal('oink').as('pig'))
   .with(animal('woof').as('dog'))
   .shape({
     speakToAnimals: act(),
+
+    turnip: tmpl(vegetable('turnipy'))
+
+    //the above is great, except...
+    //how do we tell animal what to bind to?
+    //it needs to make an appearance in the impl section also
+
+    //the shape of a template is to be included up top
+    //but its implementation must be parameterised in impl
+    
   })
   .impl({
     async speakToAnimals({and}) {
       return and.pig.hello();
+    },
+
+    turnip: {
     }
+
   });
 
 describe('worlds', () => {
