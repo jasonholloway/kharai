@@ -15,6 +15,9 @@ export type $Handler = typeof $handler;
 export const $fac = Symbol('fac')
 export type $Fac = typeof $fac;
 
+export const $incl = Symbol('incl')
+export type $Incl = typeof $incl;
+
 
 export type Handler = (x: any, d: any) => Promise<unknown>;
 export type Fac = (x:any) => unknown;

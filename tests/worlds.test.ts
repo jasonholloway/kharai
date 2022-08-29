@@ -1,5 +1,5 @@
 import _Monoid from '../src/_Monoid'
-import { act } from '../src/shape/common';
+import { act, incl } from '../src/shape/common';
 import { World } from '../src/shape/World';
 import { createRunner } from './shared'
 import { Str } from '../src/guards/Guard'
@@ -7,74 +7,34 @@ import { Str } from '../src/guards/Guard'
 const animal = (says:string) =>
   World
     .shape({
-      hello: act(),
-      walk: act(Str)
+      hello: act(Str),
+      responds: act()
     })
     .impl({
-      async hello({and}) {
-        return and.walk(says);
+      async hello({and}, d) {
+        return and.responds();
       },
 
-      async walk({and}, d) {
-        return and.end(d);
+      async responds({and}) {
+        return and.end(says);
       }
     });
 
 
-const Template = {
-  shape<S>(s:S) {
-    return Template;
-  },
-
-  args() {
-    return Template;
-  },
-
-  impl<I>(i:I) {
-    return Template;
-  }
-};
-
-
-const vegetable = (tastes:string) =>
-  Template
+const world =
+  World
     .shape({
-      sits: act()
-    })
-    .param({
-      
+      pig: incl(animal('oink')),
+      dog: incl(animal('woof')),
+
+      speakToAnimals: act(Str),
     })
     .impl({
-      async sits({and}) {
-        return and.end(tastes);
+      async speakToAnimals({and}, greeting) {
+        return and.pig.hello(greeting);
       }
     });
 
-const world = World
-  .with(animal('oink').as('pig'))
-  .with(animal('woof').as('dog'))
-  .shape({
-    speakToAnimals: act(),
-
-    turnip: tmpl(vegetable('turnipy'))
-
-    //the above is great, except...
-    //how do we tell animal what to bind to?
-    //it needs to make an appearance in the impl section also
-
-    //the shape of a template is to be included up top
-    //but its implementation must be parameterised in impl
-    
-  })
-  .impl({
-    async speakToAnimals({and}) {
-      return and.pig.hello();
-    },
-
-    turnip: {
-    }
-
-  });
 
 describe('worlds', () => {
 
@@ -83,14 +43,14 @@ describe('worlds', () => {
     
     const [logs] = await Promise.all([
       x.allLogs(),
-      x.run.boot('bob', ['speakToAnimals'])
+      x.run.boot('bob', ['speakToAnimals', 'hullo!'])
     ]);
 
     expect(logs).toEqual([
       ['bob', ['boot']],
-      ['bob', ['speakToAnimals']],
-      ['bob', ['pig_hello']],
-      ['bob', ['pig_walk', 'oink']],
+      ['bob', ['speakToAnimals', 'hullo!']],
+      ['bob', ['pig_hello', 'hullo!']],
+      ['bob', ['pig_responds']],
       ['bob', ['end', 'oink']],
     ]);
   })

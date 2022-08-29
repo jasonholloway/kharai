@@ -1,6 +1,6 @@
 import { FacNode } from "../facs";
 import { Any, Read } from "../guards/Guard";
-import { Handler, $Root, Fac, $data, $space, $handler, $fac, $Fac } from "../shapeShared";
+import { Handler, $Root, Fac, $data, $space, $handler, $fac, $Fac, $incl, $Incl } from "../shapeShared";
 import { Merge, Simplify } from "../util";
 import { BuiltIns, CoreCtx, PhaseHelper } from "./World";
 
@@ -389,4 +389,8 @@ export function space<S extends { [k in keyof S]: SchemaNode }>(s: S): SpaceNode
 
 export function ctx<T>(): { [k in $Fac]: T } {
   return { [$fac]: <T><unknown>'FAC' };
+}
+
+export function incl<W>(w: W): { [k in $Incl]: W } {
+  return { [$incl]: w };
 }

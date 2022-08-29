@@ -4,11 +4,11 @@ import { isArray } from "util";
 import { Any, Guard, Many, Never, Num, Str, And, Read } from "../guards/Guard";
 import { Id } from "../lib";
 import { AttendedFn, Attendee, ConvenedFn, Convener, Peer } from "../MachineSpace";
-import { Handler, $data, $Data, $Fac, $Root, $root } from "../shapeShared";
+import { Handler, $data, $Data, $Fac, $Root, $root, $Incl } from "../shapeShared";
 import { Timer } from "../Timer";
 import { DeepMerge, DeepSimplify, delay, IsAny, IsNever, isString, Merge, Simplify } from "../util";
 import { BuiltWorld } from "./BuiltWorld";
-import { act, ctx, Data, FacContext, FacPath, formPath, Impls, PathFac, SchemaNode } from "./common";
+import { act, ctx, Data, FacContext, FacPath, formPath, Impls, incl, PathFac, SchemaNode } from "./common";
 import { Registry } from "./Registry";
 
 export const separator = '_'
@@ -576,6 +576,7 @@ type _Walk<O, P extends string = ''> =
     (
       _DataWalk<O, P>
     | _FacWalk<O, P>
+    | _InclWalk<O, P>
     | _SpaceWalk<O, P>
     )
   : never : never
@@ -584,22 +585,40 @@ type _Walk<O, P extends string = ''> =
 type _DataWalk<O, P extends string> =
   $Data extends keyof O ?
   O[$Data] extends infer D ?
-  [`D${P}`, D]
+  [_JoinPaths<'D', P>, D]
   : never : never
 ;
 
 type _FacWalk<O, P extends string> =
   $Fac extends keyof O ?
   O[$Fac] extends infer F ?
-  [`XA${P}`, F]
+  [_JoinPaths<'XA', P>, F]
   : never : never
+;
+
+type _InclWalk<O, P extends string> =
+  $Incl extends keyof O ?
+  O[$Incl] extends Builder<infer I> ?
+
+  //builder has already flattened to N map
+  //disassemble them so that we can reassemble after... gah (should flatten more readily into lingua franca)
+  keyof I extends infer IK ?
+  IK extends keyof I ?
+  [I[IK]] extends [infer IN] ?
+  
+  IK extends _JoinPaths<infer IKH, infer IKT> ?
+  [_JoinPaths<IKH, _JoinPaths<P, IKT>>] extends [infer IK2] ?
+  
+  [IK2, IN]
+  
+  : never : never : never : never : never : never : never
 ;
 
 type _SpaceWalk<O, P extends string = ''> =
   Except<keyof O, $Fac|$Data> extends infer K ?
     K extends string ?
     K extends keyof O ?
-    _Walk<O[K], `${P}${Separator}${K}`> extends infer Found ?
+  _Walk<O[K], _JoinPaths<P, K>> extends infer Found ?
     [Found] extends [any] ?
       Found
       // ([`S${P}`, true] | Found)
@@ -611,7 +630,7 @@ type _Assemble<T extends readonly [string, unknown]> =
 ;
 
 {
-  const s = {
+  const s1 = {
     hamster: {
       nibble: act(123 as const),
     },
@@ -621,15 +640,24 @@ type _Assemble<T extends readonly [string, unknown]> =
     }
   };
 
-  type A = _SpaceWalk<typeof s>
+  type A = _SpaceWalk<typeof s1>
   type B = _Assemble<A>
 
-  const x = World.shape(s);
-  x
+  type C = _SpaceWalk<typeof s2>
+  type D = _Assemble<C>
 
-  type C = 14 & unknown
+  const w1 = World.shape(s1);
 
-  type _ = [A,B,C]
+  const i2 = incl(w1);
+  const s2 = { pet: i2 };
+  const w2 = World.shape(s2);
+
+  type E = _InclWalk<typeof i2, 'pet'>
+
+  const x = World.shape(s1);
+
+  [s1,s2,w1,w2,x]
+  type _ = [A,B,C,D,E]
 }
 
 
