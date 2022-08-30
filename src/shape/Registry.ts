@@ -42,6 +42,12 @@ export class Registry {
     return this.getFromNode(p, n => List(n.facs)) ?? List();
   } 
 
+  getDataPaths() {
+    return this.nodes.entrySeq()
+      .flatMap(([k,n]) => n.guard ? [k] : [])
+      .toArray();
+  }
+
   getHandlerPaths() {
     return this.nodes.entrySeq()
       .flatMap(([k,n]) => n.handler ? [k] : [])
@@ -61,6 +67,16 @@ export class Registry {
       this.nodes
         .map(n => n.mapHandler(h => fn(h, n)))
     );
+  }
+
+  getAvailPaths(p: string) {
+    return this.getFromNode(p, n => n.availPaths);
+  }
+
+  dump(tag:string) {
+    for(const [k,n] of this.nodes.entries()) {
+      console.debug('dump', tag, k, n.availPaths.toArray())
+    }
   }
 
   private mapNode(p:string, fn: (n:Node)=>Node): Registry {

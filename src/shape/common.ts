@@ -2,7 +2,7 @@ import { FacNode } from "../facs";
 import { Any, Read } from "../guards/Guard";
 import { Handler, $Root, Fac, $data, $space, $handler, $fac, $Fac, $incl, $Incl } from "../shapeShared";
 import { Merge, Simplify } from "../util";
-import { BuiltIns, CoreCtx, PhaseHelper } from "./World";
+import { Builder, BuiltIns, CoreCtx, PhaseHelper } from "./World";
 
 export const separator = '_'
 export type Separator = typeof separator;
@@ -375,6 +375,7 @@ type IsNotNever<T> =
 
 export type SchemaNode = DataNode<unknown> | object
 export type DataNode<D> = { [$data]: D }
+export type InclNode = { [$incl]: Builder<Nodes> }
 export type SpaceNode<I> = { [$space]: I }
 export type HandlerNode = { [$handler]: Handler }
 export type ContextNode<X = unknown> = { [$fac]: FacNode<X> }
@@ -393,4 +394,12 @@ export function ctx<T>(): { [k in $Fac]: T } {
 
 export function incl<W>(w: W): { [k in $Incl]: W } {
   return { [$incl]: w };
+}
+
+export function isDataNode(v:unknown): v is DataNode<unknown> {
+  return !!(<any>v)[$data];
+}
+
+export function isInclNode(v:unknown): v is InclNode {
+  return !!(<any>v)[$incl];
 }

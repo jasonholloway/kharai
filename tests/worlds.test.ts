@@ -3,6 +3,7 @@ import { act, incl } from '../src/shape/common';
 import { World } from '../src/shape/World';
 import { createRunner } from './shared'
 import { Str } from '../src/guards/Guard'
+import { inspect } from 'util'
 
 const animal = (says:string) =>
   World
@@ -12,6 +13,9 @@ const animal = (says:string) =>
     })
     .impl({
       async hello({and}, d) {
+
+        console.debug(inspect(and,{depth:5}))
+        
         return and.responds();
       },
 

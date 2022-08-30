@@ -1,6 +1,6 @@
-import { List, Set } from "immutable";
+import { List, OrderedMap, Set } from "immutable";
 import { Observable } from "rxjs/internal/Observable";
-import { isArray } from "util";
+import { inspect, isArray } from "util";
 import { Any, Guard, Many, Never, Num, Str, And, Read } from "../guards/Guard";
 import { Id } from "../lib";
 import { AttendedFn, Attendee, ConvenedFn, Convener, Peer } from "../MachineSpace";
@@ -8,7 +8,7 @@ import { Handler, $data, $Data, $Fac, $Root, $root, $Incl, $incl } from "../shap
 import { Timer } from "../Timer";
 import { DeepMerge, DeepSimplify, delay, IsAny, IsNever, isString, Merge, Simplify } from "../util";
 import { BuiltWorld } from "./BuiltWorld";
-import { act, ctx, Data, FacContext, FacPath, formPath, Impls, incl, PathFac, SchemaNode } from "./common";
+import { act, ctx, Data, DataNode, FacContext, FacPath, formPath, Impls, incl, InclNode, isDataNode, isInclNode, PathFac, SchemaNode } from "./common";
 import { Registry } from "./Registry";
 
 export const separator = '_'
@@ -211,8 +211,6 @@ export class Builder<N extends Nodes> {
   }
 
   impl<S extends Impls<N,AndNext>>(s: S): Builder<N> {
-    const blockPaths = Set(this.reg.getHandlerPaths());
-
     const reg = Registry.merge(this.reg, _walk(s));
 
     return new Builder<N>(reg);
@@ -227,7 +225,7 @@ export class Builder<N extends Nodes> {
             switch(typeof prop) {
               case 'function':
                 return r
-                  .prependAvailPaths(pn, blockPaths)
+                  // .prependAvailPaths(pn, blockPaths)
                   .addHandler(pn, (x:object, d:unknown) => {
                     return (<Handler>prop)(x, d);
                   });
@@ -240,8 +238,9 @@ export class Builder<N extends Nodes> {
                   //add relative availPaths here
                   //need some kind of weighting too
                   //but: needs to be reflected in types _first_
-                  
                   return Registry.merge(r, r2.mapPaths(p => `${pn}${separator}${p}`));
+                  
+                  // return Registry.merge(r, r2.mapPaths(p => `${pn}${separator}${p}`));
                 }
             }
 
@@ -264,43 +263,51 @@ export class Builder<N extends Nodes> {
   build(): Builder.TryBuild<N&BuiltIns> {
     const reg1 = Registry.merge(this.reg, builtIns());
 
-    //TODO
-    //gather GLOBAL paths here
+    reg1.dump('buildAll');
+    console.debug('dataPaths', [...reg1.getDataPaths()]);
+
+    const globalPaths = OrderedMap(reg1
+      .getHandlerPaths()
+      .map(p => <[string,string]>[p, p]));
 
     const reg2 = reg1
       .mapHandlers((h, n) => {
-        //build node-specific and here
-        //from combo of global paths prepended before node.availPaths
-        const and = _buildAnd(reg1);
-
+        // console.debug('availPaths', inspect([...n.availPaths]))
+        const and = _buildAnd(globalPaths.concat(n.availPaths));
+        
         return (x:object, d:unknown) => h({ ...x, and }, d);
       });
 
     return <Builder.TryBuild<N&BuiltIns>><unknown>new BuiltWorld(reg2);
 
     
-    function _buildAnd(r:Registry): object {
-      return _create(
-        List(),
-        List(r.getHandlerPaths()).map(p => List(p.split(separator)))
-      );
+    function _buildAnd(availPaths: OrderedMap<string,string>): object {
+      const ac = {};
 
-      function _create(route: List<string>, paths: List<List<string>>): object {
-        const routePath = route.join(separator);
-        
-        return Object.assign(
-          ((d:unknown) => d !== undefined ? [routePath, d] : [routePath]),
-          paths
-            .filter(p => !p.isEmpty())
-            .groupBy(p => p.first()!)
-            .map(ps => ps.map(p => p.skip(1)).toList())
-            .reduce((ac, ps, k) => ({
-                ...ac,
-                [k]: _create(route.concat([k]), ps)
-              }),
-              <{[k:string]:unknown}>{}
-            )
-        );
+      for(const [pFrom,pTo] of availPaths) {
+        _emplace(ac, pFrom.split(separator), pTo);
+      }
+
+      return ac;
+
+
+      function _emplace(o:{[k: string]: unknown}, pl:string[], pTo:string) {
+        const [ph, ...pt] = pl;
+        let o2 = <{[k:string]:unknown}>(o[ph] ?? {});
+
+        if(pt.length > 0) {
+          _emplace(o2, pt, pTo)
+        }
+        else if(ph) {
+          o2 = Object.assign(
+            ((d:unknown) => d !== undefined ? [pTo, d] : [pTo]),
+            <{[k:string]:unknown}>{});
+        }
+        else {
+          throw Error();
+        }
+
+        o[ph] = o2;
       }
     }
   }
@@ -310,70 +317,48 @@ export class Builder<N extends Nodes> {
     return <Builder.TryMerge<N,Shape<S>>>new Builder<Shape<S>>(reg);
 
     function _walk(reg: Registry, pl: string[], n: SchemaNode): Registry {
-      if(typeof n === 'object') {
+      if(typeof n !== 'object') throw Error('strange node')
 
-        if((<any>n)[$data]) {
-          const data = <unknown>(<any>n)[$data];
-          return reg.addGuard(pl.join(separator), data);
-        }
-
-        if((<any>n)[$incl]) {
-          const incl = <Builder<Nodes>>(<any>n)[$incl];
-          const ownedPaths = Set(incl.reg.getHandlerPaths());
-
-          console.debug(...ownedPaths);
-          
-          const reg2 = incl.reg
-            .mapPaths(p => [...pl, p].join(separator))
-            .mapHandlers(h => async (x:unknown, d:unknown) => {
-              const r = await h(x, d);
-
-              //the only other approach here
-              //would be to magically update the helpers
-              //but they've been absorbed into the intractalbe layers of the computation already
-              //this after-the-fact bodging gets us somewhere
-
-              if(isArray(r) && isString(r[0]) && ownedPaths.contains(r[0])) {
-                r[0] = [...pl, r[0]].join(separator);
-              }
-              
-              return r;
-            });
-          
-          return Registry.merge(reg, reg2);
-        }
-
-        return Object.getOwnPropertyNames(n)
-          .reduce(
-            (r, pn) => _walk(r, [...pl, pn], (<any>n)[pn]),
-            reg
-          );
+      if(isDataNode(n)) {
+        const data = n[$data];
+        return reg.addGuard(pl.join(separator), data);
       }
 
-      throw 'strange node encountered';
+      if(isInclNode(n)) {
+        const incl = n[$incl];
+
+        incl.reg.dump('incl');
+
+        const reg2 = incl.reg
+          .mapPaths(p => [...pl, p].join(separator));
+
+        return Registry.merge(reg, reg2);
+      }
+
+      {
+        const innerReg = Object
+          .getOwnPropertyNames(n)
+          .reduce(
+            (r, pn) => _walk(r, [...pl, pn], (<any>n)[pn]),
+            Registry.empty
+          );
+
+        const allPaths = Set(innerReg.getDataPaths());
+
+        console.debug('allPaths', allPaths.toArray())
+
+        const innerReg2 = allPaths.reduce(
+          (r,p) => r.prependAvailPaths(p, allPaths),
+          innerReg
+        );
+
+        return innerReg2
+          .mapPaths(p => [...pl, p].join(separator));
+      }
     }
   }
-
-  as<P extends string>(prefix:P): Builder.AtPath<P, N> {
-    const ownedPaths = Set(this.reg.getHandlerPaths());
-    return new Builder(
-      this.reg
-        .mapPaths(p => `${prefix}${separator}${p}`)
-        .mapHandlers(h => async (x:unknown,d:unknown) => {
-          const next = await h(x, d);
-
-          if(next
-            && isArray(next)
-            && isString(next[0])
-            && ownedPaths.contains(next[0])) {
-            next[0] = `${prefix}${separator}${next[0]}`;
-          }
-          
-          return next;
-        })
-    );
-  }
 }
+
 
 {
   type W = {

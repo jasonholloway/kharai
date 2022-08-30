@@ -51,25 +51,25 @@ describe('shape', () => {
   //   });
 
 
-  type F<T> = 
-    T extends infer TT ? TT : never;
+  // type F<T> = 
+  //   T extends infer TT ? TT : never;
 
-  type W = F<typeof world>;
-  const w0: W = world;
+  // type W = F<typeof world>;
+  // const w0: W = world;
 
-  it('resolves handlers', () => {
-    const w = w0.build();
+  // it('resolves handlers', () => {
+  //   const w = w0.build();
     
 
     
-    const r1 = w.read('jerboa_squeak');
-    expect(r1.guard).toEqual([Num])
-    expect(r1.handler).not.toBeUndefined();
+  //   const r1 = w.read('jerboa_squeak');
+  //   expect(r1.guard).toEqual([Num])
+  //   expect(r1.handler).not.toBeUndefined();
 
-    const r2 = w.read('jerboa_jump_quickly');
-    expect(r2.guard).toEqual([789])
-    expect(r2.handler).toBeUndefined();
-  })
+  //   const r2 = w.read('jerboa_jump_quickly');
+  //   expect(r2.guard).toEqual([789])
+  //   expect(r2.handler).toBeUndefined();
+  // })
 
   // it('resolves facs', () => {
   //   const w = w0.build();
