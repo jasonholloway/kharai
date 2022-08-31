@@ -1,16 +1,30 @@
-import { List } from "immutable";
+import { List, Map } from "immutable";
 import { Fac, Handler } from "../shapeShared";
 import { Data, formPath, Nodes, separator } from "./common";
-import { Registry } from "./Registry";
+import { NodeVal, Registry } from "./Registry";
 
 export class BuiltWorld<N extends Nodes> {
   public readonly nodes: N = <N><unknown>{}
   public readonly data: Data<N> = <Data<N>><unknown>undefined;
   
-  readonly reg: Registry
+  readonly reg: Registry;
+  readonly nodeMap: Map<string, NodeVal>;
 
   constructor(reg?: Registry) {
     this.reg = reg ?? Registry.empty;
+
+    this.nodeMap = Map(
+      reg!.root
+        .mapDepthFirst<List<[List<string>, NodeVal]>>((v, downstream) =>
+          downstream //need to map downstream map too
+            .map((ppl, k) => ppl.map(([pl,v]) => <[List<string>, NodeVal]>[pl.insert(0, k), v]))
+            .valueSeq()
+            .flatMap(ppl => ppl)
+            .toList()
+            .push([List(), v]))
+        .val
+        .map(([pl,v]) => <[string,NodeVal]>[pl.join(separator), v])
+    );
   }
 
   read(address: string): ReadResult {

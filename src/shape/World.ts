@@ -9,7 +9,7 @@ import { Timer } from "../Timer";
 import { DeepMerge, DeepSimplify, delay, IsAny, IsNever, Merge, Simplify } from "../util";
 import { BuiltWorld } from "./BuiltWorld";
 import { act, ctx, Data, FacContext, FacPath, Impls, incl, isDataNode, isInclNode, PathFac, SchemaNode } from "./common";
-import { NodeVal, NodeView, Registry } from "./Registry";
+import { mergeNodeVal, NodeVal, NodeView, Registry } from "./Registry";
 
 export const separator = '_'
 export type Separator = typeof separator;
@@ -210,41 +210,6 @@ export class Builder<N extends Nodes> {
     return <Builder.TryMerge<N,N2>><unknown>new Builder(this.reg.mergeWith(other.reg));
   }
 
-  impl<S extends Impls<N,AndNext>>(s: S): Builder<N> {
-    return new Builder<N>(this.reg.update(root => _walk(root, s)));
-
-    function _walk(node: NodeView, obj: object): NodeView {
-      return Object
-        .getOwnPropertyNames(obj)
-        .reduce(
-          (n, pn) => {
-            const prop = (<{[k:string]:unknown}>obj)[pn];
-
-            switch(typeof prop) {
-              case 'function':
-                return n
-                  .push(pn)
-                  .update(v => ({
-                    ...v,
-                    handler: (x:object, d:unknown) => {
-                      return (<Handler>prop)(x, d);
-                    }
-                  }))
-                  .pop()!;
-
-              case 'object':
-                if(prop) return _walk(n.push(pn), prop).pop()!;
-                break;
-            }
-
-            return n;
-          },
-          node
-        );
-    }
-
-  }
-
   paths(): FacPath<N> {
     throw 'err';
   }
@@ -254,7 +219,7 @@ export class Builder<N extends Nodes> {
     
     return <Builder.MergeFacImpl<N,P,X>>new Builder(
       this.reg.update(root => root
-        .summon(pl)
+        .summon(pl, () => ({ facs: List() }))
         .update(v => ({
           ...v,
           facs: v.facs.push(fn)
@@ -267,7 +232,7 @@ export class Builder<N extends Nodes> {
       this.reg.update(root => _walk(root, s))
     );
 
-    function _walk(node: NodeView, obj: SchemaNode): NodeView {
+    function _walk(node: NodeView<NodeVal>, obj: SchemaNode): NodeView<NodeVal> {
       if(isDataNode(obj)) {
         const data = obj[$data];
         return node
@@ -280,14 +245,14 @@ export class Builder<N extends Nodes> {
       if(isInclNode(obj)) {
         const incl = obj[$incl];
         return node
-          .mergeIn(incl.reg.root);
+          .mergeIn(mergeNodeVal, incl.reg.root);
       }
 
       if(typeof obj === 'object') {
         return Object
           .getOwnPropertyNames(obj)
           .reduce(
-            (n, pn) => _walk(n.push(pn), (<any>obj)[pn]).pop()!,
+            (n, pn) => _walk(n.pushPath(pn, ()=>({facs:List()})), (<any>obj)[pn]).popPath()!,
             node
           );
       }
@@ -296,10 +261,44 @@ export class Builder<N extends Nodes> {
     }
   }
 
-  build(): Builder.TryBuild<N&BuiltIns> {
-    const reg1 = this.reg.mergeWith(builtIns());
+  impl<S extends Impls<N,AndNext>>(s: S): Builder<N> {
+    return new Builder<N>(this.reg.update(root => _walk(root, s)));
 
-    const nodesWithPaths = reg1.root
+    function _walk(node: NodeView<NodeVal>, obj: object): NodeView<NodeVal> {
+      return Object
+        .getOwnPropertyNames(obj)
+        .reduce(
+          (n, pn) => {
+            const prop = (<{[k:string]:unknown}>obj)[pn];
+
+            switch(typeof prop) {
+              case 'function':
+                return n
+                  .pushPath(pn, ()=>({facs:List()}))
+                  .update(v => ({
+                    ...v,
+                    handler: (x:object, d:unknown) => {
+                      return (<Handler>prop)(x, d);
+                    }
+                  }))
+                  .popPath()!;
+
+              case 'object':
+                if(prop) return _walk(n.pushPath(pn, ()=>({facs:List()})), prop).popPath()!;
+                break;
+            }
+
+            return n;
+          },
+          node
+        );
+    }
+  }
+
+  build(): Builder.TryBuild<N&BuiltIns> {
+    const reg0 = this.reg.mergeWith(builtIns());
+
+    const withRelPaths = reg0.root
       .mapDepthFirst<[NodeVal, List<List<string>>]>(
         (val, children) =>
           [
@@ -308,7 +307,7 @@ export class Builder<N extends Nodes> {
           ]
       );
 
-    const nodesWithAllPaths = nodesWithPaths
+    const withAllPaths = withRelPaths
       .mapBreadthFirst<[NodeVal, List<[List<string>,List<string>]>]>(
         ([val,ps], ancestors, route) => {
           const ancestorPaths = ancestors
@@ -321,31 +320,24 @@ export class Builder<N extends Nodes> {
         }
       );
 
-    nodesWithAllPaths
-      .mapDepthFirst(([v, ps]) => {
-        throw 'todo'
+    const withAnds = withAllPaths
+      .mapDepthFirst(([v, paths]) => {
+        if(v.handler) {
+          const pathMap = OrderedMap(paths.map(([al,zl]) => [al.join(separator), zl.join(separator)]));
+          const and = _buildAnd(pathMap);
+          return {
+            ...v,
+            handler: (x:object, d:unknown) => v.handler!({ ...x, and }, d)
+          };
+        }
+        else {
+          return v;
+        }
       });
 
-    // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    // TODO
-    // and now to go through paths one by one
-    // adding them to each node's and helper
-    // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    const reg1 = new Registry(withAnds);
 
-
-    const globalPaths = OrderedMap(reg1
-      .getHandlerPaths()
-      .map(p => <[string,string]>[p, p]));
-
-    const reg2 = reg1
-      .mapHandlers((h, n) => {
-        // console.debug('availPaths', inspect([...n.availPaths]))
-        const and = _buildAnd(globalPaths.concat(n.availPaths));
-        
-        return (x:object, d:unknown) => h({ ...x, and }, d);
-      });
-
-    return <Builder.TryBuild<N&BuiltIns>><unknown>new BuiltWorld(reg2);
+    return <Builder.TryBuild<N&BuiltIns>><unknown>new BuiltWorld(reg1);
 
     
     function _buildAnd(availPaths: OrderedMap<string,string>): object {
@@ -356,29 +348,27 @@ export class Builder<N extends Nodes> {
       }
 
       return ac;
+    }
 
+    function _emplace(o:{[k: string]: unknown}, pl:string[], pTo:string) {
+      const [ph, ...pt] = pl;
+      let o2 = <{[k:string]:unknown}>(o[ph] ?? {});
 
-      function _emplace(o:{[k: string]: unknown}, pl:string[], pTo:string) {
-        const [ph, ...pt] = pl;
-        let o2 = <{[k:string]:unknown}>(o[ph] ?? {});
-
-        if(pt.length > 0) {
-          _emplace(o2, pt, pTo)
-        }
-        else if(ph) {
-          o2 = Object.assign(
-            ((d:unknown) => d !== undefined ? [pTo, d] : [pTo]),
-            <{[k:string]:unknown}>{});
-        }
-        else {
-          throw Error();
-        }
-
-        o[ph] = o2;
+      if(pt.length > 0) {
+        _emplace(o2, pt, pTo)
       }
+      else if(ph) {
+        o2 = Object.assign(
+          ((d:unknown) => d !== undefined ? [pTo, d] : [pTo]),
+          <{[k:string]:unknown}>{});
+      }
+      else {
+        throw Error();
+      }
+
+      o[ph] = o2;
     }
   }
-
 }
 
 
@@ -415,139 +405,181 @@ export type BuiltIns = {
 function builtIns() {
   let reg = Registry.empty;
 
-  reg = reg
-    .addFac('', x => x);
+  reg = reg.update(n => n
+    .update(v => ({
+      ...v,
+      facs: v.facs.push(x => x)
+    })));
 
-  reg = reg
-    .addGuard('boot', Any)
-    .addHandler('boot', async (x: CoreCtx) => {
-      while(true) {
-        const answer = await x.attend({
-          attended(m) {
-            return [m];
+  reg = reg.update(n => n
+    .pushPath('boot', ()=>({facs:List()}))
+    .update(v => ({
+      ...v,
+      guard: [Any],
+      async handler(x: CoreCtx) {
+        while(true) {
+          const answer = await x.attend({
+            attended(m) {
+              return [m];
+            }
+          });
+
+          if(answer) {
+            return answer[0];
           }
-        });
-
-        if(answer) {
-          return answer[0];
-        }
-        else {
-          await delay(30); //when we release properly, this can be removed (cryptic note!)
+          else {
+            await delay(30); //when we release properly, this can be removed (cryptic note!)
+          }
         }
       }
-    });
+    }))
+    .popPath()!);
 
-  reg = reg
-    .addGuard('end', Any)
-    .addHandler('end', async () => {
-      return false;
-    });
-
-  reg = reg
-    .addGuard('wait', [Num, $root])
-    .addHandler('wait', (x: CoreCtx, [when, nextPhase]: [number|string, unknown]) => {
-      return x.timer.schedule(new Date(when), () => nextPhase);
-    });
-
+  reg = reg.update(n => n
+    .pushPath('end', ()=>({facs:List()}))
+    .update(v => ({
+      ...v,
+      guard: [Any],
+      async handler() {
+        return false;
+      }
+    }))
+    .popPath()!);
+  
+  reg = reg.update(n => n
+    .pushPath('wait', ()=>({facs:List()}))
+    .update(v => ({
+      ...v,
+      guard: [[Num, $root]],
+      handler: async (x: CoreCtx, [when, nextPhase]: [number|string,unknown]) => {
+        return x.timer.schedule(new Date(when), () => nextPhase);
+      }
+    }))
+    .popPath()!);
 
 
   const isPeerMessage = Guard('hi');
   const isMediatorMessage = Guard(['yo', Str, Any] as const);
 
-  reg = reg
-    .addGuard('$meetAt', [Str, $root])
-    .addHandler('$meetAt', (x: CoreCtx, [spotId, hold]: [Id, [string,unknown?]]) => {
-      return x.convene([spotId], {
-        convened([spot]) {
-          const resp = spot.chat('hi');
-          if(!resp) throw `Meeting rejected by mediator ${spotId}: message:?`;
+  reg = reg.update(n => n
+    .pushPath('$meetAt', ()=>({facs:List()}))
+    .update(v => ({
+      ...v,
+      guard: [[Str, $root]],
+      handler: async (x: CoreCtx, [spotId, hold]: [Id, [string,unknown]]) => {
+        return x.convene([spotId], {
+          convened([spot]) {
+            const resp = spot.chat('hi');
+            if(!resp) throw `Meeting rejected by mediator ${spotId}: message:?`;
 
-          const [m] = resp;
-          if(!isMediatorMessage(m)) return;
+            const [m] = resp;
+            if(!isMediatorMessage(m)) return;
 
-          const [,key] = m;
+            const [,key] = m;
 
-          //emplace key as last arg
-          const [h0, h1] = hold;
-          if(!isArray(h1)) throw 'Bad callback';
+            //emplace key as last arg
+            const [h0, h1] = hold;
+            if(!isArray(h1)) throw 'Bad callback';
 
-          h1[h1.length-1] = key;
-          return [h0, h1];
-        }
-      });
-    });
+            h1[h1.length-1] = key;
+            return [h0, h1];
+          }
+        });
+      }
+    }))
+    .popPath()!);
 
-  reg = reg
-    .addGuard('$m_place', Never)
-    .addHandler('$m_place', async (x: CoreCtx) => {
-      return ['$m_gather', [0, []]]
-    });
 
-  reg = reg
-    .addGuard('$m_gather', [Num, Many(Str)])
-    .addHandler('$m_gather', async (x: CoreCtx, [v, ids]: [number, Id[]]) => {
-      const result = await x.attend({
-        attended(m, mid) {
-          if(isPeerMessage(m)) {
-            ids = [...ids, mid];
+  reg = reg.update(n => n
+    .pushPath('$m', ()=>({facs:List()}))
+    .pushPath('place', ()=>({facs:List()}))
+    .update(v => ({
+      ...v,
+      guard: [Never],
+      handler: async (x: CoreCtx) => {
+        return ['$m_gather', [0, []]]
+      }
+    }))
+    .popPath()!
+    .popPath()!);
 
-            const k = `K${v}`;
+  reg = reg.update(n => n
+    .pushPath('$m', ()=>({facs:List()}))
+    .pushPath('gather', ()=>({facs:List()}))
+    .update(v => ({
+      ...v,
+      guard: [[Num, Many(Str)]],
+      handler: async (x: CoreCtx, [v, ids]: [number, Id[]]) => {
+        const result = await x.attend({
+          attended(m, mid) {
+            if(isPeerMessage(m)) {
+              ids = [...ids, mid];
 
-            const quorum = 2;
-            if(ids.length >= quorum) {
-              return [
-                ['$m_mediate', [v, k, ids, []]],//remnant always empty currently
-                ['yo', k]
-              ]; 
+              const k = `K${v}`;
+
+              const quorum = 2;
+              if(ids.length >= quorum) {
+                return [
+                  ['$m_mediate', [v, k, ids, []]],//remnant always empty currently
+                  ['yo', k]
+                ]; 
+              }
+              else {
+                return [
+                  ['$m_gather', [v, ids]],
+                  ['yo', k]
+                ];
+              }
             }
-            else {
-              return [
-                ['$m_gather', [v, ids]],
-                ['yo', k]
-              ];
+
+            return [['$m_gather', [v, ids]]];
+          }
+        });
+
+        return isArray(result) ? result[0] : false;
+      }
+    }))
+    .popPath()!
+    .popPath()!);
+
+
+  reg = reg.update(n => n
+    .pushPath('$m', ()=>({facs:List()}))
+    .pushPath('mediate', ()=>({facs:List()}))
+    .update(v => ({
+      ...v,
+      guard: [[Num,Str,Many(Str),Many(Str)]],
+      handler: async (x: CoreCtx, [v,k,ids,remnants]: [number,string,Id[],Id[]]) => {
+        return x.convene(ids, {
+          convened(peers) {
+            const answers: { [id:Id]:unknown } = {};
+
+            for(const p of peers) {
+              const r = p.chat([k, 'contribute'])
+              if(!r) return fin({kickOut:[p]});
+
+              answers[p.id] = r[0];
+            }
+
+            for(const p of peers) {
+              p.chat([k, 'fin', answers]);
+            }
+
+            return fin({kickOut:[...peers]});
+
+
+            function fin(p:{kickOut:Peer[]}) {
+              return ['$m_gather', [v+1, [remnants, ...peers.subtract(p.kickOut)]]] as const;
             }
           }
-
-          return [['$m_gather', [v, ids]]];
-        }
-      });
-
-      return isArray(result) ? result[0] : false;
-    });
-
-  reg = reg
-    .addGuard('$m_mediate', [Num,Str,Many(Str),Many(Str)])
-    .addHandler('$m_mediate', (x: CoreCtx, [v,k,ids,remnants]: [number,string,Id[],Id[]]) => {
-      return x.convene(ids, {
-        convened(peers) {
-          const answers: { [id:Id]:unknown } = {};
-
-          for(const p of peers) {
-            const r = p.chat([k, 'contribute'])
-            if(!r) return fin({kickOut:[p]});
-
-            answers[p.id] = r[0];
-          }
-
-          for(const p of peers) {
-            p.chat([k, 'fin', answers]);
-          }
-
-          return fin({kickOut:[...peers]});
-
-
-          function fin(p:{kickOut:Peer[]}) {
-            return ['$m_gather', [v+1, [remnants, ...peers.subtract(p.kickOut)]]] as const;
-          }
-        }
-      });
-    });
+        });
+      }
+    }))
+    .popPath()!
+    .popPath()!);
 
   return reg;
 }
-
-
-// export const builtInPaths = Set(reg.getHandlerPaths());
 
 
 export const World = new Builder<{}>(Registry.empty)

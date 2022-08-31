@@ -105,7 +105,7 @@ class Node<V> {
 export class Registry {
   readonly root: Node<NodeVal>;
 
-  private constructor(root: Node<NodeVal>) {
+  constructor(root: Node<NodeVal>) {
     this.root = root;
   }
 
@@ -216,10 +216,10 @@ export class NodeView<A> {
   }
 
   summon(pl: string[], fac: ()=>A): NodeView<A> {
-    return pl.reduce((v, p) => v.push(p, fac), <NodeView<A>>this);
+    return pl.reduce((v, p) => v.pushPath(p, fac), <NodeView<A>>this);
   }
 
-  push(p: string, fac:()=>A): NodeView<A> {
+  pushPath(p: string, fac:()=>A): NodeView<A> {
     const child = this.node.children.get(p, false) || new Node(fac(), Map());
     return new NodeView(
       child,
@@ -227,7 +227,7 @@ export class NodeView<A> {
     );
   }
 
-  pop(): NodeView<A>|undefined {
+  popPath(): NodeView<A>|undefined {
     const fn = this.stack.peek();
     return fn ? new NodeView(fn(this.node), this.stack.pop()) : undefined;
   }
