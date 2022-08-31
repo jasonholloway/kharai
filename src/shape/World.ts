@@ -8,7 +8,7 @@ import { Handler, $data, $Data, $Fac, $Root, $root, $Incl, $incl } from "../shap
 import { Timer } from "../Timer";
 import { DeepMerge, DeepSimplify, delay, IsAny, IsNever, Merge, Simplify } from "../util";
 import { BuiltWorld } from "./BuiltWorld";
-import { act, ctx, Data, FacContext, FacPath, Impls, incl, isDataNode, isInclNode, PathFac, SchemaNode } from "./common";
+import { act, ctx, Data, FacContext, FacPath, formPath, Impls, incl, isDataNode, isInclNode, PathFac, SchemaNode } from "./common";
 import { mergeNodeVal, NodeVal, NodeView, Registry } from "./Registry";
 
 export const separator = '_'
@@ -227,10 +227,15 @@ export class Builder<N extends Nodes> {
     );
   }
 
+  debug(): Builder<N> {
+    this.reg.debug();
+    return this;
+  }
+
   shape<S extends SchemaNode>(s: S): Builder.TryMerge<N, Shape<S>> {
-    return <Builder.TryMerge<N,Shape<S>>>new Builder<Shape<S>>(
-      this.reg.update(root => _walk(root, s))
-    );
+    const reg2 = this.reg.update(root => _walk(root, s))
+    return <Builder.TryMerge<N,Shape<S>>>new Builder<Shape<S>>(reg2);
+
 
     function _walk(node: NodeView<NodeVal>, obj: SchemaNode): NodeView<NodeVal> {
       if(isDataNode(obj)) {
@@ -300,12 +305,23 @@ export class Builder<N extends Nodes> {
 
     const withRelPaths = reg0.root
       .mapDepthFirst<[NodeVal, List<List<string>>]>(
-        (val, children) =>
-          [
-            val,
-            children.map(([,ps], k) => ps.flatMap(p => p.insert(0, k))).toList()
-          ]
+        (val, children) => {
+          const r = children
+            .map(([,ps], k) => {
+              return List([List([k])]).concat(ps.map(pl => List([k]).concat(pl)));
+            })
+            .valueSeq()
+            .flatMap(l => l)
+            .toList();
+          
+          return [val, r];
+        }
       );
+
+    // console.debug(inspect(
+    //   withRelPaths.show(v=> v[1].map(pl => pl.toArray()).map(formPath).toArray()),
+    //   {depth:5}
+    // ));
 
     const withAllPaths = withRelPaths
       .mapBreadthFirst<[NodeVal, List<[List<string>,List<string>]>]>(
@@ -321,7 +337,7 @@ export class Builder<N extends Nodes> {
       );
 
     const withAnds = withAllPaths
-      .mapDepthFirst(([v, paths]) => {
+      .mapDepthFirst<NodeVal>(([v, paths], _, pl) => {
         if(v.handler) {
           const pathMap = OrderedMap(paths.map(([al,zl]) => [al.join(separator), zl.join(separator)]));
           const and = _buildAnd(pathMap);

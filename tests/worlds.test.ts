@@ -13,9 +13,6 @@ const animal = (says:string) =>
     })
     .impl({
       async hello({and}, d) {
-
-        console.debug(inspect(and,{depth:5}))
-        
         return and.responds();
       },
 
@@ -29,7 +26,7 @@ const world =
   World
     .shape({
       pig: incl(animal('oink')),
-      dog: incl(animal('woof')),
+      // dog: incl(animal('woof')),
 
       speakToAnimals: act(Str),
     })

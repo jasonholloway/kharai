@@ -1,6 +1,6 @@
-import { List, Map, Set, Stack } from 'immutable'
+import { List, Map, Stack } from 'immutable'
+import { inspect } from 'util';
 import { Fac, Handler } from '../shapeShared';
-
 
 export type NodeVal = Readonly<{
   guard?: readonly [unknown],
@@ -24,6 +24,14 @@ class Node<V> {
   constructor(val: V, children: Map<string,Node<V>>) {
     this.val = val;
     this.children = children;
+  }
+
+  show<T>(fn: (v:V)=>T): unknown {
+    return this.children
+      .reduce(
+        (ac, c, k) => ({ ...ac, [k]: { v: fn(c.val), c: c.show(fn) } }),
+        {}
+      );
   }
 
   withVal(fn: (v:V)=>V): Node<V> {
@@ -118,7 +126,10 @@ export class Registry {
   mergeWith(other: Registry): Registry {
     return new Registry(this.root.mergeWith(mergeNodeVal, other.root));
   }
-  
+
+  debug() {
+    console.debug(inspect(this.root.show(v => true), { depth: 8 }));
+  }
 
   // addGuard(p: string, guard: unknown): Registry {
   //   return this.mapNode(p, n => n.setGuard(guard));
