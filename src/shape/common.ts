@@ -7,16 +7,14 @@ import { Builder, BuiltIns, CoreCtx, PhaseHelper } from "./World";
 export const separator = '_'
 export type Separator = typeof separator;
 
-export type Nodes = { [k in string]: unknown }
-
 export function formPath(pl: readonly string[]) {
   return pl.join(separator);
 }
 
 
-export type NodePath<N extends Nodes> = _ExtractPath<'S'|'D', keyof N> | ''
-export type DataPath<N extends Nodes> = _ExtractPath<'D', keyof N>
-export type FacPath<N extends Nodes> = _ExtractPath<'XA', keyof N>
+export type NodePath<N> = _ExtractPath<'S'|'D', keyof N> | ''
+export type DataPath<N> = _ExtractPath<'D', keyof N>
+export type FacPath<N> = _ExtractPath<'XA', keyof N>
 
 type _ExtractPath<A extends string, K> =
     K extends A ? ''
@@ -24,16 +22,17 @@ type _ExtractPath<A extends string, K> =
   : never
 
 
-export type Data<N extends Nodes = Nodes> =
+export type Data<N> =
   _Data<N, _Data<N>>
 
-type _Data<N extends Nodes, Inner = unknown> =
+type _Data<N, Inner = unknown> =
   keyof N extends infer K ?
   K extends `D${Separator}${infer P}` ?
+  K extends keyof N ?
   N[K] extends infer G ?
   Read<G, $Root, Inner> extends infer D ?
   IsNotNever<D> extends true ? [P, D] : [P]
-: never : never : never : never;
+: never : never : never : never : never;
 
 {
   type A = Data<{
@@ -43,7 +42,7 @@ type _Data<N extends Nodes, Inner = unknown> =
     D_guineapig: ['hello', 123]
   }>;
 
-  type B = Data;
+  type B = Data<{}>;
 
   type _ = [A,B];
 }
@@ -58,7 +57,7 @@ export type ReadResult = {
 
 
 // O below is the monolithic phase output type
-export type Impls<N extends Nodes, O> =
+export type Impls<N, O> =
   [_Data<N>] extends [infer DOne] ?
   [_Data<N, DOne>] extends [infer DFull] ?
   [_ImplSplit<N>] extends [infer Tups] ?
@@ -66,7 +65,7 @@ export type Impls<N extends Nodes, O> =
   : never : never : never
 ;
 
-type _ImplSplit<N extends Nodes> =
+type _ImplSplit<N> =
   keyof N extends infer K ?
   K extends keyof N ?
   K extends string ?
@@ -162,14 +161,14 @@ type _ImplCombine<Tups, X0, DOne, DAll, XExtra, O> =
 
 
 
-export type PathFac<N extends Nodes, P extends string> =
+export type PathFac<N, P extends string> =
   _JoinPaths<'XA', P> extends infer XP ?
   XP extends keyof N ?
     N[XP]
   : never : never;
 
 
-export type FacContext<N extends Nodes, P extends string> =
+export type FacContext<N, P extends string> =
   Merge<
     _PathContextMerge<N, _UpstreamFacPaths<N, P>>,
     (
@@ -193,7 +192,7 @@ type _PathContextMerge<N, PL> =
   : never;
 
 
-type _UpstreamFacPaths<N extends Nodes, P extends string> =
+type _UpstreamFacPaths<N, P extends string> =
   _JoinPaths<'XA', P> extends infer XP ?
   XP extends string ?
   // _KnownRoutePaths<N, XP> extends infer Route ?
@@ -201,7 +200,7 @@ type _UpstreamFacPaths<N extends Nodes, P extends string> =
     Route
   : never : never : never;
 
-type _KnownRoutePaths<N extends Nodes, P extends string> =
+type _KnownRoutePaths<N, P extends string> =
   _AllRoutePaths<P> extends infer AS ?
   TupExtract<AS, keyof N> extends infer S ?
     S
@@ -220,7 +219,7 @@ type _JoinPaths<H extends string, T extends string> =
 
 
 {
-  type Nodes = {
+  type NN = {
     XA: { a: 1 }
     S: true,
     XA_rat: { b: 2 },
@@ -232,24 +231,24 @@ type _JoinPaths<H extends string, T extends string> =
     D_rat_squeak_quietly_blah: 999,
   }
 
-  type A = FacPath<Nodes>
+  type A = FacPath<NN>
 
   type B = _AllRoutePaths<'XA'>
   type C = _AllRoutePaths<'XA_rat'>
   type D = _AllRoutePaths<'XA_rat_squeak_quietly_blah'>
 
-  type E = _KnownRoutePaths<Nodes, 'XA'>
-  type F = _KnownRoutePaths<Nodes, 'XA_rat'>
-  type G = _KnownRoutePaths<Nodes, 'XA_rat_squeak_quietly_blah'>
+  type E = _KnownRoutePaths<NN, 'XA'>
+  type F = _KnownRoutePaths<NN, 'XA_rat'>
+  type G = _KnownRoutePaths<NN, 'XA_rat_squeak_quietly_blah'>
 
-  type H = _UpstreamFacPaths<Nodes, ''>
-  type I = _UpstreamFacPaths<Nodes, 'rat'>
-  type J = _UpstreamFacPaths<Nodes, 'rat_squeak_quietly'>
-  type K = _UpstreamFacPaths<Nodes, 'rat_squeak_quietly_blah'>
+  type H = _UpstreamFacPaths<NN, ''>
+  type I = _UpstreamFacPaths<NN, 'rat'>
+  type J = _UpstreamFacPaths<NN, 'rat_squeak_quietly'>
+  type K = _UpstreamFacPaths<NN, 'rat_squeak_quietly_blah'>
 
-  type L = FacContext<Nodes, 'rat'>
-  type M = FacContext<Nodes, 'rat_squeak_quietly'>
-  type N = FacContext<Nodes, 'rat_squeak_quietly_blah'>
+  type L = FacContext<NN, 'rat'>
+  type M = FacContext<NN, 'rat_squeak_quietly'>
+  type N = FacContext<NN, 'rat_squeak_quietly_blah'>
 
   type _ = [A, B, C, D, E, F, G, H, I, J, K, L, M, N];
 }
@@ -375,13 +374,13 @@ type IsNotNever<T> =
 
 export type SchemaNode = DataNode<unknown> | object
 export type DataNode<D> = { [$data]: D }
-export type InclNode = { [$incl]: Builder<Nodes> }
+export type InclNode = { [$incl]: Builder<{}> }
 export type SpaceNode<I> = { [$space]: I }
 export type HandlerNode = { [$handler]: Handler }
 export type ContextNode<X = unknown> = { [$fac]: FacNode<X> }
 
-export function act<S>(s?: S): DataNode<unknown extends S ? never : S> {
-  return { [$data]: <unknown extends S ? never : S><unknown>(s ?? Any) };
+export function act<S = never>(s?: S): DataNode<S> { //   unknown extends S ? never : S> {
+  return { [$data]: <S><unknown>(s === undefined ? Any : s) };
 }
 
 export function space<S extends { [k in keyof S]: SchemaNode }>(s: S): SpaceNode<S> {

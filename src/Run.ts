@@ -9,7 +9,7 @@ import MonoidData from './MonoidData'
 import { Saver, Loader } from './Store'
 import { Preemptable } from './Preemptable'
 import { BuiltWorld } from './shape/BuiltWorld'
-import { Data, Nodes } from './shape/common'
+import { Data } from './shape/common'
 import { RealTimer } from './Timer'
 
 const MD = new MonoidData();
@@ -20,7 +20,7 @@ export type RunOpts = {
   save?: boolean
 };
 
-export function newRun<N extends Nodes>
+export function newRun<N>
 (
   world: BuiltWorld<N>,
   loader: Loader,

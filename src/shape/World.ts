@@ -14,16 +14,12 @@ import { mergeNodeVal, NodeVal, NodeView, Registry } from "./Registry";
 export const separator = '_'
 export type Separator = typeof separator;
 
-type Nodes = { [k in string]: unknown }
-
-
 export module Builder {
 
-  export type TryMerge<A extends Nodes, B extends Nodes> =
-    Merge<A,_MergeNew<A,B>> extends infer Merged ?
-    Merged extends Nodes ?
-    Builder<Merged>
-    : never : never;
+  export type TryMerge<A, B> =
+    Merge<A,_MergeNew<A,B>> extends infer Merged
+      ? Builder<Merged>
+      : never;
 
   type _MergeNew<A,B> = {
     [k in keyof B]:
@@ -69,7 +65,7 @@ export module Builder {
 
 
 
-  export type TryBuild<N extends Nodes> =
+  export type TryBuild<N> =
     [_FindUnimplementedFacs<N, keyof N>] extends [infer Results] ?
     [Results] extends [[]]
       ? BuiltWorld<N>
@@ -88,20 +84,19 @@ export module Builder {
   : never : never : never : never;
 
 
-  export type MergeFacImpl<N extends Nodes, P extends string, X> =
+  export type MergeFacImpl<N, P extends string, X> =
     Merge<N,
       {
         [k in _JoinPaths<'XI', P>]:
           k extends keyof N ?
           Merge<N[k],X>
           : X
-      }> extends infer Merged ?
-    Merged extends Nodes ?
-    Builder<Merged>
-    : never : never;
+      }> extends infer Merged
+    ? Builder<Merged>
+    : never;
 
 
-  export type AtPath<P extends string, N extends Nodes> =
+  export type AtPath<P extends string, N> =
     Builder<{
       [k in keyof N as
        k extends _JoinPaths<infer PH, infer PT>
@@ -137,7 +132,7 @@ export module Builder {
 
 
 
-export type PhaseHelper<N extends Nodes, Out> = _WalkData<'',_ExtractData<N>, Data<N>, Out>
+export type PhaseHelper<N, Out> = _WalkData<'',_ExtractData<N>, Data<N>, Out>
 
 type _ExtractData<N> = {
   [k in keyof N as (k extends _JoinPaths<'D', infer P> ? P : never)]: N[k]
@@ -198,7 +193,7 @@ interface AndNext {
 }
 
 
-export class Builder<N extends Nodes> {
+export class Builder<N> {
   public readonly nodes: N = <N><unknown>{}
   readonly reg: Registry
   
@@ -206,7 +201,7 @@ export class Builder<N extends Nodes> {
     this.reg = reg ?? Registry.empty;
   }
 
-  with<N2 extends Nodes>(other:Builder<N2>): Builder.TryMerge<N, N2> {
+  with<N2>(other:Builder<N2>): Builder.TryMerge<N, N2> {
     return <Builder.TryMerge<N,N2>><unknown>new Builder(this.reg.mergeWith(other.reg));
   }
 
@@ -652,11 +647,7 @@ export type CoreCtx = {
 
 
 
-export type Shape<S> =
-  Simplify<_Assemble<_Walk<S>>> extends infer N ?
-  N extends Nodes ?
-  N
-  : never : never;
+export type Shape<S> = Simplify<_Assemble<_Walk<S>>>;
 
 type _Walk<O, P extends string = ''> =
   [IsNever<O>] extends [false] ?
@@ -742,6 +733,15 @@ type _Assemble<T extends readonly [string, unknown]> =
 
   type E = _InclWalk<typeof i2, 'pet'>
 
+  function blah<T extends number>(t:T) {
+    const d = act(t);
+
+    type F = _DataWalk<typeof d, 'path'>;
+    type _ = [F]
+  }
+
+
+
   const x = World.shape(s1);
 
   [s1,s2,w1,w2,x]
@@ -750,7 +750,7 @@ type _Assemble<T extends readonly [string, unknown]> =
 
 
 
-type _UpstreamFacPaths<N extends Nodes, P extends string> =
+type _UpstreamFacPaths<N, P extends string> =
   _JoinPaths<'XA', P> extends infer XP ?
   XP extends string ?
   // _KnownRoutePaths<N, XP> extends infer Route ?
@@ -758,7 +758,7 @@ type _UpstreamFacPaths<N extends Nodes, P extends string> =
     Route
   : never : never : never;
 
-type _KnownRoutePaths<N extends Nodes, P extends string> =
+type _KnownRoutePaths<N, P extends string> =
   _AllRoutePaths<P> extends infer AS ?
   TupExtract<AS, keyof N> extends infer S ?
     S
@@ -777,7 +777,7 @@ type _JoinPaths<H extends string, T extends string> =
 
 
 {
-  type Nodes = {
+  type NN = {
     XA: { a: 1 }
     S: true,
     XA_rat: { b: 2 },
@@ -789,24 +789,24 @@ type _JoinPaths<H extends string, T extends string> =
     D_rat_squeak_quietly_blah: 999,
   }
 
-  type A = FacPath<Nodes>
+  type A = FacPath<NN>
 
   type B = _AllRoutePaths<'XA'>
   type C = _AllRoutePaths<'XA_rat'>
   type D = _AllRoutePaths<'XA_rat_squeak_quietly_blah'>
 
-  type E = _KnownRoutePaths<Nodes, 'XA'>
-  type F = _KnownRoutePaths<Nodes, 'XA_rat'>
-  type G = _KnownRoutePaths<Nodes, 'XA_rat_squeak_quietly_blah'>
+  type E = _KnownRoutePaths<NN, 'XA'>
+  type F = _KnownRoutePaths<NN, 'XA_rat'>
+  type G = _KnownRoutePaths<NN, 'XA_rat_squeak_quietly_blah'>
 
-  type H = _UpstreamFacPaths<Nodes, ''>
-  type I = _UpstreamFacPaths<Nodes, 'rat'>
-  type J = _UpstreamFacPaths<Nodes, 'rat_squeak_quietly'>
-  type K = _UpstreamFacPaths<Nodes, 'rat_squeak_quietly_blah'>
+  type H = _UpstreamFacPaths<NN, ''>
+  type I = _UpstreamFacPaths<NN, 'rat'>
+  type J = _UpstreamFacPaths<NN, 'rat_squeak_quietly'>
+  type K = _UpstreamFacPaths<NN, 'rat_squeak_quietly_blah'>
 
-  type L = FacContext<Nodes, 'rat'>
-  type M = FacContext<Nodes, 'rat_squeak_quietly'>
-  type N = FacContext<Nodes, 'rat_squeak_quietly_blah'>
+  type L = FacContext<NN, 'rat'>
+  type M = FacContext<NN, 'rat_squeak_quietly'>
+  type N = FacContext<NN, 'rat_squeak_quietly_blah'>
 
   type _ = [A, B, C, D, E, F, G, H, I, J, K, L, M, N];
 }

@@ -1,9 +1,9 @@
 import { List, Map } from "immutable";
 import { Fac, Handler } from "../shapeShared";
-import { Data, formPath, Nodes } from "./common";
+import { Data, formPath } from "./common";
 import { Registry } from "./Registry";
 
-export class BuiltWorld<N extends Nodes> {
+export class BuiltWorld<N> {
   public readonly nodes: N = <N><unknown>{}
   public readonly data: Data<N> = <Data<N>><unknown>undefined;
   

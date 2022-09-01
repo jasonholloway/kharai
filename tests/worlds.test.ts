@@ -3,7 +3,7 @@ import { act, incl } from '../src/shape/common';
 import { World } from '../src/shape/World';
 import { createRunner } from './shared'
 import { Str } from '../src/guards/Guard'
-import { inspect } from 'util'
+import { Simplify } from './util';
 
 const animal = (says:string) =>
   World
@@ -21,12 +21,35 @@ const animal = (says:string) =>
       }
     });
 
+const genericThing = <T>(t:T) => {
+  const w = World
+    .shape({
+      oof: act(t),
+      wow: act()
+    });
+
+  type R = typeof w;
+  type _ = R
+
+  w.nodes
+
+  return w.impl({
+    async oof({and}, d) {
+      return false;
+    }
+  });
+}
+
 
 const world =
   World
     .shape({
       pig: incl(animal('oink')),
+
+      blub: incl(genericThing(123)),
       // dog: incl(animal('woof')),
+
+      meow: act(),
 
       speakToAnimals: act(Str),
     })

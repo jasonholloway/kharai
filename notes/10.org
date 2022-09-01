@@ -76,8 +76,22 @@ so the mappings will have weight also
 
 
 
+* fan outs
+If we have one machine with data, which should be used by others
+then others can watch it - this will stop them being bound to each other in a ring
 
+so a registry of behaviours can be watched
+but whatever data is watched, must always be serializable
 
+prepared data, provided via meeting, involves commits and mutual lockstep
+this data could be a ref to an owning machine
+which could itself be watched
+but watching is unidirectional only
+if the watched has no good data for us
+then what can we do?
+we can complain, which is about all we could do in bilateral convo really
+
+we couple to the data of another
 
 
 

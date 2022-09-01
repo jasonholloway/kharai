@@ -10,7 +10,6 @@ import { Commit } from './AtomSpace'
 import { BuiltWorld } from './shape/BuiltWorld'
 import { AtomRef } from './atoms'
 import { inspect, isArray, isFunction } from 'util'
-import { Nodes, separator } from './shape/common'
 import { Loader } from './Store'
 import { Timer } from './Timer'
 import { isString } from './util'
@@ -30,7 +29,7 @@ type CommitFac = (h: Head<DataMap>) => Committer<DataMap>
 
 export type Log = [[string, unknown]|false, AtomRef<DataMap>?]
 
-export class MachineSpace<N extends Nodes> {
+export class MachineSpace<N> {
   private readonly world: BuiltWorld<N>
   private readonly loader: Loader
   private readonly mediator: Mediator
