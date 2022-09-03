@@ -1,5 +1,5 @@
 import { FacNode } from "../facs";
-import { Any, Read } from "../guards/Guard";
+import { Any, Guard, Read } from "../guards/Guard";
 import { Handler, $Root, Fac, $data, $space, $handler, $fac, $Fac, $incl, $Incl } from "../shapeShared";
 import { Merge, Simplify } from "../util";
 import { Builder, BuiltIns, CoreCtx, PhaseHelper } from "./World";
@@ -29,10 +29,14 @@ type _Data<N, Inner = unknown> =
   keyof N extends infer K ?
   K extends `D${Separator}${infer P}` ?
   K extends keyof N ?
-  N[K] extends infer G ?
-  Read<G, $Root, Inner> extends infer D ?
+  _DataTuple<P, Read<N[K], $Root, Inner>>
+  : never : never : never
+;
+
+type _DataTuple<P, D> =
   IsNotNever<D> extends true ? [P, D] : [P]
-: never : never : never : never : never;
+;
+
 
 {
   type A = Data<{
@@ -56,13 +60,14 @@ export type ReadResult = {
 }
 
 
-// O below is the monolithic phase output type
 export type Impls<N, O> =
-  [_Data<N>] extends [infer DOne] ?
-  [_Data<N, DOne>] extends [infer DFull] ?
+  _Impls<N, _Data<N>, O>
+;
+
+type _Impls<N, DOne, O> =
   [_ImplSplit<N>] extends [infer Tups] ?
-  _ImplCombine<[Tups], {}, DOne, DFull, {and:PhaseHelper<N&BuiltIns,O>}&CoreCtx, O>
-  : never : never : never
+  _ImplCombine<[Tups], {}, DOne, _Data<N, DOne>, {and:PhaseHelper<N&BuiltIns,O>}&CoreCtx, O>
+  : never
 ;
 
 type _ImplSplit<N> =
@@ -96,9 +101,7 @@ type _ImplCombine<Tups, X0, DOne, DAll, XExtra, O> =
   ] extends readonly [infer DD] ?
     IsNotNever<DD> extends true ? (
       DD extends readonly [infer D] ?
-      IsNotNever<D> extends true
-        ? (x:X, d:Read<D, $Root, O>)=>Promise<O|false>
-        : (x:X)=>Promise<O|false>
+        _Handler<D, X, O>
       : never
   )
 
@@ -115,6 +118,11 @@ type _ImplCombine<Tups, X0, DOne, DAll, XExtra, O> =
 
   : never : never
 ;
+
+type _Handler<D, X, O> = 
+  IsNotNever<D> extends true
+  ? (x:X, d:Read<D, $Root, O>)=>Promise<O|false>
+  : (x:X)=>Promise<O|false>;
 
 {
   type W = {
@@ -157,6 +165,32 @@ type _ImplCombine<Tups, X0, DOne, DAll, XExtra, O> =
 
   type _ = [A,B,I]
   i
+
+
+  function fn<T>() {
+    type N1 = {
+      D_blah: Guard<T>
+    };
+
+    type A = Impls<N1, 123>;
+    type B = Data<N1>
+
+    const a: A = {};
+    a
+
+
+    type N2 = {
+      D_moo: 999
+    };
+
+    type C = Impls<N2, 123>;
+
+
+    type Z = T;
+
+    type _ = [A,B,C,Z];
+  }
+  
 }
 
 

@@ -2,8 +2,7 @@ import _Monoid from '../src/_Monoid'
 import { act, incl } from '../src/shape/common';
 import { World } from '../src/shape/World';
 import { createRunner } from './shared'
-import { Str } from '../src/guards/Guard'
-import { Simplify } from './util';
+import { Guard, Str } from '../src/guards/Guard'
 
 const animal = (says:string) =>
   World
@@ -21,11 +20,11 @@ const animal = (says:string) =>
       }
     });
 
-const genericThing = <T>(t:T) => {
+const genericThing = <T>(t:Guard<T>) => {
   const w = World
     .shape({
       oof: act(t),
-      wow: act()
+      // wow: act()
     });
 
   type R = typeof w;
@@ -35,7 +34,7 @@ const genericThing = <T>(t:T) => {
 
   return w.impl({
     async oof({and}, d) {
-      return false;
+      return and.oof(d);
     }
   });
 }
@@ -46,7 +45,7 @@ const world =
     .shape({
       pig: incl(animal('oink')),
 
-      blub: incl(genericThing(123)),
+      blub: incl(genericThing(Guard(123 as const))),
       // dog: incl(animal('woof')),
 
       meow: act(),
@@ -56,7 +55,11 @@ const world =
     .impl({
       async speakToAnimals({and}, greeting) {
         return and.pig.hello(greeting);
-      }
+      },
+
+      // async blub(x, d) {
+      //   return false;
+      // }
     });
 
 

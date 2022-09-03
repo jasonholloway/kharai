@@ -17,9 +17,15 @@ export type Separator = typeof separator;
 export module Builder {
 
   export type TryMerge<A, B> =
-    Merge<A,_MergeNew<A,B>> extends infer Merged
-      ? Builder<Merged>
-      : never;
+    Builder<
+      Merge<A,_MergeNew<A,B>>
+    >;
+
+  //so below is a problem
+  //in that the nice Ts are getting stuck, blocked in the type-deduction pipeline
+  //
+  //
+  //
 
   type _MergeNew<A,B> = {
     [k in keyof B]:
@@ -141,19 +147,18 @@ type _ExtractData<N> = {
 type _WalkData<P extends string, D, DAll, Out> = DeepSimplify<
   (
     P extends keyof D
-      ? (
-        Read<D[P], $Root, Out> extends infer V ?
-        IsNotNever<V> extends true
-          ? ((d: V) => Out)
-          : (() => Out)
-        : never
-      )
+      ? _Handler<Read<D[P], $Root, Out>, Out>
       : unknown
   )
   & ({
     [N in _ExtractNextPrefixes<P,D> & string]: _WalkData<_JoinPaths<P,N>, D, DAll, Out>
   })
 >;
+
+type _Handler<V,Out> =
+  IsNotNever<V> extends true
+  ? ((d: V) => Out)
+  : (() => Out);
 
 type _ExtractNextPrefixes<P extends string, D> =
   keyof D extends infer K ?
@@ -229,7 +234,7 @@ export class Builder<N> {
 
   shape<S extends SchemaNode>(s: S): Builder.TryMerge<N, Shape<S>> {
     const reg2 = this.reg.update(root => _walk(root, s))
-    return <Builder.TryMerge<N,Shape<S>>>new Builder<Shape<S>>(reg2);
+    return <Builder.TryMerge<N,Shape<S>>><unknown>new Builder<Shape<S>>(reg2);
 
 
     function _walk(node: NodeView<NodeVal>, obj: SchemaNode): NodeView<NodeVal> {
@@ -663,16 +668,14 @@ type _Walk<O, P extends string = ''> =
 
 type _DataWalk<O, P extends string> =
   $Data extends keyof O ?
-  O[$Data] extends infer D ?
-  [_JoinPaths<'D', P>, D]
-  : never : never
+  [_JoinPaths<'D', P>, O[$Data]]
+  : never
 ;
 
 type _FacWalk<O, P extends string> =
   $Fac extends keyof O ?
-  O[$Fac] extends infer F ?
-  [_JoinPaths<'XA', P>, F]
-  : never : never
+  [_JoinPaths<'XA', P>, O[$Fac]]
+  : never
 ;
 
 type _InclWalk<O, P extends string> =

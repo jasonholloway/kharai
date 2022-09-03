@@ -87,12 +87,16 @@ export type Read<S, X=never, Y=never> =
   : S;
   // : never
 
-export const Guard = <S>(s: S, cb?: ((s:any,v:any)=>undefined|boolean)) => Object.assign(
+export type Guard<T> = (v:unknown) => v is T;
+
+export function Guard<S>(s: S, cb?: ((s:any,v:any)=>undefined|boolean)) {
+  return Object.assign(
   (v: any): v is Read<S> => match(s, v, cb),
   {
     match: (v: Read<S>) => match(s, v, cb),
     to<V extends Read<S>>() { return <(v:any) => v is V><unknown>this; }
   });
+}
 
 
 export function match(s: any, v: any, cb?: ((s:any,v:any)=>undefined|boolean)): boolean {
