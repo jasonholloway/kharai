@@ -25,8 +25,8 @@ describe('machines - watching', () => {
 					return false;
 				},
 
-				async follow({and,watch}, [ids, c]) {
-					const frames = await watch(ids)
+				async follow({and,watchRaw}, [ids, c]) {
+					const frames = await watchRaw(ids)
 						.pipe(take(c), toArray())
 						.toPromise();
 
@@ -181,8 +181,8 @@ describe('machines - watching', () => {
 					show: (d) => [d]
 				},
 
-				async view({and,watch}, [ids, c]) {
-					const frames = await watch(ids)
+				async view({and,watchRaw}, [ids, c]) {
+					const frames = await watchRaw(ids)
 						.pipe(take(c), toArray())
 						.toPromise();
 

@@ -21,12 +21,6 @@ export module Builder {
       Merge<A,_MergeNew<A,B>>
     >;
 
-  //so below is a problem
-  //in that the nice Ts are getting stuck, blocked in the type-deduction pipeline
-  //
-  //
-  //
-
   type _MergeNew<A,B> = {
     [k in keyof B]:
       k extends `D${'_'|''}${string}` ? (
@@ -61,14 +55,6 @@ export module Builder {
     //can only pack encoding into mapped props
     //and extract in one swoop after
   };
-
-  //merging facs, what's the point?
-  //we want to extend facs - simple enough
-  //so just merge types where we have overlap?
-  //
-  //but... this doesn't help us extend them fluently...
-  //
-
 
 
   export type TryBuild<N> =
@@ -622,49 +608,10 @@ function builtIns() {
 export const World = new Builder<{}>(Registry.empty)
 
 
-
-
-
-
-
-        // watch(ids: Id[]): Observable<[Id, unknown]> {
-        //   return _this.summon(Set(ids)) //TODO if the same thing is watched twice, commits will be added doubly
-        //     .pipe(
-        //       mergeMap(m => m.log$.pipe(
-        //         map(l => <[Id, Log]>[m.id, l])
-        //       )),
-        //       tap(([,[,r]]) => { //gathering all watched atomrefs here into mutable Commit
-        //         if(r) commit.add(List([r]))
-        //       }),
-        //       mergeMap(([id, [p]]) => p ? [<[Id, unknown]>[id, p]] : []),
-        //     );
-        // },
-
-        // attach<R>(attend: Attendee<R>) {
-        //   return _this.mediator.attach(machine, {
-        //     chat(m, peers) {
-        //       if(isArray(m) && m[0] == $Ahoy) {
-        //         Committer.combine(new MonoidData(), [commit, <Committer<Data>>m[1]]);
-        //         m = m[2];
-        //       }
-
-        //       const proxied = peers.map(p => <Peer>({
-        //         chat(m) {
-        //           return p.chat([$Ahoy, commit, m]);
-        //         }
-        //       }));
-        //       return attend.chat(m, proxied);
-        //     }
-        //   });
-        // },
-
-        // async convene<R>(ids: Id[], convene: Convener<R>) {
-        //   const m$ = _this.summon(Set(ids));
-
 export type CoreCtx = {
   id: string
   timer: Timer
-  watch: (ids: string[]) => Observable<readonly [string, unknown]>
+  watchRaw: (ids: string[]) => Observable<readonly [string, unknown]>
   attend: <R>(attend: Attendee<R>|AttendedFn<R>) => Promise<false|[R]>
   convene: <R>(ids: string[], convene: Convener<R>|ConvenedFn<R>) => Promise<R>
   side: { get():unknown, set(d:unknown):void } 

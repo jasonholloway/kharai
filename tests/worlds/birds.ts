@@ -20,8 +20,8 @@ export const birds = World
       return false;
     },
 
-    async track({and,watch}, [ids, c]) {
-      const frames = await watch(ids)
+    async track({and,watchRaw}, [ids, c]) {
+      const frames = await watchRaw(ids)
         .pipe(take(c), toArray())
         .toPromise();
 

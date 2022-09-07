@@ -80,11 +80,10 @@ export class MachineSpace<N> {
     const summoned = ids.map(id => {
       const found = _this.machines.get(id);
       if(found) {
-        return [false, id, found] as const;
+        return [id, found] as const;
       }
       else {
         return [
-          true as boolean,
           id,
           _this.loader
             .load(Set([id]))
@@ -102,19 +101,20 @@ export class MachineSpace<N> {
               _this._machine$.next(machine);
 
               return machine;
-            })
+            }),
+          true
         ] as const;
       }
     })
 
     const toAdd = summoned
-      .filter(([isNew]) => isNew)
-      .map(([, id, loading]) => <[Id, Promise<Machine>]>[id, loading]);
+      .filter(([,,isNew]) => isNew)
+      .map(([id, loading]) => <[Id, Promise<Machine>]>[id, loading]);
     
     this.machines = _this.machines.merge(Map(toAdd));
 
     return merge(...(summoned.map(
-      ([,, loading]) => from(loading)
+      ([,loading]) => from(loading)
     )));
   }
 
@@ -234,7 +234,7 @@ export class MachineSpace<N> {
           return v == 0;
         },
 
-        watch(ids: Id[]): Observable<[Id, unknown]> {
+        watchRaw(ids: Id[]): Observable<[Id, unknown]> {
           //its like every log slice should include the matched Phase
           //then the matched Phase can be used to whittle things down here
           //...
