@@ -9,7 +9,6 @@ import { newRun, RunOpts } from '../src/Run'
 import { tracePath, renderAtoms } from '../src/AtomPath'
 import FakeStore from '../src/FakeStore'
 import { BuiltWorld } from '../src/shape/BuiltWorld'
-import { Builder } from './shape/World'
 
 type Opts = { batchSize?: number, data?: DataMap } & RunOpts;
 
@@ -25,7 +24,7 @@ export function createRunner<N>(world: BuiltWorld<N>, opts?: Opts) {
     groupBy(m => m.id),
     mergeMap(m$ => m$.pipe(
       mergeMap(m => m.log$),
-      mergeMap(({atomRef:r}) => r ? [r] : []),
+      mergeMap(({atoms}) => atoms),
       scan<AtomRef<DataMap>, [string, AtomRef<DataMap>[]]>(([k, rs], r) => [k, [...rs, r]], [m$.key, []])
     )),
     scan((ac: Map<string, AtomRef<DataMap>[]>, [k, rs]) => {
@@ -35,7 +34,7 @@ export function createRunner<N>(world: BuiltWorld<N>, opts?: Opts) {
   ).subscribe(atomSub);
 
   const log$ = run.log$.pipe(
-    map(([id,{out:d}]) => [id, d] as const),
+    map(([id,{state}]) => [id,state] as const),
     shareReplay(1000)
   );
 
@@ -74,111 +73,7 @@ export function createRunner<N>(world: BuiltWorld<N>, opts?: Opts) {
       }
     }
   }
-
 }
-
-
-
-
-// export function scenario<
-//   W extends PhaseMap,
-//   P = Phase<W>,
-//   X extends MachineContext<P> = MachineContext<P>>
-//   (world: WorldImpl<W, X> & ContextImpl<P, X>)
-// {
-//   return (opts?: { phases?: Map<Id, P>, batchSize?: number, threshold?: number, save?: boolean, loader?: Loader<P> }) => {
-
-//     const save = opts?.save === undefined || opts?.save;
-    
-//     const store = new FakeStore(MD, opts?.batchSize || 4);
-
-//     const loader: Loader<P> =
-//       opts?.loader ??
-//       (ids => Promise.resolve(
-//         ids
-//           .reduce<Map<Id, P>>((ac, id) => {
-//             const found = opts?.phases?.get(id);
-//             const p = found || <P><unknown>(['$boot', []]);
-//             return ac.set(id, p);
-//           }, Map())));
-
-//     const run = newRun(world, loader, { ...opts, store: (save ? store : undefined) });
-
-//     const atomSub = new BehaviorSubject<Map<string, AtomRef<Data>[]>>(Map()); 
-
-//     run.machine$.pipe(
-//       groupBy(m => m.id),
-//       mergeMap(m$ => m$.pipe(
-//         mergeMap(m => m.log$),
-//         mergeMap(([,r]) => r ? [r] : []),
-//         scan<AtomRef<Data>, [string, AtomRef<Data>[]]>(([k, rs], r) => [k, [...rs, r]], [m$.key, []])
-//       )),
-//       scan((ac: Map<string, AtomRef<Data>[]>, [k, rs]) => {
-//         return ac.set(k, rs);
-//       }, Map<string, AtomRef<Data>[]>()),
-//       shareReplay(1),
-//     ).subscribe(atomSub);
-
-//     const log$ = run.log$.pipe(
-//       map(([id, p]) => [id, p] as const),
-//       shareReplay(1000)
-//     );
-
-//     log$.subscribe();
-
-//     return {
-//       store,
-//       run,
-
-//       logs: (id: Id) =>
-//         gather(log$.pipe(
-//           filter(([i]) => i == id),
-//           map(([,p]) => p),
-//           takeWhile((p): p is P => !!p),
-//         )),
-
-//       allLogs: () => gather(log$),
-
-//       view(id: Id) {
-//         return viewAtoms(List(atomSub.getValue()?.get(id) || []));
-//       },
-
-//       async session(fn: ()=>Promise<void>) {
-//         const release = run.keepAlive();
-//         try {
-//           await fn();
-//         }
-//         finally {
-//           release();
-//           run.complete();
-//         }
-//       }
-//     }
-//   }
-// }
-
-
-// export function phasesOnly(): OperatorFunction<Emit<any>, readonly [Id, any]> {
-//   return mergeMap(l => {
-//     if(isString(l[0]) || (isArray(l[0]) && isString(l[0][0]) && isString(l[0][1]))) {
-//       return [<[Id, any]>l];
-//     }
-//     else {
-//       return [];
-//     }
-//   })
-// }
-
-// export function commitsOnly(): OperatorFunction<Emit<any>, AtomEmit<Data>> {
-//   return mergeMap(l => {
-//     if(l[0] == $Commit) {
-//       return [<[typeof $Commit, AtomRef<Data>]>l];
-//     }
-//     else {
-//       return [];
-//     }
-//   })
-// }
 
 export function resolveAtoms<V>(rs:AtomLike<V>[]|List<AtomLike<V>>|Set<AtomLike<V>>) {
   return List(rs)

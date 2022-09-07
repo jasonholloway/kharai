@@ -1,9 +1,9 @@
 import { Id, DataMap } from './lib'
 import { Mediator } from './Mediator'
 import { Observable, Subject, merge, ReplaySubject, EMPTY, of, from, Observer } from 'rxjs'
-import { concatMap, toArray, filter, mergeMap, map, share, expand, startWith, takeUntil, finalize, shareReplay, tap } from 'rxjs/operators'
+import { concatMap, toArray, filter, mergeMap, map, share, expand, takeUntil, finalize, shareReplay, tap } from 'rxjs/operators'
 import Committer from './Committer'
-import { fromJS, List, Map, Seq, Set } from 'immutable'
+import { List, Map, Seq, Set } from 'immutable'
 import MonoidData from './MonoidData'
 import Head from './Head'
 import { Commit } from './AtomSpace'
@@ -25,12 +25,10 @@ export type Machine = {
   log$: Observable<Log>
 }
 
-type CommitFac = (h: Head<DataMap>) => Committer<DataMap>
-
 export type Log = {
+  state: [string, unknown]|false,
   phase?: Found,
-  out: [string, unknown]|false,
-  atomRef?: AtomRef<DataMap>
+  atoms: List<AtomRef<DataMap>>
 }
 
 export class MachineSpace<N> {
@@ -122,7 +120,7 @@ export class MachineSpace<N> {
 
   private runMachine(
     id: Id,
-    state: unknown,
+    initialState: unknown,
     signal$: Observable<Signal>,
     commit$: Observer<Commit<DataMap>>
   ): Machine
@@ -135,14 +133,14 @@ export class MachineSpace<N> {
     
     const kill$ = signal$.pipe(filter(s => s.stop), share());
 
-    const log$ = of(<Log>{ out:state })
-      .pipe(
-        expand(({ out:p }) => from((async () => {
+    const log$ = of(<Log>{ state:initialState, atoms: List() }).pipe(
+      expand(log => of(log).pipe(
+        mergeMap(async ({ state }) => {
           v++;
 
-          if(p === false) return EMPTY;
+          if(state === false) return EMPTY;
 
-          const [path, data] = p;
+          const [path, data] = state;
 
           const committer = new Committer<DataMap>(_this.MD, head);
 
@@ -158,6 +156,16 @@ export class MachineSpace<N> {
             //guard here TODO TODO TODO TODO
             //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
+
+            //this is where we want to emit!
+            //here we have input state
+            //
+            //Q: what is atomRef actually used for???
+            //is it just for watching???
+            //instead of one ref, should be all atomRefs from head
+
+            
+
             const ctx = fac(coreContext(id, v, committer));
             const out = await handler(ctx, data);
 
@@ -167,8 +175,8 @@ export class MachineSpace<N> {
 
             if(isPhase(out)) {
               //does this mean that on false we're not committing???
-              const ref = await committer.complete(Map({ [id]: out }));
-              return of(<Log>{ phase, out, atomRef:ref });
+              await committer.complete(Map({ [id]: out }));
+              return of(<Log>{ state:out, phase, atoms:head.refs() });
             }
 
             if(out === false) {
@@ -183,16 +191,18 @@ export class MachineSpace<N> {
             return EMPTY;
             // throw e;
           }
-        })()).pipe(concatMap(o => o))),
+        }),
+        concatMap(o => o)
+      )),
 
-        tap(({out}) => log('ACT', id, inspect(out, {colors:true}))),
-        finalize(() => log('END', id)),
-        
-        takeUntil(kill$),
-        finalize(() => head.release()),
+      tap(({state}) => log('ACT', id, inspect(state, {colors:true}))),
+      finalize(() => log('END', id)),
 
-        shareReplay(1),
-      );
+      takeUntil(kill$),
+      finalize(() => head.release()),
+
+      shareReplay(1),
+    );
 
     const machine = {
       id,
@@ -236,14 +246,14 @@ export class MachineSpace<N> {
                 map(l => <[Id, Log]>[m.id, l])
               )),
 
-              mergeMap(([id, { phase, out:p, atomRef:r }]) =>
-                (p && phase && phase.projector)
-                  ? phase.projector(p).map(v => <[Id, AtomRef<DataMap>, unknown]>[id, r, v])
+              mergeMap(([id, { phase, state, atoms }]) =>
+                (state && phase && phase.projector)
+                  ? phase.projector(state).map(v => [id, atoms, v] as const)
                   : []),
 
               //gathering atomrefsof all visible projections into mutable Commit
-              map(([id, r, v]) => {
-                if(r) commit.add(List([r]));
+              map(([id, atoms, v]) => {
+                commit.add(atoms);
                 return [id, v];
               })
             );
@@ -255,10 +265,10 @@ export class MachineSpace<N> {
               mergeMap(m => m.log$.pipe(
                 map(l => <[Id, Log]>[m.id, l])
               )),
-              tap(([,{ atomRef:r }]) => { //gathering all watched atomrefs here into mutable Commit
-                if(r) commit.add(List([r]))
+              tap(([,{ atoms }]) => { //gathering all watched atomrefs here into mutable Commit
+                commit.add(atoms)
               }),
-              mergeMap(([id, { out:p }]) => p ? [<[Id, unknown]>[id, p]] : []),
+              mergeMap(([id, { state:p }]) => p ? [<[Id, unknown]>[id, p]] : []),
             );
         },
 
@@ -336,38 +346,13 @@ export class MachineSpace<N> {
         }
       };
     }
-
-    // function createPhaseFacTree(): object {
-    //   return _create(
-    //     List(),
-    //     List(_this.world.reg.getHandlerPaths()).map(p => List(p.split(separator)))
-    //   );
-
-    //   function _create(route: List<string>, paths: List<List<string>>): object {
-    //     const routePath = route.join(separator);
-        
-    //     return Object.assign(
-    //       ((d:unknown) => d !== undefined ? [routePath, d] : [routePath]),
-    //       paths
-    //         .filter(p => !p.isEmpty())
-    //         .groupBy(p => p.first()!)
-    //         .map(ps => ps.map(p => p.skip(1)).toList())
-    //         .reduce((ac, ps, k) => ({
-    //             ...ac,
-    //             [k]: _create(route.concat([k]), ps)
-    //           }),
-    //           <{[k:string]:unknown}>{}
-    //         )
-    //     );
-    //   }
-    // }
   }
 }
+
 
 export type Signal = {
   stop: boolean
 }
-
 
 
 export interface Peer {
