@@ -139,66 +139,65 @@ export class MachineSpace<N> {
 
     const log$ = of(<Log>{ out:state })
       .pipe(
-        expand(({ out:p }) => {
-          log('PHASE', id, inspect(p, {colors:true}));
+        expand(({ out:p }) => from((async () => {
+          v++;
 
-          return from((async () => {
-            v++;
+          if(p === false) return EMPTY;
 
-            if(p === false) return EMPTY;
+          const [path, data] = p;
 
-            const [path, data] = p;
+          const committer = commitFac(head);
 
-            const committer = commitFac(head);
+          try {
+            const phase = _this.world.read(path);
 
-            try {
-              const phase = _this.world.read(path);
+            //should attach phase to log
 
-              //should attach phase to log
+            const { guard, fac, handler } = phase;
+            if(!handler) throw Error(`No handler at path ${path}`);
+            if(!fac) throw Error(`No fac at path ${path}`);
+            if(!guard) throw Error(`No guard at path ${path}`);
 
-              const { guard, fac, handler } = phase;
-              if(!handler) throw Error(`No handler at path ${path}`);
-              if(!fac) throw Error(`No fac at path ${path}`);
-              if(!guard) throw Error(`No guard at path ${path}`);
+            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            //guard here TODO TODO TODO TODO
+            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-              //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-              //guard here TODO TODO TODO TODO
-              //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            const ctx = fac(coreContext(id, v, committer));
+            const out = await handler(ctx, data);
 
-              const ctx = fac(coreContext(id, v, committer));
-              const out = await handler(ctx, data);
+            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            //guard here TODO TODO TODO TODO
+            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-              //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-              //guard here TODO TODO TODO TODO
-              //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-              if(isPhase(out)) {
-                //does this mean that on false we're not committing???
-                const ref = await committer.complete(Map({ [id]: out }));
-                return of(<Log>{ phase, out, atomRef:ref });
-              }
-
-              if(out === false) {
-                return EMPTY; // <Log>[phase, out];
-              }
-
-              throw Error(`Handler output no good: ${inspect(out,{depth:4})}`);
+            if(isPhase(out)) {
+              //does this mean that on false we're not committing???
+              const ref = await committer.complete(Map({ [id]: out }));
+              return of(<Log>{ phase, out, atomRef:ref });
             }
-            catch(e) {
-              committer.abort();
-              console.error(e);
 
-              //false here kills without committing
-              return EMPTY; // <Log>[undefined, false]; //SHOULDN'T 
-              // throw e;
+            if(out === false) {
+              return EMPTY; // <Log>[phase, out];
             }
-          })())
-            .pipe(concatMap(o => o))
-        }),
-        startWith(<Log>{ out:state, atomRef:new AtomRef() }),
-        filter(({out}) => !!out),
+
+            throw Error(`Handler output no good: ${inspect(out,{depth:4})}`);
+          }
+          catch(e) {
+            committer.abort();
+            console.error(e);
+
+            //false here kills without committing
+            return EMPTY; // <Log>[undefined, false]; //SHOULDN'T 
+            // throw e;
+          }
+        })()).pipe(concatMap(o => o))),
+
+        startWith(<Log>{ out:state }),
+        tap(({out}) => log('ACT', id, inspect(out, {colors:true}))),
+        finalize(() => log('END', id)),
+        
         takeUntil(kill$),
         finalize(() => head.release()),
+
         shareReplay(1),
       );
 
