@@ -101,7 +101,7 @@ type _ImplCombine<Tups, X0, DOne, DAll, XExtra, O> =
   ] extends readonly [infer DD] ?
     IsNotNever<DD> extends true ? (
       DD extends readonly [infer D] ?
-        _Handler<D, X, O>
+        _Phase<D, X, O>
       : never
   )
 
@@ -119,10 +119,15 @@ type _ImplCombine<Tups, X0, DOne, DAll, XExtra, O> =
   : never : never
 ;
 
+type _Phase<D, X, O> =
+  _Handler<D,X,O> | { act:_Handler<D,X,O>, show: (d:Read<D,$Root,O>)=>unknown[] }
+;
+
 type _Handler<D, X, O> = 
   IsNotNever<D> extends true
-  ? (x:X, d:Read<D, $Root, O>)=>Promise<O|false>
-  : (x:X)=>Promise<O|false>;
+  ? (x:X, d:Read<D,$Root,O>)=>Promise<O|false>
+  : (x:X)=>Promise<O|false>
+;
 
 {
   type W = {

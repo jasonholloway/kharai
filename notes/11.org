@@ -1,0 +1,35 @@
+
+* WatchMap
+  we want to view the progress of other machines, without affecting them, a kind of snooping operation
+  but `watchRaw` is a bit intrusive like
+  so each phase can specify its state mapping
+  a synchronous op from state to view - or is it?
+  why can't it be async? well, it can return callable callbacks
+  the idea is that it can't capture anything private to the source
+  in particular the meeting functions are precious
+
+  if a phase registers its projection, it's just reserving its own place
+  in the licking into shape of its inner state
+  which seems reasonable
+  my only fear is of the complicating of the api
+  we need to register projections as well as handlers
+  though by default nothing needs to be registered
+
+  it is necessary though
+  consumers could watch and try to extract
+  this would make them blind potentially to intermediate states
+  so, like a porpoise, a program could briefly appear in a form
+  before doing other things and reappearing in the same form later
+  only now slightly transmuted
+
+  
+  
+
+  
+  
+
+  
+
+  
+
+

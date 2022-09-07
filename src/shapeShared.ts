@@ -20,5 +20,6 @@ export type $Incl = typeof $incl;
 
 
 export type Handler = (x: any, d: any) => Promise<unknown>;
+export type Projector = (d: unknown) => unknown;
 export type Fac = (x:any) => unknown;
 

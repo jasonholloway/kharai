@@ -4,7 +4,7 @@ import { inspect, isArray } from "util";
 import { Any, Guard, Many, Never, Num, Str, Read } from "../guards/Guard";
 import { Id } from "../lib";
 import { AttendedFn, Attendee, ConvenedFn, Convener, Peer } from "../MachineSpace";
-import { Handler, $data, $Data, $Fac, $Root, $root, $Incl, $incl } from "../shapeShared";
+import { Handler, $data, $Data, $Fac, $Root, $root, $Incl, $incl, Projector } from "../shapeShared";
 import { Timer } from "../Timer";
 import { DeepMerge, DeepSimplify, delay, IsAny, IsNever, Merge, Simplify } from "../util";
 import { BuiltWorld } from "./BuiltWorld";
@@ -267,36 +267,57 @@ export class Builder<N> {
   }
 
   impl<S extends Impls<N,AndNext>>(s: S): Builder<N> {
-    return new Builder<N>(this.reg.update(root => _walk(root, s)));
+    return new Builder<N>(this.reg.update(root => _walk(root, s, List())));
 
-    function _walk(node: NodeView<NodeVal>, obj: object): NodeView<NodeVal> {
+    function _walk(n: NodeView<NodeVal>, obj: unknown, pl: List<string>): NodeView<NodeVal> {
+      if(obj === undefined) return n;
+
+      switch(typeof obj) {
+        case 'object': return _walkObj(n, <object>obj, pl);
+        case 'function': return _walkHandler(n, <Function>obj, pl)
+        default: return n;
+      }
+    }
+
+    function _walkObj(n: NodeView<NodeVal>, obj: object, pl: List<string>): NodeView<NodeVal> {
+      if(n.node.val.guard) return _walkFullPhase(n, obj, pl);
+      else return _walkSpace(n, obj, pl);
+    }
+
+    function _walkSpace(n: NodeView<NodeVal>, obj: object, pl: List<string>): NodeView<NodeVal> {
       return Object
         .getOwnPropertyNames(obj)
         .reduce(
-          (n, pn) => {
+          (n0, pn) => {
             const prop = (<{[k:string]:unknown}>obj)[pn];
-
-            switch(typeof prop) {
-              case 'function':
-                return n
-                  .pushPath(pn, ()=>({facs:List()}))
-                  .update(v => ({
-                    ...v,
-                    handler: (x:object, d:unknown) => {
-                      return (<Handler>prop)(x, d);
-                    }
-                  }))
-                  .popPath()!;
-
-              case 'object':
-                if(prop) return _walk(n.pushPath(pn, ()=>({facs:List()})), prop).popPath()!;
-                break;
-            }
-
-            return n;
+            const n1 = n0.pushPath(pn, ()=>({facs:List()}));
+            const n2 = _walk(n1, prop, pl.push(pn));
+            return n2.popPath()!;
           },
-          node
+          n
         );
+    }
+
+    function _walkFullPhase(n0: NodeView<NodeVal>, obj: {act?:Function, show?:Function}, pl: List<string>): NodeView<NodeVal> {
+      const n1 = obj.act ? _walkHandler(n0, obj.act, pl) : n0;
+      const n2 = obj.show ? _walkProjector(n1, obj.show, pl) : n1;
+      return n2;
+    }
+
+    function _walkHandler(n: NodeView<NodeVal>, fn:Function, pl: List<string>): NodeView<NodeVal> {
+      return n
+        .update(v => ({
+          ...v,
+          handler: <Handler>fn
+        }));
+    }
+
+    function _walkProjector(n: NodeView<NodeVal>, fn:Function, pl: List<string>): NodeView<NodeVal> {
+      return n
+        .update(v => ({
+          ...v,
+          projector: <Projector>fn
+        }));
     }
   }
 
