@@ -1,6 +1,6 @@
 import { Id, DataMap } from './lib'
 import { Mediator } from './Mediator'
-import { Observable, Subject, merge, ReplaySubject, EMPTY, of, from } from 'rxjs'
+import { Observable, Subject, merge, ReplaySubject, EMPTY, of, from, Observer } from 'rxjs'
 import { concatMap, toArray, filter, mergeMap, map, share, expand, startWith, takeUntil, finalize, shareReplay, tap } from 'rxjs/operators'
 import Committer from './Committer'
 import { List, Map, Seq, Set } from 'immutable'
@@ -83,29 +83,26 @@ export class MachineSpace<N> {
         return [false, id, found] as const;
       }
       else {
-        const loading = _this.loader.load(Set([id]));
-
-        //TODO should check loaded phases against schema guards!
-
         return [
-          <boolean>true,
+          true as boolean,
           id,
-          loading.then(loaded => {
-            const phase = loaded.get(id)!;
-            
-            const machine = _this
-              .runMachine(
-                id,
-                phase,
-                new Head(_this._commit$),
-                h => new Committer<DataMap>(_this.MD, h),
-                _this._signal$
-              );
+          _this.loader
+            .load(Set([id]))
+            .then(loaded => {
+              const phase = loaded.get(id)!;
 
-            _this._machine$.next(machine);
+              const machine = _this
+                .runMachine(
+                  id,
+                  phase,
+                  _this._signal$,
+                  _this._commit$
+                );
 
-            return machine;
-          })
+              _this._machine$.next(machine);
+
+              return machine;
+            })
         ] as const;
       }
     })
@@ -126,14 +123,15 @@ export class MachineSpace<N> {
   private runMachine(
     id: Id,
     state: unknown,
-    head: Head<DataMap>,
-    commitFac: CommitFac,
-    signal$: Observable<Signal>
+    signal$: Observable<Signal>,
+    commit$: Observer<Commit<DataMap>>
   ): Machine
   {
     const _this = this;
     let sideData = <unknown>undefined;
     let v = -1;
+
+    const head = new Head(commit$);
     
     const kill$ = signal$.pipe(filter(s => s.stop), share());
 
@@ -146,7 +144,7 @@ export class MachineSpace<N> {
 
           const [path, data] = p;
 
-          const committer = commitFac(head);
+          const committer = new Committer<DataMap>(_this.MD, head);
 
           try {
             const phase = _this.world.read(path);
