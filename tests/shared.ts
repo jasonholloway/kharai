@@ -25,7 +25,7 @@ export function createRunner<N>(world: BuiltWorld<N>, opts?: Opts) {
     groupBy(m => m.id),
     mergeMap(m$ => m$.pipe(
       mergeMap(m => m.log$),
-      mergeMap(([,r]) => r ? [r] : []),
+      mergeMap(({atomRef:r}) => r ? [r] : []),
       scan<AtomRef<DataMap>, [string, AtomRef<DataMap>[]]>(([k, rs], r) => [k, [...rs, r]], [m$.key, []])
     )),
     scan((ac: Map<string, AtomRef<DataMap>[]>, [k, rs]) => {
@@ -35,7 +35,7 @@ export function createRunner<N>(world: BuiltWorld<N>, opts?: Opts) {
   ).subscribe(atomSub);
 
   const log$ = run.log$.pipe(
-    map(([id,[d,_]]) => [id, d] as const),
+    map(([id,{out:d}]) => [id, d] as const),
     shareReplay(1000)
   );
 

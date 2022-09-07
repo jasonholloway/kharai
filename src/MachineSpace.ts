@@ -1,13 +1,13 @@
 import { Id, DataMap } from './lib'
 import { Mediator } from './Mediator'
 import { Observable, Subject, merge, ReplaySubject, EMPTY, of, from } from 'rxjs'
-import { toArray, filter, mergeMap, map, share, expand, startWith, takeUntil, finalize, shareReplay, tap } from 'rxjs/operators'
+import { concatMap, toArray, filter, mergeMap, map, share, expand, startWith, takeUntil, finalize, shareReplay, tap } from 'rxjs/operators'
 import Committer from './Committer'
 import { List, Map, Seq, Set } from 'immutable'
 import MonoidData from './MonoidData'
 import Head from './Head'
 import { Commit } from './AtomSpace'
-import { BuiltWorld } from './shape/BuiltWorld'
+import { BuiltWorld, Found } from './shape/BuiltWorld'
 import { AtomRef } from './atoms'
 import { inspect, isArray, isFunction } from 'util'
 import { Loader } from './Store'
@@ -27,7 +27,11 @@ export type Machine = {
 
 type CommitFac = (h: Head<DataMap>) => Committer<DataMap>
 
-export type Log = [[string, unknown]|false, AtomRef<DataMap>?]
+export type Log = {
+  phase?: Found,
+  out: [string, unknown]|false,
+  atomRef?: AtomRef<DataMap>
+}
 
 export class MachineSpace<N> {
   private readonly world: BuiltWorld<N>
@@ -133,63 +137,70 @@ export class MachineSpace<N> {
     
     const kill$ = signal$.pipe(filter(s => s.stop), share());
 
-    const log$ = of(<Log>[state]).pipe(
-      expand(([p]) => {
-        v++;
-        
-        log('PHASE', id, inspect(p, {colors:true}));
+    const log$ = of(<Log>{ out:state })
+      .pipe(
+        expand(({ out:p }) => {
+          log('PHASE', id, inspect(p, {colors:true}));
 
-        if(!p) return EMPTY;
+          return from((async () => {
+            v++;
 
-        const [path, data] = p;
+            if(p === false) return EMPTY;
 
-        return from((async () => {
-          const committer = commitFac(head);
+            const [path, data] = p;
 
-          try {
-            const { guard, fac, handler } = _this.world.read(path);
+            const committer = commitFac(head);
 
-            if(!handler) throw Error(`No handler at path ${path}`);
-            if(!fac) throw Error(`No fac at path ${path}`);
-            if(!guard) throw Error(`No guard at path ${path}`);
+            try {
+              const phase = _this.world.read(path);
 
-            //guard here
-            //...
+              //should attach phase to log
 
-            //TODO
-            //build phase helper (or rather, use singleton) here
+              const { guard, fac, handler } = phase;
+              if(!handler) throw Error(`No handler at path ${path}`);
+              if(!fac) throw Error(`No fac at path ${path}`);
+              if(!guard) throw Error(`No guard at path ${path}`);
 
-            const ctx = fac(coreContext(id, v, committer));
-            const out = await handler(ctx, data);
-            // console.debug('OUT', id, inspect(out,{colors:true}))
+              //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+              //guard here TODO TODO TODO TODO
+              //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-            if(isPhase(out)) {
-              const ref = await committer.complete(Map({ [id]: out }));
-              return <Log>[out, ref];
+              const ctx = fac(coreContext(id, v, committer));
+              const out = await handler(ctx, data);
+
+              //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+              //guard here TODO TODO TODO TODO
+              //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+              if(isPhase(out)) {
+                //does this mean that on false we're not committing???
+                const ref = await committer.complete(Map({ [id]: out }));
+                return of(<Log>{ phase, out, atomRef:ref });
+              }
+
+              if(out === false) {
+                return EMPTY; // <Log>[phase, out];
+              }
+
+              throw Error(`Handler output no good: ${inspect(out,{depth:4})}`);
             }
+            catch(e) {
+              committer.abort();
+              console.error(e);
 
-            if(out === false) {
-              return <Log>[out];
+              //false here kills without committing
+              return EMPTY; // <Log>[undefined, false]; //SHOULDN'T 
+              // throw e;
             }
-
-            throw Error(`Handler output no good: ${inspect(out,{depth:4})}`);
-          }
-          catch(e) {
-            committer.abort();
-            console.error(e);
-
-            //false here kills without committing
-            return <Log>[false];
-            // throw e;
-          }
-        })())
-      }),
-      startWith(<Log>[state, new AtomRef()]),
-      filter((l) => !!l[0]),
-      takeUntil(kill$),
-      finalize(() => head.release()),
-      shareReplay(1),
-    );
+          })())
+            .pipe(concatMap(o => o))
+        }),
+        startWith(<Log>{ out:state, atomRef:new AtomRef() }),
+        filter(({out}) => !!out),
+        takeUntil(kill$),
+        finalize(() => head.release()),
+        shareReplay(1),
+      );
 
     const machine = {
       id,
@@ -227,15 +238,19 @@ export class MachineSpace<N> {
         },
 
         watch(ids: Id[]): Observable<[Id, unknown]> {
+          //its like every log slice should include the matched Phase
+          //then the matched Phase can be used to whittle things down here
+          //...
+
           return _this.summon(Set(ids)) //TODO if the same thing is watched twice, commits will be added doubly
             .pipe(
               mergeMap(m => m.log$.pipe(
                 map(l => <[Id, Log]>[m.id, l])
               )),
-              tap(([,[,r]]) => { //gathering all watched atomrefs here into mutable Commit
+              tap(([,{ atomRef:r }]) => { //gathering all watched atomrefs here into mutable Commit
                 if(r) commit.add(List([r]))
               }),
-              mergeMap(([id, [p]]) => p ? [<[Id, unknown]>[id, p]] : []),
+              mergeMap(([id, { out:p }]) => p ? [<[Id, unknown]>[id, p]] : []),
             );
         },
 

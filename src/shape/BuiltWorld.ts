@@ -1,5 +1,5 @@
 import { List, Map } from "immutable";
-import { Fac, Handler } from "../shapeShared";
+import { Fac, Handler, Projector } from "../shapeShared";
 import { Data, formPath } from "./common";
 import { Registry } from "./Registry";
 
@@ -18,6 +18,7 @@ export class BuiltWorld<N> {
         return <Found>{
           guard: v.guard ? v.guard[0] : undefined, //REALLY THIS SHOULD STILL BE WRAPPED
           handler: v.handler,
+          projector: v.projector,
           fac: _combineFacs(List([parentFac]).concat(v.facs))
         };
       }); 
@@ -58,5 +59,6 @@ export class BuiltWorld<N> {
 export type Found = {
   guard?: any,
   handler?: Handler,
+  projector?: Projector,
   fac?: Fac
 }
