@@ -611,6 +611,7 @@ export const World = new Builder<{}>(Registry.empty)
 export type CoreCtx = {
   id: string
   timer: Timer
+  watch: (ids: string[]) => Observable<readonly [string, unknown]>
   watchRaw: (ids: string[]) => Observable<readonly [string, unknown]>
   attend: <R>(attend: Attendee<R>|AttendedFn<R>) => Promise<false|[R]>
   convene: <R>(ids: string[], convene: Convener<R>|ConvenedFn<R>) => Promise<R>

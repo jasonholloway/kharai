@@ -3,7 +3,7 @@ import { Mediator } from './Mediator'
 import { Observable, Subject, merge, ReplaySubject, EMPTY, of, from, Observer } from 'rxjs'
 import { concatMap, toArray, filter, mergeMap, map, share, expand, startWith, takeUntil, finalize, shareReplay, tap } from 'rxjs/operators'
 import Committer from './Committer'
-import { List, Map, Seq, Set } from 'immutable'
+import { fromJS, List, Map, Seq, Set } from 'immutable'
 import MonoidData from './MonoidData'
 import Head from './Head'
 import { Commit } from './AtomSpace'
@@ -149,8 +149,6 @@ export class MachineSpace<N> {
           try {
             const phase = _this.world.read(path);
 
-            //should attach phase to log
-
             const { guard, fac, handler } = phase;
             if(!handler) throw Error(`No handler at path ${path}`);
             if(!fac) throw Error(`No fac at path ${path}`);
@@ -174,7 +172,7 @@ export class MachineSpace<N> {
             }
 
             if(out === false) {
-              return EMPTY; // <Log>[phase, out];
+              return EMPTY;
             }
 
             throw Error(`Handler output no good: ${inspect(out,{depth:4})}`);
@@ -182,14 +180,11 @@ export class MachineSpace<N> {
           catch(e) {
             committer.abort();
             console.error(e);
-
-            //false here kills without committing
-            return EMPTY; // <Log>[undefined, false]; //SHOULDN'T 
+            return EMPTY;
             // throw e;
           }
         })()).pipe(concatMap(o => o))),
 
-        startWith(<Log>{ out:state }),
         tap(({out}) => log('ACT', id, inspect(out, {colors:true}))),
         finalize(() => log('END', id)),
         
@@ -234,11 +229,27 @@ export class MachineSpace<N> {
           return v == 0;
         },
 
-        watchRaw(ids: Id[]): Observable<[Id, unknown]> {
-          //its like every log slice should include the matched Phase
-          //then the matched Phase can be used to whittle things down here
-          //...
+        watch(ids: Id[]): Observable<[Id, unknown]> {
+          return _this.summon(Set(ids)) //TODO if the same thing is watched twice, commits will be added doubly
+            .pipe(
+              mergeMap(m => m.log$.pipe(
+                map(l => <[Id, Log]>[m.id, l])
+              )),
 
+              mergeMap(([id, { phase, out:p, atomRef:r }]) =>
+                (p && phase && phase.projector)
+                  ? phase.projector(p).map(v => <[Id, AtomRef<DataMap>, unknown]>[id, r, v])
+                  : []),
+
+              //gathering atomrefsof all visible projections into mutable Commit
+              map(([id, r, v]) => {
+                if(r) commit.add(List([r]));
+                return [id, v];
+              })
+            );
+        },
+
+        watchRaw(ids: Id[]): Observable<[Id, unknown]> {
           return _this.summon(Set(ids)) //TODO if the same thing is watched twice, commits will be added doubly
             .pipe(
               mergeMap(m => m.log$.pipe(

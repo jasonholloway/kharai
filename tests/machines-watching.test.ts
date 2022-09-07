@@ -162,9 +162,9 @@ describe('machines - watching', () => {
 			})
 			.impl({
 				async hopAbout({and}, n) {
-					if(n >= 8) return false;
+					if(n >= 6) return false;
 
-					if(n % 4 == 3) {
+					if(n % 3 == 2) {
 						return and.chirp(n+1);
 					}
 
@@ -173,7 +173,7 @@ describe('machines - watching', () => {
 
 				chirp: {
 					async act({and}, n) {
-						if(n >= 8) return false;
+						if(n >= 6) return false;
 
 						return and.hopAbout(n+1);
 					},
@@ -181,8 +181,8 @@ describe('machines - watching', () => {
 					show: (d) => [d]
 				},
 
-				async view({and,watchRaw}, [ids, c]) {
-					const frames = await watchRaw(ids)
+				async view({and,watch}, [ids, c]) {
+					const frames = await watch(ids)
 						.pipe(take(c), toArray())
 						.toPromise();
 
@@ -200,17 +200,24 @@ describe('machines - watching', () => {
 
 			const [logs] = await Promise.all([
 				x.allLogs(),
-				x.run.boot('bob', ['chirp', 8]),
+				x.run.boot('bob', ['hopAbout', 0]),
 				x.run.boot('babs', ['view', [['bob'], 2]])
 			]);
 
 			expect(logs).toEqual([
 				['bob', ['boot']],
 				['babs', ['boot']],
-				['bob', ['chirp', 8]],
+				['bob', ['hopAbout', 0]],
 				['babs', ['view', [['bob'], 2]]],
+				['bob', ['hopAbout', 1]],
+				['bob', ['hopAbout', 2]],
+				['bob', ['chirp', 3]],
+				['bob', ['hopAbout', 4]],
+				['bob', ['hopAbout', 5]],
+				['bob', ['chirp', 6]],
 				['babs', ['seen', [
-					['bob', ['chirp', 8]]
+					['bob', 'chirp!'],
+					['bob', 'chirp!']
 				]]]
 			]);
 		})
