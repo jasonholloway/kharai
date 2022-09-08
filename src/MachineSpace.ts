@@ -31,6 +31,8 @@ export type Log = {
   atoms: List<AtomRef<DataMap>>
 }
 
+type GetNext = ()=>Promise<[ false|[string,unknown], Committer<DataMap>? ]>;
+
 export class MachineSpace<N> {
   private readonly world: BuiltWorld<N>
   private readonly loader: Loader
@@ -133,67 +135,58 @@ export class MachineSpace<N> {
     
     const kill$ = signal$.pipe(filter(s => s.stop), share());
 
-    const log$ = of(<Log>{ state:initialState, atoms: List() }).pipe(
-      expand(log => of(log).pipe(
-        mergeMap(async ({ state }) => {
+    type Tup = { log?: Log, next: GetNext };
+
+    const log$ = of(<Tup>{ next: async ()=>[initialState] }).pipe(
+      expand(tup => of(tup).pipe(
+        mergeMap(async ({next}) => {
           v++;
 
-          if(state === false) return EMPTY;
+          const [out,committer] = await next();
 
-          const [path, data] = state;
-
-          const committer = new Committer<DataMap>(_this.MD, head);
-
-          try {
-            const phase = _this.world.read(path);
-
-            const { guard, fac, handler } = phase;
-            if(!handler) throw Error(`No handler at path ${path}`);
-            if(!fac) throw Error(`No fac at path ${path}`);
-            if(!guard) throw Error(`No guard at path ${path}`);
-
-            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            //guard here TODO TODO TODO TODO
-            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-
-            //this is where we want to emit!
-            //here we have input state
-            //
-            //Q: what is atomRef actually used for???
-            //is it just for watching???
-            //instead of one ref, should be all atomRefs from head
-
-            
-
-            const ctx = fac(coreContext(id, v, committer));
-            const out = await handler(ctx, data);
-
-            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            //guard here TODO TODO TODO TODO
-            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-            if(isPhase(out)) {
-              //does this mean that on false we're not committing???
-              await committer.complete(Map({ [id]: out }));
-              return of(<Log>{ state:out, phase, atoms:head.refs() });
-            }
-
-            if(out === false) {
-              return EMPTY;
-            }
-
-            throw Error(`Handler output no good: ${inspect(out,{depth:4})}`);
-          }
-          catch(e) {
-            committer.abort();
-            console.error(e);
+          if(out === false) {
+            if(committer) await committer.complete(Map());
             return EMPTY;
-            // throw e;
           }
+
+          if(!isPhase(out)) throw Error(`State not in form of phase: ${inspect(out)}`);
+          const [path, data] = out;
+
+          const phase = _this.world.read(path);
+
+          const { guard, fac, handler } = phase;
+          if(!handler) throw Error(`No handler at path ${path}`);
+          if(!fac) throw Error(`No fac at path ${path}`);
+          if(!guard) throw Error(`No guard at path ${path}`);
+
+          //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+          //guard here TODO TODO TODO TODO
+          //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+          if(committer) await committer.complete(Map({ [id]: out }));
+
+          //line up next
+          return of(<Tup>{
+            log: { state:out, phase, atoms:head.refs() },
+            next: async () => {
+              const committer = new Committer<DataMap>(_this.MD, head);
+
+              try {
+                const ctx = fac(coreContext(id, v, committer));
+                const out = await handler(ctx, data);
+                return [out,committer];
+              }
+              catch(e) {
+                committer.abort();
+                console.error(e);
+                return [false];
+              }
+            }
+          });
         }),
         concatMap(o => o)
       )),
+      concatMap(({log}) => log ? [log] : []),
 
       tap(({state}) => log('ACT', id, inspect(state, {colors:true}))),
       finalize(() => log('END', id)),
@@ -248,7 +241,7 @@ export class MachineSpace<N> {
 
               mergeMap(([id, { phase, state, atoms }]) =>
                 (state && phase && phase.projector)
-                  ? phase.projector(state).map(v => [id, atoms, v] as const)
+                  ? phase.projector(state[1]).map(v => [id, atoms, v] as const)
                   : []),
 
               //gathering atomrefsof all visible projections into mutable Commit

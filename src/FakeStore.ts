@@ -9,8 +9,8 @@ export default class FakeStore implements Loader, Saver<DataMap> {
   
   private _maxBatch: number;
 
-  constructor(batchSize: number, data?: DataMap) {
-    this._maxBatch = batchSize;
+  constructor(maxBatch: number, data?: DataMap) {
+    this._maxBatch = maxBatch;
     this.saved = data ?? Map();
   }
 

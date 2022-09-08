@@ -178,7 +178,7 @@ describe('machines - watching', () => {
 						return and.hopAbout(n+1);
 					},
 
-					show: (d) => [d]
+					show: (n) => [`chirp ${n}!`]
 				},
 
 				async view({and,watch}, [ids, c]) {
@@ -216,8 +216,8 @@ describe('machines - watching', () => {
 				['bob', ['hopAbout', 5]],
 				['bob', ['chirp', 6]],
 				['babs', ['seen', [
-					['bob', 'chirp!'],
-					['bob', 'chirp!']
+					['bob', 'chirp 3!'],
+					['bob', 'chirp 6!']
 				]]]
 			]);
 		})

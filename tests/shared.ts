@@ -10,11 +10,11 @@ import { tracePath, renderAtoms } from '../src/AtomPath'
 import FakeStore from '../src/FakeStore'
 import { BuiltWorld } from '../src/shape/BuiltWorld'
 
-type Opts = { batchSize?: number, data?: DataMap } & RunOpts;
+type Opts = { maxBatchSize?: number, data?: DataMap } & RunOpts;
 
 export function createRunner<N>(world: BuiltWorld<N>, opts?: Opts) {
   
-  const store = new FakeStore(opts?.batchSize || 4, opts?.data);
+  const store = new FakeStore(opts?.maxBatchSize || 4, opts?.data);
 
   const run = newRun(world, store, store, { ...opts });
 

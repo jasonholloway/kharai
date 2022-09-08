@@ -41,14 +41,18 @@ export const runSaver = <V>(signal$: Observable<Signal>, threshold$: Observable<
       mergeScan(
         ([ac]: Tup, [l, t]) =>
           of<Tup>([ML.add(ac,l), t]).pipe(
-            expand(([[w, rs], t]) =>
-              (!w || (w < t))
+
+            expand(([[w, rs], t]) => {
+              console.debug('SAVE?', `${w}/${t}`);
+
+              return (!w || (w < t))
                 ? EMPTY
                 : new Observable<Tup>(sub => {
                     return sub.next([
                       ML.zero, 0,
                       async store => {
                         try {
+                          console.debug('SAVE!');
                           const [w2, rs2] = await saver.save(store, rs.toList())
                           sub.next([[w - w2, rs.subtract(rs2)], t]);
                           sub.complete();
@@ -58,7 +62,7 @@ export const runSaver = <V>(signal$: Observable<Signal>, threshold$: Observable<
                         }
                       }])
                 })
-            ),
+            }),
           ),
           [ML.zero, 0], 1),
       concatMap(([,,fn]) => fn ? [fn] : []),

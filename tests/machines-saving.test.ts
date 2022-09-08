@@ -78,7 +78,7 @@ describe('machines - saving', () => {
 	})
 
 	it('doesn\'t save $boots', async () => {
-		const x = createRunner(world, { batchSize:2 });
+		const x = createRunner(world, { maxBatchSize:2 });
 
 		await Promise.all([
 			x.run.boot('a', ['gerbil_spawn', [0, 2]]),
@@ -92,7 +92,7 @@ describe('machines - saving', () => {
 	})
 
 	xit('too small batch size throws error', async () => {
-		const x = createRunner(world, { batchSize:1 });
+		const x = createRunner(world, { maxBatchSize:1 });
 
 		await Promise.all([
 			x.run.boot('m', ['gerbil_spawn', [0, 2]]),
@@ -104,7 +104,7 @@ describe('machines - saving', () => {
 	})
 
 	it('big enough batch saves once', async () => {
-		const x = createRunner(world, { batchSize:24, threshold:6 });
+		const x = createRunner(world, { maxBatchSize:24, threshold:6 });
 
 		await Promise.all([
 			x.run.boot('m', ['gerbil_spawn', [0, 2]]),
@@ -112,11 +112,19 @@ describe('machines - saving', () => {
 			x.run.log$.toPromise()
 		]);
 
+		expect(x.store.saved.get('a')).toEqual(['gerbil_spawn', [2, 2]]);
+		expect(x.store.saved.get('m')).toEqual(['gerbil_spawn', [2, 2]]);
+		expect(x.store.saved.get('aa')).toEqual(['gerbil_spawn', [0, 2]]);
+		expect(x.store.saved.get('ma')).toEqual(['gerbil_spawn', [0, 2]]);
+		expect(x.store.saved.get('ab')).toEqual(['gerbil_spawn', [0, 2]]);
+		expect(x.store.saved.get('mb')).toEqual(['gerbil_spawn', [0, 2]]);
+
 		expect(x.store.batches).toHaveLength(1)
+
 	})
 	
 	it('big enough batch, heads resolve to same atom', async () => {
-		const x = createRunner(world, { batchSize:24, threshold:3 });
+		const x = createRunner(world, { maxBatchSize:24, threshold:3 });
 
 		await Promise.all([
 			x.run.boot('a', ['gerbil_spawn', [0, 2]]),
@@ -141,7 +149,7 @@ describe('machines - saving', () => {
 	})
 
 	xit('further saving', async () => {
-		const x = createRunner(world, { batchSize:5, threshold:4 });
+		const x = createRunner(world, { maxBatchSize:5, threshold:4 });
 
 		await Promise.all([
 			x.run.boot('m', ['gerbil_spawn', [0, 2]]),

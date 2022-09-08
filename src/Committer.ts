@@ -93,9 +93,11 @@ class Inner<V> {
 						this.value
           ).asRef();
 
+          //BELOW: arbitrary weight per head
+          //means completions on 'false' add weight despite nothing being there...
+          //need to work out weight from datamap size
           this.heads
-            .map(h => h.sink)
-            .forEach(s => s.next([1, ref])); //TODO add weights here!!!
+            .forEach(h => h.sink.next([1, ref])); //TODO add weights here!!!
 
 					this.waiters.forEach(fn => fn(ref));
 
