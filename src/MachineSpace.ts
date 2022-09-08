@@ -1,6 +1,6 @@
 import { Id, DataMap } from './lib'
 import { Mediator } from './Mediator'
-import { Observable, Subject, merge, ReplaySubject, EMPTY, of, from, Observer } from 'rxjs'
+import { Observable, Subject, pipe, merge, ReplaySubject, EMPTY, of, from, Observer } from 'rxjs'
 import { concatMap, toArray, filter, mergeMap, map, share, expand, takeUntil, finalize, shareReplay, tap } from 'rxjs/operators'
 import Committer from './Committer'
 import { List, Map, Seq, Set } from 'immutable'
@@ -145,7 +145,7 @@ export class MachineSpace<N> {
           const [out,committer] = await next();
 
           if(out === false) {
-            if(committer) await committer.complete(Map());
+            if(committer) await committer.complete(Map(), 0);
             return EMPTY;
           }
 
@@ -163,7 +163,7 @@ export class MachineSpace<N> {
           //guard here TODO TODO TODO TODO
           //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-          if(committer) await committer.complete(Map({ [id]: out }));
+          if(committer) await committer.complete(Map({ [id]: out }), 1);
 
           //line up next
           return of(<Tup>{

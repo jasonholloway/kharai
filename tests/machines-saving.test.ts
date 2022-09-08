@@ -2,6 +2,7 @@ import _Monoid from '../src/_Monoid'
 import { createRunner } from './shared'
 import { rodents } from './worlds/rodents'
 import { Map, Set, List } from 'immutable'
+import { delay } from '../src/util'
 
 describe('machines - saving', () => {
 
@@ -102,6 +103,11 @@ describe('machines - saving', () => {
 
 		throw 'TODO where will error appear?'
 	})
+
+	//every commit of machine should weigh 1
+	//though not if 'false'
+	//
+	//
 
 	it('big enough batch saves once', async () => {
 		const x = createRunner(world, { maxBatchSize:24, threshold:6 });

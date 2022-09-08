@@ -30,8 +30,8 @@ export default class Committer<V> {
     this.head.addUpstreams(rs.toSet());
   }
 
-  async complete(v: V): Promise<AtomRef<V>> {
-    const ref = await this.inner.complete(this, this.head, v);
+  async complete(v: V, w: number = 1): Promise<AtomRef<V>> {
+    const ref = await this.inner.complete(this, this.head, [v, w]);
     this.head.move(ref);
     return ref;
   }
@@ -63,6 +63,7 @@ class Inner<V> {
 	private ref: AtomRef<V>|undefined
 
   value: V
+  weight: number
   todo: Set<Committer<V>>
   heads: Set<Head<V>>
   state: State
@@ -72,13 +73,15 @@ class Inner<V> {
     this.todo = todo;
     this.heads = heads || Set();
     this.value = mv.zero;
+    this.weight = 0;
     this.state = state || 'doing';
   }
   
-  complete(commit: Committer<V>, head: Head<V>, v: V): Promise<AtomRef<V>> {
+  complete(commit: Committer<V>, head: Head<V>, [v, w]: [V, number]): Promise<AtomRef<V>> {
     this.todo = this.todo.delete(commit);
     this.heads = this.heads.add(head);
     this.value = this.mv.add(this.value, v);
+    this.weight = this.weight + w;
 
 		switch(this.state) {
 			case 'aborted': return Promise.reject('Commit aborted!');
@@ -90,14 +93,51 @@ class Inner<V> {
 					//TODO below needs to add weights
           const ref = new Atom<V>(
 						this.heads.flatMap(h => h.refs()).toList(),
-						this.value
+						this.value,
+            this.weight
           ).asRef();
 
-          //BELOW: arbitrary weight per head
-          //means completions on 'false' add weight despite nothing being there...
-          //need to work out weight from datamap size
+          //BELOW: the weights fan out here I think
+          //and we get duplicated commits
+          //and duplicated weights
+          //
+          //this is because heads are the given interface
+          //which we have to use to write atoms
+          //but this means we have to go via multiple heads
+          //
+          //on the one hand, having a Head 
+          //allows nice unilateral atom botherment
+          //but also this fails when we have many
+          //
+          //a Head is kind of like a Committer
+          //or - a Head can be thought of as outside a Committer, a wrapper
+          //the Committer posts to commit$
+          //
+          //the Head is basically a holder of a Committer
+          //and the Committer becomes less stateful
+          //the Committer takes atoms, returns atoms
+          //and its caller has responsibility for threading these sets of atoms along
+          //
+          //this responsibility can belong to the Head
+          //so we're inverting the order:
+          //the Head owns, wraps, manages the Committer
+          //in fact it doesn't do much, except that it is a stateful handle
+          //
+          //it will have its own commit/abort methods
+          //when it moves forwards, it will always have a Committer on the go
+          //
+          //this will all serve to dedupe the commits and weights we're
+          //putting down the spout
+          //
+          //also, more far out, is the desire to serialize saves
+          //into the same temporal log
+          //
+          //though - logs are per-machine
+          //and commits are machine-independent
+          //so it is inescable unless we serialize everything
+
           this.heads
-            .forEach(h => h.sink.next([1, ref])); //TODO add weights here!!!
+            .forEach(h => h.sink.next([this.weight, ref])); //TODO add weights here!!!
 
 					this.waiters.forEach(fn => fn(ref));
 

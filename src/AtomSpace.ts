@@ -38,33 +38,36 @@ export const runSaver = <V>(signal$: Observable<Signal>, threshold$: Observable<
     type Tup = [Lump<V>, Threshold, Storer<V>?]
 
     return combineLatest([lump$, threshold$]).pipe(
-      mergeScan(
-        ([ac]: Tup, [l, t]) =>
-          of<Tup>([ML.add(ac,l), t]).pipe(
+      mergeScan(([ac]: Tup, [l, t]) =>
+        of<Tup>([ML.add(ac,l), t]).pipe(
 
-            expand(([[w, rs], t]) => {
-              console.debug('SAVE?', `${w}/${t}`);
+          expand(([[w, rs], t]) => {
+            console.debug('SAVE?', `${w}/${t}`);
 
-              return (!w || (w < t))
-                ? EMPTY
-                : new Observable<Tup>(sub => {
-                    return sub.next([
-                      ML.zero, 0,
-                      async store => {
-                        try {
-                          console.debug('SAVE!');
-                          const [w2, rs2] = await saver.save(store, rs.toList())
-                          sub.next([[w - w2, rs.subtract(rs2)], t]);
-                          sub.complete();
-                        }
-                        catch(e) {
-                          sub.error(e);
-                        }
-                      }])
-                })
-            }),
-          ),
-          [ML.zero, 0], 1),
+            //the rejection of saving 
+            //
+
+
+            return (!w || (w < t))
+              ? EMPTY
+              : new Observable<Tup>(sub => {
+                  return sub.next([
+                    ML.zero, 0,
+                    async store => {
+                      try {
+                        console.debug('SAVE!');
+                        const [w2, rs2] = await saver.save(store, rs.toList())
+                        sub.next([[w - w2, rs.subtract(rs2)], t]);
+                        sub.complete();
+                      }
+                      catch(e) {
+                        sub.error(e);
+                      }
+                    }])
+              })
+          }),
+        ),
+        [ML.zero, 0], 1),
       concatMap(([,,fn]) => fn ? [fn] : []),
       share(),
       takeUntil(kill$)
