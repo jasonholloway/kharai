@@ -3,7 +3,6 @@ import { delay } from '../../src/util'
 import { Bool, Num, Str, Tup } from '../../src/guards/Guard'
 import { act } from '../../src/shape/common';
 import { World } from '../../src/shape/World';
-import {inspect} from 'util'
 
 export const rodents = World
   .shape({

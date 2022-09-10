@@ -122,9 +122,9 @@ describe('committable', () => {
 
 		const a3 = await h1.write(7);
 		
-		expect(valA(a1)).toBe([8]);
-		expect(valA(a2)).toBe([8]);
-		expect(valA(a3)).toBe([7]);
+		expect(valA(a1)).toEqual([8]);
+		expect(valA(a2)).toEqual([8]);
+		expect(valA(a3)).toEqual([7]);
 	})
 
 	it('multiple recombinations', async () => {

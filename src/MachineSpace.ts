@@ -1,7 +1,7 @@
 import { Id, DataMap } from './lib'
 import { Mediator } from './Mediator'
 import { Observable, Subject, pipe, merge, ReplaySubject, EMPTY, of, from, Observer } from 'rxjs'
-import { concatMap, toArray, filter, mergeMap, map, share, expand, takeUntil, finalize, shareReplay, tap } from 'rxjs/operators'
+import { concatMap, toArray, filter, mergeMap, map, share, expand, takeUntil, finalize, shareReplay, tap, catchError } from 'rxjs/operators'
 import Commit from './Committer'
 import { Map, OrderedSet, Set } from 'immutable'
 import MonoidData from './MonoidData'
@@ -128,20 +128,18 @@ export class MachineSpace<N> {
   {
     const _this = this;
     let sideData = <unknown>undefined;
-    let v = -1;
+    // let v = -1;
 
     const head = new Head<DataMap>(rs => new Commit<DataMap>(this.MD, lump$, rs));
     
     const kill$ = signal$.pipe(filter(s => s.stop), share());
 
     type GetNext = ()=>Promise<false|[false|[string,unknown],true?]>;
-    type Tup = { log?: Log, next: GetNext };
+    type Tup = { log?: Log, v: number, next: GetNext };
 
-    const log$ = of(<Tup>{ next: async ()=>[initialState] }).pipe(
+    const log$ = of(<Tup>{ v: 0, next: async ()=>[initialState] }).pipe(
       expand(tup => of(tup).pipe(
-        mergeMap(async ({next}) => {
-          v++;
-
+        mergeMap(async ({v, next}) => {
           const result = await next();
 
           if(!result) {
@@ -176,6 +174,7 @@ export class MachineSpace<N> {
 
           //line up next
           return of(<Tup>{
+            v: v + 1,
             log: { state:out, phase, atoms:head.refs() },
             next: async () => {
               try {
@@ -193,6 +192,12 @@ export class MachineSpace<N> {
         concatMap(o => o)
       )),
       concatMap(({log}) => log ? [log] : []),
+
+      //BELOW IS RUBBISH
+      catchError(e => {
+        console.error(e);
+        return EMPTY;
+      }),
 
       tap(({state}) => log('ACT', id, inspect(state, {colors:true}))),
       finalize(() => log('END', id)),

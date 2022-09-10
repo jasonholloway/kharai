@@ -7,11 +7,12 @@ import AtomSpace, { Lump } from '../src/AtomSpace'
 import AtomSaver from '../src/AtomSaver'
 import { Subject, Observer } from 'rxjs'
 import { Signal } from '../src/MachineSpace'
-import { concatMap, tap, map } from 'rxjs/operators'
+import { concatMap, tap } from 'rxjs/operators'
 import { tracePath } from '../src/AtomPath'
 import { viewAtoms } from './shared'
 import Head from '../src/Head'
-import Commit from './Committer'
+import Commit from '../src/Committer'
+import { inspect } from 'util'
 
 const MU: _Monoid<undefined> = {
 	zero: undefined,
@@ -56,9 +57,9 @@ describe('atoms and stuff', () => {
 		expect(head.refs().toArray()).toEqual([]);
 	})
 
-	it('writing creates atom', () => {
+	it('writing creates atom', async () => {
 		const head = newHead();
-		head.write('1');
+		await head.write('1');
 
 		const [atom] = viewAtoms(head.refs())
 		expect(atom).not.toBeUndefined();
@@ -68,9 +69,9 @@ describe('atoms and stuff', () => {
 
 	it('writing several times appends many atoms', async () => {
 		const head = newHead();
-		head.write('1')
-		head.write('2')
-		head.write('3');
+		await head.write('1')
+		await head.write('2')
+		await head.write('3');
 
 		const [atom3] = viewAtoms(head.refs());
 		expect(atom3?.val()).toBe('3');
@@ -86,9 +87,9 @@ describe('atoms and stuff', () => {
 
 	it('like-for-like rewrite', async () => {
 		const head = newHead();
-		head.write('1');
-		head.write('2');
-		head.write('3');
+		await head.write('1');
+		await head.write('2');
+		await head.write('3');
 
 		const path = await space.lockPath(...head.refs());
 		expect(path.maxDepth()).toBe(3)
@@ -106,12 +107,12 @@ describe('atoms and stuff', () => {
 
 	it('two heads rewrite', async () => {
 		const head1 = newHead();
-		head1.write('1:1');
+		await head1.write('1:1');
 
 		const head2 = head1.fork();
-		head2.write('2:1');
+		await head2.write('2:1');
 
-		head1.write('1:2');
+		await head1.write('1:2');
 
 		const path1 = await space.lockPath(...head1.refs());
 		expect(path1.maxDepth()).toBe(2)
@@ -186,12 +187,12 @@ describe('atoms and stuff', () => {
 	
 	it('locking', async () => {
 		const head1 = newHead();
-		head1.write('1:1');
+		await head1.write('1:1');
 
 		const head2 = head1.fork();
-		head2.write('2:1');
+		await head2.write('2:1');
 
-		head1.write('1:2');
+		await head1.write('1:2');
 
 		const path1 = await space.lockPath(...head1.refs());
 
@@ -208,12 +209,12 @@ describe('atoms and stuff', () => {
 
 	it('path -> patch -> path lock', async () => {
 		const head1 = newHead();
-		head1.write('1:1');
+		await head1.write('1:1');
 
 		const head2 = head1.fork();
-		head2.write('2:1');
+		await head2.write('2:1');
 
-		head1.write('1:2');
+		await head1.write('1:2');
 
 		const path = await space.lockPath(...head1.refs());
 
@@ -300,8 +301,8 @@ describe('atoms and stuff', () => {
 		it('with lock held', async () => {
 
 			const h1 = newHead();
-			h1.write('a');
-			h1.write('b');
+			await h1.write('a');
+			await h1.write('b');
 
 			const p1 = await space.lockPath(...h1.refs());
 			p1.rewrite<1>(fn => ([ref, atom]) => {
@@ -317,9 +318,9 @@ describe('atoms and stuff', () => {
 				]);
 
 			//and can lock above here happy enough
-			h1.write('c');
-			h1.write('d');
-			h1.write('e');
+			await h1.write('c');
+			await h1.write('d');
+			await h1.write('e');
 
 			const p2 = await space.lockPath(...h1.refs());
 
@@ -345,8 +346,8 @@ describe('atoms and stuff', () => {
 		it('with lock released', async () => {
 
 			const h1 = newHead();
-			h1.write('a');
-			h1.write('b');
+			await h1.write('a');
+			await h1.write('b');
 
 			const p1 = await space.lockPath(...h1.refs());
 			p1.rewrite<1>(fn => ([ref, atom]) => {
@@ -364,9 +365,9 @@ describe('atoms and stuff', () => {
 			p1.release();
 
 			//and can lock above here happy enough
-			h1.write('c');
-			h1.write('d');
-			h1.write('e');
+			await h1.write('c');
+			await h1.write('d');
+			await h1.write('e');
 
 			const p2 = await space.lockPath(...h1.refs());
 
@@ -391,8 +392,8 @@ describe('atoms and stuff', () => {
 		it('rewrite only touches locked path', async () => {
 
 			const h1 = newHead();
-			h1.write('a');
-			h1.write('b');
+			await h1.write('a');
+			await h1.write('b');
 
 			const p1 = await space.lockPath(...h1.refs());
 			p1.rewrite<1>(fn => ([ref, atom]) => {
@@ -408,9 +409,9 @@ describe('atoms and stuff', () => {
 				]);
 
 			//and can lock above here happy enough
-			h1.write('c');
-			h1.write('d');
-			h1.write('e');
+			await h1.write('c');
+			await h1.write('d');
+			await h1.write('e');
 
 			const p2 = await space.lockPath(...h1.refs());
 
@@ -502,9 +503,9 @@ describe('atoms and stuff', () => {
 			).subscribe();
 			
 			const h1 = newHead(sink$);
-			h1.write('a');
-			h1.write('b');
-			h1.write('c');
+			await h1.write('a');
+			await h1.write('b');
+			await h1.write('c');
 
 			await delay(500);
 			kill();

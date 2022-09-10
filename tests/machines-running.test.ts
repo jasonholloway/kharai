@@ -104,24 +104,8 @@ describe('machines - running', () => {
     ]);
   })
 
-  it('isFresh false when boot is first', async () => {
-    const x = createRunner(world);
 
-    const [logs1] = await Promise.all([
-      x.allLogs(),
-      x.run.boot('saz', ['shrew', [0, false]])
-    ]);
-
-    expect(logs1).toEqual([
-      ['saz', ['boot']],
-      ['saz', ['shrew', [0, false]]],
-      ['saz', ['shrew', [1, false]]],
-      ['saz', ['shrew', [2, false]]],
-      ['saz', ['end', 'yip']]
-    ]);
-  })
-
-  it('isFresh false when boot is first', async () => {
+  it('isFresh when first loaded', async () => {
 		const x = createRunner(world, {
 			data: Map({
 				saz: ['shrew', [0, false]]
@@ -136,6 +120,23 @@ describe('machines - running', () => {
     expect(logs1).toEqual([
       ['saz', ['shrew', [0, false]]],
       ['saz', ['shrew', [1, true]]], //sure sign that previous phase was 'fresh'
+      ['saz', ['shrew', [2, false]]],
+      ['saz', ['end', 'yip']]
+    ]);
+  })
+
+  it('isFresh false when boot is first (but why?!)', async () => {
+    const x = createRunner(world);
+
+    const [logs1] = await Promise.all([
+      x.allLogs(),
+      x.run.boot('saz', ['shrew', [0, false]])
+    ]);
+
+    expect(logs1).toEqual([
+      ['saz', ['boot']],
+      ['saz', ['shrew', [0, false]]],
+      ['saz', ['shrew', [1, false]]],
       ['saz', ['shrew', [2, false]]],
       ['saz', ['end', 'yip']]
     ]);
