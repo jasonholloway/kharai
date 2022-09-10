@@ -1,7 +1,7 @@
 import _Monoid, { _MonoidNumber } from './_Monoid'
 import AtomSpace, { Lump } from './AtomSpace'
 import { Saver } from './Store'
-import { Set, List } from 'immutable'
+import { Set } from 'immutable'
 import { inspect } from 'util'
 import { AtomRef } from './atoms'
 
@@ -25,7 +25,7 @@ export default class AtomSaver<V> {
 		this._space = space;
 	}
 
-	async save(store: Saver<V>, refs: List<AtomRef<V>>): Promise<Lump<V>> {
+	async save(store: Saver<V>, refs: Set<AtomRef<V>>): Promise<Lump<V>> {
 		const MV = this._monoidV;
 		const space = this._space;
 

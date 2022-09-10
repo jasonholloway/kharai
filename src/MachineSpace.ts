@@ -2,11 +2,11 @@ import { Id, DataMap } from './lib'
 import { Mediator } from './Mediator'
 import { Observable, Subject, pipe, merge, ReplaySubject, EMPTY, of, from, Observer } from 'rxjs'
 import { concatMap, toArray, filter, mergeMap, map, share, expand, takeUntil, finalize, shareReplay, tap } from 'rxjs/operators'
-import Committer from './Committer'
-import { List, Map, Seq, Set } from 'immutable'
+import Commit from './Committer'
+import { Map, OrderedSet, Set } from 'immutable'
 import MonoidData from './MonoidData'
 import Head from './Head'
-import { Commit } from './AtomSpace'
+import { Lump } from './AtomSpace'
 import { BuiltWorld, Found } from './shape/BuiltWorld'
 import { AtomRef } from './atoms'
 import { inspect, isArray, isFunction } from 'util'
@@ -28,10 +28,9 @@ export type Machine = {
 export type Log = {
   state: [string, unknown]|false,
   phase?: Found,
-  atoms: List<AtomRef<DataMap>>
+  atoms: OrderedSet<AtomRef<DataMap>>
 }
 
-type GetNext = ()=>Promise<[ false|[string,unknown], Committer<DataMap>? ]>;
 
 export class MachineSpace<N> {
   private readonly world: BuiltWorld<N>
@@ -39,8 +38,8 @@ export class MachineSpace<N> {
   private readonly mediator: Mediator
   private readonly timer: Timer
 
-  private readonly _commit$ = new ReplaySubject<Commit<DataMap>>(1)
-  readonly commit$ = this._commit$;
+  private readonly _lump$ = new ReplaySubject<Lump<DataMap>>(1)
+  readonly commit$ = this._lump$;
 
   private machines: Map<Id, Promise<Machine>>
   private _machine$: Subject<Machine>
@@ -70,7 +69,7 @@ export class MachineSpace<N> {
     signal$.pipe(filter(s => s.stop))
       .subscribe(() => {
         this._machine$.complete();
-        this._commit$.complete();
+        this._lump$.complete();
       });
   }
 
@@ -95,7 +94,7 @@ export class MachineSpace<N> {
                   id,
                   phase,
                   _this._signal$,
-                  _this._commit$
+                  _this._lump$
                 );
 
               _this._machine$.next(machine);
@@ -124,17 +123,18 @@ export class MachineSpace<N> {
     id: Id,
     initialState: unknown,
     signal$: Observable<Signal>,
-    commit$: Observer<Commit<DataMap>>
+    lump$: Observer<Lump<DataMap>>
   ): Machine
   {
     const _this = this;
     let sideData = <unknown>undefined;
     let v = -1;
 
-    const head = new Head(commit$);
+    const head = new Head<DataMap>(rs => new Commit<DataMap>(this.MD, lump$, rs));
     
     const kill$ = signal$.pipe(filter(s => s.stop), share());
 
+    type GetNext = ()=>Promise<false|[false|[string,unknown],true?]>;
     type Tup = { log?: Log, next: GetNext };
 
     const log$ = of(<Tup>{ next: async ()=>[initialState] }).pipe(
@@ -142,10 +142,18 @@ export class MachineSpace<N> {
         mergeMap(async ({next}) => {
           v++;
 
-          const [out,committer] = await next();
+          const result = await next();
+
+          if(!result) {
+            head.reset();
+            return EMPTY;
+          }
+
+          const [out,save] = result;
 
           if(out === false) {
-            if(committer) await committer.complete(Map(), 0);
+            // what happens if we've accumulated upstreams and returned false, eh?
+            if(save) await head.write(_this.MD.zero, 0);
             return EMPTY;
           }
 
@@ -163,23 +171,21 @@ export class MachineSpace<N> {
           //guard here TODO TODO TODO TODO
           //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-          if(committer) await committer.complete(Map({ [id]: out }), 1);
+          // output has now been thoroughly frisked - time to save
+          if(save) await head.write(Map({ [id]: out }), 1);
 
           //line up next
           return of(<Tup>{
             log: { state:out, phase, atoms:head.refs() },
             next: async () => {
-              const committer = new Committer<DataMap>(_this.MD, head);
-
               try {
-                const ctx = fac(coreContext(id, v, committer));
+                const ctx = fac(coreContext(id, v, head.commit()));
                 const out = await handler(ctx, data);
-                return [out,committer];
+                return [out, true];
               }
               catch(e) {
-                committer.abort();
                 console.error(e);
-                return [false];
+                return false;
               }
             }
           });
@@ -213,7 +219,7 @@ export class MachineSpace<N> {
         && !!_this.world.read(p[0]).handler;
     }
 
-    function coreContext(id:Id, v:number, commit:Committer<DataMap>): unknown {
+    function coreContext(id:Id, v:number, commit:Commit<DataMap>): unknown {
       return {
         id: id,
 
@@ -246,7 +252,7 @@ export class MachineSpace<N> {
 
               //gathering atomrefsof all visible projections into mutable Commit
               map(([id, atoms, v]) => {
-                commit.add(atoms);
+                commit.addUpstreams(atoms);
                 return [id, v];
               })
             );
@@ -259,7 +265,7 @@ export class MachineSpace<N> {
                 map(l => <[Id, Log]>[m.id, l])
               )),
               tap(([,{ atoms }]) => { //gathering all watched atomrefs here into mutable Commit
-                commit.add(atoms)
+                commit.addUpstreams(atoms)
               }),
               mergeMap(([id, { state:p }]) => p ? [<[Id, unknown]>[id, p]] : []),
             );
@@ -274,7 +280,7 @@ export class MachineSpace<N> {
               //here the attendee is receiving a message from its convener
 
               if(isArray(m) && m[0] === $Ahoy) {
-                Committer.combine(new MonoidData(), [commit, <Committer<DataMap>>m[1]]);
+                Commit.conjoin(new MonoidData(), [commit, <Commit<DataMap>>m[1]]);
                 m = m[2];
               }
 

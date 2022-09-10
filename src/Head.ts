@@ -1,21 +1,47 @@
-import { AtomRef, Atom } from "./atoms";
-import { Set, List } from "immutable";
-import { Subject, Observable, ReplaySubject, Observer, BehaviorSubject } from "rxjs";
-import { Weight, Commit } from "./AtomSpace";
+import { AtomRef } from "./atoms";
+import { OrderedSet } from "immutable";
+import _Monoid from "./_Monoid";
+import Commit from "./Committer";
+
+export type CommitFac<V> = (rs?:OrderedSet<AtomRef<V>>)=>Commit<V>;
 
 export default class Head<V> {
-	readonly sink: Observer<Commit<V>>
-	private _refs: List<AtomRef<V>>
 
-	// private readonly _atom$: Subject<List<AtomRef<V>>>
-	// readonly atom$: Observable<AtomRef<V>>
+	private readonly _commitFac: CommitFac<V>
+	private _commit: Commit<V>
 
-	constructor(sink: Observer<[Weight,AtomRef<V>]>, refs?: List<AtomRef<V>>) {
-		this.sink = sink;
-		this._refs = refs ?? List();
+	constructor(commitFac: CommitFac<V>, refs?: OrderedSet<AtomRef<V>>) {
+		this._commitFac = commitFac;
+		this._commit = this._commitFac(refs);
+	}
 
-		// this._atom$ = new BehaviorSubject<List<AtomRef<V>>>(refs);
-		// this.atom$ = this._atom$;
+	async write(val: V, weight: number = 1): Promise<AtomRef<V>> {
+		const newRef = await this._commit.complete(val, weight);
+		this._commit = this._commitFac(OrderedSet([newRef]));
+		return newRef;
+	}
+
+	reset(): void {
+		//TODO resetting should create a fresh commit with original upstreams
+		//but - upstreams at this point are mingled within the bad commit
+		//we should capture 'our' refs before any upstreams etc
+		this._commit.abort();
+	}
+
+	addUpstreams(refs: OrderedSet<AtomRef<V>>): void {
+		this._commit.addUpstreams(refs);
+	}
+
+	commit() {
+		return this._commit;
+	}
+
+	refs() {
+		return this._commit.refs();
+	}
+
+	fork(): Head<V> {
+		return new Head<V>(this._commitFac, this._commit.refs());
 	}
 
 	release() {
@@ -24,37 +50,5 @@ export default class Head<V> {
 		//...
 		
 		// this._atom$.complete();
-	}
-
-	write(val: V, weight: number = 1): AtomRef<V> {
-		const ref = new Atom<V>(this._refs, val, weight).asRef();
-		this.sink.next([weight, ref]);
-		return this.move(ref);
-	}
-
-	move(ref: AtomRef<V>): AtomRef<V> {
-		//should make sure child here(?)
-		this._refs = List([ref]);
-    // this._atom$.next(ref);
-		return ref;
-	}
-
-	addUpstreams(refs: Set<AtomRef<V>>): void {
-		//for efficiency: simply superseded atoms purged from head
-		//stops loads of refs accumulating without compaction
-		const newRefs = Set(this._refs)
-			.subtract(refs.flatMap(r => r.resolve()).flatMap(a => a.parents))
-			.union(refs)
-			.toList();
-
-		this._refs = newRefs;
-	}
-
-	fork(): Head<V> {
-		return new Head<V>(this.sink, this._refs);
-	}
-
-	refs() {
-		return this._refs;
 	}
 }

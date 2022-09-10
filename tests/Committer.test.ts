@@ -1,24 +1,22 @@
-import AtomSpace from '../src/AtomSpace'
-import Committer from '../src/Committer'
+import Commit from '../src/Committer'
 import _Monoid from '../src/_Monoid'
 import { delay } from '../src/util'
 import { AtomRef, Atom } from '../src/atoms'
-import { List } from 'immutable'
+import { List, OrderedSet } from 'immutable'
 import { Subject } from 'rxjs'
 import { Signal } from './MachineSpace'
 import Head from '../src/Head'
 
-const atoms = <V>(rs: List<AtomRef<V>>) => rs.flatMap(r => r.resolve()).toArray()
+const atomA = <V>(...rs: AtomRef<V>[]) => rs.flatMap(r => r.resolve());
+const valA = <V>(...rs: AtomRef<V>[]) => atomA(...rs).map(a => a.val);
+
+const atomH = <V>(h: Head<V>) => h.refs().flatMap(r => r.resolve()).toArray();
+const valH = <V>(h: Head<V>) => atomH(h).map(a => a.val);
+
 
 describe('committable', () => {
 	let kill$ = new Subject<Signal>();
-	let space: AtomSpace<number>
-	const newHead = () => new Head<number>(new Subject(), List());
-	const newCommit = (h: Head<number>) => new Committer(new MonoidNumber(), h);  
-
-	beforeEach(() => {
-		space = new AtomSpace();
-	})
+	const newHead = () => new Head<number>(rs => new Commit(new MonoidNumber(), new Subject(), rs));
 
 	afterEach(() => {
 		kill$.next({ stop: true });
@@ -26,85 +24,70 @@ describe('committable', () => {
 
 	it('commits singly', async () => {
 		const head = newHead();
-		const commit = newCommit(head);
-		expect(atoms(head.refs())).toEqual([]);
+		expect(atomA(...head.refs())).toEqual([]);
 
-		await commit.complete(3);
+		await head.write(3);
 
-		const [atom] = atoms(head.refs());
-		expect(atom?.val).toEqual(3)
+		expect(valH(head)).toEqual([3]);
 	})
 
 	it('commits trebly', async () => {
 		const h1 = newHead();
-		const c1 = newCommit(h1);
-
 		const h2 = newHead();
-		const c2 = newCommit(h2);
-
 		const h3 = newHead();
-		const c3 = newCommit(h3);
 
-		Committer.combine(new MonoidNumber(), [c1, c2, c3]);
+		Commit.conjoin(new MonoidNumber(), [h1.commit(), h2.commit(), h3.commit()]);
 		
-		const committing1 = c1.complete(3);
+		const committing1 = h1.write(3);
 		await delay(15);
-		expect(atoms(h1.refs())).toEqual([]);
+		expect(atomH(h1)).toEqual([]);
 
-		const committing2 = c2.complete(5);
+		const committing2 = h2.write(5);
 		await delay(15);
-		expect(atoms(h1.refs())).toEqual([]);
-		expect(atoms(h2.refs())).toEqual([]);
+		expect(atomH(h1)).toEqual([]);
+		expect(atomH(h2)).toEqual([]);
 
 		await Promise
-			.all([c3.complete(7), committing1, committing2]);
+			.all([h3.write(7), committing1, committing2]);
 
-		expect(atoms(h1.refs())[0]?.val).toEqual(15);
-		expect(atoms(h2.refs())[0]?.val).toEqual(15);
-		expect(atoms(h3.refs())[0]?.val).toEqual(15);
+		expect(valH(h1)).toEqual([15]);
+		expect(valH(h2)).toEqual([15]);
+		expect(valH(h3)).toEqual([15]);
 	})
 
 	it('commits trebly, in series', async () => {
 		const h1 = newHead();
-		const c1 = newCommit(h1);
-
 		const h2 = newHead();
-		const c2 = newCommit(h2);
-
 		const h3 = newHead();
-		const c3 = newCommit(h3);
 
-		Committer.combine(new MonoidNumber(), [c1, c2]);
-		Committer.combine(new MonoidNumber(), [c2, c3]);
+		Commit.conjoin(new MonoidNumber(), [h1.commit(), h2.commit()]);
+		Commit.conjoin(new MonoidNumber(), [h2.commit(), h3.commit()]);
 		
-		const committing1 = c1.complete(3);
+		const committing1 = h1.write(3);
 		await delay(15);
-		expect(atoms(h1.refs())).toEqual([]);
+		expect(atomH(h1)).toEqual([]);
 
-		const committing2 = c2.complete(5);
+		const committing2 = h2.write(5);
 		await delay(15);
-		expect(atoms(h1.refs())).toEqual([]);
-		expect(atoms(h2.refs())).toEqual([]);
+		expect(atomH(h1)).toEqual([]);
+		expect(atomH(h2)).toEqual([]);
 
 		await Promise
-			.all([c3.complete(7), committing1, committing2]);
+			.all([h3.write(7), committing1, committing2]);
 
-		expect(atoms(h1.refs())[0]?.val).toEqual(15);
-		expect(atoms(h2.refs())[0]?.val).toEqual(15);
-		expect(atoms(h3.refs())[0]?.val).toEqual(15);
+		expect(valH(h1)).toEqual([15]);
+		expect(valH(h2)).toEqual([15]);
+		expect(valH(h3)).toEqual([15]);
 	})
 
 	it('commits twice in one swoop', async () => {
 		const h1 = newHead();
-		const c1 = newCommit(h1);
-
 		const h2 = newHead();
-		const c2 = newCommit(h2);
 
-		Committer.combine(new MonoidNumber(), [c1, c2]);
+		Commit.conjoin(new MonoidNumber(), [h1.commit(), h2.commit()]);
 
-		const p1 = c1.complete(1);
-		const p2 = c2.complete(2);
+		const p1 = h1.write(1);
+		const p2 = h2.write(2);
 		
 		const refs = await Promise.all([p1, p2]);
 		expect(refs[0]).toEqual(refs[1]);
@@ -112,110 +95,96 @@ describe('committable', () => {
 
 	it('completes after all commit', async () => {
 		const h1 = newHead();
-		const c1 = newCommit(h1);
-
 		const h2 = newHead();
-		const c2 = newCommit(h2);
 
-		Committer.combine(new MonoidNumber(), [c1, c2]);
+		Commit.conjoin(new MonoidNumber(), [h1.commit(), h2.commit()]);
 
 		let commited1 = false;
-		const committing1 = c1.complete(3);
+		const committing1 = h1.write(3);
 		committing1.then(() => commited1 = true);
 		await delay(15);
 		expect(commited1).toBeFalsy();
 
-		await Promise.all([c2.complete(5), committing1]);
+		await Promise.all([h2.write(5), committing1]);
 		expect(commited1).toBeTruthy();
 	})
 
 	it('atoms returned from commits', async () => {
 		const h1 = newHead();
-		const c1 = newCommit(h1);
-
 		const h2 = newHead();
-		const c2 = newCommit(h2);
 
-		Committer.combine(new MonoidNumber(), [c1, c2]);
+		Commit.conjoin(new MonoidNumber(), [h1.commit(), h2.commit()]);
+
 		const [a1, a2] = await Promise.all([
-			c1.complete(3),
-			c2.complete(5),
+			h1.write(3),
+			h2.write(5),
 		]);
 
-		const c3 = newCommit(h1);
-		const a3 = await c3.complete(7);
+		const a3 = await h1.write(7);
 		
-		expect(a1.resolve()[0]?.val).toBe(8);
-		expect(a2.resolve()[0]?.val).toBe(8);
-		expect(a3.resolve()[0]?.val).toBe(7);
+		expect(valA(a1)).toBe([8]);
+		expect(valA(a2)).toBe([8]);
+		expect(valA(a3)).toBe([7]);
 	})
 
 	it('multiple recombinations', async () => {
 		const h1 = newHead();
-		const c1 = newCommit(h1);
-
 		const h2 = newHead();
-		const c2 = newCommit(h2);
 
-		Committer.combine(new MonoidNumber(), [c1, c2]);
-		Committer.combine(new MonoidNumber(), [c1, c2]);
-		Committer.combine(new MonoidNumber(), [c1, c2]);
+		Commit.conjoin(new MonoidNumber(), [h1.commit(), h2.commit()]);
+		Commit.conjoin(new MonoidNumber(), [h1.commit(), h2.commit()]);
+		Commit.conjoin(new MonoidNumber(), [h1.commit(), h2.commit()]);
 
 		const [a1, a2] = await Promise.all([
-			c1.complete(3),
-			c2.complete(5),
+			h1.write(3),
+			h2.write(5),
 		]);
 
-		expect(a1.resolve()[0]?.val).toBe(8);
-		expect(a2.resolve()[0]?.val).toBe(8);
+		expect(valA(a1)).toEqual([8]);
+		expect(valA(a2)).toEqual([8]);
 	})
 
 	it('accepts extra upstreams', async () => {
 		const h = newHead();
-		const c1 = newCommit(h);
 
 		const u1 = new Atom(List(), 3);
 		const u2 = new Atom(List(), 4);
 
-		c1.add(List([new AtomRef(u1), new AtomRef(u2)]));
+		h.addUpstreams(OrderedSet([new AtomRef(u1), new AtomRef(u2)]));
 
-		const a2 = await c1.complete(13);
+		const a2 = await h.write(13);
 
-		expect(atoms(List([a2]))[0].val)
-			.toEqual(13);
+		expect(valA(a2)).toEqual([13]);
+		expect(valH(h)).toEqual([13]);
 
-		expect(atoms(h.refs())[0].val)
-			.toEqual(13);
-
-		const parents = List(atoms(h.refs()))
+		const parents = List(atomH(h))
 			.flatMap(r => r.parents);
 
-		expect(atoms(parents)).toContain(u1);
-		expect(atoms(parents)).toContain(u2);
+		expect(atomA(...parents)).toContain(u1);
+		expect(atomA(...parents)).toContain(u2);
 	})
 
 	it('upstreams are simplified on addition', async () => {
 		const h1 = newHead();
-		h1.write(0);
-		const c = newCommit(h1);
+		await h1.write(0);
 
 		const h2 = newHead();
-		h2.write(1);
-		c.add(h2.refs());
+		await h2.write(1);
+		h1.addUpstreams(h2.refs());
 
-		h2.write(2);
-		c.add(h2.refs());
+		await h2.write(2);
+		h1.addUpstreams(h2.refs());
 
-		h2.write(3);
-		c.add(h2.refs());
+		await h2.write(3);
+		h1.addUpstreams(h2.refs());
 
-		await c.complete(9);
+		await h1.write(9);
 
-		const upstreams1 = atoms(h1.refs());
+		const upstreams1 = atomH(h1);
 		expect(upstreams1).toHaveLength(1);
 		expect(upstreams1.map(a => a.val)).toContain(9);
 
-		const upstreams2 = atoms(List(upstreams1).flatMap(r => r.parents))
+		const upstreams2 = atomA(...List(upstreams1).flatMap(r => r.parents))
 		expect(upstreams2).toHaveLength(2);
 		expect(upstreams2.map(a => a.val)).toContain(0);
 		expect(upstreams2.map(a => a.val)).toContain(3);
@@ -228,23 +197,19 @@ describe('committable', () => {
 		const h2 = newHead();
 		const h3 = newHead();
 
-		h1.write(1);
-		h2.write(2);
-		h3.write(3);
+		await h1.write(1);
+		await h2.write(2);
+		await h3.write(3);
 
-		const c1 = newCommit(h1);
-		const c2 = newCommit(h2);
-		const c3 = newCommit(h3);
+		Commit.conjoin(new MonoidNumber(), [h1.commit(), h2.commit(), h3.commit()]);
 
-		Committer.combine(new MonoidNumber(), [c1, c2, c3]);
-
-		const p1 = c1.complete(1).catch(e => {
+		const p1 = h1.write(1).catch(e => {
 			expect(e).toEqual('Commit aborted!')
 		});
 
-		c3.abort();
+		h3.reset();
 		
-		const p2 = c2.complete(2).catch(e => {
+		const p2 = h2.write(2).catch(e => {
 			expect(e).toEqual('Commit aborted!')
 		});
 

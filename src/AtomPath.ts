@@ -219,9 +219,9 @@ export function tracePath<V>(refs: List<AtomLike<V>>): Traced<V>[] {
 	function visitList(rs: List<AtomLike<V>>) {
 		return rs
 			.flatMap(r =>
-				   (r?._type == 'Atom' && List([r]))
+				   (r?._type == 'Atom' && [r])
 				|| (r?._type == 'AtomRef' && r.resolve())
-				|| List<Atom<V>>())
+				|| [])
 			.map(visitAtom)
 			.toArray();
 	}

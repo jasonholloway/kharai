@@ -4,25 +4,25 @@ import { Atom, AtomRef } from './atoms'
 import AtomPath from './AtomPath'
 import { Observable, of, combineLatest, EMPTY } from 'rxjs';
 import _Monoid from './_Monoid';
-import { filter, shareReplay, map, expand, mergeScan, takeUntil, share, concatMap } from 'rxjs/operators';
+import { filter, shareReplay, expand, mergeScan, takeUntil, share, concatMap } from 'rxjs/operators';
 import { Signal } from './MachineSpace';
 import AtomSaver from './AtomSaver';
 import { Saver } from './Store';
 
-const MonoidLump = <V>() => <_Monoid<Lump<V>>> {
-  zero: [0, Set()],
-  add: ([aW, aS], [bW, bS]) => [aW + bW, aS.union(bS)]
-}
-
 export type Weight = number;
 export type Threshold = number
-export type Commit<V> = [Weight, AtomRef<V>]
 
 export type Lump<V> = [Weight, Set<AtomRef<V>>]
 export type Storer<V> = (s: Saver<V>) => Promise<any>
 
+export const MonoidLump = <V>() => <_Monoid<Lump<V>>> {
+  zero: [0, Set()],
+  add: ([aW, aS], [bW, bS]) => [aW + bW, aS.union(bS)]
+}
+
+
 export const runSaver = <V>(signal$: Observable<Signal>, threshold$: Observable<Threshold>, MV: _Monoid<V>) =>
-  (commit$: Observable<Commit<V>>) => {
+  (lump$: Observable<Lump<V>>) => {
 
     const kill$ = signal$.pipe(
       filter(s => s.stop), shareReplay(1));
@@ -30,10 +30,6 @@ export const runSaver = <V>(signal$: Observable<Signal>, threshold$: Observable<
     const space = new AtomSpace<V>();
     const saver = new AtomSaver<V>(MV, space);
     const ML = MonoidLump<V>();
-
-    const lump$ = commit$.pipe(
-      map(([w, r]) => <Lump<V>>[w, Set([r])])
-    );
 
     type Tup = [Lump<V>, Threshold, Storer<V>?]
 
@@ -56,7 +52,7 @@ export const runSaver = <V>(signal$: Observable<Signal>, threshold$: Observable<
                     async store => {
                       try {
                         console.debug('SAVE!');
-                        const [w2, rs2] = await saver.save(store, rs.toList())
+                        const [w2, rs2] = await saver.save(store, rs);
                         sub.next([[w - w2, rs.subtract(rs2)], t]);
                         sub.complete();
                       }

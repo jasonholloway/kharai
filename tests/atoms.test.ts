@@ -3,7 +3,7 @@ import { delay } from './helpers'
 import _Monoid from '../src/_Monoid'
 import { Saver } from '../src/Store'
 import { Atom, AtomRef } from '../src/atoms'
-import AtomSpace from '../src/AtomSpace'
+import AtomSpace, { Lump } from '../src/AtomSpace'
 import AtomSaver from '../src/AtomSaver'
 import { Subject, Observer } from 'rxjs'
 import { Signal } from '../src/MachineSpace'
@@ -11,6 +11,7 @@ import { concatMap, tap, map } from 'rxjs/operators'
 import { tracePath } from '../src/AtomPath'
 import { viewAtoms } from './shared'
 import Head from '../src/Head'
+import Commit from './Committer'
 
 const MU: _Monoid<undefined> = {
 	zero: undefined,
@@ -31,7 +32,8 @@ const MMax: _Monoid<number> = {
   }
 }
 
-const newHead = (sink?: Observer<[number, AtomRef<string>]>) => new Head<string>(sink ?? new Subject(), List());
+const newHead = (sink?: Observer<Lump<string>>) =>
+	new Head<string>(rs => new Commit<string>(MS, sink ?? new Subject(), rs));
 
 describe('atoms and stuff', () => {
 
@@ -236,9 +238,9 @@ describe('atoms and stuff', () => {
 
 	it('saving simple combination', async () => {
 		const head = newHead();
-		head.write('1');
-		head.write('2');
-		head.write('3');
+		await head.write('1');
+		await head.write('2');
+		await head.write('3');
 
 		await saver.save(store, head.refs());
 
@@ -247,11 +249,11 @@ describe('atoms and stuff', () => {
 
 	it('saving in multiple transactions', async () => {
 		const head = newHead();
-		head.write('1');
-		head.write('2');
-		head.write('3');
-		head.write('4');
-		head.write('5');
+		await head.write('1');
+		await head.write('2');
+		await head.write('3');
+		await head.write('4');
+		await head.write('5');
 
 		await saver.save(store, head.refs());
 		await saver.save(store, head.refs());
@@ -261,7 +263,7 @@ describe('atoms and stuff', () => {
 
 	it('locking tips gets latest roots', async () => {
 		const head = newHead();
-		head.write('0');
+		await head.write('0');
 
 		const refs = head.refs();
 
@@ -449,8 +451,8 @@ describe('atoms and stuff', () => {
 	describe('rewriting', () => {
 		it('can rewrite', async () => {
 			const c = [0, 0, 0];
-			const sink$ = new Subject<[number, AtomRef<string>]>()
-			const atom$ = sink$.pipe(map(([,r]) => r));
+			const sink$ = new Subject<Lump<string>>()
+			const atom$ = sink$.pipe(concatMap(([,r]) => r));
 
 			atom$.pipe(
 				concatMap(r => space.lockPath(r)),
@@ -513,7 +515,7 @@ describe('atoms and stuff', () => {
 			expect(c[1]).toBe(1 + 1 + 1);
 			expect(c[2]).toBe(1 + 2 + 3);
 
-			expect(tracePath(h1.refs()))
+			expect(tracePath(List(h1.refs())))
 				.toStrictEqual([
 					['C3C3', [
 						['BB22', [
