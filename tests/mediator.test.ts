@@ -12,7 +12,6 @@ describe('mediator', () => {
 
   it('simplest convene/attach', async () => {
     const p1: MConvener<string> = {
-      id: 'a',
       convened([peer]) {
         const [reply] = peer.chat(['hello']) || [];
         return <string>reply;
@@ -20,7 +19,6 @@ describe('mediator', () => {
     }
 
     const p2: MAttendee<string> = {
-      id: 'b',
       attended() { return ['banana', 'pineapple']; }
     }
 
@@ -33,7 +31,6 @@ describe('mediator', () => {
 
   it('convention occurs', async () => {
     const p1: MConvener<Set<any>> = {
-      id: 'a',
       convened(peers) {
         const reply = peers.flatMap(p => p.chat(['hello']) || []);
         return reply;
@@ -41,15 +38,13 @@ describe('mediator', () => {
     }
 
     const p2: MAttendee<string> = {
-      id: 'b',
-      attended([,m]) {
+      attended(m) {
         return [`${m}2`, 'reply2'];
       }
     }
 
     const p3: MAttendee<string> = {
-      id: 'c',
-      attended([,m]) {
+      attended(m) {
         return [`${m}3`, 'reply3'];
       }
     }
@@ -70,7 +65,6 @@ describe('mediator', () => {
 
   it('attendee doesn\'t immediately release', async () => {
     const attendee: MAttendee<true> = {
-      id: 'a',
       attended() { return [true] }
     }
 
@@ -85,7 +79,6 @@ describe('mediator', () => {
 
   it('attendee released after chat', async () => {
     const convener: MConvener<number> = {
-      id: 'a',
       convened([peer]) {
         peer.chat(['hello']);
         return 1;
@@ -93,7 +86,6 @@ describe('mediator', () => {
     }
 
     const attendee: MAttendee<number> = {
-      id: 'b',
       attended() { return [1] }
     }
 
@@ -111,58 +103,54 @@ describe('mediator', () => {
 
   it('conveners in series', async () => {
     const c1: MConvener<string> = {
-      id: 'c1',
       convened([p]) {
-        const r = p.chat(['yo']);
+        p.chat('yo');
         return 'done';
       },
     }
 
     const c2: MConvener<string> = {
-      id: 'c2',
       convened([p]) {
-        const r = p.chat(['boo']);
+        p.chat('boo');
         return 'done';
       },
     }
 
-    const a: MAttendee<string> = {
-      id: 'a',
-      attended([mid]) {
-        return [mid];
+    const a: MAttendee<unknown> = {
+      attended(m) {
+        console.debug('m', m)
+        return [m];
       }
     }
 
-    const convention1 = x.convene(c1, Set([a]));
+    x.convene(c1, Set([a]));
     const result1 = await x.attend(a, a);
-    expect(result1).toEqual(['c1']);
+    console.debug(result1)
+    expect(result1).toEqual(['yo']);
     
-    const convention2 = x.convene(c2, Set([a]));
+    x.convene(c2, Set([a]));
     const result2 = await x.attend(a, a);
-    expect(result2).toEqual(['c2']);
+    expect(result2).toEqual(['boo']);
   })
 
   it('conveners in parallel', async () => {
     const c1: MConvener<string> = {
-      id: 'c1',
       convened([p]) {
-        const r = p.chat(['yo']);
+        p.chat('yo');
         return 'done';
       },
     }
 
     const c2: MConvener<string> = {
-      id: 'c2',
       convened([p]) {
-        const r = p.chat(['boo']);
+        p.chat('boo');
         return 'done';
       },
     }
 
-    const a: MAttendee<string> = {
-      id: 'a',
-      attended([mid]) {
-        return [mid];
+    const a: MAttendee<unknown> = {
+      attended(m) {
+        return [m];
       }
     }
 
@@ -176,14 +164,14 @@ describe('mediator', () => {
 		//an offerer release should be top priority, gazumping all others <!!!
 		//!!!
 
-    const convention1 = x.convene(c1, Set([a]));
-    const convention2 = x.convene(c2, Set([a]));
+    x.convene(c1, Set([a]));
+    x.convene(c2, Set([a]));
 
     const result1 = await x.attend(a, a);
-    expect(result1).toEqual(['c1']);
+    expect(result1).toEqual(['yo']);
     
     const result2 = await x.attend(a, a);
-    expect(result2).toEqual(['c2']);
+    expect(result2).toEqual(['boo']);
   })
 })
 

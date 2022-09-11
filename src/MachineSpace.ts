@@ -52,13 +52,12 @@ export class MachineSpace<N> {
   constructor(
     world: BuiltWorld<N>,
     loader: Loader,
-    mediator: Mediator,
     timer: Timer,
     signal$: Observable<Signal>
   ) {
     this.world = world;
     this.loader = loader;
-    this.mediator = mediator;
+    this.mediator = new Mediator(signal$);
     this.timer = timer;
 
     this.machines = Map();
@@ -135,10 +134,10 @@ export class MachineSpace<N> {
     const kill$ = signal$.pipe(filter(s => s.stop), share());
 
     type GetNext = ()=>Promise<false|[false|[string,unknown],true?]>;
-    type Tup = { log?: Log, v: number, next: GetNext };
+    type Step = { log?: Log, v: number, next: GetNext };
 
-    const log$ = of(<Tup>{ v: 0, next: async ()=>[initialState] }).pipe(
-      expand(tup => of(tup).pipe(
+    const log$ = of(<Step>{ v: 0, next: async ()=>[initialState] }).pipe(
+      expand(step => of(step).pipe(
         mergeMap(async ({v, next}) => {
           const result = await next();
 
@@ -173,7 +172,7 @@ export class MachineSpace<N> {
           if(save) await head.write(Map({ [id]: out }), 1);
 
           //line up next
-          return of(<Tup>{
+          return of(<Step>{
             v: v + 1,
             log: { state:out, phase, atoms:head.refs() },
             next: async () => {
@@ -203,7 +202,7 @@ export class MachineSpace<N> {
       finalize(() => log('END', id)),
 
       takeUntil(kill$),
-      finalize(() => head.release()),
+      finalize(() => head.release()), //doesn't actually do anything...
 
       shareReplay(1),
     );

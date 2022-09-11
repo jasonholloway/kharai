@@ -102,7 +102,8 @@ class Inner<V> {
           //above, if heads are able to accrue new refs at any time,
           //then capturing them nonchalantly into one atom
           //will risk overcapturing UNLESS committer is locked
-
+         
+          console.assert(this.sinks.count() == 1);
           this.sinks.forEach(s => s.next([this.weight, Set([ref])]));
 
 					this.waiters.forEach(fn => fn(ref));

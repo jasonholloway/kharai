@@ -3,6 +3,9 @@ import { createRunner } from './shared'
 import { rodents } from './worlds/rodents'
 import { Map, Set, List } from 'immutable'
 import { delay } from '../src/util'
+import { World } from '../src/shape/World'
+import { act } from '../src/shape/common'
+import { Num } from '../src/guards/Guard'
 
 describe('machines - saving', () => {
 
@@ -166,4 +169,30 @@ describe('machines - saving', () => {
 		//TODO
 		//ordering of savables
 	})
+
+	it.each([[1],[2],[10]])
+		('saves all cleanly at end %i', async c => {
+			const w = World
+				.shape({
+					blah: act(Num)
+				})
+				.impl({
+					async blah({and}, i) {
+						return i < c
+							? and.blah(i + 1)
+							: false;
+					}
+				})
+				.build();
+
+			const x = createRunner(w, { maxBatchSize:5, threshold:4 });
+
+			await Promise.all([
+				x.run.boot('a', ['blah', 0]),
+				x.run.log$.toPromise()
+			]);
+
+			expect(x.store.saved.get('a')).toEqual(['blah', c]);
+		})
 })
+

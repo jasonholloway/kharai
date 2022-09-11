@@ -32,8 +32,7 @@ export function newRun<N>
   const complete = () => signal$.next({ stop: true });
 
   const timer = new RealTimer(kill$);
-  const mediator = new Mediator(signal$);
-  const space = new MachineSpace(world, loader, mediator, timer, signal$)
+  const space = new MachineSpace(world, loader, timer, signal$)
 
   const threshold$ = concat(
     of(opts?.threshold ?? 3),
@@ -84,6 +83,15 @@ export function newRun<N>
       const machines = Set(await gather(
         space.summon(Set(ids))
       ));
+
+      //we want to launch ad hoc machines
+      //in the MachineSpace
+      //these wouldn't be backed with state and would only run once
+      //there are two components here - one that just dispatches things
+      //with the context populated
+      //
+      //a 
+      //
 
       return {
         meet<R = unknown>(convener: Convener<R>): Preemptable<R> {

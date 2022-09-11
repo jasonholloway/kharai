@@ -23,6 +23,52 @@
   only now slightly transmuted
 
   
+* Saving at end
+  when the kill signal fires, we should save
+  and moreover, we should fire our own saved signal
+  then whatever is orchestrating the closedown will know it can complete at that point
+  we basically want an orchestrator that consumes and publishes signals
+
+  but this means an orchestration that is aware of the different elements involved
+  as opposed to the 'look after yourselves' approach where a central signal is sent
+  and diversely received and processed by opaque listeners at leisure
+
+  all machines should be told, by means of broadcast
+  and these machines should shut up shop
+  which can be sensed - their logs will complete
+
+  when the machines are complete,
+  we can then tell the saver to flush its queue and complete itself
+  when this is done, we can quit
+
+  the MachineSpace should then offer a log stream that completes when it itself is closed
+  the AtomSpace is then next to be closed
+  these distinct actions wouldn't benefit from being driven by an unstructured broadcast
+
+  though, there are also timers that should be closed...
+  these timers should be cancelled by the MachineSpace closing
+  so, timers belong to the MachineSpace
+
+  we close gates one by one, and flush activity out of each section
+  each section is then stateful
+  a MachineSpace that is inactive can't take on any more interactions
+  testing of this will be specific to the component
+  can a MachineSpace be tested independently? let's find out...
+
+* MachineSpace
+  the RunSpace just dispatches arbitrary tasks
+  and allows meetings between them
+
+  
+
+** TODO test MachineSpace for completion of running
+
+** TODO test AtomSpace for completion of saving
+  
+  
+  
+
+  
   
 
   

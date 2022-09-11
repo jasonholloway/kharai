@@ -12,33 +12,32 @@ const log = console.log;
 const logFlow = (id0:Id, m:unknown, id1:Id) => log('CHAT', id0, '->', id1, inspect(m, {depth:2, colors:true}));
 
 export interface MPeer {
-  id: Id
-  chat(m: [Id,unknown]|false): false|[unknown]
-}
-
-export interface ConvenedPeer {
-  id: Id
-  chat(m: [unknown]|false): false|[unknown]
-}
-
-export interface AttendingPeer {
-  id: Id
-  chat(m: [unknown]|false): false|[unknown]
+  chat(m: Msg): [unknown]|false
+  info: PeerInfo
 }
 
 export interface MConvener<R = unknown> {
-  id: Id
-  convened(peers: Set<ConvenedPeer>): R
+  convened(peers: Set<MPeer>): R
 }
 
 export interface MAttendee<R = unknown> {
-  id: Id
-  attended(m: [Id,unknown], peers: Set<AttendingPeer>): [R]|[R, unknown]|false
+  attended(m: unknown, info: PeerInfo, peers: Set<MPeer>): [R]|[R, unknown]|false
 }
+
+
+export type Msg = unknown;
+export type PeerInfo = unknown;
+
+type _Peer = {
+  chat(m: [Msg,PeerInfo]|false): [unknown]|false,
+  info: PeerInfo
+}
+
+
 
 export class Mediator {
   private kill$ : Observable<any>;
-  private locks = new Exchange<MPeer>();
+  private locks = new Exchange<_Peer>();
 
   constructor(signal$: Observable<Signal>) {
     this.kill$ = signal$.pipe(filter(s => s.stop), shareReplay(1));
@@ -52,22 +51,16 @@ export class Mediator {
       .claim(...others)
       .map(claim => {
         try {
-          const peers = claim.offers(); //peer interface needs to be wrapped here, to remove special messages
+          const peers = claim.offers();
 
           const answer = convener.convened(
-            peers.map<ConvenedPeer>(p => ({
-              id: p.id,
-              chat(m: [unknown]|false) {
-                logFlow(convener.id+'!', m, p.id);
-                if(m) return p.chat([convener.id, ...m])
-                else return p.chat(false);
+            peers.map(p => <MPeer>{
+              chat(m: Msg) {
+                return p.chat([m, 'info about convener here!!!']);
               }
-            }))
-          );
+            }));
 
-          //only live peers should be bothered here - maybe its up to the peers themselves; they will return head when done
           peers.forEach(p => {
-            // logFlow('!!', false, p.id);
             const a = p.chat(false);
             if(a) throw Error('peer responded badly to kill');
           });
@@ -76,7 +69,6 @@ export class Mediator {
         }
         finally {
           claim.release(); //NOTE async!!!!
-          // await claim.release();
         }
       })
       // .cancelOn(this.kill$);
@@ -88,31 +80,17 @@ export class Mediator {
       .promise()
       .cancelOn(this.kill$);
 
-    // console.debug('CONVENE LOCKED');
-
-    const peers = claim.offers(); //peer interface needs to be wrapped here, to remove special messages
-
     try {
-      const answer = convener.convened(
-        peers.map<ConvenedPeer>(p => ({
-          id: p.id,
-          chat(m: [unknown]|false) {
-            logFlow(convener.id+'!', m, p.id);
-            if(m) {
-              const r = p.chat([convener.id, ...m])
-              logFlow(p.id, r, convener.id+'!');
-              return r;
-            }
-            else { 
-              return p.chat(false);
-            }
-          }
-        }))
-      );
+      const peers = claim.offers();
 
-      //only live peers should be bothered here - maybe its up to the peers themselves; they will return head when done
+      const answer = convener.convened(
+        peers.map(p => <MPeer>{
+          chat(m: Msg) {
+            return p.chat([m, 'info about convener here!!!']);
+          }
+        }));
+
       peers.forEach(p => {
-        // logFlow('!!', false, p.id);
         const a = p.chat(false);
         if(a) throw Error('peer responded badly to kill');
       });
@@ -121,7 +99,6 @@ export class Mediator {
     }
     finally {
       claim.release();
-      // console.debug('CONVENE RELEASED');
     }
   }
 
@@ -132,25 +109,21 @@ export class Mediator {
         let _state = <[R]|false>false;
         
         this.locks.offer([item],
-          handle => (
-          {
-            id: attend.id,
+          lock => <_Peer>{
 
-            chat(m: [Id,unknown]|false) {
-              // log('ATTEND CHAT BEGIN')
-
+            //handle incoming message from convener/peer
+            //we should know where message is coming from also - 
+            chat(m: [Msg,PeerInfo]|false) {
               try {
                 if(!m) return fin(); //been told to clear off; state still returned
-                if(!_active) throw Error('DEAD ATTENDEE SENT MESSAGE!'); //a dead machine can't receive non-false messages
+                if(!_active) throw Error('DEAD ATTENDEE SENT MESSAGE!');
 
                 //TODO below can also return false!!!!
-                const r = attend.attended(m, Set());
+                const r = attend.attended(...m, Set()); //todo: fill in peers here
                 if(!r) return fin();
                 
                 const [s, reply] = r;
                 _state = [s];
-
-                // logFlow(attend.id, reply, m[0]+'!');
 
                 if(reply === undefined) {
                   //attendee talks no more
@@ -158,7 +131,6 @@ export class Mediator {
                 }
                 else {
                   //attendee replies
-                  // logFlow(attend.id, reply, m[0]+'!');
                   return [reply];
                 }
               }
@@ -173,7 +145,7 @@ export class Mediator {
               function fin(err?: unknown): false {
                 if(_active) {
                   _active = false;
-                  handle.release();
+                  lock.release();
 
                   if(err) reject(err);
                   else resolve(_state);
@@ -184,7 +156,7 @@ export class Mediator {
                 return false;
               }
             }
-          })
+          }
         ).promise();
       })
       .cancelOn(this.kill$);
