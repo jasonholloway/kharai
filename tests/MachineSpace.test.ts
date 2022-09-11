@@ -3,10 +3,11 @@ import { Map, Set } from 'immutable';
 import { act } from '../src/shape/common';
 import { World } from '../src/shape/World';
 import { Num } from '../src/guards/Guard'
-import { MachineSpace } from '../src/MachineSpace';
+import { MachineSpace, Signal } from '../src/MachineSpace';
 import { FakeLoader } from '../src/FakeStore';
 import { RealTimer } from '../src/Timer';
 import { Subject } from 'rxjs/internal/Subject';
+import { RunSpace } from './RunSpace';
 
 describe('MachineSpace', () => {
 
@@ -24,7 +25,8 @@ describe('MachineSpace', () => {
       });
   
   it('summons', async () => {
-    const space = new MachineSpace(world(2).build(), new FakeLoader(Map()), new RealTimer(new Subject()), new Subject());
+    const signal$ = new Subject<Signal>();
+    const space = new MachineSpace(world(2).build(), new FakeLoader(Map()), new RunSpace(new RealTimer(signal$), signal$), signal$);
 
     const m = await space.summon(Set(['A'])).toPromise();
 

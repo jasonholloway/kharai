@@ -4,9 +4,6 @@ import { Set } from 'immutable'
 import { Timer } from './Timer'
 import { Signal } from './MachineSpace'
 
-const log = console.debug;
-// const logChat = (id0:Id[], id1:Id, m:unknown) => log('CHAT', ...id0, '->', id1, inspect(m, {colors:true}));
-
 export class RunSpace {
   private readonly mediator: Mediator
   private readonly timer: Timer
@@ -67,39 +64,28 @@ export class Run {
 
       attend<R>(attendee: MAttendee<R>): Promise<false|[R]> {
         return _this.mediator.attend<R>(_this, {
-          id: _this.id,
-          attended(m: [RunId,unknown], peers: Set<MPeer>): [R]|[R, unknown]|false {
-            throw 123;
+          info: attendee.info,
+          attended(m: unknown, info: unknown, peers: Set<MPeer>): [R]|[R, unknown]|false {
+            return attendee.attended(m, info, peers);
           }
         });
       },
-
       
-      async convene<R>(ids: RunId[], convener: Convener<R>) {
+      async convene<R>(others: ArrayLike<Run>, convener: MConvener<R>) {
         return await _this.mediator
           .convene({
-            id: _this.id,
+            info: convener.info,
             convened(peers) {
-              //here the convener is given some peers to chat to
-
-              const proxied = peers.map(p => <Peer>({
-                id: p.id,
-                chat(m) {
-                  // logChat(['C:'+id], 'A:'+p.id, m);
-                  return p.chat([[$Ahoy, commit, m]]);
-                }
-              }));
-
-              const result = convened(proxied);
-
-              // logChat([...peers.map(p => p.id)], result, id);
-
-              return result;
+              return convener.convened(
+                peers.map(p => <MPeer>({
+                  info: p.info,
+                  chat(m) {
+                    return p.chat(m);
+                  }
+                })));
             }
-          }, Set(ms));
+          }, Set(others));
       }
-
-
 
     };
   }

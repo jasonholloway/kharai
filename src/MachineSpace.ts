@@ -1,6 +1,6 @@
 import { Id, DataMap } from './lib'
-import { Mediator } from './Mediator'
-import { Observable, Subject, pipe, merge, ReplaySubject, EMPTY, of, from, Observer } from 'rxjs'
+import { MAttendee } from './Mediator'
+import { Observable, Subject, merge, ReplaySubject, EMPTY, of, from, Observer } from 'rxjs'
 import { concatMap, toArray, filter, mergeMap, map, share, expand, takeUntil, finalize, shareReplay, tap, catchError } from 'rxjs/operators'
 import Commit from './Committer'
 import { Map, OrderedSet, Set } from 'immutable'
@@ -11,8 +11,8 @@ import { BuiltWorld, Found } from './shape/BuiltWorld'
 import { AtomRef } from './atoms'
 import { inspect, isArray, isFunction } from 'util'
 import { Loader } from './Store'
-import { Timer } from './Timer'
 import { isString } from './util'
+import { Run, RunCtx, RunSpace } from './RunSpace'
 
 const log = console.debug;
 // const logChat = (id0:Id[], id1:Id, m:unknown) => log('CHAT', ...id0, '->', id1, inspect(m, {colors:true}));
@@ -21,8 +21,12 @@ const $Ahoy = Symbol('$Ahoy')
 
 export type Machine = {
   id: Id,
-  head: Head<DataMap>,
   log$: Observable<Log>
+}
+
+type _Machine = Machine & {
+  head: Head<DataMap>,
+  run: Run
 }
 
 export type Log = {
@@ -35,13 +39,12 @@ export type Log = {
 export class MachineSpace<N> {
   private readonly world: BuiltWorld<N>
   private readonly loader: Loader
-  private readonly mediator: Mediator
-  private readonly timer: Timer
+  private readonly runs: RunSpace;
 
   private readonly _lump$ = new ReplaySubject<Lump<DataMap>>(1)
   readonly commit$ = this._lump$;
 
-  private machines: Map<Id, Promise<Machine>>
+  private machines: Map<Id, Promise<_Machine>>
   private _machine$: Subject<Machine>
   readonly machine$: Observable<Machine>
 
@@ -52,18 +55,19 @@ export class MachineSpace<N> {
   constructor(
     world: BuiltWorld<N>,
     loader: Loader,
-    timer: Timer,
+    runs: RunSpace,
     signal$: Observable<Signal>
   ) {
     this.world = world;
     this.loader = loader;
-    this.mediator = new Mediator(signal$);
-    this.timer = timer;
+    this.runs = runs;
 
     this.machines = Map();
     this._machine$ = new Subject();
     this.machine$ = this._machine$;
 
+    //telling all the machines to shut up shop is our responsibility
+    //we also need to deactivate ourself
     this._signal$ = signal$;
     signal$.pipe(filter(s => s.stop))
       .subscribe(() => {
@@ -72,7 +76,17 @@ export class MachineSpace<N> {
       });
   }
 
+  async runArbitrary<R>(fn: (x:MachineSpaceCtx)=>Promise<R>) {
+    throw 123;
+  }
+
+  
+  
   summon(ids: Set<Id>): Observable<Machine> {
+    return this._summon(ids);
+  }
+
+  private _summon(ids: Set<Id>): Observable<_Machine> {
     const _this = this;
     
     const summoned = ids.map(id => {
@@ -107,7 +121,7 @@ export class MachineSpace<N> {
 
     const toAdd = summoned
       .filter(([,,isNew]) => isNew)
-      .map(([id, loading]) => <[Id, Promise<Machine>]>[id, loading]);
+      .map(([id, loading]) => <[Id, Promise<_Machine>]>[id, loading]);
     
     this.machines = _this.machines.merge(Map(toAdd));
 
@@ -123,12 +137,10 @@ export class MachineSpace<N> {
     initialState: unknown,
     signal$: Observable<Signal>,
     lump$: Observer<Lump<DataMap>>
-  ): Machine
+  ): _Machine
   {
     const _this = this;
-    let sideData = <unknown>undefined;
-    // let v = -1;
-
+    const run = this.runs.newRun();
     const head = new Head<DataMap>(rs => new Commit<DataMap>(this.MD, lump$, rs));
     
     const kill$ = signal$.pipe(filter(s => s.stop), share());
@@ -177,8 +189,11 @@ export class MachineSpace<N> {
             log: { state:out, phase, atoms:head.refs() },
             next: async () => {
               try {
-                const ctx = fac(coreContext(id, v, head.commit()));
-                const out = await handler(ctx, data);
+                const out = await run.run(x => {
+                  const ctx = fac(machineCtx(x, id, v, head.commit()));
+                  return handler(ctx, data);
+                });
+                
                 return [out, true];
               }
               catch(e) {
@@ -207,13 +222,12 @@ export class MachineSpace<N> {
       shareReplay(1),
     );
 
-    const machine = {
+    return <_Machine>{
       id,
       head,
-      log$
+      log$,
+      run
     };
-
-    return machine;
 
 
     function isPhase(p: unknown): p is [string, unknown] {
@@ -223,23 +237,94 @@ export class MachineSpace<N> {
         && !!_this.world.read(p[0]).handler;
     }
 
-    function coreContext(id:Id, v:number, commit:Commit<DataMap>): unknown {
+    function machineSpaceCtx(x: RunCtx): MachineSpaceCtx {
+      //here we summon peerRuns
       return {
+        ...x
+      };
+    }
+
+
+    function machineCtx(x: MachineSpaceCtx, id:Id, v:number, commit:Commit<DataMap>): MachineCtx {
+      return {
+        ...x,
+        
         id: id,
-
-        timer: _this.timer,
-
-        side: {
-          get() {
-            return sideData;
-          },
-          set(d:unknown) {
-            sideData = d;
-          }
-        },
 
         isFresh() {
           return v == 0;
+        },
+
+        attend<R>(arg: Attendee<R>|AttendedFn<R>) {
+          const attended = isAttendee(arg) ? arg.attended : arg;
+
+          return x.attend(<MAttendee<R>>{
+
+            info: packInfo(id),
+
+            attended(m, info, peers) {
+              //here the attendee is receiving a message from its convener
+
+              if(isArray(m) && m[0] === $Ahoy) {
+                Commit.conjoin(new MonoidData(), [commit, <Commit<DataMap>>m[1]]);
+                m = m[2];
+              }
+
+              // logChat([mid], id, 'C>A', m);
+
+              const proxied = peers.map(p => <Peer>({
+                id: unpackInfo(info),
+                chat(m) {
+                  // logChat(['A:'+id], 'A:'+p.id, m);
+                  return p.chat([[$Ahoy, commit, m]]);
+                }
+              }));
+
+              const result = attended(m, unpackInfo(info), proxied);
+
+              // if(result[1]) logChat(['A:'+id], 'C:'+mid, result[1]);
+
+              // if(result[1]) logChat(['AR',id], result[1], mid);
+
+              return result ?? false;
+            }
+          });
+
+          function isAttendee(v: unknown): v is Attendee<R> {
+            return !!(<any>v).attended;
+          }
+        },
+
+        async convene<R>(ids: Id[], arg: Convener<R>|ConvenedFn<R>) {
+          const fn = isConvener(arg) ? arg.convened : arg;
+          
+          const peerRuns =
+            await _this._summon(Set(ids))
+              .pipe(
+                map(m => m.run),
+                toArray()
+              )
+              .toPromise(); //summoning should be cancellable (from loader?)
+
+          return await x.convene(
+            peerRuns,
+            {
+              info: packInfo(id),
+
+              //talk to convened peers
+              convened(peers) {
+                return fn(peers.map(p => <Peer>({
+                  id: unpackInfo(p.info),
+                  chat(m) {
+                    return p.chat([[$Ahoy, commit, m]]);
+                  }
+                })));
+              }
+            });
+
+          function isConvener(v: unknown): v is Convener<R> {
+            return !!(<any>v).convened;
+          }
         },
 
         watch(ids: Id[]): Observable<[Id, unknown]> {
@@ -275,79 +360,16 @@ export class MachineSpace<N> {
             );
         },
 
-        attend<R>(arg: Attendee<R>|AttendedFn<R>) {
-          const attended = isAttendee(arg) ? arg.attended : arg;
 
-          return _this.mediator.attend(machine, {
-            id,
-            attended([mid, m], peers) {
-              //here the attendee is receiving a message from its convener
-
-              if(isArray(m) && m[0] === $Ahoy) {
-                Commit.conjoin(new MonoidData(), [commit, <Commit<DataMap>>m[1]]);
-                m = m[2];
-              }
-
-              // logChat([mid], id, 'C>A', m);
-
-              const proxied = peers.map(p => <Peer>({
-                id: p.id,
-                chat(m) {
-                  // logChat(['A:'+id], 'A:'+p.id, m);
-                  return p.chat([[$Ahoy, commit, m]]);
-                }
-              }));
-
-              const result = attended(m, mid, proxied);
-
-              // if(result[1]) logChat(['A:'+id], 'C:'+mid, result[1]);
-
-              // if(result[1]) logChat(['AR',id], result[1], mid);
-
-              return result ?? false;
-            }
-          });
-
-          function isAttendee(v: unknown): v is Attendee<R> {
-            return !!(<any>v).attended;
-          }
-        },
-
-        async convene<R>(ids: Id[], arg: Convener<R>|ConvenedFn<R>) {
-          const convened = isConvener(arg) ? arg.convened : arg;
-          
-          const m$ = _this.summon(Set(ids));
-          const ms = await m$.pipe(toArray()).toPromise(); //summoning should be cancellable (from loader?)
-
-          const result = await _this.mediator
-            .convene({
-              id,
-              convened(peers) {
-                //here the convener is given some peers to chat to
-                
-                const proxied = peers.map(p => <Peer>({
-                  id: p.id,
-                  chat(m) {
-                    // logChat(['C:'+id], 'A:'+p.id, m);
-                    return p.chat([[$Ahoy, commit, m]]);
-                  }
-                }));
-
-                const result = convened(proxied);
-
-                // logChat([...peers.map(p => p.id)], result, id);
-
-                return result;
-              }
-            }, Set(ms));
-
-          return result;
-
-          function isConvener(v: unknown): v is Convener<R> {
-            return !!(<any>v).convened;
-          }
-        }
       };
+
+      function packInfo(id: string): unknown {
+        return { id };
+      }
+
+      function unpackInfo(info: unknown): string|undefined {
+        return (<{ id?: string }|undefined>info)?.id;
+      }
     }
   }
 }
@@ -359,7 +381,7 @@ export type Signal = {
 
 
 export interface Peer {
-  id: Id,
+  id?: Id,
   chat(m: unknown): false|readonly [unknown]
 }
 
@@ -375,5 +397,22 @@ export interface Attendee<R = unknown> {
   attended: AttendedFn<R>
 }
 
-export type AttendedFn<R> = (m:unknown, mid:Id, peers:Set<Peer>) => ([R]|[R,unknown]|false|undefined);
+export type AttendedFn<R> = (m:unknown, mid:Id|undefined, peers:Set<Peer>) => ([R]|[R,unknown]|false|undefined);
 
+
+export type MachineSpaceCtx = Extend<RunCtx, {
+  attend: <R>(attend: Attendee<R>|AttendedFn<R>) => Promise<false|[R]>
+  convene: <R>(ids: string[], convene: Convener<R>|ConvenedFn<R>) => Promise<R>
+}>;
+
+export type MachineCtx = Extend<MachineSpaceCtx, {
+  id: string
+  isFresh: () => boolean
+  attend: <R>(attend: Attendee<R>|AttendedFn<R>) => Promise<false|[R]>
+  convene: <R>(ids: string[], convene: Convener<R>|ConvenedFn<R>) => Promise<R>
+  watch: (ids: string[]) => Observable<readonly [string, unknown]>
+  watchRaw: (ids: string[]) => Observable<readonly [string, unknown]>
+}>;
+
+
+type Extend<A, B> = Omit<A, keyof B> & B;

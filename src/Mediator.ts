@@ -11,26 +11,29 @@ import { inspect } from 'util';
 const log = console.log;
 const logFlow = (id0:Id, m:unknown, id1:Id) => log('CHAT', id0, '->', id1, inspect(m, {depth:2, colors:true}));
 
-export interface MPeer {
-  chat(m: Msg): [unknown]|false
-  info: PeerInfo
-}
-
 export interface MConvener<R = unknown> {
+  info?: PeerInfo,
   convened(peers: Set<MPeer>): R
 }
 
 export interface MAttendee<R = unknown> {
+  info?: PeerInfo,
   attended(m: unknown, info: PeerInfo, peers: Set<MPeer>): [R]|[R, unknown]|false
+}
+
+export interface MPeer {
+  info?: PeerInfo,
+  chat(m: Msg): [unknown]|false
 }
 
 
 export type Msg = unknown;
 export type PeerInfo = unknown;
 
+
 type _Peer = {
   chat(m: [Msg,PeerInfo]|false): [unknown]|false,
-  info: PeerInfo
+  info?: PeerInfo
 }
 
 

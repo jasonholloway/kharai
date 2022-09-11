@@ -1,14 +1,12 @@
 import { List, OrderedMap } from "immutable";
-import { Observable } from "rxjs/internal/Observable";
-import { inspect, isArray } from "util";
+import { inspect, isArray, isString } from "util";
 import { Any, Guard, Many, Never, Num, Str, Read } from "../guards/Guard";
 import { Id } from "../lib";
-import { AttendedFn, Attendee, ConvenedFn, Convener, Peer } from "../MachineSpace";
+import { MachineCtx, Peer } from "../MachineSpace";
 import { Handler, $data, $Data, $Fac, $Root, $root, $Incl, $incl, Projector } from "../shapeShared";
-import { Timer } from "../Timer";
 import { DeepMerge, DeepSimplify, delay, IsAny, IsNever, Merge, Simplify } from "../util";
 import { BuiltWorld } from "./BuiltWorld";
-import { act, ctx, Data, FacContext, FacPath, formPath, Impls, incl, isDataNode, isInclNode, PathFac, SchemaNode } from "./common";
+import { act, ctx, Data, FacContext, FacPath, Impls, incl, isDataNode, isInclNode, PathFac, SchemaNode } from "./common";
 import { mergeNodeVal, NodeVal, NodeView, Registry } from "./Registry";
 
 export const separator = '_'
@@ -409,8 +407,8 @@ export class Builder<N> {
 
 
 export type BuiltIns = {
-  XA: CoreCtx //todo these could be collapsed into simple, single 'X' entry
-  XI: CoreCtx
+  XA: MachineCtx //todo these could be collapsed into simple, single 'X' entry
+  XI: MachineCtx
   D_boot: never,
   D_end: typeof Any,
   D_wait: [typeof Num | typeof Str, $Root],
@@ -439,7 +437,7 @@ function builtIns() {
     .update(v => ({
       ...v,
       guard: [Any],
-      async handler(x: CoreCtx) {
+      async handler(x: MachineCtx) {
         while(true) {
           const answer = await x.attend({
             attended(m) {
@@ -474,7 +472,7 @@ function builtIns() {
     .update(v => ({
       ...v,
       guard: [[Num, $root]],
-      handler: async (x: CoreCtx, [when, nextPhase]: [number|string,unknown]) => {
+      handler: async (x: MachineCtx, [when, nextPhase]: [number|string,unknown]) => {
         return x.timer.schedule(new Date(when), () => nextPhase);
       }
     }))
@@ -489,7 +487,7 @@ function builtIns() {
     .update(v => ({
       ...v,
       guard: [[Str, $root]],
-      handler: async (x: CoreCtx, [spotId, hold]: [Id, [string,unknown]]) => {
+      handler: async (x: MachineCtx, [spotId, hold]: [Id, [string,unknown]]) => {
         return x.convene([spotId], {
           convened([spot]) {
             const resp = spot.chat('hi');
@@ -519,7 +517,7 @@ function builtIns() {
     .update(v => ({
       ...v,
       guard: [Never],
-      handler: async (x: CoreCtx) => {
+      handler: async (x: MachineCtx) => {
         return ['$m_gather', [0, []]]
       }
     }))
@@ -532,10 +530,10 @@ function builtIns() {
     .update(v => ({
       ...v,
       guard: [[Num, Many(Str)]],
-      handler: async (x: CoreCtx, [v, ids]: [number, Id[]]) => {
+      handler: async (x: MachineCtx, [v, ids]: [number, Id[]]) => {
         const result = await x.attend({
           attended(m, mid) {
-            if(isPeerMessage(m)) {
+            if(isPeerMessage(m) && isString(mid)) {
               ids = [...ids, mid];
 
               const k = `K${v}`;
@@ -572,16 +570,18 @@ function builtIns() {
     .update(v => ({
       ...v,
       guard: [[Num,Str,Many(Str),Many(Str)]],
-      handler: async (x: CoreCtx, [v,k,ids,remnants]: [number,string,Id[],Id[]]) => {
+      handler: async (x: MachineCtx, [v,k,ids,remnants]: [number,string,Id[],Id[]]) => {
         return x.convene(ids, {
           convened(peers) {
             const answers: { [id:Id]:unknown } = {};
 
             for(const p of peers) {
-              const r = p.chat([k, 'contribute'])
-              if(!r) return fin({kickOut:[p]});
+              if(p.id) {
+                const r = p.chat([k, 'contribute'])
+                if(!r) return fin({kickOut:[p]});
 
-              answers[p.id] = r[0];
+                answers[p.id] = r[0];
+              }
             }
 
             for(const p of peers) {
@@ -606,18 +606,6 @@ function builtIns() {
 
 
 export const World = new Builder<{}>(Registry.empty)
-
-
-export type CoreCtx = {
-  id: string
-  timer: Timer
-  watch: (ids: string[]) => Observable<readonly [string, unknown]>
-  watchRaw: (ids: string[]) => Observable<readonly [string, unknown]>
-  attend: <R>(attend: Attendee<R>|AttendedFn<R>) => Promise<false|[R]>
-  convene: <R>(ids: string[], convene: Convener<R>|ConvenedFn<R>) => Promise<R>
-  side: { get():unknown, set(d:unknown):void } 
-  isFresh: () => boolean
-}
 
 
 

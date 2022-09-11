@@ -2,7 +2,7 @@ import { FacNode } from "../facs";
 import { Any, Guard, Read } from "../guards/Guard";
 import { Handler, $Root, Fac, $data, $space, $handler, $fac, $Fac, $incl, $Incl } from "../shapeShared";
 import { Merge, Simplify } from "../util";
-import { Builder, BuiltIns, CoreCtx, PhaseHelper } from "./World";
+import { Builder, BuiltIns, MachineCtx, PhaseHelper } from "./World";
 
 export const separator = '_'
 export type Separator = typeof separator;
@@ -40,8 +40,8 @@ type _DataTuple<P, D> =
 
 {
   type A = Data<{
-    XA: CoreCtx
-    XI: CoreCtx
+    XA: MachineCtx
+    XI: MachineCtx
     D_rat: 123
     D_guineapig: ['hello', 123]
   }>;
@@ -66,7 +66,7 @@ export type Impls<N, O> =
 
 type _Impls<N, DOne, O> =
   [_ImplSplit<N>] extends [infer Tups] ?
-  _ImplCombine<[Tups], {}, DOne, _Data<N, DOne>, {and:PhaseHelper<N&BuiltIns,O>}&CoreCtx, O>
+  _ImplCombine<[Tups], {}, DOne, _Data<N, DOne>, {and:PhaseHelper<N&BuiltIns,O>}&MachineCtx, O>
   : never
 ;
 

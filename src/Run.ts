@@ -1,5 +1,4 @@
 import { Id, DataMap } from './lib'
-import { Mediator, ConvenedPeer } from './Mediator'
 import { Observable, ReplaySubject, of, concat, Subject, merge } from 'rxjs'
 import { startWith, endWith, scan, takeWhile, finalize, map, tap, toArray, ignoreElements, concatMap, filter, takeUntil, shareReplay, mergeMap } from 'rxjs/operators'
 import { Set } from 'immutable'
@@ -90,8 +89,8 @@ export function newRun<N>
       //there are two components here - one that just dispatches things
       //with the context populated
       //
-      //a 
-      //
+      //MachineSpace needs to let you summon a selection and convene them 
+      //below stuff should be in MachineSpace defo
 
       return {
         meet<R = unknown>(convener: Convener<R>): Preemptable<R> {
