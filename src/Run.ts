@@ -1,8 +1,8 @@
 import { Id, DataMap } from './lib'
 import { Observable, ReplaySubject, of, concat, Subject, merge } from 'rxjs'
-import { startWith, endWith, scan, takeWhile, finalize, map, tap, toArray, ignoreElements, concatMap, filter, takeUntil, shareReplay, mergeMap } from 'rxjs/operators'
+import { startWith, endWith, scan, takeWhile, finalize, map, toArray, ignoreElements, concatMap, filter, takeUntil, shareReplay, mergeMap } from 'rxjs/operators'
 import { Set } from 'immutable'
-import { Convener, MachineSpace, Peer, Signal } from './MachineSpace'
+import { ConvenedFn, Convener, MachineSpace, Peer, Signal } from './MachineSpace'
 import { runSaver } from './AtomSpace'
 import MonoidData from './MonoidData'
 import { Saver, Loader } from './Store'
@@ -10,6 +10,7 @@ import { Preemptable } from './Preemptable'
 import { BuiltWorld } from './shape/BuiltWorld'
 import { Data } from './shape/common'
 import { RealTimer } from './Timer'
+import { RunSpace } from './RunSpace'
 
 const MD = new MonoidData();
 const gather = <V>(v$: Observable<V>) => v$.pipe(toArray()).toPromise();
@@ -31,7 +32,7 @@ export function newRun<N>
   const complete = () => signal$.next({ stop: true });
 
   const timer = new RealTimer(kill$);
-  const space = new MachineSpace(world, loader, timer, signal$)
+  const space = new MachineSpace(world, loader, new RunSpace(timer, signal$), signal$)
 
   const threshold$ = concat(
     of(opts?.threshold ?? 3),
@@ -83,40 +84,16 @@ export function newRun<N>
         space.summon(Set(ids))
       ));
 
-      //we want to launch ad hoc machines
-      //in the MachineSpace
-      //these wouldn't be backed with state and would only run once
-      //there are two components here - one that just dispatches things
-      //with the context populated
-      //
-      //MachineSpace needs to let you summon a selection and convene them 
-      //below stuff should be in MachineSpace defo
-
       return {
-        meet<R = unknown>(convener: Convener<R>): Preemptable<R> {
-          return mediator.convene2({
-            id: '',
-            convened(peers: Set<ConvenedPeer>) {
-              return convener.convened(peers.map<Peer>(p => ({
-                id: p.id,
-                chat(m: [unknown]|false): false|[any] {
-                  return p.chat(m);
-                }
-              })));
-            }
-          }, machines)
-        },
-
-        tell(m: unknown) {
-          return this.meet({
-            convened([p]) {
-              return p.chat([m])
-            }
+        meet<R = unknown>(convener: Convener<R>|ConvenedFn<R>): Promise<R> {
+          //below rubbishly resummons
+          return space.runArbitrary(x => {
+            return x.convene(ids, convener);
           });
         },
 
-        boot(p: Data<N>) {
-          return this.tell(p);
+        tell(m: unknown) {
+          return this.meet(([p]) => p.chat(m));
         },
 
         log$: of(...machines).pipe(
@@ -126,8 +103,8 @@ export function newRun<N>
 
     async boot(id: Id, p: Data<N>): Promise<boolean> {
       const ms = await this.summon([id]);
-      const [done] = ms.tell(p).preempt();
-      return done;
+      const result = await ms.tell(p);
+      return result && !!result[0];
     },
 
     keepAlive(): (()=>void) {

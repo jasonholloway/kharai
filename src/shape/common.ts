@@ -1,8 +1,9 @@
 import { FacNode } from "../facs";
 import { Any, Guard, Read } from "../guards/Guard";
+import { MachineCtx } from "../MachineSpace";
 import { Handler, $Root, Fac, $data, $space, $handler, $fac, $Fac, $incl, $Incl } from "../shapeShared";
 import { Merge, Simplify } from "../util";
-import { Builder, BuiltIns, MachineCtx, PhaseHelper } from "./World";
+import { Builder, BuiltIns, PhaseHelper } from "./World";
 
 export const separator = '_'
 export type Separator = typeof separator;

@@ -76,16 +76,15 @@ export class MachineSpace<N> {
       });
   }
 
-  async runArbitrary<R>(fn: (x:MachineSpaceCtx)=>Promise<R>) {
-    throw 123;
-  }
-
-  
-  
   summon(ids: Set<Id>): Observable<Machine> {
     return this._summon(ids);
   }
 
+  async runArbitrary<R>(fn: (x:MachineSpaceCtx)=>Promise<R>): Promise<R> {
+    return this.runs.newRun().run(x => fn(this.machineSpaceCtx(x)));
+  }
+
+  
   private _summon(ids: Set<Id>): Observable<_Machine> {
     const _this = this;
     
@@ -129,8 +128,6 @@ export class MachineSpace<N> {
       ([,loading]) => from(loading)
     )));
   }
-
-
 
   private runMachine(
     id: Id,
@@ -190,7 +187,7 @@ export class MachineSpace<N> {
             next: async () => {
               try {
                 const out = await run.run(x => {
-                  const ctx = fac(machineCtx(x, id, v, head.commit()));
+                  const ctx = fac(machineCtx(this.machineSpaceCtx(x, id, head.commit()), id, v));
                   return handler(ctx, data);
                 });
                 
@@ -237,15 +234,8 @@ export class MachineSpace<N> {
         && !!_this.world.read(p[0]).handler;
     }
 
-    function machineSpaceCtx(x: RunCtx): MachineSpaceCtx {
-      //here we summon peerRuns
-      return {
-        ...x
-      };
-    }
 
-
-    function machineCtx(x: MachineSpaceCtx, id:Id, v:number, commit:Commit<DataMap>): MachineCtx {
+    function machineCtx(x: MachineSpaceCtx, id: Id, v: number): MachineCtx {
       return {
         ...x,
         
@@ -253,126 +243,126 @@ export class MachineSpace<N> {
 
         isFresh() {
           return v == 0;
-        },
+        }
+      };
+    }
+  }
 
-        attend<R>(arg: Attendee<R>|AttendedFn<R>) {
-          const attended = isAttendee(arg) ? arg.attended : arg;
+  private machineSpaceCtx(x: RunCtx, id?: Id, commit?: Commit<DataMap>): MachineSpaceCtx {
+    const _this = this;
+    
+    return {
+      ...x,
 
-          return x.attend(<MAttendee<R>>{
+      attend<R>(arg: Attendee<R>|AttendedFn<R>) {
+        const attended = isAttendee(arg) ? arg.attended : arg;
 
-            info: packInfo(id),
+        return x.attend(<MAttendee<R>>{
 
-            attended(m, info, peers) {
-              //here the attendee is receiving a message from its convener
+          info: packInfo(id),
 
-              if(isArray(m) && m[0] === $Ahoy) {
-                Commit.conjoin(new MonoidData(), [commit, <Commit<DataMap>>m[1]]);
-                m = m[2];
+          attended(m, info, peers) {
+            if(isArray(m) && m[0] === $Ahoy) {
+              const peerCommit = <Commit<DataMap>|undefined>m[1];
+
+              if(commit && peerCommit) {
+                Commit.conjoin(new MonoidData(), [commit, peerCommit]);
               }
 
-              // logChat([mid], id, 'C>A', m);
+              m = m[2];
+            }
 
-              const proxied = peers.map(p => <Peer>({
-                id: unpackInfo(info),
+            return attended(m, unpackInfo(info), peers.map(p => <Peer>({
+              id: unpackInfo(info),
+              chat(m) {
+                return p.chat([$Ahoy, commit, m]);
+              }
+            }))) ?? false;
+          }
+        });
+
+        function isAttendee(v: unknown): v is Attendee<R> {
+          return !!(<any>v).attended;
+        }
+      },
+
+      async convene<R>(ids: Id[], arg: Convener<R>|ConvenedFn<R>) {
+        const convened = isConvener(arg) ? arg.convened : arg;
+
+        const peerRuns =
+          await _this._summon(Set(ids))
+            .pipe(
+              map(m => m.run),
+              toArray()
+            )
+            .toPromise(); //summoning should be cancellable (from loader?)
+
+        return await x.convene(
+          peerRuns,
+          {
+            info: packInfo(id),
+
+            //talk to convened peers
+            convened(peers) {
+              return convened(peers.map(p => <Peer>({
+                id: unpackInfo(p.info),
                 chat(m) {
-                  // logChat(['A:'+id], 'A:'+p.id, m);
-                  return p.chat([[$Ahoy, commit, m]]);
+                  return p.chat([$Ahoy, commit, m]);
                 }
-              }));
-
-              const result = attended(m, unpackInfo(info), proxied);
-
-              // if(result[1]) logChat(['A:'+id], 'C:'+mid, result[1]);
-
-              // if(result[1]) logChat(['AR',id], result[1], mid);
-
-              return result ?? false;
+              })));
             }
           });
 
-          function isAttendee(v: unknown): v is Attendee<R> {
-            return !!(<any>v).attended;
-          }
-        },
+        function isConvener(v: unknown): v is Convener<R> {
+          return !!(<any>v).convened;
+        }
+      },
 
-        async convene<R>(ids: Id[], arg: Convener<R>|ConvenedFn<R>) {
-          const fn = isConvener(arg) ? arg.convened : arg;
-          
-          const peerRuns =
-            await _this._summon(Set(ids))
-              .pipe(
-                map(m => m.run),
-                toArray()
-              )
-              .toPromise(); //summoning should be cancellable (from loader?)
+      watch(ids: Id[]): Observable<[Id, unknown]> {
+        return _this.summon(Set(ids)) //TODO if the same thing is watched twice, commits will be added doubly
+          .pipe(
+            mergeMap(m => m.log$.pipe(
+              map(l => <[Id, Log]>[m.id, l])
+            )),
 
-          return await x.convene(
-            peerRuns,
-            {
-              info: packInfo(id),
+            mergeMap(([id, { phase, state, atoms }]) =>
+              (state && phase && phase.projector)
+                ? phase.projector(state[1]).map(v => [id, atoms, v] as const)
+                : []),
 
-              //talk to convened peers
-              convened(peers) {
-                return fn(peers.map(p => <Peer>({
-                  id: unpackInfo(p.info),
-                  chat(m) {
-                    return p.chat([[$Ahoy, commit, m]]);
-                  }
-                })));
-              }
-            });
+            //gathering atomrefsof all visible projections into mutable Commit
+            map(([id, atoms, v]) => {
+              commit?.addUpstreams(atoms);
+              return [id, v];
+            })
+          );
+      },
 
-          function isConvener(v: unknown): v is Convener<R> {
-            return !!(<any>v).convened;
-          }
-        },
-
-        watch(ids: Id[]): Observable<[Id, unknown]> {
-          return _this.summon(Set(ids)) //TODO if the same thing is watched twice, commits will be added doubly
-            .pipe(
-              mergeMap(m => m.log$.pipe(
-                map(l => <[Id, Log]>[m.id, l])
-              )),
-
-              mergeMap(([id, { phase, state, atoms }]) =>
-                (state && phase && phase.projector)
-                  ? phase.projector(state[1]).map(v => [id, atoms, v] as const)
-                  : []),
-
-              //gathering atomrefsof all visible projections into mutable Commit
-              map(([id, atoms, v]) => {
-                commit.addUpstreams(atoms);
-                return [id, v];
-              })
-            );
-        },
-
-        watchRaw(ids: Id[]): Observable<[Id, unknown]> {
-          return _this.summon(Set(ids)) //TODO if the same thing is watched twice, commits will be added doubly
-            .pipe(
-              mergeMap(m => m.log$.pipe(
-                map(l => <[Id, Log]>[m.id, l])
-              )),
-              tap(([,{ atoms }]) => { //gathering all watched atomrefs here into mutable Commit
-                commit.addUpstreams(atoms)
-              }),
-              mergeMap(([id, { state:p }]) => p ? [<[Id, unknown]>[id, p]] : []),
-            );
-        },
-
-
-      };
-
-      function packInfo(id: string): unknown {
-        return { id };
+      watchRaw(ids: Id[]): Observable<[Id, unknown]> {
+        return _this.summon(Set(ids)) //TODO if the same thing is watched twice, commits will be added doubly
+          .pipe(
+            mergeMap(m => m.log$.pipe(
+              map(l => <[Id, Log]>[m.id, l])
+            )),
+            tap(([,{ atoms }]) => { //gathering all watched atomrefs here into mutable Commit
+              commit?.addUpstreams(atoms)
+            }),
+            mergeMap(([id, { state:p }]) => p ? [<[Id, unknown]>[id, p]] : []),
+          );
       }
+    };
 
-      function unpackInfo(info: unknown): string|undefined {
-        return (<{ id?: string }|undefined>info)?.id;
-      }
+    function packInfo(id?: string): unknown {
+      return id ? { id } : undefined;
+    }
+
+    function unpackInfo(info: unknown): string|undefined {
+      return (<{ id?: string }|undefined>info)?.id;
     }
   }
 }
+
+
 
 
 export type Signal = {
@@ -403,15 +393,13 @@ export type AttendedFn<R> = (m:unknown, mid:Id|undefined, peers:Set<Peer>) => ([
 export type MachineSpaceCtx = Extend<RunCtx, {
   attend: <R>(attend: Attendee<R>|AttendedFn<R>) => Promise<false|[R]>
   convene: <R>(ids: string[], convene: Convener<R>|ConvenedFn<R>) => Promise<R>
+  watch: (ids: string[]) => Observable<readonly [string, unknown]>
+  watchRaw: (ids: string[]) => Observable<readonly [string, unknown]>
 }>;
 
 export type MachineCtx = Extend<MachineSpaceCtx, {
-  id: string
+  id: Id
   isFresh: () => boolean
-  attend: <R>(attend: Attendee<R>|AttendedFn<R>) => Promise<false|[R]>
-  convene: <R>(ids: string[], convene: Convener<R>|ConvenedFn<R>) => Promise<R>
-  watch: (ids: string[]) => Observable<readonly [string, unknown]>
-  watchRaw: (ids: string[]) => Observable<readonly [string, unknown]>
 }>;
 
 

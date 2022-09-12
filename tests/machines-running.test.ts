@@ -80,7 +80,7 @@ describe('machines - running', () => {
     const x = createRunner(world);
 
     const summoned = await x.run.summon(['nibbles']);
-    const r = await summoned.tell(['someRubbish']).promise();
+    const r = await summoned.tell(['someRubbish']);
 
     expect(r).toBeFalsy();
   })
