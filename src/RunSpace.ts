@@ -43,6 +43,7 @@ export class Run {
     this.timer = timer;
   }
   
+  //below should take commit as arg
   async run<R>(fn: RunHandler<R>): Promise<R> {
     return await fn(this.createContext());
   }

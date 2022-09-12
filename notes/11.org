@@ -68,14 +68,47 @@
   
   
 
+* Distribution
+  there's always been this expectation that distribution will be supported by other technologies such as external queues - this would keep the semantics of the system on the surface, avoiding obscuring the real relationships and guarantees offered.
+
+  but it would be pleasant to converse with a machine on a separate partition
+
+  causation should be tracked somehow, so that caused can't save without causer
+  and the schema too can't be allowed to go our of sync
+
+  I suppose, though, conversing doesn't involve the normal up-front schema
+  it my support ad hoc schemas however, enforced by runtime type checks
+  this goes for conversations within a single process too: all peers must come to trust each other
+  on every distinct interaction, as state and phases may change completely at any time
+  objects with one name don't have one behaviour
+  each moment is individual
+
+  so, machines at a distance still need to frisk each other, local or not
+
+  but - causation needs to be tracked somehow
+  we have here a distributed transaction
+  the only way to do this properly is by consensus by odd quorum
+
+  or - an eventually-consistent system will ensure upstream is saved before downstream
+  this is somewhat simpler, but only supports one-way communication
+  the one way interaction would be coupled with a one-way confirmation of having persisted the
+  thing giving rise to the signal
+
+  but how can the upstream know for certain that the downstream has received its confirmation?
+  reliability itself relies on small transactions at the protocol level
+  if confirmation was itself one way, using UDP say, then there's the possibility always of the
+  downstream hanging as it can't receive the confirmation it needs to continue
+
+  how about, polling for confirmation? each downstream will seek the conrfirmation it needs on a reasonable schedule
+  we can rely on the downstream to retry as needed
+
+
+  
+
+  
   
   
 
   
   
-
-  
-
-  
-
 
