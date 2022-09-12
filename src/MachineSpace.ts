@@ -17,6 +17,7 @@ import { Run, RunCtx, RunSpace } from './RunSpace'
 const log = console.debug;
 // const logChat = (id0:Id[], id1:Id, m:unknown) => log('CHAT', ...id0, '->', id1, inspect(m, {colors:true}));
 
+const MD = new MonoidData();
 const $Ahoy = Symbol('$Ahoy')
 
 export type Machine = {
@@ -49,8 +50,6 @@ export class MachineSpace<N> {
   readonly machine$: Observable<Machine>
 
   private _signal$: Observable<Signal>
-
-  private readonly MD = new MonoidData();
 
   constructor(
     world: BuiltWorld<N>,
@@ -138,7 +137,7 @@ export class MachineSpace<N> {
   {
     const _this = this;
     const run = this.runs.newRun();
-    const head = new Head<DataMap>(rs => new Commit<DataMap>(this.MD, lump$, rs));
+    const head = new Head<DataMap>(rs => new Commit<DataMap>(MD, lump$, rs));
     
     const kill$ = signal$.pipe(filter(s => s.stop), share());
 
@@ -159,7 +158,7 @@ export class MachineSpace<N> {
 
           if(out === false) {
             // what happens if we've accumulated upstreams and returned false, eh?
-            if(save) await head.write(_this.MD.zero, 0);
+            if(save) await head.write(MD.zero, 0);
             return EMPTY;
           }
 
@@ -266,7 +265,7 @@ export class MachineSpace<N> {
               const peerCommit = <Commit<DataMap>|undefined>m[1];
 
               if(commit && peerCommit) {
-                Commit.conjoin(new MonoidData(), [commit, peerCommit]);
+                Commit.conjoin(MD, [commit, peerCommit]);
               }
 
               m = m[2];

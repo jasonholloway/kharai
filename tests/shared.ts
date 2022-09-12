@@ -38,8 +38,7 @@ export function createRunner<N>(world: BuiltWorld<N>, opts?: Opts) {
     shareReplay(1000)
   );
 
-  log$
-    .subscribe();
+  log$.subscribe();
 
   return {
     store,

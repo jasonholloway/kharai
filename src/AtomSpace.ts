@@ -4,8 +4,7 @@ import { Atom, AtomRef } from './atoms'
 import AtomPath from './AtomPath'
 import { Observable, of, combineLatest, EMPTY } from 'rxjs';
 import _Monoid from './_Monoid';
-import { filter, shareReplay, expand, mergeScan, takeUntil, share, concatMap } from 'rxjs/operators';
-import { Signal } from './MachineSpace';
+import { expand, mergeScan, share, concatMap } from 'rxjs/operators';
 import AtomSaver from './AtomSaver';
 import { Saver } from './Store';
 
@@ -21,54 +20,44 @@ export const MonoidLump = <V>() => <_Monoid<Lump<V>>> {
 }
 
 
-export const runSaver = <V>(signal$: Observable<Signal>, threshold$: Observable<Threshold>, MV: _Monoid<V>) =>
-  (lump$: Observable<Lump<V>>) => {
+export const runSaver = <V>(MV: _Monoid<V>, lump$: Observable<Lump<V>>, threshold$: Observable<Threshold>) => {
+  const space = new AtomSpace<V>();
+  const saver = new AtomSaver<V>(MV, space);
+  const ML = MonoidLump<V>();
 
-    const kill$ = signal$.pipe(
-      filter(s => s.stop), shareReplay(1));
+  type Tup = [Lump<V>, Threshold, Storer<V>?]
 
-    const space = new AtomSpace<V>();
-    const saver = new AtomSaver<V>(MV, space);
-    const ML = MonoidLump<V>();
+  return combineLatest([lump$, threshold$]).pipe(
+    mergeScan(([ac]: Tup, [l, t]) =>
+      of<Tup>([ML.add(ac,l), t]).pipe(
 
-    type Tup = [Lump<V>, Threshold, Storer<V>?]
+        expand(([[w, rs], t]) => {
 
-    return combineLatest([lump$, threshold$]).pipe(
-      mergeScan(([ac]: Tup, [l, t]) =>
-        of<Tup>([ML.add(ac,l), t]).pipe(
-
-          expand(([[w, rs], t]) => {
-            console.debug('SAVE?', `${w}/${t}`);
-
-            //the rejection of saving 
-            //
-
-
-            return (!w || (w < t))
-              ? EMPTY
-              : new Observable<Tup>(sub => {
-                  return sub.next([
-                    ML.zero, 0,
-                    async store => {
-                      try {
-                        console.debug('SAVE!');
-                        const [w2, rs2] = await saver.save(store, rs);
-                        sub.next([[w - w2, rs.subtract(rs2)], t]);
-                        sub.complete();
-                      }
-                      catch(e) {
-                        sub.error(e);
-                      }
-                    }])
-              })
-          }),
-        ),
-        [ML.zero, 0], 1),
-      concatMap(([,,fn]) => fn ? [fn] : []),
-      share(),
-      takeUntil(kill$)
-    );
-  };
+          console.debug('SAVE?', `${w}/${t}`);
+          return (!w || (w < t))
+            ? EMPTY
+            : new Observable<Tup>(sub => {
+                return sub.next([
+                  ML.zero, 0,
+                  async store => {
+                    try {
+                      console.debug('SAVE!');
+                      const [w2, rs2] = await saver.save(store, rs);
+                      sub.next([[w - w2, rs.subtract(rs2)], t]);
+                      sub.complete();
+                    }
+                    catch(e) {
+                      sub.error(e);
+                    }
+                  }])
+            })
+        }),
+      ),
+      [ML.zero, 0], 1),
+    concatMap(([,,fn]) => fn ? [fn] : []),
+    share()
+  );
+};
   
 
 export default class AtomSpace<V> {

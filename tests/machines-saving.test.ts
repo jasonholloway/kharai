@@ -178,19 +178,31 @@ describe('machines - saving', () => {
 				})
 				.impl({
 					async blah({and}, i) {
-						return i < c
-							? and.blah(i + 1)
-							: false;
+						return i < c && and.blah(i + 1);
 					}
 				})
 				.build();
 
-			const x = createRunner(w, { maxBatchSize:5, threshold:4 });
+			const x = createRunner(w, { maxBatchSize:5, threshold:5 });
 
 			await Promise.all([
 				x.run.boot('a', ['blah', 0]),
 				x.run.log$.toPromise()
 			]);
+
+			//the thing to do here
+			//is to save on close
+			//but how do we know we've closed?
+			//the logs have closed, so the overall must have closed
+			//
+			//seems legit actually - as soon as there is no machine running, we are dead
+			//if we want to continue running, we need a sleeper keeping everything going
+			//
+			//and when the log is dead, then the overall is dead, I suppose
+			//the end of the log is the sign that the MachineSpace has stopped
+			//
+			//so - when the log completes, the run should close the saver, which will trigger
+			//the final save(s)
 
 			expect(x.store.saved.get('a')).toEqual(['blah', c]);
 		})
