@@ -56,9 +56,15 @@ export function newRun<N>
     )
   ).pipe(shareReplay(1));
 
-  runSaver(MD, commit$, threshold$)
-    .pipe(concatMap(fn => fn(saver)))
-    .subscribe();
+  if(opts?.save !== false) {
+    runSaver(MD, commit$, threshold$)
+      .pipe(concatMap(fn => fn(saver)))
+      .subscribe();
+  }
+  else {
+    commit$.subscribe();
+  }
+
 
   const keepAlive$ = new Subject<number>();
 

@@ -5,11 +5,23 @@ import { Signal } from './MachineSpace';
 import { filter, shareReplay } from 'rxjs/operators';
 import CancellablePromise from './CancellablePromise';
 import { Preemptable } from './Preemptable';
-import { Id } from './lib';
-import { inspect } from 'util';
+import { inspect, isString } from 'util';
 
 const log = console.log;
-const logFlow = (id0:Id, m:unknown, id1:Id) => log('CHAT', id0, '->', id1, inspect(m, {depth:2, colors:true}));
+
+const logFlow = (id0:{info?:unknown}, m:unknown, id1:{info?:unknown}, fromConvener:boolean) =>
+  log('CHAT',
+      `${stringify(id0)}${fromConvener ? '!' : ''}`,
+      '->',
+      `${stringify(id1)}${fromConvener ? '' : '!'}`,
+      inspect(m, {depth:1, colors:true})
+     );
+
+const stringify = (o: {info?:unknown}) => {
+  const found = (<{ id:string }|undefined>o.info)?.id;
+  return isString(found) ? found : '';
+}
+
 
 export interface MConvener<R = unknown> {
   info?: PeerInfo,
@@ -59,7 +71,7 @@ export class Mediator {
           const answer = convener.convened(
             peers.map(p => <MPeer>{
               chat(m: Msg) {
-                return p.chat([m, 'info about convener here!!!']);
+                return p.chat([m, convener.info]);
               }
             }));
 
@@ -88,8 +100,10 @@ export class Mediator {
 
       const answer = convener.convened(
         peers.map(p => <MPeer>{
+          info: p.info,
           chat(m: Msg) {
-            return p.chat([m, 'info about convener here!!!']);
+            logFlow(convener, m, p, true);
+            return p.chat([m, convener.info]);
           }
         }));
 
@@ -114,6 +128,8 @@ export class Mediator {
         this.locks.offer([item],
           lock => <_Peer>{
 
+            info: attend.info,
+
             //handle incoming message from convener/peer
             //we should know where message is coming from also - 
             chat(m: [Msg,PeerInfo]|false) {
@@ -134,6 +150,7 @@ export class Mediator {
                 }
                 else {
                   //attendee replies
+                  logFlow(attend, reply, {info:m[1]}, false);
                   return [reply];
                 }
               }

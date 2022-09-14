@@ -491,7 +491,7 @@ function builtIns() {
         return x.convene([spotId], {
           convened([spot]) {
             const resp = spot.chat('hi');
-            if(!resp) throw `Meeting rejected by mediator ${spotId}: message:?`;
+            if(!resp) throw `Meeting rejected by mediator ${spotId}`;
 
             const [m] = resp;
             if(!isMediatorMessage(m)) return;

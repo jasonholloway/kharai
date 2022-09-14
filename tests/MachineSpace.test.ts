@@ -7,7 +7,7 @@ import { MachineSpace, Signal } from '../src/MachineSpace';
 import { FakeLoader } from '../src/FakeStore';
 import { RealTimer } from '../src/Timer';
 import { Subject } from 'rxjs/internal/Subject';
-import { RunSpace } from './RunSpace';
+import { RunSpace } from '../src/RunSpace';
 
 describe('MachineSpace', () => {
 
