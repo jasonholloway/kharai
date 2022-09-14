@@ -41,8 +41,8 @@ export const runSaver = <V>(MV: _Monoid<V>, lump$: Observable<Lump<V>>, threshol
                   ML.zero, 0,
                   async store => {
                     try {
-                      console.debug('SAVE!');
                       const [w2, rs2] = await saver.save(store, rs);
+                      console.debug('SAVED', w2);
                       sub.next([[w - w2, rs.subtract(rs2)], t]);
                       sub.complete();
                     }

@@ -118,7 +118,6 @@ describe('mediator', () => {
 
     const a: MAttendee<unknown> = {
       attended(m) {
-        console.debug('m', m)
         return [m];
       }
     }
@@ -126,7 +125,6 @@ describe('mediator', () => {
     const convening1 = x.convene(c1, Set([a]));
     const result1 = await x.attend(a, a);
     await convening1;
-    console.debug(result1)
     expect(result1).toEqual(['yo']);
     
     const convening2 = x.convene(c2, Set([a]));
