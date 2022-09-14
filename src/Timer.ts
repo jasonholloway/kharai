@@ -45,7 +45,7 @@ export class RealTimer implements Timer {
         }, delayMs);
 
         this.timeouts = this.timeouts.add(t);
-    }).cancelOn(this.kill$);
+      }).cancelOn(this.kill$);
   }
 }
 

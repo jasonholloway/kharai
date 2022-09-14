@@ -103,7 +103,7 @@ class Inner<V> {
           //then capturing them nonchalantly into one atom
           //will risk overcapturing UNLESS committer is locked
          
-          console.assert(this.sinks.count() == 1);
+          console.assert(this.sinks.count() <= 1, `Can't have more than one sink here (${this.sinks.count()})`);
           this.sinks.forEach(s => s.next([this.weight, Set([ref])]));
 
 					this.waiters.forEach(fn => fn(ref));

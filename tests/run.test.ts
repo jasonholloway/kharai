@@ -2,6 +2,9 @@ import { Map } from 'immutable'
 import { rodents } from "./worlds/rodents";
 import { delay } from '../src/util';
 import { createRunner } from './shared'
+import { World } from '../src/shape/World';
+import { act } from '../src/shape/common';
+import { Num } from '../src/guards/Guard'
 
 describe('running', () => {
 	const world = rodents.build();
@@ -25,20 +28,38 @@ describe('running', () => {
 		expect(success).toBeTruthy();
 	})
 
-	//TODO loaded states should be frisked at runtime
-
-	it('starting existing', async () => {
-		const x = createRunner(world, {
+	//TODO
+	//below requires boot() to be ''preemptable'
+	//or rather - it can't just opaquely summon and run
+	//summoning should be separate and awaitable
+	//while convening, as a separate step, should be preemptable
+	xit('starting existing', async () => {
+		const w = World
+		  .shape({
+				pootle: act(),
+				blah: act()
+			})
+		  .impl({
+				async pootle() {
+					await delay(1000);
+					return false;
+				},
+				async blah() {
+					return false;
+				}
+			});
+		
+		const x = createRunner(w.build(), {
 			data: Map({
-				existing: ['gerbil_spawn', [0,2]]
+				existing: ['pootle']
 			})
 		});
 
-		const success = await x.run.boot('existing', ['guineaPig_runAbout']);
+		const success = await x.run.boot('existing', ['blah']);
 		expect(success).toBeFalsy();
 	})
 
-	it('starting both fresh and existing', async () => {
+	xit('starting both fresh and existing', async () => {
 		const x = createRunner(world,
 		{
 			data: Map({

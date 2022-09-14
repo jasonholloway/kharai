@@ -441,7 +441,7 @@ function builtIns() {
         while(true) {
           const answer = await x.attend({
             attended(m) {
-              return [m];
+              return [m, true];
             }
           });
 
@@ -473,7 +473,8 @@ function builtIns() {
       ...v,
       guard: [[Num, $root]],
       handler: async (x: MachineCtx, [when, nextPhase]: [number|string,unknown]) => {
-        return x.timer.schedule(new Date(when), () => nextPhase);
+        return await x.timer
+          .schedule(new Date(when), () => nextPhase)
       }
     }))
     .popPath()!);

@@ -123,13 +123,15 @@ describe('mediator', () => {
       }
     }
 
-    x.convene(c1, Set([a]));
+    const convening1 = x.convene(c1, Set([a]));
     const result1 = await x.attend(a, a);
+    await convening1;
     console.debug(result1)
     expect(result1).toEqual(['yo']);
     
-    x.convene(c2, Set([a]));
+    const convening2 = x.convene(c2, Set([a]));
     const result2 = await x.attend(a, a);
+    await convening2;
     expect(result2).toEqual(['boo']);
   })
 
@@ -164,14 +166,17 @@ describe('mediator', () => {
 		//an offerer release should be top priority, gazumping all others <!!!
 		//!!!
 
-    x.convene(c1, Set([a]));
-    x.convene(c2, Set([a]));
+    const convening1 = x.convene(c1, Set([a]));
+    const convening2 = x.convene(c2, Set([a]));
 
     const result1 = await x.attend(a, a);
     expect(result1).toEqual(['yo']);
     
     const result2 = await x.attend(a, a);
     expect(result2).toEqual(['boo']);
+
+    await convening1;
+    await convening2;
   })
 })
 

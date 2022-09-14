@@ -72,8 +72,8 @@ export class Run {
         });
       },
       
-      async convene<R>(others: ArrayLike<Run>, convener: MConvener<R>) {
-        return await _this.mediator
+      convene<R>(others: ArrayLike<Run>, convener: MConvener<R>) {
+        return _this.mediator
           .convene({
             info: convener.info,
             convened(peers) {

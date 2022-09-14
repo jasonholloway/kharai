@@ -179,7 +179,7 @@ export class Mediator {
           }
         ).promise();
       })
-      .cancelOn(this.kill$);
+      .cancelOn(this.kill$)
   }
 
 }

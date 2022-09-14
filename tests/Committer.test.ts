@@ -15,8 +15,9 @@ const valH = <V>(h: Head<V>) => atomH(h).map(a => a.val);
 
 
 describe('committable', () => {
+	const commit$ = new Subject();
 	let kill$ = new Subject<Signal>();
-	const newHead = () => new Head<number>(rs => new Commit(new MonoidNumber(), new Subject(), rs));
+	const newHead = () => new Head<number>(rs => new Commit(new MonoidNumber(), commit$, rs));
 
 	afterEach(() => {
 		kill$.next({ stop: true });
