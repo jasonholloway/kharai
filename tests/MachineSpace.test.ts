@@ -8,6 +8,9 @@ import { FakeLoader } from '../src/FakeStore';
 import { RealTimer } from '../src/Timer';
 import { Subject } from 'rxjs/internal/Subject';
 import { RunSpace } from '../src/RunSpace';
+import MonoidData from '../src/MonoidData';
+import { Lump } from '../src/AtomSpace';
+import { DataMap } from '../src/lib';
 
 describe('MachineSpace', () => {
 
@@ -24,13 +27,15 @@ describe('MachineSpace', () => {
         }
       });
   
-  it('summons', async () => {
+  xit('summons', async () => {
     const signal$ = new Subject<Signal>();
-    const space = new MachineSpace(world(2).build(), new FakeLoader(Map()), new RunSpace(new RealTimer(signal$), signal$), signal$);
+    const lump$ = new Subject<Lump<DataMap>>();
 
-    const m = await space.summon(Set(['A'])).toPromise();
+    
+    const space = new MachineSpace(world(2).build(), new FakeLoader(Map()), new RunSpace(new MonoidData(), new RealTimer(signal$), signal$, lump$), signal$);
 
-    console.log(m.id)
+    const ms = space.summon(Set(['A']));
+
     
   })
 

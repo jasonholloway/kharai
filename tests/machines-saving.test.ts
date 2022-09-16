@@ -90,7 +90,8 @@ describe('machines - saving', () => {
 
 		expect([...List(x.store.batches)
 			.flatMap(b => b.valueSeq())
-			.map(a => a[0])])
+			.map(v => <[string]>v)
+			.map(([p]) => p)])
 			.not.toContain('boot')
 	})
 

@@ -1,10 +1,10 @@
-import { Id, DataMap } from './lib'
+import { Id, DataMap, RawDataMap } from './lib'
 import { Observable, ReplaySubject, of, concat, Subject, merge } from 'rxjs'
 import { startWith, endWith, scan, takeWhile, finalize, map, toArray, ignoreElements, concatMap, filter, takeUntil, shareReplay, mergeMap } from 'rxjs/operators'
 import { Set } from 'immutable'
 import { ConvenedFn, Convener, MachineSpace, Signal } from './MachineSpace'
-import { runSaver } from './AtomSpace'
-import MonoidData from './MonoidData'
+import { Lump, runSaver } from './AtomSpace'
+import MonoidData, { MonoidRawData } from './MonoidData'
 import { Saver, Loader } from './Store'
 import { BuiltWorld } from './shape/BuiltWorld'
 import { Data } from './shape/common'
@@ -12,6 +12,7 @@ import { RealTimer } from './Timer'
 import { RunSpace } from './RunSpace'
 
 const MD = new MonoidData();
+const MRD = new MonoidRawData();
 const gather = <V>(v$: Observable<V>) => v$.pipe(toArray()).toPromise();
 
 export type RunOpts = {
@@ -40,8 +41,10 @@ export function newRun<N>
   const kill$ = signal$.pipe(filter(s => s.stop), shareReplay(1));
   const complete = () => signal$.next({ stop: true });
 
-  const space = new MachineSpace(world, loader, new RunSpace(new RealTimer(kill$), signal$), signal$)
-  const { machine$, commit$ } = space;
+  const lump$ = new ReplaySubject<Lump<DataMap>>(100); //could be better wired up this
+
+  const space = new MachineSpace(world, loader, new RunSpace(MD, new RealTimer(kill$), signal$, lump$), signal$)
+  const { machine$ } = space;
 
   const log$ = machine$.pipe(
     mergeMap(m => m.log$.pipe(
@@ -57,12 +60,12 @@ export function newRun<N>
   ).pipe(shareReplay(1));
 
   if(opts?.save !== false) {
-    runSaver(MD, commit$, threshold$)
+    runSaver(MRD, lump$.pipe(map(l => <Lump<RawDataMap>>{})), threshold$)
       .pipe(concatMap(fn => fn(saver)))
       .subscribe();
   }
   else {
-    commit$.subscribe();
+    lump$.subscribe();
   }
 
 
@@ -88,9 +91,7 @@ export function newRun<N>
     complete,
 
     async summon(ids: Id[]) {
-      const machines = Set(await gather(
-        space.summon(Set(ids))
-      ));
+      const machines = space.summon(Set(ids));
 
       return {
         meet<R = unknown>(convener: Convener<R>|ConvenedFn<R>): Promise<R> {

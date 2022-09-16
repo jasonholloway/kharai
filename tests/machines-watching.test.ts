@@ -6,7 +6,6 @@ import { Any, Many, Num, Str } from '../src/guards/Guard';
 import { act } from '../src/shape/common';
 import { take, toArray } from 'rxjs/operators'
 
-
 describe('machines - watching', () => {
 
 	describe('watches', () => {
@@ -70,14 +69,14 @@ describe('machines - watching', () => {
 
 			const gareth = x.view('Gareth');
 
-			const [p, d] = gareth[1].val().get('Gareth');
+			const { data } = gareth[1].val().get('Gareth')!;
 
-			expect(p).toEqual('end');
-
-			expect(d).toEqual([
-				['Gwen', ['runAround', 13]],
-				['Gwen', ['runAround', 12]]
-			])
+			expect(data).toEqual(
+				['end', [
+					['Gwen', ['runAround', 13]],
+					['Gwen', ['runAround', 12]]
+				]]
+			);
 		})
 
 		it('can watch several at once', async () => {

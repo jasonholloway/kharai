@@ -1,0 +1,28 @@
+* FlowSpace
+  aka RunSpace
+
+  should take on as many responsibilities as is fitting from the MachineSpace
+
+  commit-tracking is one thing
+  each action is performed with a commit
+  this then allows RunCtx to do attends/convenes more completely
+
+  RunSpace has though no registry of runnables
+  it has its Runs, which are distinct objects
+  and one Run can talk to another Run, one at a time
+
+  so what I need to do is slowly migrate functionality into the RunSpace
+
+  and the commit comes with the Run
+  if you summon a Run, you have your ongoing place in history
+
+  which means as well that the Run must have its commit$, internally at least
+
+  
+  
+
+  ------
+
+
+  
+  

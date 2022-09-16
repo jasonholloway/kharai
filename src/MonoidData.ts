@@ -1,5 +1,5 @@
 import _Monoid from './_Monoid'
-import { DataMap } from './lib'
+import { DataMap, RawDataMap } from './lib'
 import { Map } from 'immutable'
 
 export default class MonoidData implements _Monoid<DataMap> {
@@ -8,6 +8,14 @@ export default class MonoidData implements _Monoid<DataMap> {
     return a.merge(b);
   }
 }
+
+export class MonoidRawData implements _Monoid<RawDataMap> {
+  zero: RawDataMap = Map()
+  add(a: RawDataMap, b: RawDataMap): RawDataMap {
+    return a.merge(b);
+  }
+}
+
 
 //todo
 //could do with nice way of skipping identical phases that change nothing

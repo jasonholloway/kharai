@@ -1,12 +1,8 @@
 import { Id, DataMap } from './lib'
 import { MAttendee } from './Mediator'
-import { Observable, Subject, merge, ReplaySubject, EMPTY, of, from, Observer } from 'rxjs'
-import { concatMap, toArray, filter, mergeMap, map, share, expand, takeUntil, finalize, shareReplay, tap, catchError } from 'rxjs/operators'
-import Commit from './Committer'
-import { Map, OrderedSet, Set } from 'immutable'
-import MonoidData from './MonoidData'
-import Head from './Head'
-import { Lump } from './AtomSpace'
+import { Observable, Subject, EMPTY, of } from 'rxjs'
+import { concatMap, filter, mergeMap, share, expand, takeUntil, finalize, shareReplay, tap, catchError } from 'rxjs/operators'
+import { Map, Set } from 'immutable'
 import { BuiltWorld, Found } from './shape/BuiltWorld'
 import { AtomRef } from './atoms'
 import { inspect, isArray, isFunction } from 'util'
@@ -15,10 +11,6 @@ import { isString } from './util'
 import { Run, RunCtx, RunSpace } from './RunSpace'
 
 const log = console.debug;
-// const logChat = (id0:Id[], id1:Id, m:unknown) => log('CHAT', ...id0, '->', id1, inspect(m, {colors:true}));
-
-const MD = new MonoidData();
-const $Ahoy = Symbol('$Ahoy')
 
 export type Machine = {
   id: Id,
@@ -26,26 +18,22 @@ export type Machine = {
 }
 
 type _Machine = Machine & {
-  head: Head<DataMap>,
-  run: Run
+  run: Run<DataMap>
 }
 
 export type Log = {
-  state: [string, unknown]|false,
-  phase?: Found,
-  atoms: OrderedSet<AtomRef<DataMap>>
+  data: [string, unknown],
+  phase: Found,
+  atom: AtomRef<DataMap>
 }
 
 
 export class MachineSpace<N> {
   private readonly world: BuiltWorld<N>
   private readonly loader: Loader
-  private readonly runs: RunSpace;
+  private readonly runs: RunSpace<DataMap>;
 
-  private readonly _lump$ = new ReplaySubject<Lump<DataMap>>(1)
-  readonly commit$ = this._lump$;
-
-  private machines: Map<Id, Promise<_Machine>>
+  private machines: Map<Id, _Machine>
   private _machine$: Subject<Machine>
   readonly machine$: Observable<Machine>
 
@@ -54,7 +42,7 @@ export class MachineSpace<N> {
   constructor(
     world: BuiltWorld<N>,
     loader: Loader,
-    runs: RunSpace,
+    runs: RunSpace<DataMap>,
     signal$: Observable<Signal>
   ) {
     this.world = world;
@@ -69,134 +57,103 @@ export class MachineSpace<N> {
     //we also need to deactivate ourself
     this._signal$ = signal$;
     signal$.pipe(filter(s => s.stop))
-      .subscribe(() => {
-        this._machine$.complete();
-        this._lump$.complete();
-      });
+      .subscribe(() => this._machine$.complete());
   }
 
-  summon(ids: Set<Id>): Observable<Machine> {
+  summon(ids: Set<Id>): Set<Machine> {
     return this._summon(ids);
   }
 
   async runArbitrary<R>(fn: (x:MachineSpaceCtx)=>Promise<R>): Promise<R> {
-    return this.runs.newRun().run(x => fn(this.machineSpaceCtx(x)));
+    const result = await this.runs.newRun()
+      .run(async x => {
+        const r = await fn(this.machineSpaceCtx(x))
+        return [[Map(),0], r];
+      });
+
+    if(!result) throw 'THIS SHOULD NEVER HAPPEN';
+
+    return result[1];
   }
 
   
-  private _summon(ids: Set<Id>): Observable<_Machine> {
-    const _this = this;
-    
-    const summoned = ids.map(id => {
-      const found = _this.machines.get(id);
-      if(found) {
-        return [id, found] as const;
-      }
-      else {
-        return [
-          id,
-          _this.loader
-            .load(Set([id]))
-            .then(loaded => {
-              const phase = loaded.get(id)!;
+  private _summon(ids: Set<Id>): Set<_Machine> {
+    //todo: load all ids up top as batch
+    //...
+    const [all, gathered] = ids.toSeq()
+      .reduce<[Map<string,_Machine>,Set<_Machine>]>(
+        ([all, gathered], id) => {
 
-              const machine = _this
-                .runMachine(
-                  id,
-                  phase,
-                  _this._signal$,
-                  _this._lump$
-                );
+          const found = all.get(id, false);
 
-              _this._machine$.next(machine);
+          if(found) {
+            return [all, gathered.add(found)];
+          }
+          else {
+            const loading = this.loader.load(Set([id])).then(loaded => loaded.get(id)!);
+            const machine = this.runMachine(id, loading, this._signal$);
 
-              return machine;
-            }),
-          true
-        ] as const;
-      }
-    })
+            this._machine$.next(machine);
 
-    const toAdd = summoned
-      .filter(([,,isNew]) => isNew)
-      .map(([id, loading]) => <[Id, Promise<_Machine>]>[id, loading]);
-    
-    this.machines = _this.machines.merge(Map(toAdd));
+            return [all.set(id, machine), gathered.add(machine)];
+          }
+        },
 
-    return merge(...(summoned.map(
-      ([,loading]) => from(loading)
-    )));
+        [this.machines, Set()]
+      );
+
+    this.machines = all;
+
+    return gathered;
   }
 
   private runMachine(
     id: Id,
-    initialState: unknown,
+    loadingData: Promise<unknown>,
     signal$: Observable<Signal>,
-    lump$: Observer<Lump<DataMap>>
   ): _Machine
   {
     const _this = this;
+
     const run = this.runs.newRun();
-    const head = new Head<DataMap>(rs => new Commit<DataMap>(MD, lump$, rs));
     
     const kill$ = signal$.pipe(filter(s => s.stop), share());
 
-    type GetNext = ()=>Promise<false|[false|[string,unknown],true?]>;
+    type Frisked = { data:[string,unknown], phase:Found };
+    type GetNext = ()=>Promise<[AtomRef<DataMap>,Frisked]|false>;
     type Step = { log?: Log, v: number, next: GetNext };
 
-    const log$ = of(<Step>{ v: 0, next: async ()=>[initialState] }).pipe(
+    const loadingPhase = loadingData.then(d => [new AtomRef<DataMap>(), friskData(d)]);
+
+    const log$ = of(<Step>{ v:-1, next: () => loadingPhase }).pipe(
       expand(step => of(step).pipe(
         mergeMap(async ({v, next}) => {
+          
           const result = await next();
+          if(result === false) return EMPTY;
 
-          if(!result) {
-            head.reset();
-            return EMPTY;
-          }
+          const [atom, { data, phase }] = result;
 
-          const [out,save] = result;
-
-          if(out === false) {
-            // what happens if we've accumulated upstreams and returned false, eh?
-            if(save) await head.write(MD.zero, 0);
-            return EMPTY;
-          }
-
-          if(!isPhase(out)) throw Error(`State not in form of phase: ${inspect(out)}`);
-          const [path, data] = out;
-
-          const phase = _this.world.read(path);
-
-          const { guard, fac, handler } = phase;
-          if(!handler) throw Error(`No handler at path ${path}`);
-          if(!fac) throw Error(`No fac at path ${path}`);
-          if(!guard) throw Error(`No guard at path ${path}`);
-
-          //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-          //guard here TODO TODO TODO TODO
-          //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-          // output has now been thoroughly frisked - time to save
-          if(save) await head.write(Map({ [id]: out }), 1);
-
-          //line up next
           return of(<Step>{
             v: v + 1,
-            log: { state:out, phase, atoms:head.refs() },
-            next: async () => {
+            log: { atom, data, phase },
+            next: () => run.run(async x => {
               try {
-                const out = await run.run(x => {
-                  const ctx = fac(machineCtx(this.machineSpaceCtx(x, id, head.commit()), id, v));
-                  return handler(ctx, data);
-                });
+                const { fac, handler } = phase;
                 
-                return [out, true];
+                const ctx = fac!(machineCtx(this.machineSpaceCtx(x, id), id, v));
+                const out = await handler!(ctx, data[1]);
+
+                if(out === false) return false;
+                
+                const frisked = friskData(out);
+                return [[Map([[id, frisked]]),1], frisked];
               }
               catch(e) {
                 console.error(e);
                 return false;
               }
-            }
+            })
           });
         }),
         concatMap(o => o)
@@ -209,28 +166,45 @@ export class MachineSpace<N> {
         return EMPTY;
       }),
 
-      tap(({state}) => log('ACT', id, inspect(state, {colors:true}))),
+      tap(({data}) => log('ACT', id, inspect(data, {colors:true}))),
       finalize(() => log('END', id)),
 
       takeUntil(kill$),
-      finalize(() => head.release()), //doesn't actually do anything...
+      finalize(() => run.complete()), //doesn't actually do anything...
 
       shareReplay(1),
     );
 
     return <_Machine>{
       id,
-      head,
       log$,
       run
     };
 
+    function friskData(data: unknown): Frisked {
+      if(isPhaseData(data)) {
+        const path = data[0];
 
-    function isPhase(p: unknown): p is [string, unknown] {
-      return isArray(p)
+        const phase = _this.world.read(path);
+
+        const { guard, fac, handler } = phase;
+        if(!guard) throw Error(`No guard at path ${path}`);
+        if(!handler) throw Error(`No handler at path ${path}`);
+        if(!fac) throw Error(`No fac at path ${path}`);
+
+        //TODO
+        //apply guard here!!!
+
+        return { data, phase };
+      }
+
+      throw Error(`Data failed frisk! Wrongly shaped: ${data}`);
+    }
+
+    function isPhaseData(p: unknown): p is [string, unknown] {
+      return Array.isArray(p)
         && p.length > 0
-        && isString(p[0])
-        && !!_this.world.read(p[0]).handler;
+        && isString(p[0]);
     }
 
 
@@ -241,13 +215,13 @@ export class MachineSpace<N> {
         id: id,
 
         isFresh() {
-          return v == 0;
+          return v == -1;
         }
       };
     }
   }
 
-  private machineSpaceCtx(x: RunCtx, id?: Id, commit?: Commit<DataMap>): MachineSpaceCtx {
+  private machineSpaceCtx(x: RunCtx<DataMap>, id?: Id): MachineSpaceCtx {
     const _this = this;
     
     return {
@@ -261,21 +235,9 @@ export class MachineSpace<N> {
           info: packInfo(id),
 
           attended(m, info, peers) {
-            if(isArray(m) && m[0] === $Ahoy) {
-              const peerCommit = <Commit<DataMap>|undefined>m[1];
-
-              if(commit && peerCommit) {
-                Commit.conjoin(MD, [commit, peerCommit]);
-              }
-
-              m = m[2];
-            }
-
             return attended(m, unpackInfo(info), peers.map(p => <Peer>({
               id: unpackInfo(info),
-              chat(m) {
-                return p.chat([$Ahoy, commit, m]);
-              }
+              chat(m) { return p.chat(m); }
             }))) ?? false;
           }
         });
@@ -288,26 +250,20 @@ export class MachineSpace<N> {
       async convene<R>(ids: Id[], arg: Convener<R>|ConvenedFn<R>) {
         const convened = isConvener(arg) ? arg.convened : arg;
 
-        const peerRuns =
-          await _this._summon(Set(ids))
-            .pipe(
-              map(m => m.run),
-              toArray()
-            )
-            .toPromise(); //summoning should be cancellable (from loader?)
+        const peerRuns = _this
+          ._summon(Set(ids))
+          .toArray()
+          .map(m => m.run);
 
         return await x.convene(
           peerRuns,
           {
             info: packInfo(id),
 
-            //talk to convened peers
             convened(peers) {
               return convened(peers.map(p => <Peer>({
                 id: unpackInfo(p.info),
-                chat(m) {
-                  return p.chat([$Ahoy, commit, m]);
-                }
+                chat(m) { return p.chat(m); }
               })));
             }
           });
@@ -318,36 +274,21 @@ export class MachineSpace<N> {
       },
 
       watch(ids: Id[]): Observable<[Id, unknown]> {
-        return _this.summon(Set(ids)) //TODO if the same thing is watched twice, commits will be added doubly
-          .pipe(
-            mergeMap(m => m.log$.pipe(
-              map(l => <[Id, Log]>[m.id, l])
-            )),
-
-            mergeMap(([id, { phase, state, atoms }]) =>
-              (state && phase && phase.projector)
-                ? phase.projector(state[1]).map(v => [id, atoms, v] as const)
-                : []),
-
-            //gathering atomrefsof all visible projections into mutable Commit
-            map(([id, atoms, v]) => {
-              commit?.addUpstreams(atoms);
-              return [id, v];
-            })
-          );
+        return of(..._this._summon(Set(ids)))
+          .pipe(mergeMap(m => x.track(m.run)
+            .pipe(mergeMap(v =>
+              v.entrySeq().flatMap(e => {
+                const [id,{data,phase}] = e;
+                return (id == m.id && phase && phase.projector)
+                  ? phase.projector!(data).map(d => <[Id,unknown]>[id, d])
+                  : []
+              })
+            ))));
       },
 
-      watchRaw(ids: Id[]): Observable<[Id, unknown]> {
-        return _this.summon(Set(ids)) //TODO if the same thing is watched twice, commits will be added doubly
-          .pipe(
-            mergeMap(m => m.log$.pipe(
-              map(l => <[Id, Log]>[m.id, l])
-            )),
-            tap(([,{ atoms }]) => { //gathering all watched atomrefs here into mutable Commit
-              commit?.addUpstreams(atoms)
-            }),
-            mergeMap(([id, { state:p }]) => p ? [<[Id, unknown]>[id, p]] : []),
-          );
+      watchRaw(ids: Id[]): Observable<DataMap> {
+        return of(..._this._summon(Set(ids)))
+          .pipe(mergeMap(m => x.track(m.run)));
       }
     };
 
@@ -389,11 +330,11 @@ export interface Attendee<R = unknown> {
 export type AttendedFn<R> = (m:unknown, mid:Id|undefined, peers:Set<Peer>) => ([R]|[R,unknown]|false|undefined);
 
 
-export type MachineSpaceCtx = Extend<RunCtx, {
+export type MachineSpaceCtx = Extend<RunCtx<DataMap>, {
   attend: <R>(attend: Attendee<R>|AttendedFn<R>) => Promise<false|[R]>
   convene: <R>(ids: string[], convene: Convener<R>|ConvenedFn<R>) => Promise<R>
   watch: (ids: string[]) => Observable<readonly [string, unknown]>
-  watchRaw: (ids: string[]) => Observable<readonly [string, unknown]>
+  watchRaw: (ids: string[]) => Observable<DataMap>
 }>;
 
 export type MachineCtx = Extend<MachineSpaceCtx, {

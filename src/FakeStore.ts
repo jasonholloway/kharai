@@ -1,12 +1,13 @@
 import { Saver, Loader } from './Store'
-import { DataMap, Id } from './lib'
+import { RawDataMap, Id } from './lib'
 import _Monoid from './_Monoid'
 import { Map, Set } from 'immutable'
+import { exit } from 'process';
 
 export class FakeLoader implements Loader {
-  getData: ()=>DataMap;
+  getData: ()=>RawDataMap;
 
-  constructor(arg: DataMap|(()=>DataMap)) {
+  constructor(arg: RawDataMap|(()=>RawDataMap)) {
     this.getData =
       typeof(arg) === 'function'
       ? arg
@@ -27,14 +28,15 @@ export class FakeLoader implements Loader {
   }
 }
 
-export default class FakeStore implements Loader, Saver<DataMap> {
-  saved: DataMap;
-  readonly batches: DataMap[] = []
+export default class FakeStore implements Loader, Saver<RawDataMap> {
+
+  saved: RawDataMap;
+  readonly batches: RawDataMap[] = []
   
   private _loader: FakeLoader;
   private _maxBatch: number;
 
-  constructor(maxBatch: number, data?: DataMap) {
+  constructor(maxBatch: number, data?: RawDataMap) {
     this._maxBatch = maxBatch;
     this.saved = data ?? Map();
     this._loader = new FakeLoader(() => this.saved);
@@ -42,7 +44,7 @@ export default class FakeStore implements Loader, Saver<DataMap> {
 
   load = (ids: Set<Id>) => this._loader.load(ids);
 
-  prepare(v: DataMap): {save():Promise<void>}|false {
+  prepare(v: RawDataMap): {save():Promise<void>}|false {
     return v.count() <= this._maxBatch
       && {
         save: async () => {
