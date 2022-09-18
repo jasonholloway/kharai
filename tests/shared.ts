@@ -2,13 +2,14 @@ import { Map, Set, List } from 'immutable'
 import _Monoid from '../src/_Monoid'
 import { Id, DataMap, RawDataMap } from '../src/lib'
 import { BehaviorSubject } from 'rxjs'
-import { shareReplay, scan, groupBy, map, filter, takeWhile, mergeMap } from 'rxjs/operators'
+import { tap, shareReplay, scan, groupBy, map, filter, takeWhile, mergeMap } from 'rxjs/operators'
 import { AtomRef, Atom, AtomLike } from '../src/atoms'
 import { gather } from './helpers'
 import { newRun, RunOpts } from '../src/Run'
 import { tracePath, renderAtoms } from '../src/AtomPath'
 import FakeStore from '../src/FakeStore'
 import { BuiltWorld } from '../src/shape/BuiltWorld'
+import { inspect } from 'node:util'
 
 type Opts = { maxBatchSize?: number, data?: RawDataMap } & RunOpts;
 
@@ -34,6 +35,7 @@ export function createRunner<N>(world: BuiltWorld<N>, opts?: Opts) {
   ).subscribe(atomSub);
 
   const log$ = run.log$.pipe(
+    // tap(l => console.debug('LOG', inspect(l, {depth:2}))),
     map(([id,{data}]) => [id,data] as const),
     shareReplay(1000)
   );

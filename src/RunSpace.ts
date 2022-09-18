@@ -1,6 +1,6 @@
 import { MAttendee, MConvener, Mediator, MPeer } from './Mediator'
-import { Observable, Observer, Subject } from 'rxjs'
-import { map, tap } from 'rxjs/operators'
+import { Observable, Observer, ReplaySubject, Subject } from 'rxjs'
+import { tap, map } from 'rxjs/operators'
 import { Set, OrderedSet } from 'immutable'
 import { Timer } from './Timer'
 import { Signal } from './MachineSpace'
@@ -8,6 +8,7 @@ import { Lump } from './AtomSpace'
 import Commit from './Committer'
 import _Monoid from './_Monoid'
 import { AtomRef } from './atoms'
+import { inspect } from 'node:util'
 
 const $Yo = Symbol('$Yo');
 
@@ -61,7 +62,7 @@ export class Run<V> {
     this.timer = timer;
     this.sink = sink;
     this.running = Promise.resolve([new AtomRef<V>(),undefined]);
-    this.log$ = new Subject();
+    this.log$ = new ReplaySubject(1);
   }
   
   async run<R>(fn: RunHandler<V,R>): Promise<[AtomRef<V>,R]|false> {   
@@ -78,6 +79,7 @@ export class Run<V> {
         if(result) {
           const [[v, w], r] = result;
           const a2 = await commit.complete(v, w);
+          this.log$.next([a2, v]);
           return [a2, r];
         }
         else {
@@ -90,6 +92,7 @@ export class Run<V> {
   }
 
   complete() {
+    this.log$.complete();
   }
 
   private context(commit: Commit<V>): RunCtx<V> {
@@ -156,6 +159,7 @@ export class Run<V> {
       track(target: Run<V>): Observable<V> {
         return target.log$
           .pipe(
+            // tap(l=> console.debug('L', inspect(l, {depth:2}))),
             map(([a,v]) => {
               commit.addUpstreams(OrderedSet([a]));
               return v;

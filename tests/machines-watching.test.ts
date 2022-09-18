@@ -1,18 +1,20 @@
 import _Monoid from '../src/_Monoid'
-import { createRunner } from './shared';
+import { createRunner, showData } from './shared';
 import { Map } from 'immutable'
 import { World } from '../src/shape/World';
 import { Any, Many, Num, Str } from '../src/guards/Guard';
 import { act } from '../src/shape/common';
-import { take, toArray } from 'rxjs/operators'
+import { map, take, toArray } from 'rxjs/operators'
+import { delay } from '../src/util';
 
 describe('machines - watching', () => {
 
 	describe('watches', () => {
 
-		const chickens = World
+		const animals = World
 			.shape({
 				runAround: act(Num),
+				runAroundAfterDelay: act(Num),
 				follow: act([Many(Str), Num] as const),
 			})
 			.impl({
@@ -20,40 +22,43 @@ describe('machines - watching', () => {
 					return n > 0 && and.runAround(n-1);
 				},
 
-				async follow({and,watchRaw}, [ids, c]) {
+				async runAroundAfterDelay({and}, n) {
+					await delay(200);
+					return n > 0 && and.runAround(n-1);
+				},
+
+				async follow({and, watchRaw}, [ids, c]) {
 					const frames = await watchRaw(ids)
-						.pipe(take(c), toArray())
+						.pipe(take(c), map(m => m.toObject()), toArray())
 						.toPromise();
 
 					return and.end(frames);
 				}
 			});
 
-
 		it('one can watch the other', async () => {
-			const x = createRunner(chickens.build());
+			const x = createRunner(animals.build());
 
-			await Promise.all([
+			const [cat] = await Promise.all([
+				x.logs('Cat'),
 				x.run.boot('Mouse', ['runAround', 3]),
 				x.run.boot('Cat', ['follow', [['Mouse'], 10]]),
-				x.run.log$.toPromise()
 			]);
 
-			const cat = await x.logs('Cat');
 			const [,seen] = cat.find(([p]) => p == 'end')!;
 
 			expect(seen).toEqual([
-				['Mouse', ['runAround', 3]],
-				['Mouse', ['runAround', 2]],
-				['Mouse', ['runAround', 1]],
-				['Mouse', ['runAround', 0]]
+				{ Mouse: ['runAround', 3] },
+				{ Mouse: ['runAround', 2] },
+				{ Mouse: ['runAround', 1] },
+				{ Mouse: ['runAround', 0] }
 			])
 		})
 
 		it('loaded state immediately visible; implies dispatch', async () => {
-			const x = createRunner(chickens.build(), {
+			const x = createRunner(animals.build(), {
 				data: Map({
-					Gwen: ['runAround', 13]
+					Gwen: ['runAroundAfterDelay', 13]
 				}),
 				save: false
 			});
@@ -65,18 +70,17 @@ describe('machines - watching', () => {
 
 			const gareth = x.view('Gareth');
 
-			const { data } = gareth[1].val().get('Gareth')!;
-
-			expect(data).toEqual(
-				['end', [
-					['Gwen', ['runAround', 13]],
-					['Gwen', ['runAround', 12]]
-				]]
-			);
+			expect(showData(gareth[1]))
+				.toHaveProperty('Gareth', 
+					['end', [
+						{ Gwen: ['runAroundAfterDelay', 13] },
+						{ Gwen: ['runAround', 12] }
+					]]
+				);
 		})
 
 		it('can watch several at once', async () => {
-			const x = createRunner(chickens.build());
+			const x = createRunner(animals.build());
 
 			await Promise.all([
 				x.run.boot('Kes', ['follow', [['Biff', 'Kipper'], 4]]),
@@ -97,7 +101,7 @@ describe('machines - watching', () => {
 		})
 
 		it('tracks causality in atom tree', async () => {
-			const x = createRunner(chickens.build(), { save: false });
+			const x = createRunner(animals.build(), { save: false });
 
 			await Promise.all([
 				x.run.boot('Gord', ['runAround', 1]),
@@ -121,7 +125,7 @@ describe('machines - watching', () => {
 		})
 
 		it('past phases of target aren\'t seen', async () => {
-			const x = createRunner(chickens.build(), { save: false });
+			const x = createRunner(animals.build(), { save: false });
 
 			await Promise.all([
 				x.run.boot('Gord', ['runAround', 2]),

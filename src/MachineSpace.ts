@@ -1,7 +1,7 @@
-import { Id, DataMap } from './lib'
+import { Id, DataMap, RawDataMap } from './lib'
 import { MAttendee } from './Mediator'
 import { Observable, Subject, EMPTY, of } from 'rxjs'
-import { concatMap, filter, mergeMap, share, expand, takeUntil, finalize, shareReplay, tap, catchError } from 'rxjs/operators'
+import { concatMap, filter, mergeMap, share, expand, takeUntil, finalize, shareReplay, tap, catchError, map } from 'rxjs/operators'
 import { Map, Set } from 'immutable'
 import { BuiltWorld, Found } from './shape/BuiltWorld'
 import { AtomRef } from './atoms'
@@ -170,7 +170,7 @@ export class MachineSpace<N> {
       finalize(() => log('END', id)),
 
       takeUntil(kill$),
-      finalize(() => run.complete()), //doesn't actually do anything...
+      finalize(() => run.complete()),
 
       shareReplay(1),
     );
@@ -286,9 +286,12 @@ export class MachineSpace<N> {
             ))));
       },
 
-      watchRaw(ids: Id[]): Observable<DataMap> {
+      watchRaw(ids: Id[]): Observable<RawDataMap> {
         return of(..._this._summon(Set(ids)))
-          .pipe(mergeMap(m => x.track(m.run)));
+          .pipe(
+            mergeMap(m => x.track(m.run)),
+            map(l => l.map(p => p.data))
+          );
       }
     };
 
@@ -334,7 +337,7 @@ export type MachineSpaceCtx = Extend<RunCtx<DataMap>, {
   attend: <R>(attend: Attendee<R>|AttendedFn<R>) => Promise<false|[R]>
   convene: <R>(ids: string[], convene: Convener<R>|ConvenedFn<R>) => Promise<R>
   watch: (ids: string[]) => Observable<readonly [string, unknown]>
-  watchRaw: (ids: string[]) => Observable<DataMap>
+  watchRaw: (ids: string[]) => Observable<RawDataMap>
 }>;
 
 export type MachineCtx = Extend<MachineSpaceCtx, {
