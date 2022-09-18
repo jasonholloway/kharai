@@ -1,12 +1,13 @@
 import { Lock, Locks } from './Locks'
-import { Set } from 'immutable'
+import { Set, Map } from 'immutable'
 import { Atom, AtomRef } from './atoms'
 import AtomPath from './AtomPath'
-import { Observable, of, combineLatest, EMPTY } from 'rxjs';
+import { Observable, merge, of, combineLatest, EMPTY } from 'rxjs';
 import _Monoid from './_Monoid';
-import { expand, mergeScan, share, concatMap } from 'rxjs/operators';
+import { shareReplay, map, scan, expand, mergeScan, share, concatMap } from 'rxjs/operators';
 import AtomSaver from './AtomSaver';
 import { Saver } from './Store';
+import { inspect } from 'node:util';
 
 export type Weight = number;
 export type Threshold = number
@@ -19,42 +20,86 @@ export const MonoidLump = <V>() => <_Monoid<Lump<V>>> {
   add: ([aW, aS], [bW, bS]) => [aW + bW, aS.union(bS)]
 }
 
+//NB:
+//some kind of debouncing of lumps upstream would be useful
+//but that's exactly what this is here: though hereit's debouncing dependent
+//on external actions, which makes it very slow
+//the cost of accumulation here is apt to explode
+//the only solution would be pre-emptive debouncing
+//and for this we need to know the battch size so we can consolidate up to it
 
 export const runSaver = <V>(MV: _Monoid<V>, lump$: Observable<Lump<V>>, threshold$: Observable<Threshold>) => {
   const space = new AtomSpace<V>();
   const saver = new AtomSaver<V>(MV, space);
   const ML = MonoidLump<V>();
 
-  type Tup = [Lump<V>, Threshold, Storer<V>?]
+  type Thresh = number;
+  type Inp = ['L',Lump<V>] | ['T',Thresh];
 
-  return combineLatest([lump$, threshold$]).pipe(
-    mergeScan(([ac]: Tup, [l, t]) =>
-      of<Tup>([ML.add(ac,l), t]).pipe(
+  type Ac = [Lump<V>, Thresh];
+  type Outp = [Ac, Storer<V>?];
 
-        expand(([[w, rs], t]) => {
+  const inputs = merge(
+    threshold$.pipe(map(t => <Inp>['T', t])),
+    lump$.pipe(map(l => <Inp>['L', l]))
+  );
 
-          console.debug('SAVE?', `${w}/${t}`);
-          return (!w || (w < t))
-            ? EMPTY
-            : new Observable<Tup>(sub => {
-                return sub.next([
-                  ML.zero, 0,
-                  async store => {
-                    try {
-                      const [w2, rs2] = await saver.save(store, rs);
-                      console.debug('SAVED', w2);
-                      sub.next([[w - w2, rs.subtract(rs2)], t]);
-                      sub.complete();
-                    }
-                    catch(e) {
-                      sub.error(e);
-                    }
-                  }])
-            })
+  return inputs.pipe(
+    scan<Inp, Observable<Outp>>(
+      (prev, inp) => prev.pipe(
+        map(([[l0, t0]]) => {
+          switch(inp[0]) {
+            case 'L':
+              const l1 = inp[1];
+              const l2 = ML.add(l0,l1);
+              return <Ac>[l2, t0];
+
+            case 'T':
+              const t1 = inp[1];
+              return <Ac>[l0, t1];
+          }
         }),
+        concatMap(ac => {
+          const [[w,rs],t] = ac;
+
+          console.debug(
+            'SAVE?', `${w}/${t}`,
+            inspect(rs
+              .flatMap(r => r.resolve())
+              .reduce((ac, {val}) => ({ ...ac, ...(<Map<string,{data:unknown}>><unknown>val).map(p => p.data).toObject() }), {}),
+              {depth:2})
+          );
+          
+          if(t < 0 || w <= 0 || w < t) {
+            return of(<Outp>[ac]);
+          }
+
+          return new Observable<Outp>(sub => {
+            sub.next(<Outp>[
+              ac,
+              async store => {
+                try {
+                  const [w2, rs2] = await saver.save(store, rs);
+                  console.debug('SAVED', w2);
+
+                  sub.next(<Outp>[
+                    <Ac>[<Lump<V>>[w - w2, rs.subtract(rs2)], t]
+                  ]);
+
+                  sub.complete();
+                }
+                catch(e) {
+                  sub.error(e);
+                }
+              }
+            ]);
+          })
+        }),
+        shareReplay(1)
       ),
-      [ML.zero, 0], 1),
-    concatMap(([,,fn]) => fn ? [fn] : []),
+      of([[ML.zero, -1]])
+    ),
+    concatMap(o => o.pipe(concatMap(([,fn]) => fn ? [fn] : []))),
     share()
   );
 };

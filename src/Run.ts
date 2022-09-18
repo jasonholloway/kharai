@@ -1,10 +1,10 @@
-import { Id, DataMap, RawDataMap } from './lib'
-import { Observable, ReplaySubject, of, concat, Subject, merge } from 'rxjs'
-import { startWith, endWith, scan, takeWhile, finalize, map, toArray, ignoreElements, concatMap, filter, takeUntil, shareReplay, mergeMap } from 'rxjs/operators'
+import { Id, DataMap } from './lib'
+import { ReplaySubject, of, concat, Subject, merge } from 'rxjs'
+import { tap, take, startWith, endWith, scan, takeWhile, finalize, map, ignoreElements, concatMap, filter, shareReplay, mergeMap } from 'rxjs/operators'
 import { Set } from 'immutable'
 import { ConvenedFn, Convener, MachineSpace, Signal } from './MachineSpace'
 import { Lump, runSaver } from './AtomSpace'
-import MonoidData, { MonoidRawData } from './MonoidData'
+import MonoidData from './MonoidData'
 import { Saver, Loader } from './Store'
 import { BuiltWorld } from './shape/BuiltWorld'
 import { Data } from './shape/common'
@@ -12,8 +12,6 @@ import { RealTimer } from './Timer'
 import { RunSpace } from './RunSpace'
 
 const MD = new MonoidData();
-const MRD = new MonoidRawData();
-const gather = <V>(v$: Observable<V>) => v$.pipe(toArray()).toPromise();
 
 export type RunOpts = {
   threshold?: number,
@@ -55,12 +53,15 @@ export function newRun<N>
     of(opts?.threshold ?? 3),
     log$.pipe(
       ignoreElements(),
-      endWith(0)
+      endWith(0),
     )
-  ).pipe(shareReplay(1));
+  ).pipe(
+    tap(t => console.log('THRESH', t)),
+    shareReplay(1)
+  );
 
   if(opts?.save !== false) {
-    runSaver(MRD, lump$.pipe(map(l => <Lump<RawDataMap>>{})), threshold$)
+    runSaver(MD, lump$, threshold$)
       .pipe(concatMap(fn => fn(saver)))
       .subscribe();
   }

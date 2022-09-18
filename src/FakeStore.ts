@@ -1,8 +1,7 @@
 import { Saver, Loader } from './Store'
-import { RawDataMap, Id } from './lib'
+import { RawDataMap, Id, DataMap } from './lib'
 import _Monoid from './_Monoid'
 import { Map, Set } from 'immutable'
-import { exit } from 'process';
 
 export class FakeLoader implements Loader {
   getData: ()=>RawDataMap;
@@ -28,7 +27,7 @@ export class FakeLoader implements Loader {
   }
 }
 
-export default class FakeStore implements Loader, Saver<RawDataMap> {
+export default class FakeStore implements Loader, Saver<DataMap> {
 
   saved: RawDataMap;
   readonly batches: RawDataMap[] = []
@@ -44,12 +43,13 @@ export default class FakeStore implements Loader, Saver<RawDataMap> {
 
   load = (ids: Set<Id>) => this._loader.load(ids);
 
-  prepare(v: RawDataMap): {save():Promise<void>}|false {
+  prepare(v: DataMap): {save():Promise<void>}|false {
     return v.count() <= this._maxBatch
       && {
         save: async () => {
-          this.batches.push(v);
-          this.saved = this.saved.merge(v);
+          const rawified = v.map(({data}) => data);
+          this.batches.push(rawified);
+          this.saved = this.saved.merge(rawified);
         }
       };
   }
