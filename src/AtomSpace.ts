@@ -79,11 +79,11 @@ export const runSaver = <V>(MV: _Monoid<V>, lump$: Observable<Lump<V>>, threshol
               ac,
               async store => {
                 try {
-                  const [w2, rs2] = await saver.save(store, rs);
-                  console.debug('SAVED', w2);
+                  const [savedW, savedRs] = await saver.save(store, rs);
+                  console.debug('SAVED', savedW);
 
                   sub.next(<Outp>[
-                    <Ac>[<Lump<V>>[w - w2, rs.subtract(rs2)], t]
+                    <Ac>[<Lump<V>>[w - savedW, rs.subtract(savedRs)], t]
                   ]);
 
                   sub.complete();

@@ -1,5 +1,5 @@
 import _Monoid from '../src/_Monoid'
-import { createRunner } from './shared'
+import { createRunner, showData } from './shared'
 import { rodents } from './worlds/rodents'
 import { Map, Set, List } from 'immutable'
 import { World } from '../src/shape/World'
@@ -22,7 +22,7 @@ describe('machines - saving', () => {
 		const baz = x.view('baz');
 		const loz = x.view('loz');
 
-		expect(baz.map(a => a.val().toObject()))
+		expect(baz.map(showData))
 			.toEqual([
 				{
 					baz: ['guineaPig_runAbout']
@@ -37,7 +37,7 @@ describe('machines - saving', () => {
 		expect(baz[1].parents()).toContainEqual(baz[0]);
 		expect(baz[1].parents()).toContainEqual(loz[0]);
 
-		expect(loz.map(a => a.val().toObject()))
+		expect(loz.map(showData))
 			.toEqual([
 				{
 					loz: ['guineaPig_gruntAt', 'baz']
@@ -66,14 +66,14 @@ describe('machines - saving', () => {
 		const loz = x.view('loz');
 
 		expect(baz).toHaveLength(1);
-		expect(baz[0].val().toObject()).toEqual({
+		expect(showData(baz[0])).toEqual({
 			baz: ['end', 'grunt!'],
 			loz: ['end', 'squeak!']
 		});
 		expect(baz[0].parents()).toHaveLength(0);
 
 		expect(loz).toHaveLength(1);
-		expect(loz[0].val().toObject()).toEqual({
+		expect(showData(loz[0])).toEqual({
 			baz: ['end', 'grunt!'],
 			loz: ['end', 'squeak!']
 		});

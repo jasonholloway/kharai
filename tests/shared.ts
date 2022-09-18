@@ -125,3 +125,8 @@ class AtomView<V> {
     return renderAtoms(List([this._atom]))
   }
 }
+
+
+export function showData(av: AtomView<DataMap>) {
+	return av.val().map(p => p.data).toObject();
+}

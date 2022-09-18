@@ -1,6 +1,6 @@
 import { Id, DataMap } from './lib'
 import { ReplaySubject, of, concat, Subject, merge } from 'rxjs'
-import { tap, take, startWith, endWith, scan, takeWhile, finalize, map, ignoreElements, concatMap, filter, shareReplay, mergeMap } from 'rxjs/operators'
+import { tap, startWith, endWith, scan, takeWhile, finalize, map, ignoreElements, concatMap, filter, shareReplay, mergeMap } from 'rxjs/operators'
 import { Set } from 'immutable'
 import { ConvenedFn, Convener, MachineSpace, Signal } from './MachineSpace'
 import { Lump, runSaver } from './AtomSpace'
@@ -25,6 +25,16 @@ const dummySaver: Saver<DataMap> = {
     }
   }
 };
+
+// I want to map lumps!
+// but they're not immutable, is the problem
+// they're leaves of a big mutable global graph
+// 
+// the overall atom tree would be mapped
+// but then when mutations are made, 
+// these will be mutations of the mapped graph
+//
+// alternatively: for testing purposes, the data alone is mapped out
 
 export function newRun<N>
 (

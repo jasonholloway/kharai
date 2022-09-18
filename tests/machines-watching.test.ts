@@ -17,11 +17,7 @@ describe('machines - watching', () => {
 			})
 			.impl({
 				async runAround({and}, n) {
-					if(n > 0) {
-						return and.runAround(n-1);
-					}
-
-					return false;
+					return n > 0 && and.runAround(n-1);
 				},
 
 				async follow({and,watchRaw}, [ids, c]) {
@@ -38,19 +34,19 @@ describe('machines - watching', () => {
 			const x = createRunner(chickens.build());
 
 			await Promise.all([
-				x.run.boot('Kes', ['follow', [['Stu'], 100]]),
-				x.run.boot('Stu', ['runAround', 3]),
+				x.run.boot('Mouse', ['runAround', 3]),
+				x.run.boot('Cat', ['follow', [['Mouse'], 10]]),
 				x.run.log$.toPromise()
 			]);
 
-			const kes = await x.logs('Kes');
-			const [,seen] = kes.find(([p]) => p == 'end')!;
+			const cat = await x.logs('Cat');
+			const [,seen] = cat.find(([p]) => p == 'end')!;
 
 			expect(seen).toEqual([
-				['Stu', ['runAround', 3]],
-				['Stu', ['runAround', 2]],
-				['Stu', ['runAround', 1]],
-				['Stu', ['runAround', 0]]
+				['Mouse', ['runAround', 3]],
+				['Mouse', ['runAround', 2]],
+				['Mouse', ['runAround', 1]],
+				['Mouse', ['runAround', 0]]
 			])
 		})
 

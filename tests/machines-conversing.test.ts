@@ -1,7 +1,7 @@
 import _Monoid from '../src/_Monoid'
 import { parakeet } from './worlds/parakeet'
 import { delay } from '../src/util';
-import { createRunner } from './shared';
+import { createRunner, showData } from './shared';
 
 describe('machines - conversing', () => {
   const world = parakeet.build();
@@ -21,10 +21,10 @@ describe('machines - conversing', () => {
     const priscilla = x.view('Priscilla');
     const pete = x.view('Pete');
 
-    expect(priscilla[0].val().toObject())
+    expect(showData(priscilla[0]))
       .toEqual({ Priscilla: ['listen'] })
 
-    expect(priscilla[1].val().toObject())
+    expect(showData(priscilla[1]))
       .toEqual({
         Polly: ['end', 'chirped!'],
         Priscilla: ['chirp', [[], 'hello!']]
@@ -36,7 +36,7 @@ describe('machines - conversing', () => {
     expect(priscilla[1].parents())
       .toContainEqual(polly[1])
 
-    expect(priscilla[2].val().toObject())
+    expect(showData(priscilla[2]))
       .toEqual({
         Priscilla: ['end', 'no-one to chirp to!']
       })
@@ -62,11 +62,11 @@ describe('machines - conversing', () => {
       const a = x.view('a');
       const b = x.view('b');
 
-      expect(a[3].val().get('a'))
-        .toEqual(['end', {a:'hello', b:'hello'}])
+      expect(showData(a[3]))
+        .toHaveProperty('a', ['end', {a:'hello', b:'hello'}])
 
-      expect(b[3].val().get('b'))
-        .toEqual(['end', {a:'hello', b:'hello'}])
+      expect(showData(b[3]))
+        .toHaveProperty('b', ['end', {a:'hello', b:'hello'}])
     });
   })
 })
