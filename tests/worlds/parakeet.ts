@@ -3,7 +3,6 @@ import { World } from '../../src/shape/World';
 import { act } from '../../src/shape/common';
 import { Many, Str, Tup } from '../../src/guards/Guard';
 import { Id } from '../lib';
-import { isArray } from 'util';
 
 export const parakeet = World
   .shape({
@@ -51,7 +50,7 @@ export const parakeet = World
       const r = await attend(m => {
         const k = d[1];
 
-        if(isArray(m) && m[0]==k) {
+        if(Array.isArray(m) && m[0]==k) {
           switch(m[1]) {
             case 'contribute':
               return [and.nest([{},k]), 'hello'];

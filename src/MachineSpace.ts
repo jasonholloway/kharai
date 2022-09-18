@@ -1,4 +1,4 @@
-import { Id, DataMap, RawDataMap } from './lib'
+import { Id, DataMap, RawDataMap, PhaseData } from './lib'
 import { MAttendee } from './Mediator'
 import { Observable, Subject, EMPTY, of } from 'rxjs'
 import { concatMap, filter, mergeMap, share, expand, takeUntil, finalize, shareReplay, tap, catchError, map } from 'rxjs/operators'
@@ -18,8 +18,10 @@ export type Machine = {
 }
 
 type _Machine = Machine & {
-  run: Run<DataMap>
+  run: Run<DataMap,Frisked[]>
 }
+
+type Frisked = { data:PhaseData, phase:Found };
 
 export type Log = {
   data: [string, unknown],
@@ -31,7 +33,7 @@ export type Log = {
 export class MachineSpace<N> {
   private readonly world: BuiltWorld<N>
   private readonly loader: Loader
-  private readonly runs: RunSpace<DataMap>;
+  private readonly runs: RunSpace<DataMap,Frisked[]>;
 
   private machines: Map<Id, _Machine>
   private _machine$: Subject<Machine>
@@ -42,7 +44,7 @@ export class MachineSpace<N> {
   constructor(
     world: BuiltWorld<N>,
     loader: Loader,
-    runs: RunSpace<DataMap>,
+    runs: RunSpace<DataMap,Frisked[]>,
     signal$: Observable<Signal>
   ) {
     this.world = world;
@@ -68,7 +70,7 @@ export class MachineSpace<N> {
     const result = await this.runs.newRun()
       .run(async x => {
         const r = await fn(this.machineSpaceCtx(x))
-        return [[Map(),0], r];
+        return [[Map(),0], [], r];
       });
 
     if(!result) throw 'THIS SHOULD NEVER HAPPEN';
@@ -119,11 +121,13 @@ export class MachineSpace<N> {
     
     const kill$ = signal$.pipe(filter(s => s.stop), share());
 
-    type Frisked = { data:[string,unknown], phase:Found };
     type GetNext = ()=>Promise<[AtomRef<DataMap>,Frisked]|false>;
     type Step = { log?: Log, v: number, next: GetNext };
 
-    const loadingPhase = loadingData.then(d => [new AtomRef<DataMap>(), friskData(d)]);
+    const loadingPhase = run.run(async () => {
+      const data = friskData(await loadingData);
+      return [false, [data], data];
+    });
 
     const log$ = of(<Step>{ v:-1, next: () => loadingPhase }).pipe(
       expand(step => of(step).pipe(
@@ -147,7 +151,7 @@ export class MachineSpace<N> {
                 if(out === false) return false;
                 
                 const frisked = friskData(out);
-                return [[Map([[id, frisked]]),1], frisked];
+                return [[Map([[id, frisked]]),1], [frisked], frisked];
               }
               catch(e) {
                 console.error(e);
@@ -201,7 +205,7 @@ export class MachineSpace<N> {
       throw Error(`Data failed frisk! Wrongly shaped: ${data}`);
     }
 
-    function isPhaseData(p: unknown): p is [string, unknown] {
+    function isPhaseData(p: unknown): p is PhaseData {
       return Array.isArray(p)
         && p.length > 0
         && isString(p[0]);
@@ -221,7 +225,7 @@ export class MachineSpace<N> {
     }
   }
 
-  private machineSpaceCtx(x: RunCtx<DataMap>, id?: Id): MachineSpaceCtx {
+  private machineSpaceCtx(x: RunCtx<DataMap,Frisked[]>, id?: Id): MachineSpaceCtx {
     const _this = this;
     
     return {
@@ -273,24 +277,23 @@ export class MachineSpace<N> {
         }
       },
 
-      watch(ids: Id[]): Observable<[Id, unknown]> {
-        return of(..._this._summon(Set(ids)))
-          .pipe(mergeMap(m => x.track(m.run)
-            .pipe(mergeMap(v =>
-              v.entrySeq().flatMap(e => {
-                const [id,{data,phase}] = e;
-                return (id == m.id && phase && phase.projector)
-                  ? phase.projector!(data).map(d => <[Id,unknown]>[id, d])
-                  : []
-              })
-            ))));
+      watch(id: Id): Observable<unknown> {
+        return of(..._this._summon(Set([id])))
+          .pipe(
+            mergeMap(m => x.track(m.run)
+              .pipe(concatMap(fs => fs))),
+            mergeMap(({phase:{projector}, data:[,d]}) =>
+              projector ? projector(d) : []
+              )
+          );
       },
 
-      watchRaw(ids: Id[]): Observable<RawDataMap> {
-        return of(..._this._summon(Set(ids)))
+      watchRaw(id: Id): Observable<PhaseData> {
+        return of(..._this._summon(Set([id])))
           .pipe(
-            mergeMap(m => x.track(m.run)),
-            map(l => l.map(p => p.data))
+            mergeMap(m => x.track(m.run)
+              .pipe(concatMap(fs => fs))),
+            map(f => f.data)
           );
       }
     };
@@ -333,11 +336,11 @@ export interface Attendee<R = unknown> {
 export type AttendedFn<R> = (m:unknown, mid:Id|undefined, peers:Set<Peer>) => ([R]|[R,unknown]|false|undefined);
 
 
-export type MachineSpaceCtx = Extend<RunCtx<DataMap>, {
+export type MachineSpaceCtx = Extend<RunCtx<DataMap,Frisked[]>, {
   attend: <R>(attend: Attendee<R>|AttendedFn<R>) => Promise<false|[R]>
   convene: <R>(ids: string[], convene: Convener<R>|ConvenedFn<R>) => Promise<R>
-  watch: (ids: string[]) => Observable<readonly [string, unknown]>
-  watchRaw: (ids: string[]) => Observable<RawDataMap>
+  watch: (id: Id) => Observable<unknown>
+  watchRaw: (id: Id) => Observable<PhaseData>
 }>;
 
 export type MachineCtx = Extend<MachineSpaceCtx, {

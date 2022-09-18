@@ -12,7 +12,7 @@ import { inspect } from 'node:util'
 
 const $Yo = Symbol('$Yo');
 
-export class RunSpace<V> {
+export class RunSpace<V, L=V> {
   private readonly mv: _Monoid<V>
   private readonly mediator: Mediator
   private readonly timer: Timer
@@ -30,30 +30,30 @@ export class RunSpace<V> {
     this.sink = sink;
   }
 
-  newRun(): Run<V> {
+  newRun(): Run<V,L> {
     return new Run(this.mv, this.mediator, this.timer, this.sink);
   }  
 }
 
 
-export type RunCtx<V> = {
+export type RunCtx<V,L> = {
   side: { get():unknown, set(d:unknown):void } 
   timer: Timer
   attend: <R>(attend: MAttendee<R>) => Promise<false|[R]>
-  convene: <R>(others: ArrayLike<Run<V>>, convene: MConvener<R>) => Promise<R>
-  track: (target: Run<V>) => Observable<V>
+  convene: <R>(others: ArrayLike<Run<V,L>>, convene: MConvener<R>) => Promise<R>
+  track: (target: Run<V,L>) => Observable<L>
 }
 
 
-export type RunHandler<V,R> = (ctx: RunCtx<V>) => Promise<[[V,number],R]|false>;
+export type RunHandler<V,L,R> = (ctx: RunCtx<V,L>) => Promise<[[V,number]|false,L,R]|false>;
 
-export class Run<V> {
+export class Run<V,L=V> {
   private readonly mv: _Monoid<V>;
   private readonly mediator: Mediator;
   private readonly timer: Timer;
   private readonly sink: Observer<Lump<V>>
   private running: Promise<[AtomRef<V>, unknown]|false>;
-  private log$: Subject<[AtomRef<V>,V]>;
+  private log$: Subject<[AtomRef<V>,L]>;
   private sideData = <unknown>undefined;
 
   constructor(mv: _Monoid<V>, mediator: Mediator, timer: Timer, sink: Observer<Lump<V>>) {
@@ -65,7 +65,7 @@ export class Run<V> {
     this.log$ = new ReplaySubject(1);
   }
   
-  async run<R>(fn: RunHandler<V,R>): Promise<[AtomRef<V>,R]|false> {   
+  async run<R>(fn: RunHandler<V,L,R>): Promise<[AtomRef<V>,R]|false> {   
     this.running = this.running
       .then<[AtomRef<V>,unknown]|false>(async s => {
         if(!s) return false;
@@ -77,10 +77,18 @@ export class Run<V> {
         const result = await fn(this.context(commit));
 
         if(result) {
-          const [[v, w], r] = result;
-          const a2 = await commit.complete(v, w);
-          this.log$.next([a2, v]);
-          return [a2, r];
+          const [c, l, r] = result;
+
+          if(c) {
+            const [v, w] = c;
+            const a2 = await commit.complete(v, w);
+            this.log$.next([a2, l]);
+            return [a2, r];
+          }
+          else {
+            this.log$.next([a1, l]);
+            return [a1, r];
+          }
         }
         else {
           commit.abort();
@@ -95,7 +103,7 @@ export class Run<V> {
     this.log$.complete();
   }
 
-  private context(commit: Commit<V>): RunCtx<V> {
+  private context(commit: Commit<V>): RunCtx<V,L> {
     const _this = this;
 
     return {
@@ -138,7 +146,7 @@ export class Run<V> {
         }
       },
       
-      convene<R>(others: ArrayLike<Run<V>>, convener: MConvener<R>) {
+      convene<R>(others: ArrayLike<Run<V,L>>, convener: MConvener<R>) {
         return _this.mediator
           .convene({
             info: convener.info,
@@ -156,13 +164,13 @@ export class Run<V> {
           }, Set(others));
       },
       
-      track(target: Run<V>): Observable<V> {
+      track(target: Run<V,L>): Observable<L> {
         return target.log$
           .pipe(
             // tap(l=> console.debug('L', inspect(l, {depth:2}))),
-            map(([a,v]) => {
+            map(([a,l]) => {
               commit.addUpstreams(OrderedSet([a]));
-              return v;
+              return l;
             })
           );
       }

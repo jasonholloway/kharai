@@ -2,9 +2,9 @@ import _Monoid from '../src/_Monoid'
 import { createRunner, showData } from './shared';
 import { Map } from 'immutable'
 import { World } from '../src/shape/World';
-import { Any, Many, Num, Str } from '../src/guards/Guard';
+import { Any, Num, Str } from '../src/guards/Guard';
 import { act } from '../src/shape/common';
-import { map, take, toArray } from 'rxjs/operators'
+import { take, toArray } from 'rxjs/operators'
 import { delay } from '../src/util';
 
 describe('machines - watching', () => {
@@ -14,22 +14,22 @@ describe('machines - watching', () => {
 		const animals = World
 			.shape({
 				runAround: act(Num),
-				runAroundAfterDelay: act(Num),
-				follow: act([Many(Str), Num] as const),
+				pauseThenRunAround: act(Num),
+				follow: act([Str, Num] as const),
 			})
 			.impl({
 				async runAround({and}, n) {
 					return n > 0 && and.runAround(n-1);
 				},
 
-				async runAroundAfterDelay({and}, n) {
+				async pauseThenRunAround({and}, n) {
 					await delay(200);
-					return n > 0 && and.runAround(n-1);
+					return and.runAround(n);
 				},
 
-				async follow({and, watchRaw}, [ids, c]) {
-					const frames = await watchRaw(ids)
-						.pipe(take(c), map(m => m.toObject()), toArray())
+				async follow({and, watchRaw}, [id, c]) {
+					const frames = await watchRaw(id)
+						.pipe(take(c), toArray())
 						.toPromise();
 
 					return and.end(frames);
@@ -42,29 +42,29 @@ describe('machines - watching', () => {
 			const [cat] = await Promise.all([
 				x.logs('Cat'),
 				x.run.boot('Mouse', ['runAround', 3]),
-				x.run.boot('Cat', ['follow', [['Mouse'], 10]]),
+				x.run.boot('Cat', ['follow', ['Mouse', 10]]),
 			]);
 
 			const [,seen] = cat.find(([p]) => p == 'end')!;
 
 			expect(seen).toEqual([
-				{ Mouse: ['runAround', 3] },
-				{ Mouse: ['runAround', 2] },
-				{ Mouse: ['runAround', 1] },
-				{ Mouse: ['runAround', 0] }
+				['runAround', 3],
+				['runAround', 2],
+				['runAround', 1],
+				['runAround', 0]
 			])
 		})
 
 		it('loaded state immediately visible; implies dispatch', async () => {
 			const x = createRunner(animals.build(), {
 				data: Map({
-					Gwen: ['runAroundAfterDelay', 13]
+					Gwen: ['pauseThenRunAround', 13]
 				}),
 				save: false
 			});
 
 			await Promise.all([
-				x.run.boot('Gareth', ['follow', [['Gwen'], 2]]),
+				x.run.boot('Gareth', ['follow', ['Gwen', 3]]),
 				x.run.log$.toPromise()
 			]);
 
@@ -73,39 +73,40 @@ describe('machines - watching', () => {
 			expect(showData(gareth[1]))
 				.toHaveProperty('Gareth', 
 					['end', [
-						{ Gwen: ['runAroundAfterDelay', 13] },
-						{ Gwen: ['runAround', 12] }
+						['pauseThenRunAround', 13],
+						['runAround', 13],
+						['runAround', 12]
 					]]
 				);
 		})
 
-		it('can watch several at once', async () => {
-			const x = createRunner(animals.build());
+		// it('can watch several at once', async () => {
+		// 	const x = createRunner(animals.build());
 
-			await Promise.all([
-				x.run.boot('Kes', ['follow', [['Biff', 'Kipper'], 4]]),
-				x.run.boot('Biff', ['runAround', 11]),
-				x.run.boot('Kipper', ['runAround', 22]),
-				x.run.log$.toPromise()
-			]);
+		// 	await Promise.all([
+		// 		x.run.boot('Kes', ['follow', [['Biff', 'Kipper'], 4]]),
+		// 		x.run.boot('Biff', ['runAround', 11]),
+		// 		x.run.boot('Kipper', ['runAround', 22]),
+		// 		x.run.log$.toPromise()
+		// 	]);
 
-			const kesLogs = await x.logs('Kes');
-			const seen = kesLogs.find(l => l[0] == 'end')?.[1];
+		// 	const kesLogs = await x.logs('Kes');
+		// 	const seen = kesLogs.find(l => l[0] == 'end')?.[1];
 
-			expect(seen).toEqual([
-				['Biff', ['runAround', 11]],
-				['Kipper', ['runAround', 22]],
-				['Biff', ['runAround', 10]],
-				['Kipper', ['runAround', 21]]
-			])
-		})
+		// 	expect(seen).toEqual([
+		// 		['Biff', ['runAround', 11]],
+		// 		['Kipper', ['runAround', 22]],
+		// 		['Biff', ['runAround', 10]],
+		// 		['Kipper', ['runAround', 21]]
+		// 	])
+		// })
 
 		it('tracks causality in atom tree', async () => {
 			const x = createRunner(animals.build(), { save: false });
 
 			await Promise.all([
 				x.run.boot('Gord', ['runAround', 1]),
-				x.run.boot('Ed', ['follow', [['Gord'], 1]]),
+				x.run.boot('Ed', ['follow', ['Gord', 1]]),
 				x.run.log$.toPromise()
 			]);
 
@@ -129,7 +130,7 @@ describe('machines - watching', () => {
 
 			await Promise.all([
 				x.run.boot('Gord', ['runAround', 2]),
-				x.run.boot('Ed', ['wait', [100, ['follow', [['Gord'], 1]]]])
+				x.run.boot('Ed', ['wait', [100, ['follow', ['Gord', 1]]]])
 			]);
 
 			const logs = await x.allLogs();
@@ -138,12 +139,12 @@ describe('machines - watching', () => {
 				['Gord', ['boot']],
 				['Ed', ['boot']],
 				['Gord', ['runAround', 2]],
-				['Ed', ['wait', [100, ['follow', [['Gord'], 1]]]]],
+				['Ed', ['wait', [100, ['follow', ['Gord', 1]]]]],
 				['Gord', ['runAround', 1]],
 				['Gord', ['runAround', 0]],
-				['Ed', ['follow', [['Gord'], 1]]],
+				['Ed', ['follow', ['Gord', 1]]],
 
-				['Ed', ['end', [['Gord', ['runAround', 0]]]]],
+				['Ed', ['end', [['runAround', 0]]]],
 			]);
 		})
 	});
@@ -156,7 +157,7 @@ describe('machines - watching', () => {
 				hopAbout: act(Num),
 				chirp: act(Num),
 
-				view: act([Many(Str), Num] as const),
+				view: act([Str, Num] as const),
 				seen: act(Any)
 			})
 			.impl({
@@ -180,8 +181,8 @@ describe('machines - watching', () => {
 					show: (n) => [`chirp ${n}!`]
 				},
 
-				async view({and,watch}, [ids, c]) {
-					const frames = await watch(ids)
+				async view({and,watch}, [id, c]) {
+					const frames = await watch(id)
 						.pipe(take(c), toArray())
 						.toPromise();
 
@@ -200,14 +201,14 @@ describe('machines - watching', () => {
 			const [logs] = await Promise.all([
 				x.allLogs(),
 				x.run.boot('bob', ['hopAbout', 0]),
-				x.run.boot('babs', ['view', [['bob'], 2]])
+				x.run.boot('babs', ['view', ['bob', 2]])
 			]);
 
 			expect(logs).toEqual([
 				['bob', ['boot']],
 				['babs', ['boot']],
 				['bob', ['hopAbout', 0]],
-				['babs', ['view', [['bob'], 2]]],
+				['babs', ['view', ['bob', 2]]],
 				['bob', ['hopAbout', 1]],
 				['bob', ['hopAbout', 2]],
 				['bob', ['chirp', 3]],
@@ -215,8 +216,8 @@ describe('machines - watching', () => {
 				['bob', ['hopAbout', 5]],
 				['bob', ['chirp', 6]],
 				['babs', ['seen', [
-					['bob', 'chirp 3!'],
-					['bob', 'chirp 6!']
+					'chirp 3!',
+					'chirp 6!'
 				]]]
 			]);
 		})
