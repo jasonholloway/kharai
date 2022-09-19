@@ -151,6 +151,8 @@ export class MachineSpace<N> {
                 if(out === false) return false;
                 
                 const frisked = friskData(out);
+                log('ACT', id, inspect(frisked.data, {colors:true}));
+
                 return [[Map([[id, frisked]]),1], [frisked], frisked];
               }
               catch(e) {
@@ -170,7 +172,7 @@ export class MachineSpace<N> {
         return EMPTY;
       }),
 
-      tap(({data}) => log('ACT', id, inspect(data, {colors:true}))),
+      // tap(({data}) => log('ACT', id, inspect(data, {colors:true}))),
       finalize(() => log('END', id)),
 
       takeUntil(kill$),

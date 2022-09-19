@@ -107,13 +107,8 @@ describe('machines - saving', () => {
 		throw 'TODO where will error appear?'
 	})
 
-	//every commit of machine should weigh 1
-	//though not if 'false'
-	//
-	//
-
 	it('big enough batch saves once', async () => {
-		const x = createRunner(world, { maxBatchSize:24, threshold:6 });
+		const x = createRunner(world, { maxBatchSize:24, threshold:10 });
 
 		await Promise.all([
 			x.run.boot('m', ['gerbil_spawn', [0, 2]]),
@@ -133,7 +128,7 @@ describe('machines - saving', () => {
 	})
 	
 	it('big enough batch, heads resolve to same atom', async () => {
-		const x = createRunner(world, { maxBatchSize:24, threshold:3 });
+		const x = createRunner(world, { maxBatchSize:24, threshold:5 });
 
 		await Promise.all([
 			x.run.boot('a', ['gerbil_spawn', [0, 2]]),
@@ -154,7 +149,7 @@ describe('machines - saving', () => {
 		expect(Map(atom.val).keySeq().toSet())
 			.toStrictEqual(Set(['a', 'aa', 'ab']));
 
-		expect(atom).toHaveProperty('weight', 3);
+		expect(atom).toHaveProperty('weight', 5);
 	})
 
 	xit('further saving', async () => {
