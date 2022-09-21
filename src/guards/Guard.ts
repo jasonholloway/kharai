@@ -4,61 +4,37 @@ const $inspect = Symbol.for('nodejs.util.inspect.custom');
 
 const log = (x: any) => console.log(inspect(x), { depth: 5 })
 
-export const Any = Symbol('Any');
-export const Num = Symbol('Num');
-export const Bool = Symbol('Bool');
-export const Str = Symbol('Str');
-export const Never = Symbol('Never');
+const $typ = Symbol('Typ');
 
-export const $and = Symbol('And');
+export class Typ<Tag> {
+  readonly sym = $typ;
+  readonly tag: Tag
 
-export type And<A,B> = {
-  _type: typeof $and,
-  a: A,
-  b: B
+  constructor(tag: Tag) {
+    this.tag = tag;
+  }
 }
 
-export function And<A,B>(a:A, b:B): And<A,B> {
-  return <And<A,B>>{
-    _type: $and,
-    a,
-    b
-  };
+const tup = <R extends unknown[]>(...r:R) => r;
+
+
+export const Any = new Typ('any' as const);
+export const Num = new Typ('num' as const);
+export const Bool = new Typ('bool' as const);
+export const Str = new Typ('str' as const);
+export const Never = new Typ('never' as const);
+
+export function And<A,B>(a:A, b:B) {
+  return new Typ(tup('and' as const, tup(a,b)));
 }
 
-
-export const $or = Symbol('Or');
-
-export type Or<A,B> = {
-  _type: typeof $or,
-  a: A,
-  b: B
+export function Or<A,B>(a:A, b:B) {
+  return new Typ(tup('or' as const, tup(a,b)));
 }
 
-export function Or<A,B>(a:A, b:B): Or<A,B> {
-  return <Or<A,B>>{
-    _type: $or,
-    a,
-    b
-  };
+export function Many<V>(m:V) {
+  return new Typ(tup('many' as const, m));
 }
-
-
-export const $many = Symbol('Many');
-
-export type Many<V> = {
-  _type: typeof $many,
-  inner: V
-}
-
-export function Many<V>(m: V) : Many<V> {
-  return <Many<V>>{
-    _type: $many,
-    inner: m,
-    [$inspect]() { return `${inspect(m)}[]` }
-  };
-}
-
 
 export function Tup<R extends unknown[]>(...r: R) : R {
   return r;
@@ -67,14 +43,28 @@ export function Tup<R extends unknown[]>(...r: R) : R {
 
 export type Read<S, X=never, Y=never> =
     S extends X ? Y
-  : S extends typeof Any ? any
-  : S extends typeof Num ? number
-  : S extends typeof Str ? string
-  : S extends typeof Bool ? boolean
-  : S extends typeof Never ? never
-  : S extends And<infer A, infer B> ? Read<A, X, Y> & Read<B, X, Y> 
-  : S extends Or<infer A, infer B> ? Read<A, X, Y> | Read<B, X, Y> 
-  : S extends Many<infer V> ? Read<V, X, Y>[]
+  : S extends Typ<infer Tag> ? (
+        Tag extends 'any' ? any
+      : Tag extends 'num' ? number
+      : Tag extends 'bool' ? boolean
+      : Tag extends 'str' ? string
+      : Tag extends 'never' ? never
+      : Tag extends [infer Tag2, infer Arg] ? (
+            Tag2 extends 'and' ? (
+              Arg extends [infer A, infer B]
+                ? Read<A,X,Y> & Read<B,X,Y> : never
+            )
+          : Tag2 extends 'or' ? (
+              Arg extends [infer A, infer B]
+                ? Read<A,X,Y> | Read<B,X,Y> : never
+            )
+          : Tag2 extends 'many' ? (
+              Read<Arg, X, Y>[]
+            )
+          : never
+        )
+      : never
+    )
   : S extends (v:any) => v is (infer V) ? V
   : S extends RegExp ? string
   : S extends string ? S
@@ -118,15 +108,17 @@ export function match(s: any, v: any, cb?: ((s:any,v:any)=>undefined|boolean)): 
   }
 
   if(isAnd(s)) {
-    return match(s.a, v, cb) && match(s.b, v, cb);
+    const [a,b] = s.tag[1];
+    return match(a, v, cb) && match(b, v, cb);
   }
 
   if(isOr(s)) {
-    return match(s.a, v, cb) || match(s.b, v, cb);
+    const [a,b] = s.tag[1];
+    return match(a, v, cb) || match(b, v, cb);
   }
 
   if(isMany(s) && isArray(v)) {
-    return v.every(vv => match(s.inner, vv, cb));
+    return v.every(vv => match(s.tag[1], vv, cb));
   }
 
   if(isArray(s) && isArray(v)) {
@@ -147,6 +139,16 @@ export function match(s: any, v: any, cb?: ((s:any,v:any)=>undefined|boolean)): 
     return s(v);
   }
 
+  if(isTyp(s)) {
+    switch(s.tag) {
+      case Any.tag: return true;
+      case Str.tag: return isString(v);
+      case Num.tag: return isNumber(v);
+      case Bool.tag: return isBoolean(v);
+      default: return false;
+    }
+  }
+
   if(isObject(s) && isObject(v)) {
     for(const [sk, sv] of Object.entries(s)) {
       const r = match(sv, v[sk], cb);
@@ -155,25 +157,23 @@ export function match(s: any, v: any, cb?: ((s:any,v:any)=>undefined|boolean)): 
     
     return true;
   }
-
-  switch(s) {
-    case Any: return true;
-    case Str: return isString(v);
-    case Num: return isNumber(v);
-    case Bool: return isBoolean(v);
-  }
   
   return false;
 }
 
-function isAnd(v: any): v is And<unknown, unknown> {
-  return v._type === $and;
+
+function isTyp(v: unknown): v is Typ<unknown> {
+  return (<{sym:unknown}>v).sym === $typ;
 }
 
-function isOr(v: any): v is Or<unknown, unknown> {
-  return v._type === $or;
+function isAnd(v: unknown): v is Typ<['and', [unknown, unknown]]> {
+  return isTyp(v) && isArray(v.tag) && v.tag[0] === 'and';
 }
 
-function isMany(v: any): v is Many<any> {
-  return v._type === $many;
+function isOr(v: unknown): v is Typ<['or', [unknown, unknown]]> {
+  return isTyp(v) && isArray(v.tag) && v.tag[0] === 'or';
+}
+
+function isMany(v: unknown): v is Typ<['many', unknown]> {
+  return isTyp(v) && isArray(v.tag) && v.tag[0] === 'many';
 }

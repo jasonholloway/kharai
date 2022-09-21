@@ -24,6 +24,12 @@ describe('Guards', () => {
     expect(Guard(['a',Str] as const)(['a','boo'])).toBeTruthy();
     expect(Guard(['a',Str] as const)(['b','boo'])).toBeFalsy();
   })
+
+  it('works via vars', () => {
+    const MyStr = Str;
+    expect(Guard(MyStr)('blah')).toBeTruthy();
+    Guard(MyStr).to<'moo'>();
+  })
   
 })
 
@@ -421,9 +427,7 @@ describe('match' , () => {
       yes: [
         1, 100, {}
       ],
-      no: [
-        ''
-      ]
+      no: ['']
     })
 
     test({
