@@ -10,7 +10,6 @@ export const Bool = Symbol('Bool');
 export const Str = Symbol('Str');
 export const Never = Symbol('Never');
 
-
 export const $and = Symbol('And');
 
 export type And<A,B> = {
@@ -64,7 +63,6 @@ export function Many<V>(m: V) : Many<V> {
 export function Tup<R extends unknown[]>(...r: R) : R {
   return r;
 }
-
 
 
 export type Read<S, X=never, Y=never> =

@@ -1,8 +1,9 @@
 import _Monoid from '../../src/_Monoid'
-import { toArray, take } from 'rxjs/operators'
+import { mergeMap, toArray, take } from 'rxjs/operators'
 import { Str, Num, Many } from '../../src/guards/Guard'
 import { World } from '../../src/shape/World'
 import { act } from '../../src/shape/common'
+import { from } from 'rxjs'
 
 export const birds = World
   .shape({
@@ -21,8 +22,8 @@ export const birds = World
     },
 
     async track({and,watchRaw}, [ids, c]) {
-      const frames = await watchRaw(ids)
-        .pipe(take(c), toArray())
+      const frames = await from(ids)
+        .pipe(mergeMap(watchRaw), take(c), toArray())
         .toPromise();
 
       return and.end(frames);

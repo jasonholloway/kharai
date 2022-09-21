@@ -46,14 +46,13 @@ export class LocalStore implements Loader, Saver<DataMap> {
     //if datamap is too big to save, then we say 'no'. No pushback for current crap mechanism however.
     //really... we want to save lump to a staging file to give us atomicity across files
     //but... we're just going to loop through them one by one
-    console.log(Date.now(), 'Preparing');
     return {
       async save() {
         await Promise.all(
           dataMap.entrySeq()
-            .map(async ([id, data]) => {
+            .map(async ([id, dm]) => {
               const path = `./db/${id}`;
-              const raw = JSON.stringify(data);
+              const raw = JSON.stringify(dm.data);
 
               console.log(Date.now(), 'Saving', raw);
               await fs.writeFile(path, raw);
