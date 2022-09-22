@@ -18,6 +18,11 @@ export const world = World
         quickly: act(789 as const),
         slovenly: act('boo' as const)
       }
+    },
+
+    fridge: {
+      ...act(),
+      // scrape: act(123)
     }
   })
   .ctxImpl('', x => ({ a:1 }))
@@ -38,6 +43,10 @@ export const world = World
           console.log(`hello ${d}`);
           return and.jerboa.jump.quickly(789);
         }
-      }
+      },
+    },
+
+    fridge: {
+      async act() { return false; },
     }
   });

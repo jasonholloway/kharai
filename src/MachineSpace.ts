@@ -78,7 +78,6 @@ export class MachineSpace<N> {
     return result[1];
   }
 
-  
   private _summon(ids: Set<Id>): Set<_Machine> {
     //todo: load all ids up top as batch
     //...
@@ -92,8 +91,7 @@ export class MachineSpace<N> {
             return [all, gathered.add(found)];
           }
           else {
-            const loading = this.loader.load(Set([id])).then(loaded => loaded.get(id)!);
-            const machine = this.runMachine(id, loading, this._signal$);
+            const machine = this.runMachine(id, this._loadData(id), this._signal$);
 
             this._machine$.next(machine);
 
@@ -108,6 +106,33 @@ export class MachineSpace<N> {
 
     return gathered;
   }
+
+  private async _loadData(id: Id): Promise<unknown> {
+    const loaded = await this.loader.load(Set([id]));
+    return loaded.get(id) || _synth(id);
+
+    function _synth(id: Id): unknown {
+      const matched = /^@([\w_]+)(,([^,]*))*/.exec(id);
+
+      if(matched) {
+        return matched.reduce(
+          (ac,v,i) => {
+            if(i % 2 == 0) {
+              return ac
+            }
+            else {
+              return [...ac, v];
+            }
+          },
+          <string[]>[]);
+      }
+      else {
+        return ['boot'];
+      }
+    }
+  }
+
+  
 
   private runMachine(
     id: Id,

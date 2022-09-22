@@ -19,11 +19,13 @@ export class FakeLoader implements Loader {
         const data = this.getData();
         const found = data.get(id, undefined);
         return found
-          ? ac.set(id, found)
-          : ac.set(id, ['boot']); //TODO this shouldn't be done here, but above
+          ? ac.set(id, found) : ac;
+          // : ac.set(id, _synth(id));
       },
-      Map<Id, unknown>()
+      Map<Id,unknown>()
     );
+
+    //todo: below obviously should be in app proper
   }
 }
 

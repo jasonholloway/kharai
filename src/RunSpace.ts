@@ -74,25 +74,30 @@ export class Run<V,L=V> {
 
         const commit = new Commit<V>(this.mv, this.sink, OrderedSet([a1]));
 
-        const result = await fn(this.context(commit));
+        try {
+          const result = await fn(this.context(commit));
 
-        if(result) {
-          const [c, l, r] = result;
+          if(result) {
+            const [c, l, r] = result;
 
-          if(c) {
-            const [v, w] = c;
-            const a2 = await commit.complete(v, w);
-            this.log$.next([a2, l]);
-            return [a2, r];
+            if(c) {
+              const [v, w] = c;
+              const a2 = await commit.complete(v, w);
+              this.log$.next([a2, l]);
+              return [a2, r];
+            }
+            else {
+              this.log$.next([a1, l]);
+              return [a1, r];
+            }
           }
           else {
-            this.log$.next([a1, l]);
-            return [a1, r];
+            return false;
           }
         }
-        else {
+        catch(e) {
           commit.abort();
-          return false;
+          throw e;
         }
       });
 

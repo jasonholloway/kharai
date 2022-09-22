@@ -5,6 +5,7 @@ import { createRunner } from './shared'
 import { World } from '../src/shape/World';
 import { act } from '../src/shape/common';
 import { Num } from '../src/guards/Guard'
+import { inspect } from 'node:util';
 
 describe('running', () => {
 	const world = rodents.build();
@@ -26,6 +27,43 @@ describe('running', () => {
 
 		const success = await x.run.boot('fresh', ['guineaPig_runAbout']);
 		expect(success).toBeTruthy();
+	})
+
+	it('can summon by name', async () => {
+		const w = World
+			.shape({
+				rat: act(),
+				mouse: act(Num)
+			})
+		  .impl({
+				async rat({and,convene}) {
+					await convene(['@mouse,123'], ps => {
+						return ps.first()?.chat('squeak');
+					});
+
+					return and.end('dunrattin');
+				},
+
+				async mouse({and,attend}, n) {
+					const r = await attend(m => [m]);
+					return r && and.end(`${n} ${r[0]}`);
+				}
+			});
+
+		const x = createRunner(w.build());
+
+		const [logs] = await Promise.all([
+			x.allLogs(),
+			x.run.boot('R', ['rat'])
+		]);
+
+		expect(logs).toEqual([
+			['R', ['boot']],
+			['R', ['rat']],
+			['@mouse,123', ['mouse', '123']],
+			['R', ['end', 'dunrattin']],
+			['@mouse,123', ['end', '123 squeak']],
+		]);
 	})
 
 	//TODO
