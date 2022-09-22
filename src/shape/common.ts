@@ -121,7 +121,7 @@ type _ImplCombine<Tups, X0, DOne, DAll, XExtra, O> =
 ;
 
 type _Phase<D, X, O> =
-  _Handler<D,X,O> | { act:_Handler<D,X,O>, show: (d:Read<D,$Root,O>)=>unknown[] }
+  _Handler<D,X,O> | { act:_Handler<D,X,O>, show?: (d:Read<D,$Root,O>)=>unknown[] }
 ;
 
 type _Handler<D, X, O> = 
