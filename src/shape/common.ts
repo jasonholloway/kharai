@@ -3,7 +3,7 @@ import { Any, Guard, Read } from "../guards/Guard";
 import { MachineCtx } from "../MachineSpace";
 import { Handler, $Root, Fac, $data, $space, $handler, $fac, $Fac, $incl, $Incl } from "../shapeShared";
 import { Merge, Simplify } from "../util";
-import { Builder, BuiltIns, PhaseHelper } from "./World";
+import { Builder, BuiltIns, PhaseHelper, RefHelper } from "./World";
 
 export const separator = '_'
 export type Separator = typeof separator;
@@ -67,7 +67,7 @@ export type Impls<N, O> =
 
 type _Impls<N, DOne, O> =
   [_ImplSplit<N>] extends [infer Tups] ?
-  _ImplCombine<[Tups], {}, DOne, _Data<N, DOne>, {and:PhaseHelper<N&BuiltIns,O>}&MachineCtx, O>
+  _ImplCombine<[Tups], {}, DOne, _Data<N, DOne>, {and:PhaseHelper<N&BuiltIns,O>,ref:RefHelper<N>}&MachineCtx, O>
   : never
 ;
 

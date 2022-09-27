@@ -120,60 +120,147 @@ export module Builder {
 // }
 
 
+//can only summon phases with string args
+export type RefHelper<N> = Summon.Helper<N>;
 
+module Summon {
+  export type Helper<N> = WalkData<'', ExtractData<N>>
 
-export type PhaseHelper<N, Out> = _WalkData<'',_ExtractData<N>, Data<N>, Out>
+  type WalkData<P extends string, D> = DeepSimplify<
+    (
+      P extends keyof D
+        ? Creator<Read<D[P]>>
+        : unknown
+    )
+    & (
+      [ExtractNextPrefixes<P,D>] extends [infer NPS] ?
+      IsNever<NPS> extends false ? {
+        [
+          T in (
+            NPS extends infer NP ?
+            NP extends string ?
+            [NP,WalkData<_JoinPaths<P,NP>, D>]
+            : never : never
+          ) as (
+            IsNever<T[1]> extends false ? T[0] : never
+          )
+        ]: T[1]
+      }
+      : unknown : never
+    )
+  >;
 
-type _ExtractData<N> = {
-  [k in keyof N as (k extends _JoinPaths<'D', infer P> ? P : never)]: N[k]
-};
-
-type _WalkData<P extends string, D, DAll, Out> = DeepSimplify<
-  (
-    P extends keyof D
-      ? _Handler<Read<D[P], $Root, Out>, Out>
-      : unknown
-  )
-  & ({
-    [N in _ExtractNextPrefixes<P,D> & string]: _WalkData<_JoinPaths<P,N>, D, DAll, Out>
-  })
->;
-
-type _Handler<V,Out> =
-  IsNotNever<V> extends true
-  ? ((d: V) => Out)
-  : (() => Out);
-
-type _ExtractNextPrefixes<P extends string, D> =
-  keyof D extends infer K ?
-  K extends _JoinPaths<P, _JoinPaths<infer N, any>> ?
-  N
-  : never : never;
-
-
-try {
-  type W = {
-    D_: [1]
-    D_hello_again: [typeof Num]
-    D_hello_moo: [3]
-    D_tara: [4]
-    D_tara_moo: never
+  type ExtractNextPrefixes<P extends string, D> =
+    keyof D extends infer K ?
+    K extends _JoinPaths<P, _JoinPaths<infer N, any>> ?
+    N
+    : never : never;
+  
+  type ExtractData<N> = {
+    [k in keyof N as (k extends _JoinPaths<'D', infer P> ? P : never)]: N[k]
   };
 
-  type A = _ExtractData<W>;
-  type B = _ExtractNextPrefixes<'', A>
-  type C = _ExtractNextPrefixes<'hello', A>
-  type Z = _WalkData<'',A,'DAll','OUT'>
+  type Creator<V> = 
+    IsNotNever<V> extends false
+    ? (() => Id)
+    : (
+      V extends string ?
+        ((d: V) => Id)
+        : never
+    )
+  ;
 
-  const z = <Z><unknown>undefined;
+  try {
+    type W = {
+      D_: [1]
+      D_hello_again: [typeof Num]
+      D_hello_moo: typeof Str
+      D_tara: [4]
+      D_tara_moo: never
+    };
 
-  z.hello.again([2]);
-  z.tara([4]);
-  z.tara.moo();
+    type A = ExtractData<W>;
+    type B = ExtractNextPrefixes<'', A>
+    type C = ExtractNextPrefixes<'hello', A>
+    type Z = WalkData<'',A>
 
-  type _ = [A,B,C,Z];
+    const z = <Z><unknown>undefined;
+    z.hello.moo('123')
+
+    // z.hello.again([2]);
+    // z.tara([4]);
+    // z.tara.moo();
+
+    type _ = [A,B,C,Z];
+  }
+  catch {}
 }
-catch {}
+
+
+
+
+export type PhaseHelper<N, Out> = Phase.Helper<N, Out>;
+
+module Phase {
+  export type Helper<N, Out> = WalkData<'', ExtractData<N>, Data<N>, Out>
+
+  type ExtractData<N> = {
+    [k in keyof N as (k extends _JoinPaths<'D', infer P> ? P : never)]: N[k]
+  };
+
+  type WalkData<P extends string, D, DAll, Out> = DeepSimplify<
+    (
+      P extends keyof D
+        ? Handler<Read<D[P], $Root, Out>, Out>
+        : unknown
+    )
+    & (
+      [ExtractNextPrefixes<P,D>] extends [infer NPS] ?
+      IsNever<NPS> extends false ? 
+        {
+          [N in ExtractNextPrefixes<P,D> & string]: WalkData<_JoinPaths<P,N>, D, DAll, Out>
+        }
+      : unknown : never)
+  >;
+
+  type Handler<V,Out> =
+    IsNotNever<V> extends true
+    ? ((d: V) => Out)
+    : (() => Out);
+
+  type ExtractNextPrefixes<P extends string, D> =
+    keyof D extends infer K ?
+    K extends _JoinPaths<P, _JoinPaths<infer N, any>> ?
+    N
+    : never : never;
+
+
+  try {
+    type W = {
+      D_: [1]
+      D_hello_again: [typeof Num]
+      D_hello_moo: [3]
+      D_tara: [4]
+      D_tara_moo: never
+    };
+
+    type A = ExtractData<W>;
+    type B = ExtractNextPrefixes<'', A>
+    type C = ExtractNextPrefixes<'hello', A>
+    type Z = WalkData<'',A,'DAll','OUT'>
+
+    const z = <Z><unknown>undefined;
+
+    z.hello.again([2]);
+    z.tara([4]);
+    z.tara.moo();
+
+    type _ = [A,B,C,Z];
+  }
+  catch {}
+
+}
+
 
 
 const $unique = Symbol('');
@@ -341,22 +428,29 @@ export class Builder<N> {
         }
       );
 
-    const withAnds = withAllPaths
-      .mapDepthFirst<NodeVal>(([v, paths], _, pl) => {
+    const withCtx = withAllPaths
+      .mapDepthFirst<[NodeVal, List<[List<string>,List<string>]>]>(([v, paths], _, pl) => {
         if(v.handler) {
           const pathMap = OrderedMap(paths.map(([al,zl]) => [al.join(separator), zl.join(separator)]));
           const and = _buildAnd(pathMap);
-          return {
-            ...v,
-            handler: (x:object, d:unknown) => v.handler!({ ...x, and }, d)
-          };
+          const ref = _buildRef(pathMap);
+          return [
+            {
+              ...v,
+              handler: (x:object, d:unknown) => v.handler!({ ...x, and, ref }, d)
+            },
+            paths
+          ];
         }
         else {
-          return v;
+          return [v, paths];
         }
       });
 
-    const reg1 = new Registry(withAnds);
+    const withoutPaths = withCtx
+      .mapBreadthFirst(([v]) => v);
+
+    const reg1 = new Registry(withoutPaths);
 
     return <Builder.TryBuild<N&BuiltIns>><unknown>new BuiltWorld(reg1);
 
@@ -365,30 +459,62 @@ export class Builder<N> {
       const ac = {};
 
       for(const [pFrom,pTo] of availPaths) {
-        _emplace(ac, pFrom.split(separator), pTo);
+        emplace(ac, pFrom.split(separator), pTo);
       }
 
       return ac;
+
+
+      function emplace(o:{[k: string]: unknown}, pl:string[], pTo:string) {
+        const [ph, ...pt] = pl;
+        let o2 = <{[k:string]:unknown}>(o[ph] ?? {});
+
+        if(pt.length > 0) {
+          emplace(o2, pt, pTo)
+        }
+        else if(ph) {
+          o2 = Object.assign(
+            ((d:unknown) => d !== undefined ? [pTo, d] : [pTo]),
+            <{[k:string]:unknown}>{});
+        }
+        else {
+          throw Error();
+        }
+
+        o[ph] = o2;
+      }
     }
 
-    function _emplace(o:{[k: string]: unknown}, pl:string[], pTo:string) {
-      const [ph, ...pt] = pl;
-      let o2 = <{[k:string]:unknown}>(o[ph] ?? {});
+    function _buildRef(availPaths: OrderedMap<string,string>): object {
+      const ac = {};
 
-      if(pt.length > 0) {
-        _emplace(o2, pt, pTo)
-      }
-      else if(ph) {
-        o2 = Object.assign(
-          ((d:unknown) => d !== undefined ? [pTo, d] : [pTo]),
-          <{[k:string]:unknown}>{});
-      }
-      else {
-        throw Error();
+      for(const [pFrom,pTo] of availPaths) {
+        emplace(ac, pFrom.split(separator), pTo);
       }
 
-      o[ph] = o2;
+      return ac;
+
+
+      function emplace(o:{[k: string]: unknown}, pl:string[], pTo:string) {
+        const [ph, ...pt] = pl;
+        let o2 = <{[k:string]:unknown}>(o[ph] ?? {});
+
+        if(pt.length > 0) {
+          emplace(o2, pt, pTo)
+        }
+        else if(ph) {
+          o2 = Object.assign(
+            ((...args:unknown[]) => [`@${pTo}`, ...args].join(',')),
+            <{[k:string]:unknown}>{});
+        }
+        else {
+          throw Error();
+        }
+
+        o[ph] = o2;
+      }
     }
+
   }
 }
 
