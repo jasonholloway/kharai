@@ -132,15 +132,16 @@ type _Handler<D, X, O> =
 
 {
   type W = {
-    XA: { a:1 },
+    // XA: { a:1 },
+    // D: 0,
     D_dog_woof: never,
-    D_rat_squeak: 123,
-    XA_cat: { b:2 },
+    // D_rat_squeak: 123,
+    // XA_cat: { b:2 },
     D_cat_meeow: 456
   };
 
   type A = _ImplSplit<W>
-  type B = _ImplCombine<[A], {}, 'DOne', 'DAll','XTRA','O'>
+  type B = _ImplCombine<[A], {}, 'DOne', 'DAll',{},'O'>
   type C = Impls<W,'O'>
 
   type _ = [A, B, C]
