@@ -1,8 +1,11 @@
 import { isArray, isBoolean, isFunction, isNumber, isObject, isRegExp, isString } from "util"
 import { inspect } from 'util'
-const $inspect = Symbol.for('nodejs.util.inspect.custom');
 
+const $inspect = Symbol.for('nodejs.util.inspect.custom');
 const log = (x: any) => console.log(inspect(x), { depth: 5 })
+
+type Narrowable = string | number | boolean | symbol | object | undefined | void | null | {};
+const tup = <R extends Narrowable[]>(...r: R) => r;
 
 const $typ = Symbol('Typ');
 
@@ -15,8 +18,6 @@ export class Typ<Tag> {
   }
 }
 
-const tup = <R extends unknown[]>(...r:R) => r;
-
 
 export const Any = new Typ('any' as const);
 export const Num = new Typ('num' as const);
@@ -24,19 +25,19 @@ export const Bool = new Typ('bool' as const);
 export const Str = new Typ('str' as const);
 export const Never = new Typ('never' as const);
 
-export function And<A,B>(a:A, b:B) {
+export function And<A extends Narrowable,B extends Narrowable>(a:A, b:B) {
   return new Typ(tup('and' as const, tup(a,b)));
 }
 
-export function Or<A,B>(a:A, b:B) {
+export function Or<A extends Narrowable,B extends Narrowable>(a:A, b:B) {
   return new Typ(tup('or' as const, tup(a,b)));
 }
 
-export function Many<V>(m:V) {
+export function Many<V extends Narrowable>(m:V) {
   return new Typ(tup('many' as const, m));
 }
 
-export function Tup<R extends unknown[]>(...r: R) : R {
+export function Tup<R extends Narrowable[]>(...r: R) : R {
   return r;
 }
 
@@ -85,7 +86,6 @@ export function Guard<S>(s: S, cb?: ((s:any,v:any)=>undefined|boolean)) {
     to<V extends Read<S>>() { return <(v:any) => v is V><unknown>this; }
   });
 }
-
 
 export function match(s: any, v: any, cb?: ((s:any,v:any)=>undefined|boolean)): boolean {
   if(cb) {

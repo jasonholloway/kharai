@@ -95,29 +95,32 @@ type _ImplCombine<Tups, X0, DOne, DAll, XExtra, O> =
     & XExtra
   )> extends infer X ?
 
-  [
-    Tups extends readonly [infer I] ?
-      I extends readonly [[], 'D', infer V] ? [V]
-    : never : never
-  ] extends readonly [infer DD] ?
-    IsNotNever<DD> extends true ? (
+  (
+    [
+      Tups extends readonly [infer I] ?
+        I extends readonly [[], 'D', infer V] ? [V]
+      : never : never
+    ] extends readonly [infer DD] ?
+      IsNotNever<DD> extends true ?
       DD extends readonly [infer D] ?
         _Phase<D, X, O>
-      : never
+        : never : unknown
+    : unknown
+  ) &
+  (
+    {
+      [Next in
+        Tups extends readonly [infer I] ?
+        I extends readonly [readonly [infer PH, ...infer PT], ...infer T] ?
+        PH extends string ?
+        [PH, [PT, ...T]]
+        : never : never : never
+      as Next[0]
+      ]?: _ImplCombine<[Next[1]], X, DOne, DAll, XExtra, O>
+    }
   )
 
-  : {
-    [Next in
-      Tups extends readonly [infer I] ?
-      I extends readonly [readonly [infer PH, ...infer PT], ...infer T] ?
-      PH extends string ?
-      [PH, [PT, ...T]]
-      : never : never : never
-    as Next[0]
-    ]?: _ImplCombine<[Next[1]], X, DOne, DAll, XExtra, O>
-  }
-
-  : never : never
+  : never
 ;
 
 type _Phase<D, X, O> =
@@ -133,11 +136,11 @@ type _Handler<D, X, O> =
 {
   type W = {
     // XA: { a:1 },
-    // D: 0,
+    D: 0,
     D_dog_woof: never,
     // D_rat_squeak: 123,
     // XA_cat: { b:2 },
-    D_cat_meeow: 456
+    // D_cat_meeow: 456
   };
 
   type A = _ImplSplit<W>
