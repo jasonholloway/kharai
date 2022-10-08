@@ -1,5 +1,5 @@
 import { FacNode } from "../facs";
-import { Any, Guard, Read } from "../guards/Guard";
+import { Any, Guard, ReadExpand } from "../guards/Guard";
 import { MachineCtx } from "../MachineSpace";
 import { Handler, $Root, Fac, $data, $space, $handler, $fac, $Fac, $incl, $Incl } from "../shapeShared";
 import { Merge, Simplify } from "../util";
@@ -30,7 +30,7 @@ type _Data<N, Inner = unknown> =
   keyof N extends infer K ?
   K extends `D${Separator}${infer P}` ?
   K extends keyof N ?
-  _DataTuple<P, Read<N[K], $Root, Inner>>
+  _DataTuple<P, ReadExpand<N[K], $Root, Inner>>
   : never : never : never
 ;
 
@@ -60,6 +60,17 @@ export type ReadResult = {
   fac?: Fac
 }
 
+export type CoreCtx<N, O> =
+  {
+    and:PhaseHelper<N&BuiltIns,O>,
+    ref:RefHelper<N>
+  } & MachineCtx
+;
+
+export type PathCtx<N, P, O> =
+  CoreCtx<N, O>
+;
+
 
 export type Impls<N, O> =
   _Impls<N, _Data<N>, O>
@@ -67,7 +78,7 @@ export type Impls<N, O> =
 
 type _Impls<N, DOne, O> =
   [_ImplSplit<N>] extends [infer Tups] ?
-  _ImplCombine<[Tups], {}, DOne, _Data<N, DOne>, {and:PhaseHelper<N&BuiltIns,O>,ref:RefHelper<N>}&MachineCtx, O>
+  _ImplCombine<[Tups], {}, DOne, _Data<N, DOne>, CoreCtx<N,O>, O>
   : never
 ;
 
@@ -124,12 +135,12 @@ type _ImplCombine<Tups, X0, DOne, DAll, XExtra, O> =
 ;
 
 type _Phase<D, X, O> =
-  _Handler<D,X,O> | { act:_Handler<D,X,O>, show?: (d:Read<D,$Root,O>)=>unknown[] }
+  _Handler<D,X,O> | { act:_Handler<D,X,O>, show?: (d:ReadExpand<D,$Root,O>)=>unknown[] }
 ;
 
 type _Handler<D, X, O> = 
   IsNotNever<D> extends true
-  ? (x:X, d:Read<D,$Root,O>)=>Promise<O|false>
+  ? (x:X, d:ReadExpand<D,$Root,O>)=>Promise<O|false>
   : (x:X)=>Promise<O|false>
 ;
 
@@ -212,16 +223,19 @@ export type PathFac<N, P extends string> =
   : never : never;
 
 
-export type FacContext<N, P extends string> =
+export type FacContext<N, P extends string, O> =
   Merge<
-    _PathContextMerge<N, _UpstreamFacPaths<N, P>>,
-    (
-      _JoinPaths<'XI', P> extends infer XIP ?
-      XIP extends keyof N ?
-        N[XIP]
-        : {}
-      : never
-    )
+    CoreCtx<N, O>,
+    Merge<
+      _PathContextMerge<N, _UpstreamFacPaths<N, P>>,
+      (
+        _JoinPaths<'XI', P> extends infer XIP ?
+        XIP extends keyof N ?
+          N[XIP]
+          : {}
+        : never
+      )
+    >
   >
 
   
@@ -290,9 +304,9 @@ type _JoinPaths<H extends string, T extends string> =
   type J = _UpstreamFacPaths<NN, 'rat_squeak_quietly'>
   type K = _UpstreamFacPaths<NN, 'rat_squeak_quietly_blah'>
 
-  type L = FacContext<NN, 'rat'>
-  type M = FacContext<NN, 'rat_squeak_quietly'>
-  type N = FacContext<NN, 'rat_squeak_quietly_blah'>
+  type L = FacContext<NN, 'rat', 0>
+  type M = FacContext<NN, 'rat_squeak_quietly', 0>
+  type N = FacContext<NN, 'rat_squeak_quietly_blah', 0>
 
   type _ = [A, B, C, D, E, F, G, H, I, J, K, L, M, N];
 }

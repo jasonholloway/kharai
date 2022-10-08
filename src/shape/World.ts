@@ -1,6 +1,6 @@
 import { List, OrderedMap } from "immutable";
 import { inspect, isArray, isString } from "util";
-import { Any, Guard, Many, Never, Num, Str, Read } from "../guards/Guard";
+import { Any, Guard, Many, Never, Num, Str, Read, ReadExpand } from "../guards/Guard";
 import { Id } from "../lib";
 import { MachineCtx, Peer } from "../MachineSpace";
 import { Handler, $data, $Data, $Fac, $Root, $root, $Incl, $incl, Projector } from "../shapeShared";
@@ -73,18 +73,22 @@ export module Builder {
     : [Part0, N[X], 'but not given']
   : never : never : never : never;
 
-
-  export type MergeFacImpl<N, P extends string, X> =
+  export type MergeNode<N, T, P extends string, X> =
     Merge<N,
       {
-        [k in _JoinPaths<'XI', P>]:
+        [k in (
+              T extends infer TT
+            ? TT extends string
+            ? _JoinPaths<TT, P>
+            : never : never
+        )]:
           k extends keyof N ?
           Merge<N[k],X>
           : X
       }> extends infer Merged
     ? Builder<Merged>
-    : never;
-
+    : never
+  ;
 
   export type AtPath<P extends string, N> =
     Builder<{
@@ -93,7 +97,8 @@ export module Builder {
         ? _JoinPaths<PH, _JoinPaths<P, PT>>
         : never
       ]: N[k]
-    }>;
+    }>
+  ;
 }
 
 // {
@@ -211,7 +216,7 @@ module Phase {
   type WalkData<P extends string, D, DAll, Out> = DeepSimplify<
     (
       P extends keyof D
-        ? Handler<Read<D[P], $Root, Out>, Out>
+        ? Handler<ReadExpand<D[P], $Root, Out>, Out>
         : unknown
     )
     & (
@@ -285,12 +290,27 @@ export class Builder<N> {
     throw 'err';
   }
 
-  ctxImpl<P extends FacPath<N>, X extends Partial<PathFac<N,P>>>(path: P, fn: (x: FacContext<N,P>)=>X) : Builder.MergeFacImpl<N,P,X> {
+  ctxImpl<P extends FacPath<N>, X extends Partial<PathFac<N,P>>>(path: P, fn: (x: FacContext<N,P,AndNext>)=>X) : Builder.MergeNode<N,'XI',P,X> {
     const pl = path.split(separator);
     
-    return <Builder.MergeFacImpl<N,P,X>>new Builder(
+    return <Builder.MergeNode<N,'XI',P,X>>new Builder(
       this.reg.update(root => root
         .summon(pl, () => ({ facs: List() }))
+        .update(v => ({
+          ...v,
+          facs: v.facs.push(fn)
+        })))
+    );
+  }
+
+  //a ctx block: canit 
+  //
+  //
+  //
+
+  ctx<X>(fn: (x: FacContext<N,'',AndNext>)=>X): Builder.MergeNode<N, 'XA'|'XI', '', X> {
+    return <Builder.MergeNode<N, 'XA'|'XI', '', X>>new Builder(
+      this.reg.update(root => root
         .update(v => ({
           ...v,
           facs: v.facs.push(fn)
@@ -891,9 +911,9 @@ type _JoinPaths<H extends string, T extends string> =
   type J = _UpstreamFacPaths<NN, 'rat_squeak_quietly'>
   type K = _UpstreamFacPaths<NN, 'rat_squeak_quietly_blah'>
 
-  type L = FacContext<NN, 'rat'>
-  type M = FacContext<NN, 'rat_squeak_quietly'>
-  type N = FacContext<NN, 'rat_squeak_quietly_blah'>
+  type L = FacContext<NN, 'rat', 0>
+  type M = FacContext<NN, 'rat_squeak_quietly', 0>
+  type N = FacContext<NN, 'rat_squeak_quietly_blah', 0>
 
   type _ = [A, B, C, D, E, F, G, H, I, J, K, L, M, N];
 }

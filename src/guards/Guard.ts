@@ -42,9 +42,21 @@ export function Tup<R extends Narrowable[]>(...r: R) : R {
 }
 
 
-export type Read<S, X=never, Y=never> =
-    S extends X ? Y
-  : S extends Typ<infer Tag> ? (
+export type PreExpand<S, X=never, Y=never> =
+    S extends X ?                                                   Y
+  : S extends number|string|boolean|RegExp|((v:unknown)=>unknown) ? S
+  : S extends Typ<[infer Tag2, infer Arg]> ?                        Typ<[Tag2, PreExpand<Arg,X,Y>]>
+  : S extends readonly unknown[] ?                                  { -readonly [I in keyof S]: PreExpand<S[I],X,Y> }
+  : S extends object ?                                              { -readonly [I in keyof S]: PreExpand<S[I],X,Y> }
+  : S
+;
+
+export type ReadExpand<S, X=never, Y=never> =
+  Read<PreExpand<S,X,Y>>
+;
+
+export type Read<S> =
+  S extends Typ<infer Tag> ? (
         Tag extends 'any' ? any
       : Tag extends 'num' ? number
       : Tag extends 'bool' ? boolean
@@ -53,14 +65,14 @@ export type Read<S, X=never, Y=never> =
       : Tag extends [infer Tag2, infer Arg] ? (
             Tag2 extends 'and' ? (
               Arg extends [infer A, infer B]
-                ? Read<A,X,Y> & Read<B,X,Y> : never
+                ? Read<A> & Read<B> : never
             )
           : Tag2 extends 'or' ? (
               Arg extends [infer A, infer B]
-                ? Read<A,X,Y> | Read<B,X,Y> : never
+                ? Read<A> | Read<B> : never
             )
           : Tag2 extends 'many' ? (
-              Read<Arg, X, Y>[]
+              Read<Arg>[]
             )
           : never
         )
@@ -68,13 +80,46 @@ export type Read<S, X=never, Y=never> =
     )
   : S extends (v:any) => v is (infer V) ? V
   : S extends RegExp ? string
-  : S extends string ? S
-  : S extends number ? S
-  : S extends boolean ? S
-  : S extends readonly any[] ? ({ -readonly [I in keyof S]: Read<S[I], X, Y> })
-  : S extends object ? ({ -readonly [I in keyof S]: Read<S[I], X, Y> })
-  : S;
+  : S extends string|number|boolean ? S
+  : S extends readonly any[] ? ({ -readonly [I in keyof S]: Read<S[I]> })
+  : S extends object ? ({ -readonly [I in keyof S]: Read<S[I]> })
+  : S
+;
   // : never
+
+// export type _Read<S, X=never, Y=never> =
+//     S extends X ? Y
+//   : S extends Typ<infer Tag> ? (
+//         Tag extends 'any' ? any
+//       : Tag extends 'num' ? number
+//       : Tag extends 'bool' ? boolean
+//       : Tag extends 'str' ? string
+//       : Tag extends 'never' ? never
+//       : Tag extends [infer Tag2, infer Arg] ? (
+//             Tag2 extends 'and' ? (
+//               Arg extends [infer A, infer B]
+//                 ? Read<A,X,Y> & Read<B,X,Y> : never
+//             )
+//           : Tag2 extends 'or' ? (
+//               Arg extends [infer A, infer B]
+//                 ? Read<A,X,Y> | Read<B,X,Y> : never
+//             )
+//           : Tag2 extends 'many' ? (
+//               Read<Arg, X, Y>[]
+//             )
+//           : never
+//         )
+//       : never
+//     )
+//   : S extends (v:any) => v is (infer V) ? V
+//   : S extends RegExp ? string
+//   : S extends string ? S
+//   : S extends number ? S
+//   : S extends boolean ? S
+//   : S extends readonly any[] ? ({ -readonly [I in keyof S]: Read<S[I], X, Y> })
+//   : S extends object ? ({ -readonly [I in keyof S]: Read<S[I], X, Y> })
+//   : S;
+//   // : never
 
 export type Guard<T> = (v:unknown) => v is T;
 

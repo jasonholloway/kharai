@@ -2,6 +2,8 @@ import _Monoid from '../src/_Monoid'
 import { createRunner } from './shared'
 import { rodents } from './worlds/rodents'
 import { Map } from 'immutable'
+import { World } from '../src/shape/World'
+import { act } from '../src/shape/common'
 
 describe('machines - running', () => {
   const world = rodents.build();
@@ -145,4 +147,97 @@ describe('machines - running', () => {
     ]);
   })
 
+  describe('root-level ctxs', () => {
+    it('simple', async () => {
+      const w = World
+        .shape({
+          hello: act()
+        })
+        .ctx(x => ({
+          cow: 'moo!' as const,
+        }))
+        .impl({
+          async hello({and,cow}) {
+            return and.end(cow);
+          }
+        });
+
+      const x = createRunner(w.build());
+
+      const [logs] = await Promise.all([
+        x.allLogs(),
+        x.run.boot('A', ['hello'])
+      ]);
+
+      expect(logs).toEqual([
+        ['A', ['boot']],
+        ['A', ['hello']],
+        ['A', ['end', 'moo!']]
+      ]);
+    })
+
+    it('chained', async () => {
+      const w = World
+        .shape({
+          hello: act()
+        })
+        .ctx(x => ({
+          cow: 'moo!' as const,
+        }))
+        .ctx(x => ({
+          farmyardSounds: [x.cow]
+        }))
+        .impl({
+          async hello({and,farmyardSounds}) {
+            return and.end(farmyardSounds);
+          }
+        });
+
+      const x = createRunner(w.build());
+
+      const [logs] = await Promise.all([
+        x.allLogs(),
+        x.run.boot('A', ['hello'])
+      ]);
+
+      expect(logs).toEqual([
+        ['A', ['boot']],
+        ['A', ['hello']],
+        ['A', ['end', ['moo!']]]
+      ]);
+    })
+
+    it('using core ctx', async () => {
+      const w = World
+        .shape({
+          hello: act()
+        })
+        .ctx(x => ({
+          cow: `moo ${x.id}!` as const,
+        }))
+        .impl({
+          async hello({and,cow}) {
+            return and.end(cow);
+          }
+        });
+
+      const x = createRunner(w.build());
+
+      const [logs] = await Promise.all([
+        x.allLogs(),
+        x.run.boot('A', ['hello'])
+      ]);
+
+      expect(logs).toEqual([
+        ['A', ['boot']],
+        ['A', ['hello']],
+        ['A', ['end', 'moo A!']]
+      ]);
+    })
+  })
+
+
+  //todo
+  //modules should be sealable, 
+  //ie readied for export, by stripping types inaccessible from outside
 })
