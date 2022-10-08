@@ -1,7 +1,7 @@
 import { FacNode } from "../facs";
-import { Any, Guard, ReadExpand } from "../guards/Guard";
+import { Any, Guard, PreExpand, ReadExpand } from "../guards/Guard";
 import { MachineCtx } from "../MachineSpace";
-import { Handler, $Root, Fac, $data, $space, $handler, $fac, $Fac, $incl, $Incl } from "../shapeShared";
+import { Handler, $Root, Fac, $data, $space, $handler, $fac, $Fac, $incl, $Incl, $root } from "../shapeShared";
 import { Merge, Simplify } from "../util";
 import { Builder, BuiltIns, PhaseHelper, RefHelper } from "./World";
 
@@ -62,8 +62,9 @@ export type ReadResult = {
 
 export type CoreCtx<N, O> =
   {
-    and:PhaseHelper<N&BuiltIns,O>,
-    ref:RefHelper<N>
+    and: PhaseHelper<N&BuiltIns,O>,
+    ref: RefHelper<N>,
+    expandType: <T>(t:T)=>PreExpand<T,typeof $root,O>
   } & MachineCtx
 ;
 

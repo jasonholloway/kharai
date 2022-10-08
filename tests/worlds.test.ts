@@ -81,4 +81,23 @@ describe('worlds', () => {
       ['bob', ['end', 'oink']],
     ]);
   })
+
+  it('run through phases, after seal', async () => {
+    const x = createRunner(world.seal().build());
+    
+    const [logs] = await Promise.all([
+      x.allLogs(),
+      x.run.boot('bob', ['speakToAnimals', 'hullo!'])
+    ]);
+
+    expect(logs).toEqual([
+      ['bob', ['boot']],
+      ['bob', ['speakToAnimals', 'hullo!']],
+      ['bob', ['pig_hello', 'hullo!']],
+      ['bob', ['pig_responds']],
+      ['bob', ['end', 'oink']],
+    ]);
+  })
+
+
 })

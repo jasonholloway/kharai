@@ -14,6 +14,18 @@ export type Separator = typeof separator;
 
 export module Builder {
 
+  export type Seal<N> =
+    {
+      [k in (
+        keyof N extends infer NK ?
+          NK extends string ?
+          NK extends _JoinPaths<'D', string> ?
+            NK
+          : never : never : never
+      )]: N[k]
+    }
+  ;
+
   export type TryMerge<A, B> =
     Builder<
       Merge<A,_MergeNew<A,B>>
@@ -286,6 +298,10 @@ export class Builder<N> {
     return <Builder.TryMerge<N,N2>><unknown>new Builder(this.reg.mergeWith(other.reg));
   }
 
+  seal(): Builder<Simplify<Builder.Seal<N>>> {
+    return <Builder<Simplify<Builder.Seal<N>>>><unknown>this;
+  }
+
   paths(): FacPath<N> {
     throw 'err';
   }
@@ -302,11 +318,6 @@ export class Builder<N> {
         })))
     );
   }
-
-  //a ctx block: canit 
-  //
-  //
-  //
 
   ctx<X>(fn: (x: FacContext<N,'',AndNext>)=>X): Builder.MergeNode<N, 'XA'|'XI', '', X> {
     return <Builder.MergeNode<N, 'XA'|'XI', '', X>>new Builder(
