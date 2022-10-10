@@ -140,9 +140,7 @@ type _Phase<D, X, O> =
 ;
 
 type _Handler<D, X, O> = 
-  IsNotNever<D> extends true
-  ? (x:X, d:ReadExpand<D,$Root,O>)=>Promise<O|false>
-  : (x:X)=>Promise<O|false>
+  (x:X, d:ReadExpand<D,$Root,O>)=>Promise<O|false>
 ;
 
 {
