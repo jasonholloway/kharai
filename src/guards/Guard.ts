@@ -4,7 +4,7 @@ import { inspect } from 'util'
 const $inspect = Symbol.for('nodejs.util.inspect.custom');
 const log = (x: any) => console.log(inspect(x), { depth: 5 })
 
-type Narrowable = string | number | boolean | symbol | object | undefined | void | null | {};
+export type Narrowable = string | number | boolean | symbol | object | undefined | void | null | {};
 const tup = <R extends Narrowable[]>(...r: R) => r;
 
 const $typ = Symbol('Typ');

@@ -3,7 +3,7 @@ import { act, incl } from "./shape/common";
 import { World } from "./shape/World";
 import { LocalStore } from "./LocalStore";
 import FakeStore from "./FakeStore";
-import { Any, Guard, Many, Num, Str, Tup } from "./guards/Guard";
+import { And, Any, Guard, Many, Narrowable, Num, Or, Str, Tup } from "./guards/Guard";
 
 export {
 	World,
@@ -17,5 +17,8 @@ export {
 	Any,
 	Many,
 	Str,
-	Guard
+	Guard,
+	Narrowable,
+	Or,
+	And
 };

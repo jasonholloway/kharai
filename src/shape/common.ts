@@ -461,3 +461,4 @@ export function isDataNode(v:unknown): v is DataNode<unknown> {
 export function isInclNode(v:unknown): v is InclNode {
   return !!(<any>v)[$incl];
 }
+
