@@ -1,7 +1,7 @@
-import { Id, DataMap, RawDataMap, PhaseData } from './lib'
+import { Id, DataMap, PhaseData } from './lib'
 import { MAttendee } from './Mediator'
 import { Observable, Subject, EMPTY, of } from 'rxjs'
-import { concatMap, filter, mergeMap, share, expand, takeUntil, finalize, shareReplay, tap, catchError, map } from 'rxjs/operators'
+import { concatMap, filter, mergeMap, share, expand, takeUntil, finalize, shareReplay, catchError, map } from 'rxjs/operators'
 import { Map, Set } from 'immutable'
 import { BuiltWorld, Found } from './shape/BuiltWorld'
 import { AtomRef } from './atoms'
@@ -11,6 +11,8 @@ import { isString } from './util'
 import { Run, RunCtx, RunSpace } from './RunSpace'
 
 const log = console.debug;
+
+export const $skip = Symbol('skip')
 
 export type Machine = {
   id: Id,
@@ -172,6 +174,8 @@ export class MachineSpace<N> {
                 
                 const ctx = fac!(machineCtx(this.machineSpaceCtx(x, id), id, v));
                 const out = await handler!(ctx, data[1]);
+
+                if(out === $skip) return [[Map(),0], [], result[1]];
 
                 if(out === false) return false;
                 

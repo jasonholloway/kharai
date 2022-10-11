@@ -2,7 +2,7 @@ import { List, OrderedMap } from "immutable";
 import { inspect, isArray, isString } from "util";
 import { Any, Guard, Many, Never, Num, Str, Read, ReadExpand } from "../guards/Guard";
 import { Id } from "../lib";
-import { MachineCtx, Peer } from "../MachineSpace";
+import { $skip, MachineCtx, Peer } from "../MachineSpace";
 import { Handler, $data, $Data, $Fac, $Root, $root, $Incl, $incl, Projector } from "../shapeShared";
 import { DeepMerge, DeepSimplify, delay, IsAny, IsNever, Merge, Simplify } from "../util";
 import { BuiltWorld } from "./BuiltWorld";
@@ -219,7 +219,7 @@ module Summon {
 export type PhaseHelper<N, Out> = Phase.Helper<N, Out>;
 
 module Phase {
-  export type Helper<N, Out> = WalkData<'', ExtractData<N>, Data<N>, Out>
+  export type Helper<N, Out> = Simplify<WalkData<'', ExtractData<N>, Data<N>, Out> & { skip: () => Out }>
 
   type ExtractData<N> = {
     [k in keyof N as (k extends _JoinPaths<'D', infer P> ? P : never)]: N[k]
@@ -492,6 +492,8 @@ export class Builder<N> {
       for(const [pFrom,pTo] of availPaths) {
         emplace(ac, pFrom.split(separator), pTo);
       }
+
+      (<{[k:string]:unknown}>ac)['skip'] = () => $skip;
 
       return ac;
 

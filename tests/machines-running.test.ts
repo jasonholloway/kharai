@@ -4,6 +4,7 @@ import { rodents } from './worlds/rodents'
 import { Map } from 'immutable'
 import { World } from '../src/shape/World'
 import { act } from '../src/shape/common'
+import { Num } from '../src/guards/Guard'
 
 describe('machines - running', () => {
   const world = rodents.build();
@@ -145,6 +146,60 @@ describe('machines - running', () => {
       ['saz', ['shrew', [2, false]]],
       ['saz', ['end', 'yip']]
     ]);
+  })
+
+  describe('skipping adds no weight', () => {
+    it('simple single commits', async () => {
+      const w = World
+        .shape({
+          ghost: act(Num)
+        })
+        .impl({
+          async ghost({and,attend}) {
+            const r = await attend(m => {
+              if(m) {
+                return [and.skip()]
+              }
+              else {
+                return [and.end('fin')];
+              }
+            });
+
+            return r && r[0];
+          }
+        });
+      
+      const x = createRunner(w.build(), { threshold: 1 });
+
+      const [logs] = await Promise.all([
+        x.allLogs(),
+        x.run.boot('G', ['ghost', 3]),
+
+        (async () => {
+          const g0 = await x.run.summon(['G'])
+          await g0.tell(true);
+
+          const g1 = await x.run.summon(['G'])
+          await g1.tell(true);
+
+          const g2 = await x.run.summon(['G'])
+          await g2.tell(false);
+        })()
+      ]);
+
+      expect(logs).toEqual([
+        ['G', ['boot']],
+        ['G', ['ghost', 3]],
+        ['G', ['ghost', 3]],
+        ['G', ['ghost', 3]],
+        ['G', ['end', 'fin']]
+      ]);
+
+      expect(x.store.batches).toEqual([
+        Map([['G', ['ghost', 3]]]),
+        Map([['G', ['end', 'fin']]])
+      ]);
+    })
   })
 
   describe('root-level ctxs', () => {
