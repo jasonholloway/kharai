@@ -123,7 +123,12 @@ export class MachineSpace<N> {
               return ac
             }
             else {
-              return [...ac, v];
+              if(i == 1) {
+                return [...ac, `${v}_$summon`];
+              }
+              else {
+                return [...ac, v];
+              }
             }
           },
           <string[]>[]);
