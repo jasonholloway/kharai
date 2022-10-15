@@ -24,12 +24,12 @@ export const Bool = new Typ('bool' as const);
 export const Str = new Typ('str' as const);
 export const Never = new Typ('never' as const);
 
-export function And<A extends Narrowable,B extends Narrowable>(a:A, b:B) {
-  return new Typ(tup('and', tup(a,b)));
+export function And<R extends Narrowable[]>(...r: R) {
+  return new Typ(tup('and', r));
 }
 
-export function Or<A extends Narrowable,B extends Narrowable>(a:A, b:B) {
-  return new Typ(tup('or', tup(a,b)));
+export function Or<R extends Narrowable[]>(...r: R) {
+  return new Typ(tup('or', r));
 }
 
 export function Many<V extends Narrowable>(m:V) {
@@ -65,13 +65,12 @@ export type Read<S> =
       : Tag extends 'str' ? string
       : Tag extends 'never' ? never
       : Tag extends [infer Tag2, infer Arg] ? (
+            //TODO below to be worked through tuple-wise
             Tag2 extends 'and' ? (
-              Arg extends [infer A, infer B]
-                ? Read<A> & Read<B> : never
+              _ReadAnd<Arg>
             )
           : Tag2 extends 'or' ? (
-              Arg extends [infer A, infer B]
-                ? Read<A> | Read<B> : never
+              _ReadOr<Arg>
             )
           : Tag2 extends 'many' ? (
               Read<Arg>[]
@@ -90,41 +89,21 @@ export type Read<S> =
   : S extends object ? ({ -readonly [I in keyof S]: Read<S[I]> })
   : S
 ;
-  // : never
 
-// export type _Read<S, X=never, Y=never> =
-//     S extends X ? Y
-//   : S extends Typ<infer Tag> ? (
-//         Tag extends 'any' ? any
-//       : Tag extends 'num' ? number
-//       : Tag extends 'bool' ? boolean
-//       : Tag extends 'str' ? string
-//       : Tag extends 'never' ? never
-//       : Tag extends [infer Tag2, infer Arg] ? (
-//             Tag2 extends 'and' ? (
-//               Arg extends [infer A, infer B]
-//                 ? Read<A,X,Y> & Read<B,X,Y> : never
-//             )
-//           : Tag2 extends 'or' ? (
-//               Arg extends [infer A, infer B]
-//                 ? Read<A,X,Y> | Read<B,X,Y> : never
-//             )
-//           : Tag2 extends 'many' ? (
-//               Read<Arg, X, Y>[]
-//             )
-//           : never
-//         )
-//       : never
-//     )
-//   : S extends (v:any) => v is (infer V) ? V
-//   : S extends RegExp ? string
-//   : S extends string ? S
-//   : S extends number ? S
-//   : S extends boolean ? S
-//   : S extends readonly any[] ? ({ -readonly [I in keyof S]: Read<S[I], X, Y> })
-//   : S extends object ? ({ -readonly [I in keyof S]: Read<S[I], X, Y> })
-//   : S;
-//   // : never
+type _ReadAnd<R> =
+  R extends [infer H, ...infer T] ?
+  T extends unknown[] ?
+    Read<H> & _ReadAnd<T>
+  : never : unknown
+;
+
+type _ReadOr<R> =
+  R extends [infer H, ...infer T] ?
+  T extends unknown[] ?
+    Read<H> | _ReadOr<T>
+  : never : never
+;
+
 
 export type Guard<T> = (v:unknown) => v is T;
 
@@ -158,13 +137,19 @@ export function match(s: any, v: any, cb?: ((s:any,v:any)=>undefined|boolean)): 
   }
 
   if(isAnd(s)) {
-    const [a,b] = s.t[1];
-    return match(a, v, cb) && match(b, v, cb);
+    for(const ts of s.t[1]) {
+      if(!match(ts, v)) return false;
+    }
+
+    return true;
   }
 
   if(isOr(s)) {
-    const [a,b] = s.t[1];
-    return match(a, v, cb) || match(b, v, cb);
+    for(const ts of s.t[1]) {
+      if(match(ts, v)) return true;
+    }
+
+    return false;
   }
 
   if(isMany(s) && isArray(v)) {
@@ -208,8 +193,7 @@ export function match(s: any, v: any, cb?: ((s:any,v:any)=>undefined|boolean)): 
 
   if(isObject(s) && isObject(v)) {
     for(const [sk, sv] of Object.entries(s)) {
-      const r = match(sv, v[sk], cb);
-      if(!r) return false;
+      if(!match(sv, v[sk], cb)) return false;
     }
     
     return true;
@@ -223,11 +207,11 @@ function isTyp(v: unknown): v is Typ<unknown> {
   return v instanceof Typ;//  (<{sym:unknown}>v).sym === $typ;
 }
 
-function isAnd(v: unknown): v is Typ<['and', [unknown, unknown]]> {
+function isAnd(v: unknown): v is Typ<['and', unknown[]]> {
   return isTyp(v) && isArray(v.t) && v.t[0] === 'and';
 }
 
-function isOr(v: unknown): v is Typ<['or', [unknown, unknown]]> {
+function isOr(v: unknown): v is Typ<['or', unknown[]]> {
   return isTyp(v) && isArray(v.t) && v.t[0] === 'or';
 }
 

@@ -7,11 +7,14 @@ describe('Guards', () => {
   it('can check type at compile-time via \'to\'', () => {
     Guard(Num).to<number>();
     Guard(Num).to<123>();
-    Guard([Num] as const).to<[number]>();
-    Guard([Num] as const).to<[123]>();
-    Guard({ n: Num } as const).to<{ n: number }>();
-    Guard({ n: Num } as const).to<{ n: 123 }>();
-    Guard(And(Num,3 as const)).to<3>();
+    Guard([Num]).to<[number]>();
+    Guard([Num]).to<[123]>();
+    Guard({ n: Num }).to<{ n: number }>();
+    Guard({ n: Num }).to<{ n: 123 }>();
+    Guard(And(Num,3)).to<3>();
+    Guard(And(Num,Any,3)).to<3>();
+
+    Guard(Or(333,33,3)).to<3>();
 
     Guard(<[...typeof Any[]]><unknown>undefined).to<[]>();
     Guard(<[...typeof Any[]]><unknown>undefined).to<[1, 2, 3]>();
@@ -21,8 +24,8 @@ describe('Guards', () => {
   it('using directly', () => {
     expect(Guard(Str)('boo')).toBeTruthy();
     expect(Guard([Str])(['boo'])).toBeTruthy();
-    expect(Guard(['a',Str] as const)(['a','boo'])).toBeTruthy();
-    expect(Guard(['a',Str] as const)(['b','boo'])).toBeFalsy();
+    expect(Guard(['a',Str])(['a','boo'])).toBeTruthy();
+    expect(Guard(['a',Str])(['b','boo'])).toBeFalsy();
   })
 
   it('works via vars', () => {
@@ -134,6 +137,20 @@ describe('match' , () => {
       [],
       'hello',
       0
+    ]
+  })
+
+  test({
+    pattern: {},
+    yes: [
+      {},
+      {moreStuffBecauseWeDontDoExactMatching:true},
+      []
+    ],
+    no: [
+      true,
+      123,
+      null
     ]
   })
 
@@ -426,6 +443,16 @@ describe('match' , () => {
     })
 
     test({
+      pattern: And(Any,Num,13),
+      yes: [
+        13
+      ],
+      no: [
+        4, {}
+      ]
+    })
+
+    test({
       pattern: And(Num,1),
       yes: [1],
       no: [2]
@@ -453,6 +480,14 @@ describe('match' , () => {
       pattern: Or(Num,1),
       yes: [1,2,3,4],
       no: ['']
+    })
+
+    test({
+      pattern: Or({},123,Str),
+      yes: [
+        123, {}, 'hello'
+      ],
+      no: [true, 7, null]
     })
   })
 
