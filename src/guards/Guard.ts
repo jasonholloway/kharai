@@ -10,11 +10,10 @@ const tup = <R extends Narrowable[]>(...r: R) => r;
 const $typ = Symbol('Typ');
 
 export class Typ<Tag> {
-  readonly sym = $typ;
-  readonly tag: Tag
+  readonly t: Tag
 
   constructor(tag: Tag) {
-    this.tag = tag;
+    this.t = tag;
   }
 }
 
@@ -26,21 +25,24 @@ export const Str = new Typ('str' as const);
 export const Never = new Typ('never' as const);
 
 export function And<A extends Narrowable,B extends Narrowable>(a:A, b:B) {
-  return new Typ(tup('and' as const, tup(a,b)));
+  return new Typ(tup('and', tup(a,b)));
 }
 
 export function Or<A extends Narrowable,B extends Narrowable>(a:A, b:B) {
-  return new Typ(tup('or' as const, tup(a,b)));
+  return new Typ(tup('or', tup(a,b)));
 }
 
 export function Many<V extends Narrowable>(m:V) {
-  return new Typ(tup('many' as const, m));
+  return new Typ(tup('many', m));
 }
 
 export function Tup<R extends Narrowable[]>(...r: R) : R {
   return r;
 }
 
+export function Dict<V extends Narrowable>(v:V) {
+  return new Typ(tup('dict', v));
+}
 
 export type PreExpand<S, X=never, Y=never> =
     S extends X ?                                                   Y
@@ -153,17 +155,17 @@ export function match(s: any, v: any, cb?: ((s:any,v:any)=>undefined|boolean)): 
   }
 
   if(isAnd(s)) {
-    const [a,b] = s.tag[1];
+    const [a,b] = s.t[1];
     return match(a, v, cb) && match(b, v, cb);
   }
 
   if(isOr(s)) {
-    const [a,b] = s.tag[1];
+    const [a,b] = s.t[1];
     return match(a, v, cb) || match(b, v, cb);
   }
 
   if(isMany(s) && isArray(v)) {
-    return v.every(vv => match(s.tag[1], vv, cb));
+    return v.every(vv => match(s.t[1], vv, cb));
   }
 
   if(isArray(s) && isArray(v)) {
@@ -184,12 +186,19 @@ export function match(s: any, v: any, cb?: ((s:any,v:any)=>undefined|boolean)): 
     return s(v);
   }
 
+  if(isDict(s)) {
+    return !!v
+      && typeof v === 'object'
+      && Object.getOwnPropertyNames(v)
+        .every(p => match(s.t[1], v[p]));
+  }
+
   if(isTyp(s)) {
-    switch(s.tag) {
-      case Any.tag: return true;
-      case Str.tag: return isString(v);
-      case Num.tag: return isNumber(v);
-      case Bool.tag: return isBoolean(v);
+    switch(s.t) {
+      case Any.t: return true;
+      case Str.t: return isString(v);
+      case Num.t: return isNumber(v);
+      case Bool.t: return isBoolean(v);
       default: return false;
     }
   }
@@ -208,17 +217,21 @@ export function match(s: any, v: any, cb?: ((s:any,v:any)=>undefined|boolean)): 
 
 
 function isTyp(v: unknown): v is Typ<unknown> {
-  return (<{sym:unknown}>v).sym === $typ;
+  return v instanceof Typ;//  (<{sym:unknown}>v).sym === $typ;
 }
 
 function isAnd(v: unknown): v is Typ<['and', [unknown, unknown]]> {
-  return isTyp(v) && isArray(v.tag) && v.tag[0] === 'and';
+  return isTyp(v) && isArray(v.t) && v.t[0] === 'and';
 }
 
 function isOr(v: unknown): v is Typ<['or', [unknown, unknown]]> {
-  return isTyp(v) && isArray(v.tag) && v.tag[0] === 'or';
+  return isTyp(v) && isArray(v.t) && v.t[0] === 'or';
 }
 
 function isMany(v: unknown): v is Typ<['many', unknown]> {
-  return isTyp(v) && isArray(v.tag) && v.tag[0] === 'many';
+  return isTyp(v) && isArray(v.t) && v.t[0] === 'many';
+}
+
+function isDict(v: unknown): v is Typ<['dict', unknown]> {
+  return isTyp(v) && isArray(v.t) && v.t[0] === 'dict';
 }

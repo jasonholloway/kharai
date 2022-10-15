@@ -1,5 +1,5 @@
 import { isString } from 'util'
-import { Bool, Guard, Num, Str, Many, Any, And, Or } from '../../src/guards/Guard'
+import { Bool, Guard, Num, Str, Many, Any, And, Or, Dict } from '../../src/guards/Guard'
 import { tryMatch as test } from './helpers'
 
 describe('Guards', () => {
@@ -350,6 +350,25 @@ describe('match' , () => {
         'whoompf',
         true,
         [1, 1, 1, null]
+      ]
+    })
+  })
+
+  describe('dicts', () => {
+    test({
+      pattern: Dict(Num),
+      yes: [
+        { moo: 123 },
+        { moo: 123, baa: 0 },
+        {}
+      ],
+      no: [
+        { moo: 'blah' },
+        { [0]: 'blah' },
+        123,
+        'baa',
+        null,
+        undefined
       ]
     })
   })
