@@ -1,4 +1,4 @@
-import { List, OrderedMap } from "immutable";
+import { List, OrderedMap, Set } from "immutable";
 import { inspect, isArray, isString } from "util";
 import { Any, Guard, Many, Never, Num, Str, Read, ReadExpand } from "../guards/Guard";
 import { Id } from "../lib";
@@ -6,7 +6,7 @@ import { $skip, MachineCtx, Peer } from "../MachineSpace";
 import { Handler, $data, $Data, $Fac, $Root, $root, $Incl, $incl, Projector } from "../shapeShared";
 import { DeepMerge, DeepSimplify, delay, IsAny, IsNever, Merge, Simplify } from "../util";
 import { BuiltWorld } from "./BuiltWorld";
-import { act, ctx, Data, FacContext, FacPath, Impls, incl, isDataNode, isInclNode, PathFac, SchemaNode } from "./common";
+import { act, ctx, Data, FacContext, FacPath, formPath, Impls, incl, isDataNode, isInclNode, PathFac, SchemaNode } from "./common";
 import { mergeNodeVal, NodeVal, NodeView, Registry } from "./Registry";
 
 export const separator = '_'
@@ -19,7 +19,7 @@ export module Builder {
       [k in (
         keyof N extends infer NK ?
           NK extends string ?
-          NK extends _JoinPaths<'D', string> ?
+          NK extends 'D' | _JoinPaths<'D', string> ?
             NK
           : never : never : never
       )]: N[k]
@@ -339,28 +339,21 @@ export class Builder<N> {
     return <Builder.TryMerge<N,Shape<S>>><unknown>new Builder<Shape<S>>(reg2);
 
 
-    function _walk(node: NodeView<NodeVal>, obj: SchemaNode): NodeView<NodeVal> {
-      if(isDataNode(obj)) {
-        const data = obj[$data];
-        return node
-          .update(v => ({
-            ...v,
-            guard: [data]
-          }));
-      }
+    function _walk(n0: NodeView<NodeVal>, obj: SchemaNode): NodeView<NodeVal> {
+      const n1 = isDataNode(obj)
+        ? n0.update(v => ({ ...v, guard:[obj[$data]] }))
+        : n0;
 
-      if(isInclNode(obj)) {
-        const incl = obj[$incl];
-        return node
-          .mergeIn(mergeNodeVal, incl.reg.root);
-      }
+      const n2 = isInclNode(obj)
+        ? n1.mergeIn(mergeNodeVal, obj[$incl].reg.root)
+        : n1;
 
       if(typeof obj === 'object') {
         return Object
           .getOwnPropertyNames(obj)
           .reduce(
             (n, pn) => _walk(n.pushPath(pn, ()=>({facs:List()})), (<any>obj)[pn]).popPath()!,
-            node
+            n2
           );
       }
 
@@ -386,9 +379,10 @@ export class Builder<N> {
       else return _walkSpace(n, obj, pl);
     }
 
-    function _walkSpace(n: NodeView<NodeVal>, obj: object, pl: List<string>): NodeView<NodeVal> {
+    function _walkSpace(n: NodeView<NodeVal>, obj: object, pl: List<string>, skipProps?: Set<string>): NodeView<NodeVal> {
       return Object
         .getOwnPropertyNames(obj)
+        .filter(pn => !(skipProps?.contains(pn) ?? false))
         .reduce(
           (n0, pn) => {
             const prop = (<{[k:string]:unknown}>obj)[pn];
@@ -401,9 +395,10 @@ export class Builder<N> {
     }
 
     function _walkFullPhase(n0: NodeView<NodeVal>, obj: {act?:Function, show?:Function}, pl: List<string>): NodeView<NodeVal> {
-      const n1 = obj.act ? _walkHandler(n0, obj.act, pl) : n0;
-      const n2 = obj.show ? _walkProjector(n1, obj.show, pl) : n1;
-      return n2;
+      const n1 = _walkSpace(n0, obj, pl, Set(['act','show']));
+      const n2 = obj.act ? _walkHandler(n1, obj.act, pl) : n1;
+      const n3 = obj.show ? _walkProjector(n2, obj.show, pl) : n2;
+      return n3;
     }
 
     function _walkHandler(n: NodeView<NodeVal>, fn:Function, pl: List<string>): NodeView<NodeVal> {
@@ -425,6 +420,11 @@ export class Builder<N> {
 
   build(): Builder.TryBuild<N&BuiltIns> {
     const reg0 = this.reg.mergeWith(builtIns());
+
+    // console.debug(inspect(
+    //   reg0.root.show(v => ''),
+    //   {depth:5}
+    // ));
 
     const withRelPaths = reg0.root
       .mapDepthFirst<[NodeVal, List<List<string>>]>(
@@ -461,21 +461,23 @@ export class Builder<N> {
 
     const withCtx = withAllPaths
       .mapDepthFirst<[NodeVal, List<[List<string>,List<string>]>]>(([v, paths], _, pl) => {
-        if(v.handler) {
-          const pathMap = OrderedMap(paths.map(([al,zl]) => [al.join(separator), zl.join(separator)]));
-          const and = _buildAnd(pathMap);
-          const ref = _buildRef(pathMap);
-          return [
-            {
-              ...v,
-              handler: (x:object, d:unknown) => v.handler!({ ...x, and, ref }, d)
-            },
-            paths
-          ];
-        }
-        else {
-          return [v, paths];
-        }
+        return [
+          {
+            ...v,
+            facs: v.facs.push(x => {
+
+              // console.debug(pl.join(separator))
+              
+              const pathMap = OrderedMap(paths.map(([al,zl]) => [al.join(separator), zl.join(separator)]));
+              const and = _buildAnd(pathMap);
+              const ref = _buildRef(pathMap);
+              const expandType = (x:unknown)=>x; //????????
+
+              return { ...x, and, ref, expandType };
+            })
+          },
+          paths
+        ];
       });
 
     const withoutPaths = withCtx
@@ -488,6 +490,8 @@ export class Builder<N> {
     
     function _buildAnd(availPaths: OrderedMap<string,string>): object {
       const ac = {};
+
+      // console.debug(inspect(availPaths.toJSON(), {depth:3}))
 
       for(const [pFrom,pTo] of availPaths) {
         emplace(ac, pFrom.split(separator), pTo);

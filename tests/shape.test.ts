@@ -1,20 +1,117 @@
-import { act, ctx } from "../src/shape/common";
-import { Num } from "../src/guards/Guard";
-import { Builder, World } from "../src/shape/World";
-import { world } from "./shape.world";
-import { Simplify } from "./util";
+import { act, incl } from "../src/shape/common";
+import { Any, Num, Str } from "../src/guards/Guard";
+import { World } from "../src/shape/World";
 
 describe('shape', () => {
 
-  it('super simple', () => {
+  it('finds guards and handler', () => {
     const w = World
       .shape({
-        hello: act()
+        baa: act(),
+        bleat: {
+          moo: act(Num)
+        }
+      })
+      .impl({
+        async baa() { return false },
+        bleat: {
+          async moo() { return false },
+        }
       })
       .build();
 
+    console.debug(w.nodeMap.toJSON());
 
+    const baa = w.read('baa');
+    expect(baa.guard).toBe(Any);
+    expect(baa.handler).toBeTruthy();
+    expect(baa.fac).toBeTruthy();
+
+    const moo = w.read('bleat_moo');
+    expect(moo.guard).toBe(Num);
+    expect(moo.handler).toBeTruthy();
+    expect(moo.fac).toBeTruthy();
+  })
+
+  it('does templates', () => {
+    const animal = (sound:string) => World
+      .shape({
+        encounter: act(Str)
+      })
+      .impl({
+        async encounter({and}) {
+          return and.end(sound);
+        }
+      })
+      .seal();
     
+    const w = World
+      .shape({
+        sheep: incl(animal('baa')),
+        cattle: {
+          cow: incl(animal('moo'))
+        }
+      })
+      .build();
+
+    console.debug(w.nodeMap.toJSON());
+
+    const sheep = w.read('sheep_encounter');
+    expect(sheep.guard).toBe(Str);
+    expect(sheep.handler).toBeTruthy();
+    expect(sheep.fac).toBeTruthy();
+
+    const cow = w.read('cattle_cow_encounter');
+    expect(cow.guard).toBe(Str);
+    expect(cow.handler).toBeTruthy();
+    expect(cow.fac).toBeTruthy();
+  })
+
+  it('does templates, with spread root handlers', () => {
+    const animal = (sound:string) => World
+      .shape({
+        ...act(Num),
+        encounter: act(Str)
+      })
+      .impl({
+        async act() {
+          return false;
+        },
+        
+        async encounter({and}) {
+          return and.end(sound);
+        }
+      })
+      .seal();
+
+    const a = animal('');
+    a.reg.debug();
+    
+    const w = World
+      .shape({
+        sheep: incl(animal('baa')),
+        cattle: {
+          cow: incl(animal('moo'))
+          //TODO get rid of incl - it's ugly
+        }
+      })
+      .build();
+
+    //TODO root phase types not making it through build
+
+    //TODO encounter guard not making it
+
+    console.debug(w.nodeMap.toJSON());
+
+    const sheep = w.read('sheep_encounter');
+    expect(sheep.guard).toBe(Str);
+    expect(sheep.handler).toBeTruthy();
+    expect(sheep.fac).toBeTruthy();
+
+    const cow = w.read('cattle_cow_encounter');
+    expect(cow.guard).toBe(Str);
+    expect(cow.handler).toBeTruthy();
+    expect(cow.fac).toBeTruthy();
   })
   
   // const w0 = World

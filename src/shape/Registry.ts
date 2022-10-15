@@ -29,11 +29,15 @@ class Node<V> {
   }
 
   show<T>(fn: (v:V)=>T): unknown {
-    return this.children
-      .reduce(
-        (ac, c, k) => ({ ...ac, [k]: { v: fn(c.val), c: c.show(fn) } }),
-        {}
-      );
+    return this.children.count() > 0
+      ? {
+          v: fn(this.val),
+          c: this.children
+              .reduce(
+                (ac, c, k) => ({ ...ac, [k]: c.show(fn) }),
+                {})
+        }
+      : { v: fn(this.val) } 
   }
 
   withVal(fn: (v:V)=>V): Node<V> {
@@ -93,7 +97,10 @@ export class Registry {
   }
 
   debug() {
-    console.debug(inspect(this.root.show(v => true), { depth: 8 }));
+    console.debug(inspect(
+      this.root.show(v => (v.guard ? 'G' : '') + (v.handler ? 'H' : '') + (v.projector ? 'P' : '')),
+      { depth: 8 }
+    ));
   }
 }
 

@@ -1,7 +1,6 @@
 import { incl } from '../shape/common';
 import { World } from '../shape/World';
-import { Str } from '../guards/Guard'
-import simpleSet from './simpleSet'
+import stringSet from './stringSet'
 import FakeStore from '../FakeStore';
 import { newRun } from '../Run';
 import { delay } from '../util';
@@ -10,10 +9,10 @@ describe('stringSet', () => {
 
   const w = World
     .shape({
-      strs: incl(simpleSet(Str))
+      strs: incl(stringSet())
     });
 
-  it('accumulates unique values', async () => {
+  it('accumulates strings into store', async () => {
     const store = new FakeStore(10);
     const run = newRun(w.build(), store, store);
 
@@ -33,6 +32,6 @@ describe('stringSet', () => {
     await delay(50);
 
     expect(store.saved.get('@strs'))
-      .toEqual(['strs_run', ['hello','jason']]);
+      .toEqual(['strs_run', { hello: true, jason: true }]);
   })
 })

@@ -2,7 +2,7 @@ import _Monoid from '../src/_Monoid'
 import { act, incl } from '../src/shape/common';
 import { World } from '../src/shape/World';
 import { createRunner } from './shared'
-import { Guard, Str } from '../src/guards/Guard'
+import { Guard, Narrowable, Str } from '../src/guards/Guard'
 
 const animal = (says:string) =>
   World
@@ -100,4 +100,22 @@ describe('worlds', () => {
   })
 
 
+
 })
+
+
+export default <T extends Narrowable>(t:T) =>
+  World
+    .shape({
+      moo: act(t)
+    })
+    .impl({
+      async moo({}, d) {
+        d
+        throw 123;
+        // return and.moo(d);
+      }
+    });
+
+//how can we be sure that ReadExpand is not never?
+//if it is never, it should be unknown

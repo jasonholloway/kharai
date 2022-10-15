@@ -26,16 +26,6 @@ const dummySaver: Saver<DataMap> = {
   }
 };
 
-// I want to map lumps!
-// but they're not immutable, is the problem
-// they're leaves of a big mutable global graph
-// 
-// the overall atom tree would be mapped
-// but then when mutations are made, 
-// these will be mutations of the mapped graph
-//
-// alternatively: for testing purposes, the data alone is mapped out
-
 export function newRun<N>
 (
   world: BuiltWorld<N>,
@@ -100,6 +90,17 @@ export function newRun<N>
     machine$,
     log$,
     complete,
+
+    async session(fn: ()=>Promise<void>) {
+      const release = this.keepAlive();
+      try {
+        await fn();
+      }
+      finally {
+        release();
+        this.complete();
+      }
+    },
 
     async summon(ids: Id[]) {
       const machines = space.summon(Set(ids));

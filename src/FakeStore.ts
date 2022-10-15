@@ -46,12 +46,15 @@ export default class FakeStore implements Loader, Saver<DataMap> {
   load = (ids: Set<Id>) => this._loader.load(ids);
 
   prepare(v: DataMap): {save():Promise<void>}|false {
+    // console.debug('PREP', v.toJSON());
     return v.count() <= this._maxBatch
       && {
         save: async () => {
+          // console.debug('SAVE', v.toJSON())
           const rawified = v.map(({data}) => data);
           this.batches.push(rawified);
           this.saved = this.saved.merge(rawified);
+          // console.debug('SAVED', this.saved.toJSON())
         }
       };
   }

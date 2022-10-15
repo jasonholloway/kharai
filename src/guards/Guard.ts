@@ -76,6 +76,9 @@ export type Read<S> =
           : Tag2 extends 'many' ? (
               Read<Arg>[]
             )
+          : Tag2 extends 'dict' ? (
+              { [k:string]: Read<Arg> }
+            )
           : never
         )
       : never

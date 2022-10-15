@@ -2,13 +2,15 @@ import { Id, DataMap, PhaseData } from './lib'
 import { MAttendee } from './Mediator'
 import { Observable, Subject, EMPTY, of } from 'rxjs'
 import { concatMap, filter, mergeMap, share, expand, takeUntil, finalize, shareReplay, catchError, map } from 'rxjs/operators'
-import { Map, Set } from 'immutable'
+import { List, Map, Seq, Set } from 'immutable'
 import { BuiltWorld, Found } from './shape/BuiltWorld'
 import { AtomRef } from './atoms'
 import { inspect, isArray, isFunction } from 'util'
 import { Loader } from './Store'
 import { isString } from './util'
 import { Run, RunCtx, RunSpace } from './RunSpace'
+import { separator } from './shape/World'
+import { formPath } from './shape/common'
 
 const log = console.debug;
 
@@ -110,6 +112,8 @@ export class MachineSpace<N> {
   }
 
   private async _loadData(id: Id): Promise<unknown> {
+    const { world } = this;
+    
     const loaded = await this.loader.load(Set([id]));
     return loaded.get(id) || _synth(id);
 
@@ -117,25 +121,33 @@ export class MachineSpace<N> {
       const matched = /^@([\w_]+)(,([^,]*))*/.exec(id);
 
       if(matched) {
-        return matched.reduce(
-          (ac,v,i) => {
-            if(i % 2 == 0) {
-              return ac
-            }
-            else {
-              if(i == 1) {
-                return [...ac, `${v}_$summon`];
-              }
-              else {
-                return [...ac, v];
-              }
-            }
-          },
-          <string[]>[]);
+        let path = matched[1];
+
+        const candidates = Seq([
+          path,
+          formPath([path, '$summon'])
+        ]);
+
+        for(const p of candidates) {
+
+          const f = world.read(p);
+
+          if(f && f.handler) {
+            return matched
+              .slice(2)
+              .reduce((ac,v,i) => {
+                if(i % 2 == 0) {
+                  return ac
+                }
+                else {
+                  return [...ac, v];
+                }
+              }, [p]);
+          }
+        }
       }
-      else {
-        return ['boot'];
-      }
+
+      return ['boot'];
     }
   }
 

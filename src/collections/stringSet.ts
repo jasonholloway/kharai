@@ -1,33 +1,30 @@
-import { Many, Guard, Narrowable, Or, Tup } from "../guards/Guard";
+import { Dict, Str, Guard, Or, Tup } from "../guards/Guard";
 import { act } from "../shape/common";
 import { World } from "../shape/World";
-import { Set } from 'immutable'
 
-export default <T extends Narrowable>(t:T) =>
+export default () =>
   World
     .shape({
       ...act(),
-      run: act(Many(t)),
+      run: act(Dict(true)),
     })
-    .ctx(({expandType}) => ({
-      isCommand: Guard(Tup(Or('add','delete'), expandType(t)))
+    .ctx(() => ({
+      isCommand: Guard(Tup(Or('add','delete'), Str))
     }))
     .impl({
       async act({and}) {
-        return and.run([]);
+        return and.run({});
       },
 
       run: {
         async act({and,attend,isCommand}, data) {
           const [next] = await attend(m => {
             if(isCommand(m)) {
-              const [cmd, v] = m;
+              const [cmd, str] = m;
 
               switch(cmd) {
                 case 'add':
-                  //MOST NAFF!!!
-                  const nextData = Set([...data, v]).toJSON();
-                  return [and.run(nextData), true];
+                  return [and.run({ ...data, [str]: true }), true];
                 case 'delete':
                   return [and.run(data), true];
               }
