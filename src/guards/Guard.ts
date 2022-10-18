@@ -73,10 +73,10 @@ export type Read<S> =
               _ReadOr<Arg>
             )
           : Tag2 extends 'many' ? (
-              Read<Arg>[]
+              readonly Read<Arg>[]
             )
           : Tag2 extends 'dict' ? (
-              { [k:string]: Read<Arg> }
+              Readonly<{ [k:string]: Read<Arg> }>
             )
           : never
         )

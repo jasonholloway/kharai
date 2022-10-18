@@ -1,4 +1,14 @@
 * Kharai Todo
+** finish off stringSet
+*** delete
+*** has
+*** add -> put
+*** union etc
 ** excise `incl`
 ** saving on max age of lump
 ** split out guards proj
+** session() should be better: eg drain saves?
+** fix cloud build
+** can't insist on immutability
+*** each state to be stored as string and hydrated
+   

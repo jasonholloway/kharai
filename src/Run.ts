@@ -10,6 +10,7 @@ import { BuiltWorld } from './shape/BuiltWorld'
 import { Data } from './shape/common'
 import { RealTimer } from './Timer'
 import { RunSpace } from './RunSpace'
+import { Bool, Narrowable, Str } from './guards/Guard'
 
 const MD = new MonoidData();
 
@@ -118,7 +119,10 @@ export function newRun<N>
         },
 
         log$: of(...machines).pipe(
-          mergeMap(m => m.log$))
+          mergeMap(m => m.log$)),
+
+        api<A>(api:A) {
+        }
       }
     },
 
@@ -136,6 +140,8 @@ export function newRun<N>
     }
   };
 }
+
+
 
 
 

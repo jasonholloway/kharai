@@ -12,20 +12,20 @@ describe('stringSet', () => {
       strs: incl(stringSet())
     });
 
-  it('accumulates strings into store', async () => {
+  it('accumulates strings into set', async () => {
     const store = new FakeStore(10);
     const run = newRun(w.build(), store, store);
 
     await run.session(async () => {
       const m = await run.summon(['@strs']);
 
-      const r0 = await m.tell(['add', 'hello']);
+      const r0 = await m.tell(['put', 'hello']);
       expect(r0).toEqual([true]);
 
-      const r1 = await m.tell(['add', 'hello']);
+      const r1 = await m.tell(['put', 'hello']);
       expect(r1).toEqual([true]);
 
-      const r2 = await m.tell(['add', 'jason']);
+      const r2 = await m.tell(['put', 'jason']);
       expect(r2).toEqual([true]);
     });
 
@@ -34,4 +34,39 @@ describe('stringSet', () => {
     expect(store.saved.get('@strs'))
       .toEqual(['strs_run', { hello: true, jason: true }]);
   })
+
+  it('deletes from set', async () => {
+    const store = new FakeStore(10);
+    const run = newRun(w.build(), store, store);
+
+    await run.session(async () => {
+      const m = await run.summon(['@strs']);
+
+      const r0 = await m.tell(['put', 'hello']);
+      expect(r0).toEqual([true]);
+
+      const r1 = await m.tell(['put', 'jason']);
+      expect(r1).toEqual([true]);
+
+      const r2 = await m.tell(['delete', 'jason']);
+      expect(r2).toEqual([true]);
+
+      const r3 = await m.tell(['has', 'jason']);
+      expect(r3).toEqual([false]);
+
+      const r4 = await m.tell(['has', 'hello']);
+      expect(r4).toEqual([true]);
+    });
+
+    await delay(50);
+
+    expect(store.saved.get('@strs'))
+      .toEqual(['strs_run', { hello: true, jason: false }]);
+  })
 })
+
+// you choose your communication contract...
+// which somehow gets dispatched against the summoned machine
+//
+//
+//

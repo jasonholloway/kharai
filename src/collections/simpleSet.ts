@@ -10,7 +10,10 @@ export default <T extends Narrowable>(t:T) =>
       run: act(Many(t)),
     })
     .ctx(({expandType}) => ({
-      isCommand: Guard(Tup(Or('add','delete'), expandType(t)))
+      isCommand: Guard(Or(
+        Tup('add', expandType(t)),
+        Tup('delete', expandType(t))
+      ))
     }))
     .impl({
       async act({and}) {
