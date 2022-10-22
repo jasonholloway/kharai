@@ -2,7 +2,7 @@ import { Id, DataMap } from './lib'
 import { ReplaySubject, of, concat, Subject, merge } from 'rxjs'
 import { tap, startWith, endWith, scan, takeWhile, finalize, map, ignoreElements, concatMap, filter, shareReplay, mergeMap } from 'rxjs/operators'
 import { Set } from 'immutable'
-import { ConvenedFn, Convener, MachineSpace, Signal } from './MachineSpace'
+import { ConvenedFn, Convener, Frisked, MachineSpace, Signal } from './MachineSpace'
 import { Lump, runSaver } from './AtomSpace'
 import MonoidData from './MonoidData'
 import { Saver, Loader } from './Store'
@@ -42,7 +42,9 @@ export function newRun<N>
 
   const lump$ = new ReplaySubject<Lump<DataMap>>(100); //could be better wired up this
 
-  const space = new MachineSpace(world, loader, new RunSpace(MD, new RealTimer(kill$), signal$, lump$), signal$)
+  const runSpace = new RunSpace<DataMap,Frisked[]>(MD, new RealTimer(kill$), signal$, lump$);
+  const space = new MachineSpace(world, loader, runSpace, signal$);
+
   const { machine$ } = space;
 
   const log$ = machine$.pipe(
@@ -91,6 +93,9 @@ export function newRun<N>
     machine$,
     log$,
     complete,
+
+    runSpace,
+    space,
 
     async session(fn: ()=>Promise<void>) {
       const release = this.keepAlive();

@@ -34,7 +34,7 @@ const SetApi = Api({
 
 // needed for summon(): a hook on the RunCtx
 
-function summon(id: string): Promise<unknown> {
+function meet(id: string): Promise<unknown> {
   throw 123;
 }
 
@@ -53,7 +53,7 @@ xdescribe('comms', () => {
       })
       .impl({
         async newt({and}) {
-          const fred0 = await summon('Fred');
+          const fred0 = await meet('Fred');
           
           const fred = await bind('Fred', SetApi);
 
@@ -120,6 +120,15 @@ xdescribe('comms', () => {
 //
 // 
 //
+//
+
+// three things to be done:
+// summon() via a hook
+// api binding
+// async convos
+//
+// summon seems juiciest for now
+// plus: async convos are more fundamental, requirement-wise
 //
 
 

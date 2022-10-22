@@ -2,14 +2,13 @@ import { Id, DataMap, PhaseData } from './lib'
 import { MAttendee } from './Mediator'
 import { Observable, Subject, EMPTY, of } from 'rxjs'
 import { concatMap, filter, mergeMap, share, expand, takeUntil, finalize, shareReplay, catchError, map } from 'rxjs/operators'
-import { List, Map, Seq, Set } from 'immutable'
+import { Map, Seq, Set } from 'immutable'
 import { BuiltWorld, Found } from './shape/BuiltWorld'
 import { AtomRef } from './atoms'
 import { inspect, isArray, isFunction } from 'util'
 import { Loader } from './Store'
 import { isString } from './util'
 import { Run, RunCtx, RunSpace } from './RunSpace'
-import { separator } from './shape/World'
 import { formPath } from './shape/common'
 
 const log = console.debug;
@@ -25,7 +24,7 @@ type _Machine = Machine & {
   run: Run<DataMap,Frisked[]>
 }
 
-type Frisked = { data:PhaseData, phase:Found };
+export type Frisked = { data:PhaseData, phase:Found };
 
 export type Log = {
   data: [string, unknown],

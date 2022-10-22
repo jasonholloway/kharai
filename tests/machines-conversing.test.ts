@@ -2,6 +2,8 @@ import _Monoid from '../src/_Monoid'
 import { parakeet } from './worlds/parakeet'
 import { delay } from '../src/util';
 import { createRunner, showData } from './shared';
+import { World } from './shape/World';
+import { act } from './shape/common';
 
 describe('machines - conversing', () => {
   const world = parakeet.build();
@@ -67,6 +69,88 @@ describe('machines - conversing', () => {
 
       expect(showData(b[3]))
         .toHaveProperty('b', ['end', {a:'hello', b:'hello'}])
+    });
+  })
+
+  it('meet from outside', async () => {
+    const w = World
+      .shape({
+        gerbil: act()
+      })
+      .impl({
+        async gerbil({attend}) {
+          await attend(m => {
+            return [`I heard ${m}`];
+          });
+
+          return false;
+        }
+      });
+
+    const x = createRunner(w.build(), {save:false});
+
+    //problem: ref and other bits are created
+    //as normal ctx additions in World.ts
+    //and put in the fac tree
+    //whereas they are really another layer
+    //independent of machine, but shaped by the world
+
+    //so we have another layer of context
+    //to be mixed in up top
+    //but - this context is already worked out for actual
+    //machines 
+
+    //the issue is, for this to be contextual, everything points towards it expecting bits like 'id'
+    //it shouldn't be contextual for root context - it's a peculiar situation in fact
+
+    //we want to use the context of '/'
+    //but we have no id, and we don't want to see and options that rely on there being an addressable entity in play
+    //it's like: contextual bits not relying on ids should be added generally
+    //but, ref does rely on id, or rather on path - which is not the same thing in fact
+    //
+    //id could be omitted, and anything deriving from it?
+    //though user-added bits would not be omitted
+    //
+    //do we then want a freshly-created context? yup. and this means sharing submethods as much as possible
+    //if not the entire thing
+    //
+
+    await x.run.space.runArbitrary(async ({meet,ref}) => {
+      const gary = await meet(ref.gerbil());
+      gary.chat('squeak');
+      //...
+      
+    });
+  })
+
+  it('meet from inside', async () => {
+    const w = World
+      .shape({
+        rat: act(),
+        gerbil: act()
+      })
+      .impl({
+        async rat({meet,ref}) {
+          const gary = await meet(ref.gerbil());
+
+          gary.chat('squeak');
+
+          return false;
+        },
+
+        async gerbil({attend}) {
+          await attend(m => {
+            return [`I heard ${m}`];
+          });
+
+          return false;
+        }
+      });
+
+    const x = createRunner(w.build(), {save:false});
+
+    await x.run.session(async () => {
+      //...
     });
   })
 })
