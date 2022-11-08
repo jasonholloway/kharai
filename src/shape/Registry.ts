@@ -19,13 +19,15 @@ export function mergeNodeVal(a: NodeVal, b: NodeVal) {
 }
 
 
-class Node<V> {
+class Node<V, V0 extends V = V> {
+  readonly v0: V0;
   readonly val: V
-  readonly children: Map<string,Node<V>>;
+  readonly children: Map<string,Node<V,V0>>;
 
-  constructor(val: V, children: Map<string,Node<V>>) {
-    this.val = val;
-    this.children = children;
+  constructor(v0: V0, val?: V, children?: Map<string,Node<V,V0>>) {
+    this.v0 = v0;
+    this.val = val ?? v0;
+    this.children = children ?? Map();
   }
 
   show<T>(fn: (v:V)=>T): unknown {
@@ -40,41 +42,50 @@ class Node<V> {
       : { v: fn(this.val) } 
   }
 
-  withVal(fn: (v:V)=>V): Node<V> {
-    return new Node(fn(this.val), this.children);
+  withVal(fn: (v:V)=>V): Node<V,V0> {
+    return new Node(this.v0, fn(this.val), this.children);
   }
 
-  withChildren(fn: (r:Map<string,Node<V>>)=>Map<string,Node<V>>) {
-    return new Node(this.val, fn(this.children));
+  withChildren(fn: (r:Map<string,Node<V,V0>>)=>Map<string,Node<V,V0>>) {
+    return new Node(this.v0, this.val, fn(this.children));
   }
 
-  mergeWith(mergeFn: (a:V,b:V)=>V, other: Node<V>): Node<V> {
+  mergeWith(mergeFn: (a:V,b:V)=>V, other: Node<V,V0>): Node<V,V0> {
     const a = this.val;
     const b = other.val;
 
     return new Node(
+      this.v0,
       mergeFn(a, b),
       this.children.mergeWith((x,y)=>x.mergeWith(mergeFn, y), other.children)
     );
   }
 
-  mapDepthFirst<B>(fn: (v: V, children: Map<string,B>, path: List<string>)=>B): Node<B> {
+  mapDepthFirst<B,B0 extends B = B>(b0:B0, fn: (v: V, children: Map<string,B>, path: List<string>)=>B): Node<B,B0> {
     return _map(this, List());
 
-    function _map(n: Node<V>, path: List<string>): Node<B> {
+    function _map(n: Node<V,V0>, path: List<string>): Node<B,B0> {
       const children2 = n.children
         .map((c, k) => _map(c, path.push(k)));
 
-      return new Node(fn(n.val, children2.map(c => c.val), path), children2);
+      return new Node(
+        b0,
+        fn(n.val, children2.map(c => c.val), path),
+        children2
+      );
     }
   }
 
-  mapBreadthFirst<B>(fn: (v: V, ancestors: List<B>, path: List<string>)=>B): Node<B> {
+  mapBreadthFirst<B,B0 extends B = B>(b0:B0, fn: (v: V, ancestors: List<B>, path: List<string>)=>B): Node<B,B0> {
     return _map(this, List(), List());
 
-    function _map(n: Node<V>, l: List<B>, pl: List<string>): Node<B> {
+    function _map(n: Node<V,V0>, l: List<B>, pl: List<string>): Node<B,B0> {
       const b = fn(n.val, l, pl);
-      return new Node(b, n.children.map((c,k) => _map(c, l.push(b), pl.push(k))));
+      return new Node(
+        b0,
+        b,
+        n.children.map((c,k) => _map(c, l.push(b), pl.push(k)))
+      );
     }
   }
 }
@@ -86,7 +97,7 @@ export class Registry {
     this.root = root;
   }
 
-  static empty = new Registry(new Node({ facs: List() }, Map()));
+  static empty = new Registry(new Node({facs:List()}));
 
   update(fn: (v:NodeView<NodeVal>) => NodeView<NodeVal>): Registry {
     return new Registry(fn(new NodeView(this.root)).done());
@@ -117,12 +128,12 @@ export class NodeView<A> {
     this.stack = unwinds ?? Stack();
   }
 
-  summon(pl: string[], fac: ()=>A): NodeView<A> {
-    return pl.reduce((v, p) => v.pushPath(p, fac), <NodeView<A>>this);
+  summon(pl: string[]): NodeView<A> {
+    return pl.reduce((v, p) => v.pushPath(p), <NodeView<A>>this);
   }
 
-  pushPath(p: string, fac:()=>A): NodeView<A> {
-    const child = this.node.children.get(p, false) || new Node(fac(), Map());
+  pushPath(p: string): NodeView<A> {
+    const child = this.node.children.get(p, false) || new Node(this.node.v0);
     return new NodeView(
       child,
       this.stack.push(n2 => this.node.withChildren(r => r.set(p, n2)))

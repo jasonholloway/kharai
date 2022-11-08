@@ -12,29 +12,33 @@ export class BuiltWorld<N> {
   constructor(reg: Registry) {
 
     const withFacs = reg.root
-      .mapBreadthFirst<Found>((v, upstreams) => {
-        const parentFac = upstreams.last()?.fac ?? <Fac>((x)=>x);
-        
-        return <Found>{
-          guard: v.guard ? v.guard[0] : undefined, //REALLY THIS SHOULD STILL BE WRAPPED
-          handler: v.handler,
-          projector: v.projector,
-          fac: _combineFacs(List([parentFac]).concat(v.facs))
-        };
-      }); 
+      .mapBreadthFirst<Found>(
+        {},
+        (v, upstreams) => {
+          const parentFac = upstreams.last()?.fac ?? <Fac>((x)=>x);
+
+          return <Found>{
+            guard: v.guard ? v.guard[0] : undefined, //REALLY THIS SHOULD STILL BE WRAPPED
+            handler: v.handler,
+            projector: v.projector,
+            fac: _combineFacs(List([parentFac]).concat(v.facs))
+          };
+        }); 
 
     this.nodeMap = Map(
       withFacs
-        .mapDepthFirst<List<[List<string>, Found]>>((v, downstreams) =>
-          downstreams
-            .map((ppl, k) => ppl.map(([pl,v]) => <[List<string>, Found]>[pl.insert(0, k), v]))
-            .valueSeq()
-            .flatMap(ppl => ppl)
-            .toList()
-            .push([List(), v]))
-        .val
-        .map(([pl,v]) => <[string,Found]>[formPath([...pl]), v])
-    );
+        .mapDepthFirst<List<[List<string>, Found]>>(
+          List(),
+          (v, downstreams) =>
+            downstreams
+              .map((ppl, k) => ppl.map(([pl,v]) => <[List<string>, Found]>[pl.insert(0, k), v]))
+              .valueSeq()
+              .flatMap(ppl => ppl)
+              .toList()
+              .push([List(), v]))
+          .val
+          .map(([pl,v]) => <[string,Found]>[formPath([...pl]), v])
+      );
 
     function _combineFacs(facs: List<Fac>): Fac {
       return facs.reduce(

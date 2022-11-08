@@ -72,7 +72,8 @@ export class MachineSpace<N> {
   async runArbitrary<R>(fn: (x:MachineSpaceCtx)=>Promise<R>): Promise<R> {
     const result = await this.runs.newRun()
       .run(async x => {
-        const r = await fn(this.machineSpaceCtx(x))
+        const ctx = this.machineSpaceCtx(x);
+        const r = await fn(ctx)
         return [[Map(),0], [], r];
       });
 

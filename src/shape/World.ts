@@ -3,7 +3,7 @@ import { inspect, isArray, isString } from "util";
 import { Any, Guard, Many, Never, Num, Str, Read, ReadExpand } from "../guards/Guard";
 import { Id } from "../lib";
 import { $skip, MachineCtx, Peer } from "../MachineSpace";
-import { Handler, $data, $Data, $Fac, $Root, $root, $Incl, $incl, Projector } from "../shapeShared";
+import { Handler, $data, $Data, $Fac, $Root, $root, $Incl, $incl, Projector, Fac } from "../shapeShared";
 import { DeepMerge, DeepSimplify, delay, IsAny, IsNever, Merge, Simplify } from "../util";
 import { BuiltWorld } from "./BuiltWorld";
 import { act, ctx, Data, FacContext, FacPath, Impls, incl, isDataNode, isInclNode, PathFac, SchemaNode } from "./common";
@@ -311,7 +311,7 @@ export class Builder<N> {
     
     return <Builder.MergeNode<N,'XI',P,X>>new Builder(
       this.reg.update(root => root
-        .summon(pl, () => ({ facs: List() }))
+        .summon(pl)
         .update(v => ({
           ...v,
           facs: v.facs.push(fn)
@@ -352,7 +352,7 @@ export class Builder<N> {
         return Object
           .getOwnPropertyNames(obj)
           .reduce(
-            (n, pn) => _walk(n.pushPath(pn, ()=>({facs:List()})), (<any>obj)[pn]).popPath()!,
+            (n, pn) => _walk(n.pushPath(pn), (<any>obj)[pn]).popPath()!,
             n2
           );
       }
@@ -386,7 +386,7 @@ export class Builder<N> {
         .reduce(
           (n0, pn) => {
             const prop = (<{[k:string]:unknown}>obj)[pn];
-            const n1 = n0.pushPath(pn, ()=>({facs:List()}));
+            const n1 = n0.pushPath(pn);
             const n2 = _walk(n1, prop, pl.push(pn));
             return n2.popPath()!;
           },
@@ -428,6 +428,7 @@ export class Builder<N> {
 
     const withRelPaths = reg0.root
       .mapDepthFirst<[NodeVal, List<List<string>>]>(
+        [{facs:List()},List()],
         (val, children) => {
           const r = children
             .map(([,ps], k) => {
@@ -448,6 +449,7 @@ export class Builder<N> {
 
     const withAllPaths = withRelPaths
       .mapBreadthFirst<[NodeVal, List<[List<string>,List<string>]>]>(
+        [{facs:List()},List()],
         ([val,ps], ancestors, route) => {
           const ancestorPaths = ancestors
             .flatMap(([,ls]) => ls);
@@ -460,28 +462,30 @@ export class Builder<N> {
       );
 
     const withCtx = withAllPaths
-      .mapDepthFirst<[NodeVal, List<[List<string>,List<string>]>]>(([v, paths], _, pl) => {
-        return [
-          {
-            ...v,
-            facs: v.facs.push(x => {
+      .mapDepthFirst<[NodeVal, List<[List<string>,List<string>]>]>(
+        [{facs:List()},List()],
+        ([v, paths], _, pl) => {
+          return [
+            {
+              ...v,
+              facs: v.facs.push(x => {
 
-              // console.debug(pl.join(separator))
-              
-              const pathMap = OrderedMap(paths.map(([al,zl]) => [al.join(separator), zl.join(separator)]));
-              const and = _buildAnd(pathMap);
-              const ref = _buildRef(pathMap);
-              const expandType = (x:unknown)=>x; //????????
+                // console.debug(pl.join(separator))
 
-              return { ...x, and, ref, expandType };
-            })
-          },
-          paths
-        ];
-      });
+                const pathMap = OrderedMap(paths.map(([al,zl]) => [al.join(separator), zl.join(separator)]));
+                const and = _buildAnd(pathMap);
+                const ref = _buildRef(pathMap);
+                const expandType = (x:unknown)=>x; //????????
+
+                return { ...x, and, ref, expandType };
+              })
+            },
+            paths
+          ];
+        });
 
     const withoutPaths = withCtx
-      .mapBreadthFirst(([v]) => v);
+      .mapBreadthFirst({facs:List<Fac>()}, ([v]) => v);
 
     const reg1 = new Registry(withoutPaths);
 
@@ -596,7 +600,7 @@ function builtIns() {
     })));
 
   reg = reg.update(n => n
-    .pushPath('boot', ()=>({facs:List()}))
+    .pushPath('boot')
     .update(v => ({
       ...v,
       guard: [Any],
@@ -620,7 +624,7 @@ function builtIns() {
     .popPath()!);
 
   reg = reg.update(n => n
-    .pushPath('end', ()=>({facs:List()}))
+    .pushPath('end')
     .update(v => ({
       ...v,
       guard: [Any],
@@ -631,7 +635,7 @@ function builtIns() {
     .popPath()!);
   
   reg = reg.update(n => n
-    .pushPath('wait', ()=>({facs:List()}))
+    .pushPath('wait')
     .update(v => ({
       ...v,
       guard: [[Num, $root]],
@@ -647,7 +651,7 @@ function builtIns() {
   const isMediatorMessage = Guard(['yo', Str, Any] as const);
 
   reg = reg.update(n => n
-    .pushPath('$meetAt', ()=>({facs:List()}))
+    .pushPath('$meetAt')
     .update(v => ({
       ...v,
       guard: [[Str, $root]],
@@ -676,8 +680,8 @@ function builtIns() {
 
 
   reg = reg.update(n => n
-    .pushPath('$m', ()=>({facs:List()}))
-    .pushPath('place', ()=>({facs:List()}))
+    .pushPath('$m')
+    .pushPath('place')
     .update(v => ({
       ...v,
       guard: [Never],
@@ -689,8 +693,8 @@ function builtIns() {
     .popPath()!);
 
   reg = reg.update(n => n
-    .pushPath('$m', ()=>({facs:List()}))
-    .pushPath('gather', ()=>({facs:List()}))
+    .pushPath('$m')
+    .pushPath('gather')
     .update(v => ({
       ...v,
       guard: [[Num, Many(Str)]],
@@ -729,8 +733,8 @@ function builtIns() {
 
 
   reg = reg.update(n => n
-    .pushPath('$m', ()=>({facs:List()}))
-    .pushPath('mediate', ()=>({facs:List()}))
+    .pushPath('$m')
+    .pushPath('mediate')
     .update(v => ({
       ...v,
       guard: [[Num,Str,Many(Str),Many(Str)]],
