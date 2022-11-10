@@ -15,7 +15,7 @@ export function formPath(pl: readonly string[]) {
 
 export type NodePath<N> = _ExtractPath<'S'|'D', keyof N> | ''
 export type DataPath<N> = _ExtractPath<'D', keyof N>
-export type FacPath<N> = _ExtractPath<'XA', keyof N>
+export type FacPath<N> = _ExtractPath<_JoinPaths<'XA','M'>, keyof N>
 
 type _ExtractPath<A extends string, K> =
     K extends A ? ''
@@ -72,9 +72,11 @@ export type PathCtx<N, P, O> =
   CoreCtx<N, O>
 ;
 
-
 export type Impls<N, O> =
-  _Impls<N, _Data<N>, O>
+  (_Impls<N, _Data<N>, O> & { M:unknown })['M'] extends infer I ?
+  I extends undefined ? never
+  : I
+  : never
 ;
 
 type _Impls<N, DOne, O> =
@@ -83,11 +85,29 @@ type _Impls<N, DOne, O> =
   : never
 ;
 
+// export type MachineTree<N> =
+//   {
+//     [
+//       Found in
+//         keyof N extends infer K ?
+//         K extends _JoinPaths<infer Prefix, infer Rest> ?
+//         Rest extends 'M'
+//         ? [K, Prefix]
+//         : Rest extends _JoinPaths<'M', infer Path> ?
+//           [K, _JoinPaths<Prefix, Path>]
+//         : never : never : never
+//       as Found[1]
+//     ]: N[Found[0]]
+//   }
+// ;
+
 type _ImplSplit<N> =
   keyof N extends infer K ?
   K extends keyof N ?
   K extends string ?
+
   TupPopHead<PathList<K>> extends [infer Tail, infer Popped, infer Head] ?
+
   Popped extends true ?
     readonly [Tail, Head, N[K]]
   : never : never : never : never : never
@@ -146,16 +166,17 @@ type _Handler<D, X, O> =
 {
   type W = {
     // XA: { a:1 },
-    D: 0,
-    D_dog_woof: never,
-    // D_rat_squeak: 123,
-    // XA_cat: { b:2 },
+    D_M: 0,
+    D_M_dog_woof: never,
+    // D_M_rat_squeak: 123,
+    // XA_M_cat: { b:2 },
     // D_cat_meeow: 456
   };
-
+    
   type A = _ImplSplit<W>
   type B = _ImplCombine<[A], {}, 'DOne', 'DAll',{},'O'>
   type C = Impls<W,'O'>
+
 
   type _ = [A, B, C]
 }
@@ -216,19 +237,24 @@ type _Handler<D, X, O> =
 
 
 export type PathFac<N, P extends string> =
-  _JoinPaths<'XA', P> extends infer XP ?
+  _JoinPaths<'M', P> extends infer MP ?
+  MP extends string ?
+  _JoinPaths<'XA', MP> extends infer XP ?
   XP extends keyof N ?
     N[XP]
-  : never : never;
+  : never : never : never : never
+;
 
 
 export type FacContext<N, P extends string, O> =
+  _JoinPaths<'M', P> extends infer MP ?
+  MP extends string ?
   Merge<
     CoreCtx<N, O>,
     Merge<
-      _PathContextMerge<N, _UpstreamFacPaths<N, P>>,
+      _PathContextMerge<N, _UpstreamFacPaths<N, MP>>,
       (
-        _JoinPaths<'XI', P> extends infer XIP ?
+        _JoinPaths<'XI', MP> extends infer XIP ?
         XIP extends keyof N ?
           N[XIP]
           : {}
@@ -236,6 +262,8 @@ export type FacContext<N, P extends string, O> =
       )
     >
   >
+  : never : never
+;
 
   
 

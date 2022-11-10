@@ -6,8 +6,14 @@ import { $skip, MachineCtx, Peer } from "../MachineSpace";
 import { Handler, $data, $Data, $Fac, $Root, $root, $Incl, $incl, Projector, Fac } from "../shapeShared";
 import { DeepMerge, DeepSimplify, delay, IsAny, IsNever, Merge, Simplify } from "../util";
 import { BuiltWorld } from "./BuiltWorld";
-import { act, ctx, Data, FacContext, FacPath, Impls, incl, isDataNode, isInclNode, PathFac, SchemaNode } from "./common";
+import { act, ctx, Data, FacContext, FacPath, Impls, incl, isDataNode, isInclNode, MachineTree, PathFac, SchemaNode } from "./common";
 import { mergeNodeVal, NodeVal, NodeView, Registry } from "./Registry";
+
+
+// difficult to know what to do tbh
+// introducing the M node is simplest and most consistent, though slightly disappointing
+//
+
 
 export const separator = '_'
 export type Separator = typeof separator;
@@ -219,10 +225,12 @@ module Summon {
 export type PhaseHelper<N, Out> = Phase.Helper<N, Out>;
 
 module Phase {
-  export type Helper<N, Out> = Simplify<WalkData<'', ExtractData<N>, Data<N>, Out> & { skip: () => Out }>
+  export type Helper<N, Out> =
+    Simplify<WalkData<'', ExtractData<N>, Data<N>, Out> & { skip: () => Out }>
+  ;
 
   type ExtractData<N> = {
-    [k in keyof N as (k extends _JoinPaths<'D', infer P> ? P : never)]: N[k]
+    [k in keyof N as (k extends _JoinPaths<_JoinPaths<'D','M'>, infer P> ? P : never)]: N[k]
   };
 
   type WalkData<P extends string, D, DAll, Out> = DeepSimplify<
@@ -306,11 +314,12 @@ export class Builder<N> {
     throw 'err';
   }
 
-  ctxImpl<P extends FacPath<N>, X extends Partial<PathFac<N,P>>>(path: P, fn: (x: FacContext<N,P,AndNext>)=>X) : Builder.MergeNode<N,'XI',P,X> {
+  ctxImpl<P extends FacPath<N>, X extends Partial<PathFac<N,P>>>(path: P, fn: (x: FacContext<N,P,AndNext>)=>X) : Builder.MergeNode<N,_JoinPaths<'XI', 'M'>,P,X> {
     const pl = path.split(separator);
     
     return <Builder.MergeNode<N,'XI',P,X>>new Builder(
       this.reg.update(root => root
+        .pushPath('M')
         .summon(pl)
         .update(v => ({
           ...v,
@@ -322,6 +331,7 @@ export class Builder<N> {
   ctx<X>(fn: (x: FacContext<N,'',AndNext>)=>X): Builder.MergeNode<N, 'XA'|'XI', '', X> {
     return <Builder.MergeNode<N, 'XA'|'XI', '', X>>new Builder(
       this.reg.update(root => root
+        .pushPath('M')
         .update(v => ({
           ...v,
           facs: v.facs.push(fn)
@@ -335,7 +345,11 @@ export class Builder<N> {
   }
 
   shape<S extends SchemaNode>(s: S): Builder.TryMerge<N, Shape<S>> {
-    const reg2 = this.reg.update(root => _walk(root, s))
+    const reg2 = this.reg
+      .update(root =>
+        _walk(root.pushPath('M'), s).popPath()!
+      );
+
     return <Builder.TryMerge<N,Shape<S>>><unknown>new Builder<Shape<S>>(reg2);
 
 
@@ -362,7 +376,10 @@ export class Builder<N> {
   }
 
   impl<S extends Impls<N,AndNext>>(s: S): Builder<N> {
-    return new Builder<N>(this.reg.update(root => _walk(root, s, List())));
+    return new Builder<N>(this.reg
+      .update(root =>
+        _walk(root.pushPath('M'), s, List()).popPath()!
+      ));
 
     function _walk(n: NodeView<NodeVal>, obj: unknown, pl: List<string>): NodeView<NodeVal> {
       if(obj === undefined) return n;
@@ -574,19 +591,19 @@ export class Builder<N> {
 
 
 export type BuiltIns = {
-  XA: MachineCtx //todo these could be collapsed into simple, single 'X' entry
-  XI: MachineCtx
-  D_boot: never,
-  D_end: typeof Any,
-  D_wait: [typeof Num | typeof Str, $Root],
+  XA_M: MachineCtx //todo these could be collapsed into simple, single 'X' entry
+  XI_M: MachineCtx
+  D_M_boot: never,
+  D_M_end: typeof Any,
+  D_M_wait: [typeof Num | typeof Str, $Root],
 
 
   //BELOW NEED TO BE ABLE TO DO ANDS IN GUARDS!
-  D_$meetAt: [typeof Str, $Root],
+  D_M_$meetAt: [typeof Str, $Root],
 
-  D_$m_place: never,
-  D_$m_gather: [typeof Num, typeof Str[]], //[version, ids]
-  D_$m_mediate: [typeof Num, typeof Str, typeof Str[], typeof Str[]] //[version, key, ids, remnants]
+  D_M_$m_place: never,
+  D_M_$m_gather: [typeof Num, typeof Str[]], //[version, ids]
+  D_M_$m_mediate: [typeof Num, typeof Str, typeof Str[], typeof Str[]] //[version, key, ids, remnants]
 };
 
 
@@ -793,13 +810,13 @@ type _Walk<O, P extends string = ''> =
 
 type _DataWalk<O, P extends string> =
   $Data extends keyof O ?
-  [_JoinPaths<'D', P>, O[$Data]]
+  [_JoinPaths<_JoinPaths<'D', 'M'>, P>, O[$Data]]
   : never
 ;
 
 type _FacWalk<O, P extends string> =
   $Fac extends keyof O ?
-  [_JoinPaths<'XA', P>, O[$Fac]]
+  [_JoinPaths<_JoinPaths<'XA', 'M'>, P>, O[$Fac]]
   : never
 ;
 

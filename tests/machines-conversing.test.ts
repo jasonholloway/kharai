@@ -115,6 +115,24 @@ describe('machines - conversing', () => {
     //if not the entire thing
     //
 
+    // problem is, meet and ref are from the user tree
+    // which is brought in, built up given a certain path
+    // and in this arbitrary context we... have a path?
+    // we certainly could have a path, though a fixed one
+    // a path of $client or similar
+    // which would give us all the normal refs etc
+    //
+    // some contextual bits _really_ do refer to the machine context though
+    // 'id' might be salvagable, but 'isFresh()'???
+    // a run context isnt a machine
+    //
+    // 
+    // NEEDED: a $root path
+    // effectively a hidden path in the tree
+    // shape() always puts things under $machine
+    // then there'd be an effectively hidden $client path
+    // root would be nicely shared
+
     await x.run.space.runArbitrary(async ({meet,ref}) => {
       const gary = await meet(ref.gerbil());
       gary.chat('squeak');
