@@ -36,7 +36,7 @@ describe('running', () => {
 			})
 		  .impl({
 				async rat({and,convene}) {
-					await convene(['@mouse,123'], ps => {
+					await convene(['@M_mouse,123'], ps => {
 						return ps.first()?.chat('squeak');
 					});
 
@@ -59,9 +59,9 @@ describe('running', () => {
 		expect(logs).toEqual([
 			['R', ['*_boot']],
 			['R', ['M_rat']],
-			['@mouse,123', ['M_mouse', '123']],
+			['@M_mouse,123', ['M_mouse', '123']],
 			['R', ['*_end', 'dunrattin']],
-			['@mouse,123', ['*_end', '123 squeak']],
+			['@M_mouse,123', ['*_end', '123 squeak']],
 		]);
 	})
 
@@ -96,9 +96,9 @@ describe('running', () => {
 		expect(logs).toEqual([
 			['R', ['*_boot']],
 			['R', ['M_rat']],
-			['@mouse,123', ['M_mouse', '123']],
+			['@M_mouse,123', ['M_mouse', '123']],
 			['R', ['*_end', 'dunrattin']],
-			['@mouse,123', ['*_end', '123 squeak']],
+			['@M_mouse,123', ['*_end', '123 squeak']],
 		]);
 	})
 
@@ -138,9 +138,9 @@ describe('running', () => {
 		expect(logs).toEqual([
 			['R', ['*_boot']],
 			['R', ['M_beasties_rat']],
-			['@beasties_mouse,123', ['M_beasties_mouse', '123']],
+			['@M_beasties_mouse,123', ['M_beasties_mouse', '123']],
 			['R', ['*_end', 'dunrattin']],
-			['@beasties_mouse,123', ['*_end', '123 squeak']],
+			['@M_beasties_mouse,123', ['*_end', '123 squeak']],
 		]);
 	})
 

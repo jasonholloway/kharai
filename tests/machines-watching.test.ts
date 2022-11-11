@@ -45,7 +45,7 @@ describe('machines - watching', () => {
 				x.run.boot('Cat', ['M_follow', ['Mouse', 10]]),
 			]);
 
-			const [,seen] = cat.find(([p]) => p == 'end')!;
+			const [,seen] = cat.find(([p]) => p == '*_end')!;
 
 			expect(seen).toEqual([
 				['M_runAround', 3],
@@ -143,8 +143,7 @@ describe('machines - watching', () => {
 				['Gord', ['M_runAround', 1]],
 				['Gord', ['M_runAround', 0]],
 				['Ed', ['M_follow', ['Gord', 1]]],
-
-				['Ed', ['*_end', [['runAround', 0]]]],
+				['Ed', ['*_end', [['M_runAround', 0]]]],
 			]);
 		})
 	});

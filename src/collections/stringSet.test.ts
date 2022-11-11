@@ -17,7 +17,7 @@ describe('stringSet', () => {
     const run = newRun(w.build(), store, store);
 
     await run.session(async () => {
-      const m = await run.summon(['@strs']);
+      const m = await run.summon(['@M_strs']);
 
       const r0 = await m.tell(['put', 'hello']);
       expect(r0).toEqual([true]);
@@ -31,8 +31,8 @@ describe('stringSet', () => {
 
     await delay(50);
 
-    expect(store.saved.get('@strs'))
-      .toEqual(['strs_run', { hello: true, jason: true }]);
+    expect(store.saved.get('@M_strs'))
+      .toEqual(['M_strs_run', { hello: true, jason: true }]);
   })
 
   it('deletes from set', async () => {
@@ -40,7 +40,7 @@ describe('stringSet', () => {
     const run = newRun(w.build(), store, store);
 
     await run.session(async () => {
-      const m = await run.summon(['@strs']);
+      const m = await run.summon(['@M_strs']);
 
       const r0 = await m.tell(['put', 'hello']);
       expect(r0).toEqual([true]);
@@ -60,8 +60,8 @@ describe('stringSet', () => {
 
     await delay(50);
 
-    expect(store.saved.get('@strs'))
-      .toEqual(['strs_run', { hello: true, jason: false }]);
+    expect(store.saved.get('@M_strs'))
+      .toEqual(['M_strs_run', { hello: true, jason: false }]);
   })
 })
 

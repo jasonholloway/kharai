@@ -20,7 +20,7 @@ describe('shape', () => {
       })
       .build();
 
-    console.debug(w.nodeMap.toJSON());
+    // console.debug(w.nodeMap.toJSON());
 
     const baa = w.read('M_baa');
     expect(baa.guard).toBe(Any);
@@ -54,7 +54,7 @@ describe('shape', () => {
       })
       .build();
 
-    console.debug(w.nodeMap.toJSON());
+    // console.debug(w.nodeMap.toJSON());
 
     const sheep = w.read('M_sheep_encounter');
     expect(sheep.guard).toBe(Str);
@@ -101,7 +101,7 @@ describe('shape', () => {
 
     //TODO encounter guard not making it
 
-    console.debug(w.nodeMap.toJSON());
+    // console.debug(w.nodeMap.toJSON());
 
     const sheep = w.read('M_sheep_encounter');
     expect(sheep.guard).toBe(Str);
