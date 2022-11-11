@@ -14,8 +14,8 @@ describe('machines - saving', () => {
 		const x = createRunner(world, { save: false });
 
 		await Promise.all([
-			x.run.boot('baz', ['guineaPig_runAbout']),
-			x.run.boot('loz', ['guineaPig_gruntAt', 'baz']),
+			x.run.boot('baz', ['M_guineaPig_runAbout']),
+			x.run.boot('loz', ['M_guineaPig_gruntAt', 'baz']),
 			x.run.log$.toPromise()
 		]);
 
@@ -25,11 +25,11 @@ describe('machines - saving', () => {
 		expect(baz.map(showData))
 			.toEqual([
 				{
-					baz: ['guineaPig_runAbout']
+					baz: ['M_guineaPig_runAbout']
 				},
 				{
-					baz: ['end', 'grunt!'],
-					loz: ['end', 'squeak!']
+					baz: ['*_end', 'grunt!'],
+					loz: ['*_end', 'squeak!']
 				}
 			]);
 
@@ -40,11 +40,11 @@ describe('machines - saving', () => {
 		expect(loz.map(showData))
 			.toEqual([
 				{
-					loz: ['guineaPig_gruntAt', 'baz']
+					loz: ['M_guineaPig_gruntAt', 'baz']
 				},
 				{
-					baz: ['end', 'grunt!'],
-					loz: ['end', 'squeak!']
+					baz: ['*_end', 'grunt!'],
+					loz: ['*_end', 'squeak!']
 				}
 			]);
 
@@ -57,8 +57,8 @@ describe('machines - saving', () => {
 		const x = createRunner(world);
 
 		await Promise.all([
-			x.run.boot('baz', ['guineaPig_runAbout']),
-			x.run.boot('loz', ['guineaPig_gruntAt', 'baz']),
+			x.run.boot('baz', ['M_guineaPig_runAbout']),
+			x.run.boot('loz', ['M_guineaPig_gruntAt', 'baz']),
 			x.run.log$.toPromise()
 		]);
 
@@ -67,15 +67,15 @@ describe('machines - saving', () => {
 
 		expect(baz).toHaveLength(1);
 		expect(showData(baz[0])).toEqual({
-			baz: ['end', 'grunt!'],
-			loz: ['end', 'squeak!']
+			baz: ['*_end', 'grunt!'],
+			loz: ['*_end', 'squeak!']
 		});
 		expect(baz[0].parents()).toHaveLength(0);
 
 		expect(loz).toHaveLength(1);
 		expect(showData(loz[0])).toEqual({
-			baz: ['end', 'grunt!'],
-			loz: ['end', 'squeak!']
+			baz: ['*_end', 'grunt!'],
+			loz: ['*_end', 'squeak!']
 		});
 		expect(loz[0].parents()).toHaveLength(0);
 	})
@@ -84,7 +84,7 @@ describe('machines - saving', () => {
 		const x = createRunner(world, { maxBatchSize:2 });
 
 		await Promise.all([
-			x.run.boot('a', ['gerbil_spawn', [0, 2]]),
+			x.run.boot('a', ['M_gerbil_spawn', [0, 2]]),
 			x.run.log$.toPromise()
 		]);
 
@@ -92,15 +92,15 @@ describe('machines - saving', () => {
 			.flatMap(b => b.valueSeq())
 			.map(v => <[string]>v)
 			.map(([p]) => p)])
-			.not.toContain('boot')
+			.not.toContain('*_boot')
 	})
 
 	xit('too small batch size throws error', async () => {
 		const x = createRunner(world, { maxBatchSize:1 });
 
 		await Promise.all([
-			x.run.boot('m', ['gerbil_spawn', [0, 2]]),
-			x.run.boot('a', ['gerbil_spawn', [0, 2]]),
+			x.run.boot('m', ['M_gerbil_spawn', [0, 2]]),
+			x.run.boot('a', ['M_gerbil_spawn', [0, 2]]),
 			x.run.log$.toPromise()
 		]);
 
@@ -111,17 +111,17 @@ describe('machines - saving', () => {
 		const x = createRunner(world, { maxBatchSize:24, threshold:10 });
 
 		await Promise.all([
-			x.run.boot('m', ['gerbil_spawn', [0, 2]]),
-			x.run.boot('a', ['gerbil_spawn', [0, 2]]),
+			x.run.boot('m', ['M_gerbil_spawn', [0, 2]]),
+			x.run.boot('a', ['M_gerbil_spawn', [0, 2]]),
 			x.run.log$.toPromise()
 		]);
 
-		expect(x.store.saved.get('a')).toEqual(['gerbil_spawn', [2, 2]]);
-		expect(x.store.saved.get('m')).toEqual(['gerbil_spawn', [2, 2]]);
-		expect(x.store.saved.get('aa')).toEqual(['gerbil_spawn', [0, 2]]);
-		expect(x.store.saved.get('ma')).toEqual(['gerbil_spawn', [0, 2]]);
-		expect(x.store.saved.get('ab')).toEqual(['gerbil_spawn', [0, 2]]);
-		expect(x.store.saved.get('mb')).toEqual(['gerbil_spawn', [0, 2]]);
+		expect(x.store.saved.get('a')).toEqual(['M_gerbil_spawn', [2, 2]]);
+		expect(x.store.saved.get('m')).toEqual(['M_gerbil_spawn', [2, 2]]);
+		expect(x.store.saved.get('aa')).toEqual(['M_gerbil_spawn', [0, 2]]);
+		expect(x.store.saved.get('ma')).toEqual(['M_gerbil_spawn', [0, 2]]);
+		expect(x.store.saved.get('ab')).toEqual(['M_gerbil_spawn', [0, 2]]);
+		expect(x.store.saved.get('mb')).toEqual(['M_gerbil_spawn', [0, 2]]);
 
 		expect(x.store.batches).toHaveLength(1)
 
@@ -131,7 +131,7 @@ describe('machines - saving', () => {
 		const x = createRunner(world, { maxBatchSize:24, threshold:5 });
 
 		await Promise.all([
-			x.run.boot('a', ['gerbil_spawn', [0, 2]]),
+			x.run.boot('a', ['M_gerbil_spawn', [0, 2]]),
 			x.run.log$.toPromise()
 		]);
 
@@ -156,8 +156,8 @@ describe('machines - saving', () => {
 		const x = createRunner(world, { maxBatchSize:5, threshold:4 });
 
 		await Promise.all([
-			x.run.boot('m', ['gerbil_spawn', [0, 2]]),
-			x.run.boot('a', ['gerbil_spawn', [0, 2]]),
+			x.run.boot('m', ['M_gerbil_spawn', [0, 2]]),
+			x.run.boot('a', ['M_gerbil_spawn', [0, 2]]),
 			x.run.log$.toPromise()
 		]);
 
@@ -181,7 +181,7 @@ describe('machines - saving', () => {
 			const x = createRunner(w, { maxBatchSize:5, threshold:5 });
 
 			await Promise.all([
-				x.run.boot('a', ['blah', 0]),
+				x.run.boot('a', ['M_blah', 0]),
 				x.run.log$.toPromise()
 			]);
 
@@ -199,7 +199,7 @@ describe('machines - saving', () => {
 			//so - when the log completes, the run should close the saver, which will trigger
 			//the final save(s)
 
-			expect(x.store.saved.get('a')).toEqual(['blah', c]);
+			expect(x.store.saved.get('a')).toEqual(['M_blah', c]);
 		})
 })
 

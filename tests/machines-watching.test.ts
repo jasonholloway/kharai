@@ -41,30 +41,30 @@ describe('machines - watching', () => {
 
 			const [cat] = await Promise.all([
 				x.logs('Cat'),
-				x.run.boot('Mouse', ['runAround', 3]),
-				x.run.boot('Cat', ['follow', ['Mouse', 10]]),
+				x.run.boot('Mouse', ['M_runAround', 3]),
+				x.run.boot('Cat', ['M_follow', ['Mouse', 10]]),
 			]);
 
 			const [,seen] = cat.find(([p]) => p == 'end')!;
 
 			expect(seen).toEqual([
-				['runAround', 3],
-				['runAround', 2],
-				['runAround', 1],
-				['runAround', 0]
+				['M_runAround', 3],
+				['M_runAround', 2],
+				['M_runAround', 1],
+				['M_runAround', 0]
 			])
 		})
 
 		it('loaded state immediately visible; implies dispatch', async () => {
 			const x = createRunner(animals.build(), {
 				data: Map({
-					Gwen: ['pauseThenRunAround', 13]
+					Gwen: ['M_pauseThenRunAround', 13]
 				}),
 				save: false
 			});
 
 			await Promise.all([
-				x.run.boot('Gareth', ['follow', ['Gwen', 3]]),
+				x.run.boot('Gareth', ['M_follow', ['Gwen', 3]]),
 				x.run.log$.toPromise()
 			]);
 
@@ -72,10 +72,10 @@ describe('machines - watching', () => {
 
 			expect(showData(gareth[1]))
 				.toHaveProperty('Gareth', 
-					['end', [
-						['pauseThenRunAround', 13],
-						['runAround', 13],
-						['runAround', 12]
+					['*_end', [
+						['M_pauseThenRunAround', 13],
+						['M_runAround', 13],
+						['M_runAround', 12]
 					]]
 				);
 		})
@@ -105,8 +105,8 @@ describe('machines - watching', () => {
 			const x = createRunner(animals.build(), { save: false });
 
 			await Promise.all([
-				x.run.boot('Gord', ['runAround', 1]),
-				x.run.boot('Ed', ['follow', ['Gord', 1]]),
+				x.run.boot('Gord', ['M_runAround', 1]),
+				x.run.boot('Ed', ['M_follow', ['Gord', 1]]),
 				x.run.log$.toPromise()
 			]);
 
@@ -129,22 +129,22 @@ describe('machines - watching', () => {
 			const x = createRunner(animals.build(), { save: false });
 
 			await Promise.all([
-				x.run.boot('Gord', ['runAround', 2]),
-				x.run.boot('Ed', ['wait', [100, ['follow', ['Gord', 1]]]])
+				x.run.boot('Gord', ['M_runAround', 2]),
+				x.run.boot('Ed', ['*_wait', [100, ['M_follow', ['Gord', 1]]]])
 			]);
 
 			const logs = await x.allLogs();
 
 			expect(logs).toEqual([
-				['Gord', ['boot']],
-				['Ed', ['boot']],
-				['Gord', ['runAround', 2]],
-				['Ed', ['wait', [100, ['follow', ['Gord', 1]]]]],
-				['Gord', ['runAround', 1]],
-				['Gord', ['runAround', 0]],
-				['Ed', ['follow', ['Gord', 1]]],
+				['Gord', ['*_boot']],
+				['Ed', ['*_boot']],
+				['Gord', ['M_runAround', 2]],
+				['Ed', ['*_wait', [100, ['M_follow', ['Gord', 1]]]]],
+				['Gord', ['M_runAround', 1]],
+				['Gord', ['M_runAround', 0]],
+				['Ed', ['M_follow', ['Gord', 1]]],
 
-				['Ed', ['end', [['runAround', 0]]]],
+				['Ed', ['*_end', [['runAround', 0]]]],
 			]);
 		})
 	});
@@ -200,22 +200,22 @@ describe('machines - watching', () => {
 
 			const [logs] = await Promise.all([
 				x.allLogs(),
-				x.run.boot('bob', ['hopAbout', 0]),
-				x.run.boot('babs', ['view', ['bob', 2]])
+				x.run.boot('bob', ['M_hopAbout', 0]),
+				x.run.boot('babs', ['M_view', ['bob', 2]])
 			]);
 
 			expect(logs).toEqual([
-				['bob', ['boot']],
-				['babs', ['boot']],
-				['bob', ['hopAbout', 0]],
-				['babs', ['view', ['bob', 2]]],
-				['bob', ['hopAbout', 1]],
-				['bob', ['hopAbout', 2]],
-				['bob', ['chirp', 3]],
-				['bob', ['hopAbout', 4]],
-				['bob', ['hopAbout', 5]],
-				['bob', ['chirp', 6]],
-				['babs', ['seen', [
+				['bob', ['*_boot']],
+				['babs', ['*_boot']],
+				['bob', ['M_hopAbout', 0]],
+				['babs', ['M_view', ['bob', 2]]],
+				['bob', ['M_hopAbout', 1]],
+				['bob', ['M_hopAbout', 2]],
+				['bob', ['M_chirp', 3]],
+				['bob', ['M_hopAbout', 4]],
+				['bob', ['M_hopAbout', 5]],
+				['bob', ['M_chirp', 6]],
+				['babs', ['M_seen', [
 					'chirp 3!',
 					'chirp 6!'
 				]]]

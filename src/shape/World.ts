@@ -10,11 +10,6 @@ import { act, ctx, Data, FacContext, FacPath, Impls, incl, isDataNode, isInclNod
 import { mergeNodeVal, NodeVal, NodeView, Registry } from "./Registry";
 
 
-// difficult to know what to do tbh
-// introducing the M node is simplest and most consistent, though slightly disappointing
-//
-
-
 export const separator = '_'
 export type Separator = typeof separator;
 
@@ -240,7 +235,7 @@ module Phase {
   ;
 
   type ExtractData<N> = {
-    [k in keyof N as (k extends _JoinPaths<_JoinPaths<'D','M'>, infer P> ? P : never)]: N[k]
+    [k in keyof N as (k extends _JoinPaths<_JoinPaths<'D','M'|'*'>, infer P> ? P : never)]: N[k]
   };
 
   type WalkData<P extends string, D, DAll, Out> = DeepSimplify<
@@ -604,17 +599,17 @@ export class Builder<N> {
 export type BuiltIns = {
   XA_M: MachineCtx //todo these could be collapsed into simple, single 'X' entry
   XI_M: MachineCtx
-  D_M_boot: never,
-  D_M_end: typeof Any,
-  D_M_wait: [typeof Num | typeof Str, $Root],
+  'D_*_boot': never,
+  'D_*_end': typeof Any,
+  'D_*_wait': [typeof Num | typeof Str, $Root],
 
 
   //BELOW NEED TO BE ABLE TO DO ANDS IN GUARDS!
-  D_M_$meetAt: [typeof Str, $Root],
+  'D_*_$meetAt': [typeof Str, $Root],
 
-  D_M_$m_place: never,
-  D_M_$m_gather: [typeof Num, typeof Str[]], //[version, ids]
-  D_M_$m_mediate: [typeof Num, typeof Str, typeof Str[], typeof Str[]] //[version, key, ids, remnants]
+  'D_*_$m_place': never,
+  'D_*_$m_gather': [typeof Num, typeof Str[]], //[version, ids]
+  'D_*_$m_mediate': [typeof Num, typeof Str, typeof Str[], typeof Str[]] //[version, key, ids, remnants]
 };
 
 
@@ -628,6 +623,7 @@ function builtIns() {
     })));
 
   reg = reg.update(n => n
+    .pushPath('*')
     .pushPath('boot')
     .update(v => ({
       ...v,
@@ -652,6 +648,7 @@ function builtIns() {
     .popPath()!);
 
   reg = reg.update(n => n
+    .pushPath('*')
     .pushPath('end')
     .update(v => ({
       ...v,
@@ -663,6 +660,7 @@ function builtIns() {
     .popPath()!);
   
   reg = reg.update(n => n
+    .pushPath('*')
     .pushPath('wait')
     .update(v => ({
       ...v,
@@ -679,6 +677,7 @@ function builtIns() {
   const isMediatorMessage = Guard(['yo', Str, Any] as const);
 
   reg = reg.update(n => n
+    .pushPath('*')
     .pushPath('$meetAt')
     .update(v => ({
       ...v,
@@ -708,6 +707,7 @@ function builtIns() {
 
 
   reg = reg.update(n => n
+    .pushPath('*')
     .pushPath('$m')
     .pushPath('place')
     .update(v => ({
@@ -721,6 +721,7 @@ function builtIns() {
     .popPath()!);
 
   reg = reg.update(n => n
+    .pushPath('*')
     .pushPath('$m')
     .pushPath('gather')
     .update(v => ({
@@ -761,6 +762,7 @@ function builtIns() {
 
 
   reg = reg.update(n => n
+    .pushPath('*')
     .pushPath('$m')
     .pushPath('mediate')
     .update(v => ({

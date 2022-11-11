@@ -40,9 +40,11 @@ type _ExtractPath<A extends string, K> =
 
 
 export type Data<N> =
-  MachineTree<N> extends infer M ?
-  _Data<M, _Data<M>>
-  : never
+  _Data<N, _Data<N>>
+;
+  // MachineTree<N> extends infer M ?
+  // _Data<M, _Data<M>>
+  // : never
 
 type _Data<N, Inner = unknown> =
   keyof N extends infer K ?

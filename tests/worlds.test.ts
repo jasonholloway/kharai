@@ -69,15 +69,15 @@ describe('worlds', () => {
     
     const [logs] = await Promise.all([
       x.allLogs(),
-      x.run.boot('bob', ['speakToAnimals', 'hullo!'])
+      x.run.boot('bob', ['M_speakToAnimals', 'hullo!'])
     ]);
 
     expect(logs).toEqual([
-      ['bob', ['boot']],
-      ['bob', ['speakToAnimals', 'hullo!']],
-      ['bob', ['pig_hello', 'hullo!']],
-      ['bob', ['pig_responds']],
-      ['bob', ['end', 'oink']],
+      ['bob', ['*_boot']],
+      ['bob', ['M_speakToAnimals', 'hullo!']],
+      ['bob', ['M_pig_hello', 'hullo!']],
+      ['bob', ['M_pig_responds']],
+      ['bob', ['*_end', 'oink']],
     ]);
   })
 
@@ -86,20 +86,17 @@ describe('worlds', () => {
     
     const [logs] = await Promise.all([
       x.allLogs(),
-      x.run.boot('bob', ['speakToAnimals', 'hullo!'])
+      x.run.boot('bob', ['M_speakToAnimals', 'hullo!'])
     ]);
 
     expect(logs).toEqual([
-      ['bob', ['boot']],
-      ['bob', ['speakToAnimals', 'hullo!']],
-      ['bob', ['pig_hello', 'hullo!']],
-      ['bob', ['pig_responds']],
-      ['bob', ['end', 'oink']],
+      ['bob', ['*_boot']],
+      ['bob', ['M_speakToAnimals', 'hullo!']],
+      ['bob', ['M_pig_hello', 'hullo!']],
+      ['bob', ['M_pig_responds']],
+      ['bob', ['*_end', 'oink']],
     ]);
   })
-
-
-
 })
 
 

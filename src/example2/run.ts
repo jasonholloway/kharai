@@ -49,8 +49,8 @@ const x = newRun(world, store, store);
 
 Promise.all([
   x.log$,
-  x.boot('ao', ['AO_scrape', 0]),
-  x.boot('very', ['Very_scrape', 0])
+  x.boot('ao', ['M_AO_scrape', 0]),
+  x.boot('very', ['M_Very_scrape', 0])
 ]);
 
 

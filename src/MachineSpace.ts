@@ -9,7 +9,7 @@ import { inspect, isArray, isFunction } from 'util'
 import { Loader } from './Store'
 import { isString } from './util'
 import { Run, RunCtx, RunSpace } from './RunSpace'
-import { formPath } from './shape/common'
+import { formPath, separator } from './shape/common'
 
 const log = console.debug;
 
@@ -147,7 +147,7 @@ export class MachineSpace<N> {
         }
       }
 
-      return ['boot'];
+      return ['*_boot'];
     }
   }
 

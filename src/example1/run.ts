@@ -47,7 +47,7 @@ const x = newRun(world, store, store);
 
 Promise.all([
   x.log$,
-  x.boot('morris', ['mole_sayHello', ['mary', 0]]),
-  x.boot('mary', ['mole_sayHello', ['morris', 0]])
+  x.boot('morris', ['M_mole_sayHello', ['mary', 0]]),
+  x.boot('mary', ['M_mole_sayHello', ['morris', 0]])
 ]);
 

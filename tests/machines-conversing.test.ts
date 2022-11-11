@@ -12,9 +12,9 @@ describe('machines - conversing', () => {
     const x = createRunner(world, { save: false });
 
     await Promise.all([
-      x.run.boot('Polly', ['listen']),
-      x.run.boot('Priscilla', ['listen']),
-      x.run.boot('Pete', ['chirp', [['Polly', 'Priscilla'], 'hello!']])
+      x.run.boot('Polly', ['M_listen']),
+      x.run.boot('Priscilla', ['M_listen']),
+      x.run.boot('Pete', ['M_chirp', [['Polly', 'Priscilla'], 'hello!']])
     ]);
 
     await delay(200)
@@ -24,12 +24,12 @@ describe('machines - conversing', () => {
     const pete = x.view('Pete');
 
     expect(showData(priscilla[0]))
-      .toEqual({ Priscilla: ['listen'] })
+      .toEqual({ Priscilla: ['M_listen'] })
 
     expect(showData(priscilla[1]))
       .toEqual({
-        Polly: ['end', 'chirped!'],
-        Priscilla: ['chirp', [[], 'hello!']]
+        Polly: ['*_end', 'chirped!'],
+        Priscilla: ['M_chirp', [[], 'hello!']]
       })
 
     expect(priscilla[1].parents())
@@ -40,7 +40,7 @@ describe('machines - conversing', () => {
 
     expect(showData(priscilla[2]))
       .toEqual({
-        Priscilla: ['end', 'no-one to chirp to!']
+        Priscilla: ['*_end', 'no-one to chirp to!']
       })
 
     expect(priscilla[2].parents())
@@ -55,9 +55,9 @@ describe('machines - conversing', () => {
 
     await x.session(async () => {
       await Promise.all([
-        x.run.boot('skolmer', ['$m_place']),
-        x.run.boot('a', ['migrate', 'skolmer']),
-        x.run.boot('b', ['migrate', 'skolmer']),
+        x.run.boot('skolmer', ['*_$m_place']),
+        x.run.boot('a', ['M_migrate', 'skolmer']),
+        x.run.boot('b', ['M_migrate', 'skolmer']),
         x.run.summon(['a', 'b']).then(s => s.log$.toPromise()),
       ]);
 
@@ -65,10 +65,10 @@ describe('machines - conversing', () => {
       const b = x.view('b');
 
       expect(showData(a[3]))
-        .toHaveProperty('a', ['end', {a:'hello', b:'hello'}])
+        .toHaveProperty('a', ['*_end', {a:'hello', b:'hello'}])
 
       expect(showData(b[3]))
-        .toHaveProperty('b', ['end', {a:'hello', b:'hello'}])
+        .toHaveProperty('b', ['*_end', {a:'hello', b:'hello'}])
     });
   })
 

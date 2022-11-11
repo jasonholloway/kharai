@@ -13,8 +13,8 @@ describe('running', () => {
 		const x = createRunner(world);
 
 		await Promise.all([
-			x.run.boot('a', ['gerbil_spawn', [0, 3]]),
-			x.run.boot('b', ['gerbil_spawn', [0, 2]]),
+			x.run.boot('a', ['M_gerbil_spawn', [0, 3]]),
+			x.run.boot('b', ['M_gerbil_spawn', [0, 2]]),
 		]);
 		
 		await x.run.log$.toPromise();
@@ -24,7 +24,7 @@ describe('running', () => {
 	it('starting fresh', async () => {
 		const x = createRunner(world);
 
-		const success = await x.run.boot('fresh', ['guineaPig_runAbout']);
+		const success = await x.run.boot('fresh', ['M_guineaPig_runAbout']);
 		expect(success).toBeTruthy();
 	})
 
@@ -53,15 +53,15 @@ describe('running', () => {
 
 		const [logs] = await Promise.all([
 			x.allLogs(),
-			x.run.boot('R', ['rat'])
+			x.run.boot('R', ['M_rat'])
 		]);
 
 		expect(logs).toEqual([
-			['R', ['boot']],
-			['R', ['rat']],
-			['@mouse,123', ['mouse', '123']],
-			['R', ['end', 'dunrattin']],
-			['@mouse,123', ['end', '123 squeak']],
+			['R', ['*_boot']],
+			['R', ['M_rat']],
+			['@mouse,123', ['M_mouse', '123']],
+			['R', ['*_end', 'dunrattin']],
+			['@mouse,123', ['*_end', '123 squeak']],
 		]);
 	})
 
@@ -90,15 +90,15 @@ describe('running', () => {
 
 		const [logs] = await Promise.all([
 			x.allLogs(),
-			x.run.boot('R', ['rat'])
+			x.run.boot('R', ['M_rat'])
 		]);
 
 		expect(logs).toEqual([
-			['R', ['boot']],
-			['R', ['rat']],
-			['@mouse,123', ['mouse', '123']],
-			['R', ['end', 'dunrattin']],
-			['@mouse,123', ['end', '123 squeak']],
+			['R', ['*_boot']],
+			['R', ['M_rat']],
+			['@mouse,123', ['M_mouse', '123']],
+			['R', ['*_end', 'dunrattin']],
+			['@mouse,123', ['*_end', '123 squeak']],
 		]);
 	})
 
@@ -132,15 +132,15 @@ describe('running', () => {
 
 		const [logs] = await Promise.all([
 			x.allLogs(),
-			x.run.boot('R', ['beasties_rat'])
+			x.run.boot('R', ['M_beasties_rat'])
 		]);
 
 		expect(logs).toEqual([
-			['R', ['boot']],
-			['R', ['beasties_rat']],
-			['@beasties_mouse,123', ['beasties_mouse', '123']],
-			['R', ['end', 'dunrattin']],
-			['@beasties_mouse,123', ['end', '123 squeak']],
+			['R', ['*_boot']],
+			['R', ['M_beasties_rat']],
+			['@beasties_mouse,123', ['M_beasties_mouse', '123']],
+			['R', ['*_end', 'dunrattin']],
+			['@beasties_mouse,123', ['*_end', '123 squeak']],
 		]);
 	})
 
@@ -179,7 +179,7 @@ describe('running', () => {
 			})
 		});
 
-		const success = await x.run.boot('existing', ['blah']);
+		const success = await x.run.boot('existing', ['M_blah']);
 		expect(success).toBeFalsy();
 	})
 
@@ -187,14 +187,14 @@ describe('running', () => {
 		const x = createRunner(world,
 		{
 			data: Map({
-				existing: ['rat_wake']
+				existing: ['M_rat_wake']
 			})
 		});
 
 		await x.session(async () => {
 			const [bootedExisting, bootedFresh] = await Promise.all([
-				x.run.boot('existing', ['hamster_wake', 123]),
-				x.run.boot('fresh', ['hamster_wake', 123])
+				x.run.boot('existing', ['M_hamster_wake', 123]),
+				x.run.boot('fresh', ['M_hamster_wake', 123])
 			]); 
 
 			expect(bootedExisting).toBeFalsy();
@@ -205,16 +205,16 @@ describe('running', () => {
 
 		const existing = await x.logs('existing');
 		expect(existing).toEqual([
-			['rat_wake'],
-			['rat_squeak', 123],
-			['end', 'I have squeaked 123!']
+			['M_rat_wake'],
+			['M_rat_squeak', 123],
+			['*_end', 'I have squeaked 123!']
 		]);
 
 		const fresh = await x.logs('fresh');
 		expect(fresh).toEqual([
-			['boot'],
-			['hamster_wake', 123],
-			['end', 123]
+			['*_boot'],
+			['M_hamster_wake', 123],
+			['*_end', 123]
 		]);
 	})
 

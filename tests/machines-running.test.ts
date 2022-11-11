@@ -14,14 +14,14 @@ describe('machines - running', () => {
     
     const [logs] = await Promise.all([
       x.allLogs(),
-      x.run.boot('bob', ['rat_wake'])
+      x.run.boot('bob', ['M_rat_wake'])
     ]);
 
     expect(logs).toEqual([
-      ['bob', ['boot']],
-      ['bob', ['rat_wake']],
-      ['bob', ['rat_squeak', 123]],
-      ['bob', ['end', 'I have squeaked 123!']]
+      ['bob', ['*_boot']],
+      ['bob', ['M_rat_wake']],
+      ['bob', ['M_rat_squeak', 123]],
+      ['bob', ['*_end', 'I have squeaked 123!']]
     ]);
   })
 
@@ -30,18 +30,18 @@ describe('machines - running', () => {
 
     const [logs] = await Promise.all([
       x.allLogs(),
-      x.run.boot('nib', ['hamster_wake', 77]),
-      x.run.boot('bob', ['rat_wake'])
+      x.run.boot('nib', ['M_hamster_wake', 77]),
+      x.run.boot('bob', ['M_rat_wake'])
     ]);
 
     expect(logs).toEqual([
-      ['nib', ['boot']],
-      ['bob', ['boot']],
-      ['nib', ['hamster_wake', 77]],
-      ['bob', ['rat_wake']],
-      ['bob', ['rat_squeak', 123]],
-      ['bob', ['end', 'I have squeaked 123!']],
-      ['nib', ['end', 77]],
+      ['nib', ['*_boot']],
+      ['bob', ['*_boot']],
+      ['nib', ['M_hamster_wake', 77]],
+      ['bob', ['M_rat_wake']],
+      ['bob', ['M_rat_squeak', 123]],
+      ['bob', ['*_end', 'I have squeaked 123!']],
+      ['nib', ['*_end', 77]],
     ])
   })
 
@@ -50,17 +50,17 @@ describe('machines - running', () => {
 
     const [logs] = await Promise.all([
       x.allLogs(),
-      x.run.boot('gaz', ['guineaPig_runAbout']),
-      x.run.boot('goz', ['guineaPig_gruntAt', 'gaz'])
+      x.run.boot('gaz', ['M_guineaPig_runAbout']),
+      x.run.boot('goz', ['M_guineaPig_gruntAt', 'gaz'])
     ]);
 
     expect(logs).toEqual([
-      ['gaz', ['boot']],
-      ['goz', ['boot']],
-      ['gaz', ['guineaPig_runAbout']],
-      ['goz', ['guineaPig_gruntAt', 'gaz']],
-      ['goz', ['end', 'squeak!']],
-      ['gaz', ['end', 'grunt!']],
+      ['gaz', ['*_boot']],
+      ['goz', ['*_boot']],
+      ['gaz', ['M_guineaPig_runAbout']],
+      ['goz', ['M_guineaPig_gruntAt', 'gaz']],
+      ['goz', ['*_end', 'squeak!']],
+      ['gaz', ['*_end', 'grunt!']],
     ])
   })
 
@@ -69,13 +69,13 @@ describe('machines - running', () => {
 
     const [logs] = await Promise.all([
       x.allLogs(),
-      x.run.boot('taz', ['wait', [1000, ['end', 123]]]),
+      x.run.boot('taz', ['*_wait', [1000, ['*_end', 123]]]),
     ]);
 
     expect(logs).toEqual([
-      ['taz', ['boot']],
-      ['taz', ['wait', [1000, ['end', 123]]]],
-      ['taz', ['end', 123]],
+      ['taz', ['*_boot']],
+      ['taz', ['*_wait', [1000, ['*_end', 123]]]],
+      ['taz', ['*_end', 123]],
     ])
   })
 
@@ -96,17 +96,17 @@ describe('machines - running', () => {
 
     const [logs] = await Promise.all([
       x.allLogs(),
-      x.run.boot('caz', ['capybara_nip', 0])
+      x.run.boot('caz', ['M_capybara_nip', 0])
     ]);
 
     expect(logs).toEqual([
-      ['caz', ['boot']],
-      ['caz', ['capybara_nip', 0]],
-      ['caz', ['capybara_nip', 0]],
-      ['caz', ['capybara_nip', 1]],
-      ['caz', ['capybara_nip', 2]],
-      ['caz', ['capybara_nip', 3]],
-      ['caz', ['end', 'yip']]
+      ['caz', ['*_boot']],
+      ['caz', ['M_capybara_nip', 0]],
+      ['caz', ['M_capybara_nip', 0]],
+      ['caz', ['M_capybara_nip', 1]],
+      ['caz', ['M_capybara_nip', 2]],
+      ['caz', ['M_capybara_nip', 3]],
+      ['caz', ['*_end', 'yip']]
     ]);
   })
 
@@ -114,7 +114,7 @@ describe('machines - running', () => {
   it('isFresh when first loaded', async () => {
 		const x = createRunner(world, {
 			data: Map({
-				saz: ['shrew', [0, false]]
+				saz: ['M_shrew', [0, false]]
 			})
 		});
 
@@ -124,10 +124,10 @@ describe('machines - running', () => {
     ]);
 
     expect(logs1).toEqual([
-      ['saz', ['shrew', [0, false]]],
-      ['saz', ['shrew', [1, true]]], //sure sign that previous phase was 'fresh'
-      ['saz', ['shrew', [2, false]]],
-      ['saz', ['end', 'yip']]
+      ['saz', ['M_shrew', [0, false]]],
+      ['saz', ['M_shrew', [1, true]]], //sure sign that previous phase was 'fresh'
+      ['saz', ['M_shrew', [2, false]]],
+      ['saz', ['*_end', 'yip']]
     ]);
   })
 
@@ -136,15 +136,15 @@ describe('machines - running', () => {
 
     const [logs1] = await Promise.all([
       x.allLogs(),
-      x.run.boot('saz', ['shrew', [0, false]])
+      x.run.boot('saz', ['M_shrew', [0, false]])
     ]);
 
     expect(logs1).toEqual([
-      ['saz', ['boot']],
-      ['saz', ['shrew', [0, false]]],
-      ['saz', ['shrew', [1, false]]],
-      ['saz', ['shrew', [2, false]]],
-      ['saz', ['end', 'yip']]
+      ['saz', ['*_boot']],
+      ['saz', ['M_shrew', [0, false]]],
+      ['saz', ['M_shrew', [1, false]]],
+      ['saz', ['M_shrew', [2, false]]],
+      ['saz', ['*_end', 'yip']]
     ]);
   })
 
@@ -173,7 +173,7 @@ describe('machines - running', () => {
 
       const [logs] = await Promise.all([
         x.allLogs(),
-        x.run.boot('G', ['ghost', 3]),
+        x.run.boot('G', ['M_ghost', 3]),
 
         (async () => {
           const g0 = await x.run.summon(['G'])
@@ -188,16 +188,16 @@ describe('machines - running', () => {
       ]);
 
       expect(logs).toEqual([
-        ['G', ['boot']],
-        ['G', ['ghost', 3]],
-        ['G', ['ghost', 3]],
-        ['G', ['ghost', 3]],
-        ['G', ['end', 'fin']]
+        ['G', ['*_boot']],
+        ['G', ['M_ghost', 3]],
+        ['G', ['M_ghost', 3]],
+        ['G', ['M_ghost', 3]],
+        ['G', ['*_end', 'fin']]
       ]);
 
       expect(x.store.batches).toEqual([
-        Map([['G', ['ghost', 3]]]),
-        Map([['G', ['end', 'fin']]])
+        Map([['G', ['M_ghost', 3]]]),
+        Map([['G', ['*_end', 'fin']]])
       ]);
     })
   })
@@ -221,13 +221,13 @@ describe('machines - running', () => {
 
       const [logs] = await Promise.all([
         x.allLogs(),
-        x.run.boot('A', ['hello'])
+        x.run.boot('A', ['M_hello'])
       ]);
 
       expect(logs).toEqual([
-        ['A', ['boot']],
-        ['A', ['hello']],
-        ['A', ['end', 'moo!']]
+        ['A', ['*_boot']],
+        ['A', ['M_hello']],
+        ['A', ['*_end', 'moo!']]
       ]);
     })
 
@@ -252,13 +252,13 @@ describe('machines - running', () => {
 
       const [logs] = await Promise.all([
         x.allLogs(),
-        x.run.boot('A', ['hello'])
+        x.run.boot('A', ['M_hello'])
       ]);
 
       expect(logs).toEqual([
-        ['A', ['boot']],
-        ['A', ['hello']],
-        ['A', ['end', ['moo!']]]
+        ['A', ['*_boot']],
+        ['A', ['M_hello']],
+        ['A', ['*_end', ['moo!']]]
       ]);
     })
 
@@ -280,13 +280,13 @@ describe('machines - running', () => {
 
       const [logs] = await Promise.all([
         x.allLogs(),
-        x.run.boot('A', ['hello'])
+        x.run.boot('A', ['M_hello'])
       ]);
 
       expect(logs).toEqual([
-        ['A', ['boot']],
-        ['A', ['hello']],
-        ['A', ['end', 'moo A!']]
+        ['A', ['*_boot']],
+        ['A', ['M_hello']],
+        ['A', ['*_end', 'moo A!']]
       ]);
     })
   })
