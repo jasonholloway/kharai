@@ -722,7 +722,7 @@ function builtIns() {
       ...v,
       guard: [Never],
       handler: async (x: MachineCtx) => {
-        return ['$m_gather', [0, []]]
+        return ['*_$m_gather', [0, []]]
       }
     }))
     .popPath()!
@@ -746,19 +746,19 @@ function builtIns() {
               const quorum = 2;
               if(ids.length >= quorum) {
                 return [
-                  ['$m_mediate', [v, k, ids, []]],//remnant always empty currently
+                  ['*_$m_mediate', [v, k, ids, []]],//remnant always empty currently
                   ['yo', k]
                 ]; 
               }
               else {
                 return [
-                  ['$m_gather', [v, ids]],
+                  ['*_$m_gather', [v, ids]],
                   ['yo', k]
                 ];
               }
             }
 
-            return [['$m_gather', [v, ids]]];
+            return [['*_$m_gather', [v, ids]]];
           }
         });
 
@@ -798,7 +798,7 @@ function builtIns() {
 
 
             function fin(p:{kickOut:Peer[]}) {
-              return ['$m_gather', [v+1, [remnants, ...peers.subtract(p.kickOut)]]] as const;
+              return ['*_$m_gather', [v+1, [remnants, ...peers.subtract(p.kickOut)]]] as const;
             }
           }
         });

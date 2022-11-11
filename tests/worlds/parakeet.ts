@@ -4,11 +4,6 @@ import { act } from '../../src/shape/common';
 import { Many, Str, Tup } from '../../src/guards/Guard';
 import { Id } from '../lib';
 
-// D nodes just don't make sense unless they're for machines...
-//
-//
-//
-
 export const parakeet = World
   .shape({
     listen: act(),
