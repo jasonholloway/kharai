@@ -20,6 +20,7 @@ export type Separator = typeof separator;
 
 export module Builder {
 
+  //below should leave hanging XAs...
   export type Seal<N> =
     {
       [k in (
@@ -315,6 +316,7 @@ export class Builder<N> {
     return <Builder.TryMerge<N,N2>><unknown>new Builder(this.reg.mergeWith(other.reg));
   }
 
+  //TODO: should either retain or forbid hanging XAs
   seal(): Builder<Simplify<Builder.Seal<N>>> {
     return <Builder<Simplify<Builder.Seal<N>>>><unknown>this;
   }
@@ -368,7 +370,7 @@ export class Builder<N> {
         : n0;
 
       const n2 = isInclNode(obj)
-        ? n1.mergeIn(mergeNodeVal, obj[$incl].reg.root)
+        ? n1.mergeIn(mergeNodeVal, obj[$incl].reg.root.pluck('M'))
         : n1;
 
       if(typeof obj === 'object') {
@@ -841,6 +843,7 @@ type _InclWalk<O, P extends string> =
   
   IK extends _JoinPaths<infer IKH, infer IKT> ?
   IKT extends _JoinPaths<'M', infer IKT2> ?
+
   [_JoinPaths<IKH, _JoinPaths<'M',_JoinPaths<P, IKT2>>>] extends [infer IK2] ?
   
   [IK2, IN]

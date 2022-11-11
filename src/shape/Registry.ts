@@ -30,6 +30,10 @@ class Node<V, V0 extends V = V> {
     this.children = children ?? Map();
   }
 
+  pluck(p:string): Node<V,V0> {
+    return this.children.get(p, new Node(this.v0));
+  }
+
   show<T>(fn: (v:V)=>T): unknown {
     return this.children.count() > 0
       ? {
