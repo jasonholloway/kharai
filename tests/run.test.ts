@@ -5,7 +5,6 @@ import { createRunner } from './shared'
 import { World } from '../src/shape/World';
 import { act, incl } from '../src/shape/common';
 import { Str, Num } from '../src/guards/Guard'
-import { inspect } from 'node:util';
 
 describe('running', () => {
 	const world = rodents.build();

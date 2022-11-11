@@ -39,7 +39,6 @@ const genericThing = <T>(t:Guard<T>) => {
   });
 }
 
-
 const world =
   World
     .shape({

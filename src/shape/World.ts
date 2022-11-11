@@ -147,15 +147,15 @@ export module Builder {
 export type RefHelper<N> = Summon.Helper<N>;
 
 module Summon {
-  export type Helper<N> = WalkData<'', ExtractData<N>>
+  export type Helper<N> = WalkData<'M', ExtractData<N>>
 
-  type WalkData<P extends string, D> = DeepSimplify<
+  type WalkData<P extends string, D> = //DeepSimplify<
     (
       P extends keyof D
         ? Creator<Read<D[P]>>
-        : unknown
-    )
-    & (
+        : never
+    ) extends infer Curr ?
+    (
       [ExtractNextPrefixes<P,D>] extends [infer NPS] ?
       IsNever<NPS> extends false ? {
         [
@@ -169,9 +169,18 @@ module Summon {
           )
         ]: T[1]
       }
-      : unknown : never
+      : never : never
+    ) extends infer Inner ?
+    (
+      [IsNever<Curr>, IsNever<Inner>] extends infer S ?
+          S extends [false, false] ? (Curr & Inner)
+        : S extends [true, false] ? Inner
+        : S extends [false, true] ? Curr
+      : never : never
     )
-  >;
+    : never : never
+  // >
+  ;
 
   type ExtractNextPrefixes<P extends string, D> =
     keyof D extends infer K ?
@@ -195,17 +204,17 @@ module Summon {
 
   try {
     type W = {
-      D_: [1]
-      D_hello_again: [typeof Num]
-      D_hello_moo: typeof Str
-      D_tara: [4]
-      D_tara_moo: never
+      D_M: [1]
+      D_M_hello_again: [typeof Num]
+      D_M_hello_moo: typeof Str
+      D_M_tara: [4]
+      D_M_tara_moo: never
     };
 
     type A = ExtractData<W>;
     type B = ExtractNextPrefixes<'', A>
-    type C = ExtractNextPrefixes<'hello', A>
-    type Z = WalkData<'',A>
+    type C = ExtractNextPrefixes<'M', A>
+    type Z = Helper<W>
 
     const z = <Z><unknown>undefined;
     z.hello.moo('123')
@@ -262,11 +271,11 @@ module Phase {
 
   try {
     type W = {
-      D_: [1]
-      D_hello_again: [typeof Num]
-      D_hello_moo: [3]
-      D_tara: [4]
-      D_tara_moo: never
+      D_M_: [1]
+      D_M_hello_again: [typeof Num]
+      D_M_hello_moo: [3]
+      D_M_tara: [4]
+      D_M_tara_moo: never
     };
 
     type A = ExtractData<W>;
@@ -375,7 +384,7 @@ export class Builder<N> {
     }
   }
 
-  impl<S extends Impls<N,AndNext>>(s: S): Builder<N> {
+  impl<S extends Impls.Form<N,AndNext>>(s: S): Builder<N> {
     return new Builder<N>(this.reg
       .update(root =>
         _walk(root.pushPath('M'), s, List()).popPath()!
@@ -831,11 +840,12 @@ type _InclWalk<O, P extends string> =
   [I[IK]] extends [infer IN] ?
   
   IK extends _JoinPaths<infer IKH, infer IKT> ?
-  [_JoinPaths<IKH, _JoinPaths<P, IKT>>] extends [infer IK2] ?
+  IKT extends _JoinPaths<'M', infer IKT2> ?
+  [_JoinPaths<IKH, _JoinPaths<'M',_JoinPaths<P, IKT2>>>] extends [infer IK2] ?
   
   [IK2, IN]
   
-  : never : never : never : never : never : never : never
+  : never : never : never : never : never : never : never : never
 ;
 
 type _SpaceWalk<O, P extends string = ''> =

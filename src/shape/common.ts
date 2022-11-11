@@ -1,5 +1,5 @@
 import { FacNode } from "../facs";
-import { Any, Guard, PreExpand, ReadExpand } from "../guards/Guard";
+import { Any, Guard, Narrowable, PreExpand, ReadExpand } from "../guards/Guard";
 import { MachineCtx } from "../MachineSpace";
 import { Handler, $Root, Fac, $data, $space, $handler, $fac, $Fac, $incl, $Incl, $root } from "../shapeShared";
 import { Merge, Simplify } from "../util";
@@ -11,6 +11,22 @@ export type Separator = typeof separator;
 export function formPath(pl: readonly string[]) {
   return pl.join(separator);
 }
+
+export type MachineTree<N> =
+  {
+    [
+      Found in
+        keyof N extends infer K ?
+        K extends _JoinPaths<infer Prefix, infer Rest> ?
+        Rest extends 'M'
+        ? [K, Prefix]
+        : Rest extends _JoinPaths<'M', infer Path> ?
+          [K, _JoinPaths<Prefix, Path>]
+        : never : never : never
+      as Found[1]
+    ]: N[Found[0]]
+  }
+;
 
 
 export type NodePath<N> = _ExtractPath<'S'|'D', keyof N> | ''
@@ -24,7 +40,9 @@ type _ExtractPath<A extends string, K> =
 
 
 export type Data<N> =
-  _Data<N, _Data<N>>
+  MachineTree<N> extends infer M ?
+  _Data<M, _Data<M>>
+  : never
 
 type _Data<N, Inner = unknown> =
   keyof N extends infer K ?
@@ -72,127 +90,225 @@ export type PathCtx<N, P, O> =
   CoreCtx<N, O>
 ;
 
-export type Impls<N, O> =
-  (_Impls<N, _Data<N>, O> & { M:unknown })['M'] extends infer I ?
-  I extends undefined ? never
-  : I
-  : never
-;
-
-type _Impls<N, DOne, O> =
-  [_ImplSplit<N>] extends [infer Tups] ?
-  _ImplCombine<[Tups], {}, DOne, _Data<N, DOne>, CoreCtx<N,O>, O>
-  : never
-;
-
-// export type MachineTree<N> =
-//   {
-//     [
-//       Found in
-//         keyof N extends infer K ?
-//         K extends _JoinPaths<infer Prefix, infer Rest> ?
-//         Rest extends 'M'
-//         ? [K, Prefix]
-//         : Rest extends _JoinPaths<'M', infer Path> ?
-//           [K, _JoinPaths<Prefix, Path>]
-//         : never : never : never
-//       as Found[1]
-//     ]: N[Found[0]]
-//   }
+// export type Impls<N, O> =
+//   (_Impls<N, _Data<N>, O> & { M:unknown })['M'] extends infer I ?
+//   I extends undefined ? never
+//   : I
+//   : never
 // ;
 
-type _ImplSplit<N> =
-  keyof N extends infer K ?
-  K extends keyof N ?
-  K extends string ?
+// type _Impls<N, DOne, O> =
+//   [_ImplSplit<N>] extends [infer Tups] ?
+//   _ImplCombine<[Tups], {}, DOne, _Data<N, DOne>, {}, O> // CoreCtx<N,O>, O>
+//   : never
+// ;
 
-  TupPopHead<PathList<K>> extends [infer Tail, infer Popped, infer Head] ?
+// type _ImplSplit<N> =
+//   keyof N extends infer K ?
+//   K extends keyof N ?
+//   K extends string ?
 
-  Popped extends true ?
-    readonly [Tail, Head, N[K]]
-  : never : never : never : never : never
-;
+//   TupPopHead<PathList<K>> extends [infer Tail, infer Popped, infer Head] ?
 
-type _ImplCombine<Tups, X0, DOne, DAll, XExtra, O> =
-  Simplify<(
+//   Popped extends true ?
+//     readonly [Tail, Head, N[K]]
+//   : never : never : never : never : never
+// ;
+
+// type _ImplCombine<Tups, X0, DOne, DAll, XExtra, O> =
+//   Simplify<(
+//     (
+//       [
+//         Tups extends readonly [infer I] ?
+//         I extends readonly [[], 'XA', infer V] ? V
+//         : never : never
+//       ] extends readonly [infer X1] ?
+//       IsNotNever<X1> extends true ? Merge<X0, X1> : X0
+//       : never
+//     )
+//     & XExtra
+//   )> extends infer X ?
+
+//   (
+//     [
+//       Tups extends readonly [infer I] ?
+//         I extends readonly [[], 'D', infer V] ? [V]
+//       : never : never
+//     ] extends readonly [infer DD] ?
+//       IsNotNever<DD> extends true ?
+//       DD extends readonly [infer D] ?
+//         _Phase<D, X, O>
+//         : never : unknown
+//     : unknown
+//   ) &
+//   (
+//     {
+//       [Next in
+//         Tups extends readonly [infer I] ?
+//         I extends readonly [readonly [infer PH, ...infer PT], ...infer T] ?
+//         PH extends string ?
+//         [PH, [PT, ...T]]
+//         : never : never : never
+//       as Next[0]
+//       ]?: _ImplCombine<[Next[1]], X, DOne, DAll, XExtra, O>
+//     }
+//   )
+
+//   : never
+// ;
+
+// type _Phase<D, X, O> =
+//   _Handler<D,X,O> | { act:_Handler<D,X,O>, show?: (d:ReadExpand<D,$Root,O>)=>unknown[] }
+// ;
+
+// type _Handler<D, X, O> = 
+//   (x:X, d:ReadExpand<D,$Root,O>)=>Promise<O|false>
+// ;
+
+
+
+export module Impls {
+
+  export type Form<N, O> =
+    (_Form<N, _Data<N>, O> & { M:unknown })['M'] extends infer I ?
+    I extends undefined ? never
+    : I
+    : never
+  ;
+
+  type _Form<N, DOne, O> =
+    [_Split<N>] extends [infer Tups] ?
+    _Combine<[Tups], {}, DOne, _Data<N, DOne>, CoreCtx<N,O>, O>
+    : never
+  ;
+
+  type _Split<N> =
+    keyof N extends infer K ?
+    K extends keyof N ?
+    K extends string ?
+    TupPopHead<PathList<K>> extends [infer Path, infer Popped, infer Type] ?
+    Popped extends true ?
+    readonly [Type, Path, N[K]]
+    : never : never : never : never : never
+  ;
+
+  type _Combine<Tups, X0, DOne, DAll, XExtra, O> =
+    Simplify<(
+      (
+        [
+          Tups extends readonly [infer I] ?
+            I extends readonly ['XA', [], infer V] ? V
+          : never : never
+        ] extends readonly [infer X1] ?
+        IsNotNever<X1> extends true ? Merge<X0, X1> : X0
+        : never
+      )
+      & XExtra
+    )> extends infer X ?
+
     (
       [
         Tups extends readonly [infer I] ?
-        I extends readonly [[], 'XA', infer V] ? V
+          I extends readonly ['D', [], infer V] ? [V]
         : never : never
-      ] extends readonly [infer X1] ?
-      IsNotNever<X1> extends true ? Merge<X0, X1> : X0
-      : never
+      ] extends readonly [infer DD] ?
+        IsNotNever<DD> extends true ?
+        DD extends readonly [infer D] ?
+          _Phase<D, X, O>
+          : never : unknown
+      : unknown
+    ) &
+    (
+      {
+        [Next in
+          Tups extends readonly [infer I] ?
+          I extends readonly [infer Type2, readonly [infer PH, ...infer PT], infer V] ?
+          PH extends string ?
+          readonly [PH, readonly [Type2, PT, V]]
+          : never : never : never
+        as Next[0]
+        ]?: _Combine<[Next[1]], X, DOne, DAll, XExtra, O>
+      }
     )
-    & XExtra
-  )> extends infer X ?
 
-  (
-    [
-      Tups extends readonly [infer I] ?
-        I extends readonly [[], 'D', infer V] ? [V]
-      : never : never
-    ] extends readonly [infer DD] ?
-      IsNotNever<DD> extends true ?
-      DD extends readonly [infer D] ?
-        _Phase<D, X, O>
-        : never : unknown
-    : unknown
-  ) &
-  (
-    {
-      [Next in
-        Tups extends readonly [infer I] ?
-        I extends readonly [readonly [infer PH, ...infer PT], ...infer T] ?
-        PH extends string ?
-        [PH, [PT, ...T]]
-        : never : never : never
-      as Next[0]
-      ]?: _ImplCombine<[Next[1]], X, DOne, DAll, XExtra, O>
-    }
-  )
+    : never
+  ;
 
-  : never
-;
+  type _Phase<D, X, O> =
+    _Handler<D,X,O> | { act:_Handler<D,X,O>, show?: (d:ReadExpand<D,$Root,O>)=>unknown[] }
+  ;
 
-type _Phase<D, X, O> =
-  _Handler<D,X,O> | { act:_Handler<D,X,O>, show?: (d:ReadExpand<D,$Root,O>)=>unknown[] }
-;
+  type _Handler<D, X, O> = 
+    (x:X, d:ReadExpand<D,$Root,O>)=>Promise<O|false>
+  ;
 
-type _Handler<D, X, O> = 
-  (x:X, d:ReadExpand<D,$Root,O>)=>Promise<O|false>
-;
+  {
+    type W = {
+      // XA: { a:1 },
+      D_M: 0,
+      // D_M_dog_woof: never,
+      // D_M_dog_woof: 123,
+      // S_M: true
+      // S_M_dog: true
+      // S_M_dog_woof: true
+      D_M_dog_woof_yip: 999,
+      // D_M_rat_squeak: 123,
+      XA_M_dog: { b:2 },
+      // D_cat_meeow: 456
+    };
 
-{
-  type W = {
-    // XA: { a:1 },
-    D_M: 0,
-    D_M_dog_woof: never,
-    // D_M_rat_squeak: 123,
-    // XA_M_cat: { b:2 },
-    // D_cat_meeow: 456
-  };
-    
-  type A = _ImplSplit<W>
-  type B = _ImplCombine<[A], {}, 'DOne', 'DAll',{},'O'>
-  type C = Impls<W,'O'>
+    type A = _Split<W>
+    type B = _Combine<[A], {}, 'DOne', 'DAll',{},'O'>
+    type C = Form<W,'O'>
+
+    const c: C = <C><unknown>{};
+    c
 
 
-  type _ = [A, B, C]
+    type _ = [A, B, C]
+  }
 }
+
+
+
+
+
+
+// {
+//   type W = {
+//     // XA: { a:1 },
+//     D_M: 0,
+//     // D_M_dog_woof: never,
+//     // D_M_dog_woof: 123,
+//     // S_M: true
+//     // S_M_dog: true
+//     // S_M_dog_woof: true
+//     D_M_dog_woof_yip: 999,
+//     // D_M_rat_squeak: 123,
+//     XA_M_dog: { b:2 },
+//     // D_cat_meeow: 456
+//   };
+    
+//   type A = _ImplSplit<W>
+//   type B = _ImplCombine<[A], {}, 'DOne', 'DAll',{},'O'>
+//   type C = Impls<W,'O'>
+
+//   const c: C = <C><unknown>{};
+//   c
+
+
+//   type _ = [A, B, C]
+// }
 
 {
   type N = {
-    S: true,
-    S_hamster: true
-    S_hamster_squeak: true
-    D_hamster_squeak_quietly: 123
-    D_hamster_bite: 456,
+    D_M_hamster_squeak_quietly: 123
+    D_M_hamster_bite: 456,
   }
 
   type A = NodePath<N>
   type B = DataPath<N>
-  type I = Impls<N,'O'>
+  type I = Impls.Form<N,'O'>
 
   const i:I = {
     hamster: {
@@ -213,7 +329,7 @@ type _Handler<D, X, O> =
       D_blah: Guard<T>
     };
 
-    type A = Impls<N1, 123>;
+    type A = Impls.Form<N1, 123>;
     type B = Data<N1>
 
     const a: A = {};
@@ -224,7 +340,7 @@ type _Handler<D, X, O> =
       D_moo: 999
     };
 
-    type C = Impls<N2, 123>;
+    type C = Impls.Form<N2, 123>;
 
 
     type Z = T;
@@ -464,7 +580,7 @@ export type SpaceNode<I> = { [$space]: I }
 export type HandlerNode = { [$handler]: Handler }
 export type ContextNode<X = unknown> = { [$fac]: FacNode<X> }
 
-export function act<S = never>(s?: S): DataNode<S> { //   unknown extends S ? never : S> {
+export function act<S extends Narrowable = never>(s?: S): DataNode<S> { //   unknown extends S ? never : S> {
   return { [$data]: <S><unknown>(s === undefined ? Any : s) };
 }
 

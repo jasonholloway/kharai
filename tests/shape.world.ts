@@ -10,13 +10,13 @@ export const world = World
       ...ctx<{ b:readonly number[], bb:number }>(),
 
       squeak: act(Num),
-      burrow: act(456 as const),
+      burrow: act(456),
 
       jump: {
         ...ctx<{ c:string }>(),
 
-        quickly: act(789 as const),
-        slovenly: act('boo' as const)
+        quickly: act(789),
+        slovenly: act('boo')
       }
     },
 
