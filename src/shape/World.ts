@@ -477,8 +477,11 @@ export class Builder<N> {
           const ancestorPaths = ancestors
             .flatMap(([,ls]) => ls);
 
-          const relPaths = ps.map(p => <[List<string>,List<string>]>[p, route.concat(p)]);
-          const allPaths = ancestorPaths.concat(relPaths);
+          const relPaths = ps
+            .map(p => <[List<string>,List<string>]>[p, route.concat(p)]);
+
+          const allPaths = ancestorPaths
+            .concat(relPaths);
 
           return [val, allPaths];
         }
@@ -493,9 +496,16 @@ export class Builder<N> {
               ...v,
               facs: v.facs.push(x => {
 
-                // console.debug(pl.join(separator))
+                const builtInPaths = paths
+                  .filter(([[p]]) => p === '*')
+                  .map(([al,zl]) => <[List<string>,List<string>]>[al.rest(), zl]);
 
-                const pathMap = OrderedMap(paths.map(([al,zl]) => [al.join(separator), zl.join(separator)]));
+                const pathMap = paths
+                  .concat(builtInPaths)
+                  .filter(([[p]]) => !!p && p !== '*' && p !== 'M');
+
+                // console.debug(inspect(pathMap.map(m => [[...m[0]], m[1]]).toJSON(), {depth:3}))
+
                 const and = _buildAnd(pathMap);
                 const ref = _buildRef(pathMap);
                 const expandType = (x:unknown)=>x; //????????
@@ -515,13 +525,11 @@ export class Builder<N> {
     return <Builder.TryBuild<N&BuiltIns>><unknown>new BuiltWorld(reg1);
 
     
-    function _buildAnd(availPaths: OrderedMap<string,string>): object {
+    function _buildAnd(availPaths: List<[List<string>,List<string>]>): object {
       const ac = {};
 
-      // console.debug(inspect(availPaths.toJSON(), {depth:3}))
-
-      for(const [pFrom,pTo] of availPaths) {
-        emplace(ac, pFrom.split(separator), pTo);
+      for(const [al,zl] of availPaths) {
+        emplace(ac, al, zl.join(separator));
       }
 
       (<{[k:string]:unknown}>ac)['skip'] = () => $skip;
@@ -529,12 +537,12 @@ export class Builder<N> {
       return ac;
 
 
-      function emplace(o:{[k: string]: unknown}, pl:string[], pTo:string) {
-        const [ph, ...pt] = pl;
+      function emplace(o:{[k: string]: unknown}, pl:List<string>, pTo:string) {
+        const [ph] = pl;
         let o2 = <{[k:string]:unknown}>(o[ph] ?? {});
 
-        if(pt.length > 0) {
-          emplace(o2, pt, pTo)
+        if(pl.count() > 1) {
+          emplace(o2, pl.rest(), pTo)
         }
         else if(ph) {
           o2 = Object.assign(
@@ -549,22 +557,22 @@ export class Builder<N> {
       }
     }
 
-    function _buildRef(availPaths: OrderedMap<string,string>): object {
+    function _buildRef(availPaths: List<[List<string>,List<string>]>): object {
       const ac = {};
 
-      for(const [pFrom,pTo] of availPaths) {
-        emplace(ac, pFrom.split(separator), pTo);
+      for(const [al,zl] of availPaths) {
+        emplace(ac, al, zl.join(separator));
       }
 
       return ac;
 
 
-      function emplace(o:{[k: string]: unknown}, pl:string[], pTo:string) {
-        const [ph, ...pt] = pl;
+      function emplace(o:{[k: string]: unknown}, pl:List<string>, pTo:string) {
+        const [ph] = pl;
         let o2 = <{[k:string]:unknown}>(o[ph] ?? {});
 
-        if(pt.length > 0) {
-          emplace(o2, pt, pTo)
+        if(pl.count() > 1) {
+          emplace(o2, pl.rest(), pTo)
         }
         else if(ph) {
           o2 = Object.assign(
@@ -1087,5 +1095,4 @@ type TupPopHead<L> =
 
 type IsNotNever<T> =
   [T] extends [never] ? false : true;
-
 
