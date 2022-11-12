@@ -1,4 +1,4 @@
-import { List, OrderedMap, Set } from "immutable";
+import { List, Set } from "immutable";
 import { inspect, isArray, isString } from "util";
 import { Any, Guard, Many, Never, Num, Str, Read, ReadExpand } from "../guards/Guard";
 import { Id } from "../lib";
@@ -6,9 +6,8 @@ import { $skip, MachineCtx, Peer } from "../MachineSpace";
 import { Handler, $data, $Data, $Fac, $Root, $root, $Incl, $incl, Projector, Fac } from "../shapeShared";
 import { DeepMerge, DeepSimplify, delay, IsAny, IsNever, Merge, Simplify } from "../util";
 import { BuiltWorld } from "./BuiltWorld";
-import { act, ctx, Data, FacContext, FacPath, Impls, incl, isDataNode, isInclNode, MachineTree, PathFac, SchemaNode } from "./common";
+import { act, ctx, Data, FacContext, FacPath, formPath, Impls, incl, isDataNode, isInclNode, PathFac, SchemaNode } from "./common";
 import { mergeNodeVal, NodeVal, NodeView, Registry } from "./Registry";
-
 
 export const separator = '_'
 export type Separator = typeof separator;
@@ -72,7 +71,7 @@ export module Builder {
   export type TryBuild<N> =
     [_FindUnimplementedFacs<N, keyof N>] extends [infer Results] ?
     [Results] extends [[]]
-      ? BuiltWorld<N>
+    ? BuiltWorld<N,AndNext>
       : ['Unimplemented facs found', Results]
     : never;
 
@@ -603,10 +602,12 @@ export class Builder<N> {
 }
 
 
+type AnonCtx = MachineCtx<{}, AndNext>;
+
 
 export type BuiltIns = {
-  XA_M: MachineCtx //todo these could be collapsed into simple, single 'X' entry
-  XI_M: MachineCtx
+  XA_M: AnonCtx //todo these could be collapsed into simple, single 'X' entry
+  XI_M: AnonCtx
   'D_*_boot': never,
   'D_*_end': typeof Any,
   'D_*_wait': [typeof Num | typeof Str, $Root],
@@ -636,7 +637,7 @@ function builtIns() {
     .update(v => ({
       ...v,
       guard: [Any],
-      async handler(x: MachineCtx) {
+      async handler(x: AnonCtx) {
         while(true) {
           const answer = await x.attend({
             attended(m) {
@@ -673,7 +674,7 @@ function builtIns() {
     .update(v => ({
       ...v,
       guard: [[Num, $root]],
-      handler: async (x: MachineCtx, [when, nextPhase]: [number|string,unknown]) => {
+      handler: async (x: AnonCtx, [when, nextPhase]: [number|string,unknown]) => {
         return await x.timer
           .schedule(new Date(when), () => nextPhase)
       }
@@ -690,7 +691,7 @@ function builtIns() {
     .update(v => ({
       ...v,
       guard: [[Str, $root]],
-      handler: async (x: MachineCtx, [spotId, hold]: [Id, [string,unknown]]) => {
+      handler: async (x: AnonCtx, [spotId, hold]: [Id, [string,unknown]]) => {
         return x.convene([spotId], {
           convened([spot]) {
             const resp = spot.chat('hi');
@@ -721,7 +722,7 @@ function builtIns() {
     .update(v => ({
       ...v,
       guard: [Never],
-      handler: async (x: MachineCtx) => {
+      handler: async (x: AnonCtx) => {
         return ['*_$m_gather', [0, []]]
       }
     }))
@@ -735,7 +736,7 @@ function builtIns() {
     .update(v => ({
       ...v,
       guard: [[Num, Many(Str)]],
-      handler: async (x: MachineCtx, [v, ids]: [number, Id[]]) => {
+      handler: async (x: AnonCtx, [v, ids]: [number, Id[]]) => {
         const result = await x.attend({
           attended(m, mid) {
             if(isPeerMessage(m) && isString(mid)) {
@@ -776,7 +777,7 @@ function builtIns() {
     .update(v => ({
       ...v,
       guard: [[Num,Str,Many(Str),Many(Str)]],
-      handler: async (x: MachineCtx, [v,k,ids,remnants]: [number,string,Id[],Id[]]) => {
+      handler: async (x: AnonCtx, [v,k,ids,remnants]: [number,string,Id[],Id[]]) => {
         return x.convene(ids, {
           convened(peers) {
             const answers: { [id:Id]:unknown } = {};

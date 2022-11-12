@@ -10,6 +10,9 @@ import { Loader } from './Store'
 import { isString } from './util'
 import { Run, RunCtx, RunSpace } from './RunSpace'
 import { formPath, separator } from './shape/common'
+import { BuiltIns, PhaseHelper, RefHelper } from './shape/World'
+import { PreExpand } from './guards/Guard'
+import { $root } from './shapeShared'
 
 const log = console.debug;
 
@@ -33,8 +36,8 @@ export type Log = {
 }
 
 
-export class MachineSpace<N> {
-  private readonly world: BuiltWorld<N>
+export class MachineSpace<N,O> {
+  private readonly world: BuiltWorld<N,O>
   private readonly loader: Loader
   private readonly runs: RunSpace<DataMap,Frisked[]>;
 
@@ -45,7 +48,7 @@ export class MachineSpace<N> {
   private _signal$: Observable<Signal>
 
   constructor(
-    world: BuiltWorld<N>,
+    world: BuiltWorld<N,O>,
     loader: Loader,
     runs: RunSpace<DataMap,Frisked[]>,
     signal$: Observable<Signal>
@@ -69,10 +72,10 @@ export class MachineSpace<N> {
     return this._summon(ids);
   }
 
-  async runArbitrary<R>(fn: (x:MachineSpaceCtx)=>Promise<R>): Promise<R> {
+  async runArbitrary<R>(fn: (x:ClientCtx<N,O>)=>Promise<R>): Promise<R> {
     const result = await this.runs.newRun()
       .run(async x => {
-        const ctx = this.machineSpaceCtx(x);
+        const ctx = this.clientCtx(x);
         const r = await fn(ctx)
         return [[Map(),0], [], r];
       });
@@ -260,7 +263,7 @@ export class MachineSpace<N> {
     }
 
 
-    function machineCtx(x: MachineSpaceCtx, id: Id, v: number): MachineCtx {
+    function machineCtx(x: PathCtx<N,O>, id: Id, v: number): MachineCtx<N,O> {
       return {
         ...x,
         
@@ -271,6 +274,12 @@ export class MachineSpace<N> {
         }
       };
     }
+  }
+
+  private clientCtx(x: PathCtx<N,O>): ClientCtx<N,O> {
+    return {
+      ...x
+    };
   }
 
   private machineSpaceCtx(x: RunCtx<DataMap,Frisked[]>, id?: Id): MachineSpaceCtx {
@@ -391,10 +400,34 @@ export type MachineSpaceCtx = Extend<RunCtx<DataMap,Frisked[]>, {
   watchRaw: (id: Id) => Observable<PhaseData>
 }>;
 
-export type MachineCtx = Extend<MachineSpaceCtx, {
-  id: Id
-  isFresh: () => boolean
-}>;
 
+//PathCtx below to build up its own XAs
+//taking weight away from Impls
+//and making them available to clients
+export type PathCtx<N,P,O> = 
+  {
+    and: PhaseHelper<N&BuiltIns,O>,
+    ref: RefHelper<N>,
+    expandType: <T>(t:T)=>PreExpand<T,typeof $root,O>
+  }
+;
+
+export type MachineCtx<N,P,O> =
+  Extend<
+    Extend<
+      MachineSpaceCtx,
+      {
+        id: Id
+        isFresh: () => boolean
+      }
+    >,
+    PathCtx<N,P,O>
+  >;
+
+export type ClientCtx<N,O> =
+  Extend<
+    MachineSpaceCtx,
+    PathCtx<N,'',O>
+  >;
 
 type Extend<A, B> = Omit<A, keyof B> & B;

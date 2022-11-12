@@ -1,4 +1,4 @@
-import { act, incl, ctx } from "../src/shape/common";
+import { act, incl } from "../src/shape/common";
 import { Any, Num, Str } from "../src/guards/Guard";
 import { World } from "../src/shape/World";
 

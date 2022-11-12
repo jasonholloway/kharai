@@ -10,7 +10,6 @@ import { BuiltWorld } from './shape/BuiltWorld'
 import { Data } from './shape/common'
 import { RealTimer } from './Timer'
 import { RunSpace } from './RunSpace'
-import { Bool, Narrowable, Str } from './guards/Guard'
 
 const MD = new MonoidData();
 
@@ -27,9 +26,9 @@ const dummySaver: Saver<DataMap> = {
   }
 };
 
-export function newRun<N>
+export function newRun<N,O>
 (
-  world: BuiltWorld<N>,
+  world: BuiltWorld<N,O>,
   loader: Loader,
   saver: Saver<DataMap>,
   opts?: RunOpts

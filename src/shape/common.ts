@@ -1,9 +1,9 @@
 import { FacNode } from "../facs";
-import { Any, Guard, Narrowable, PreExpand, ReadExpand } from "../guards/Guard";
-import { MachineCtx } from "../MachineSpace";
-import { Handler, $Root, Fac, $data, $space, $handler, $fac, $Fac, $incl, $Incl, $root } from "../shapeShared";
+import { Any, Guard, Narrowable, ReadExpand } from "../guards/Guard";
+import { PathCtx, MachineCtx } from "../MachineSpace";
+import { Handler, $Root, Fac, $data, $space, $handler, $fac, $Fac, $incl, $Incl } from "../shapeShared";
 import { Merge, Simplify } from "../util";
-import { Builder, BuiltIns, PhaseHelper, RefHelper } from "./World";
+import { Builder } from "./World";
 
 export const separator = '_'
 export type Separator = typeof separator;
@@ -61,8 +61,8 @@ type _DataTuple<P, D> =
 
 {
   type A = Data<{
-    XA: MachineCtx
-    XI: MachineCtx
+    XA: MachineCtx<A,'O'>
+    XI: MachineCtx<A,'O'>
     D_rat: 123
     D_guineapig: ['hello', 123]
   }>;
@@ -73,100 +73,11 @@ type _DataTuple<P, D> =
 }
 
 
-
 export type ReadResult = {
   guard?: any,
   handler?: Handler,
   fac?: Fac
 }
-
-export type CoreCtx<N, O> =
-  {
-    and: PhaseHelper<N&BuiltIns,O>,
-    ref: RefHelper<N>,
-    expandType: <T>(t:T)=>PreExpand<T,typeof $root,O>
-  } & MachineCtx
-;
-
-export type PathCtx<N, P, O> =
-  CoreCtx<N, O>
-;
-
-// export type Impls<N, O> =
-//   (_Impls<N, _Data<N>, O> & { M:unknown })['M'] extends infer I ?
-//   I extends undefined ? never
-//   : I
-//   : never
-// ;
-
-// type _Impls<N, DOne, O> =
-//   [_ImplSplit<N>] extends [infer Tups] ?
-//   _ImplCombine<[Tups], {}, DOne, _Data<N, DOne>, {}, O> // CoreCtx<N,O>, O>
-//   : never
-// ;
-
-// type _ImplSplit<N> =
-//   keyof N extends infer K ?
-//   K extends keyof N ?
-//   K extends string ?
-
-//   TupPopHead<PathList<K>> extends [infer Tail, infer Popped, infer Head] ?
-
-//   Popped extends true ?
-//     readonly [Tail, Head, N[K]]
-//   : never : never : never : never : never
-// ;
-
-// type _ImplCombine<Tups, X0, DOne, DAll, XExtra, O> =
-//   Simplify<(
-//     (
-//       [
-//         Tups extends readonly [infer I] ?
-//         I extends readonly [[], 'XA', infer V] ? V
-//         : never : never
-//       ] extends readonly [infer X1] ?
-//       IsNotNever<X1> extends true ? Merge<X0, X1> : X0
-//       : never
-//     )
-//     & XExtra
-//   )> extends infer X ?
-
-//   (
-//     [
-//       Tups extends readonly [infer I] ?
-//         I extends readonly [[], 'D', infer V] ? [V]
-//       : never : never
-//     ] extends readonly [infer DD] ?
-//       IsNotNever<DD> extends true ?
-//       DD extends readonly [infer D] ?
-//         _Phase<D, X, O>
-//         : never : unknown
-//     : unknown
-//   ) &
-//   (
-//     {
-//       [Next in
-//         Tups extends readonly [infer I] ?
-//         I extends readonly [readonly [infer PH, ...infer PT], ...infer T] ?
-//         PH extends string ?
-//         [PH, [PT, ...T]]
-//         : never : never : never
-//       as Next[0]
-//       ]?: _ImplCombine<[Next[1]], X, DOne, DAll, XExtra, O>
-//     }
-//   )
-
-//   : never
-// ;
-
-// type _Phase<D, X, O> =
-//   _Handler<D,X,O> | { act:_Handler<D,X,O>, show?: (d:ReadExpand<D,$Root,O>)=>unknown[] }
-// ;
-
-// type _Handler<D, X, O> = 
-//   (x:X, d:ReadExpand<D,$Root,O>)=>Promise<O|false>
-// ;
-
 
 
 export module Impls {
@@ -180,7 +91,7 @@ export module Impls {
 
   type _Form<N, DOne, O> =
     [_Split<N>] extends [infer Tups] ?
-    _Combine<[Tups], {}, DOne, _Data<N, DOne>, CoreCtx<N,O>, O>
+    _Combine<[Tups], {}, DOne, _Data<N, DOne>, MachineCtx<N,O>, O>
     : never
   ;
 
@@ -368,7 +279,7 @@ export type FacContext<N, P extends string, O> =
   _JoinPaths<'M', P> extends infer MP ?
   MP extends string ?
   Merge<
-    CoreCtx<N, O>,
+    PathCtx<N, O>,
     Merge<
       _PathContextMerge<N, _UpstreamFacPaths<N, MP>>,
       (

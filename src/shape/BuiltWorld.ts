@@ -3,7 +3,7 @@ import { Fac, Handler, Projector } from "../shapeShared";
 import { Data, formPath } from "./common";
 import { Registry } from "./Registry";
 
-export class BuiltWorld<N> {
+export class BuiltWorld<N,O> {
   public readonly nodes: N = <N><unknown>{}
   public readonly data: Data<N> = <Data<N>><unknown>undefined;
   

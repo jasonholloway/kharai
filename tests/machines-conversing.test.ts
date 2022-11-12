@@ -89,50 +89,6 @@ describe('machines - conversing', () => {
 
     const x = createRunner(w.build(), {save:false});
 
-    //problem: ref and other bits are created
-    //as normal ctx additions in World.ts
-    //and put in the fac tree
-    //whereas they are really another layer
-    //independent of machine, but shaped by the world
-
-    //so we have another layer of context
-    //to be mixed in up top
-    //but - this context is already worked out for actual
-    //machines 
-
-    //the issue is, for this to be contextual, everything points towards it expecting bits like 'id'
-    //it shouldn't be contextual for root context - it's a peculiar situation in fact
-
-    //we want to use the context of '/'
-    //but we have no id, and we don't want to see and options that rely on there being an addressable entity in play
-    //it's like: contextual bits not relying on ids should be added generally
-    //but, ref does rely on id, or rather on path - which is not the same thing in fact
-    //
-    //id could be omitted, and anything deriving from it?
-    //though user-added bits would not be omitted
-    //
-    //do we then want a freshly-created context? yup. and this means sharing submethods as much as possible
-    //if not the entire thing
-    //
-
-    // problem is, meet and ref are from the user tree
-    // which is brought in, built up given a certain path
-    // and in this arbitrary context we... have a path?
-    // we certainly could have a path, though a fixed one
-    // a path of $client or similar
-    // which would give us all the normal refs etc
-    //
-    // some contextual bits _really_ do refer to the machine context though
-    // 'id' might be salvagable, but 'isFresh()'???
-    // a run context isnt a machine
-    //
-    // 
-    // NEEDED: a $root path
-    // effectively a hidden path in the tree
-    // shape() always puts things under $machine
-    // then there'd be an effectively hidden $client path
-    // root would be nicely shared
-
     await x.run.space.runArbitrary(async ({meet,ref}) => {
       const gary = await meet(ref.gerbil());
       gary.chat('squeak');
@@ -150,7 +106,6 @@ describe('machines - conversing', () => {
       .impl({
         async rat({meet,ref}) {
           const gary = await meet(ref.gerbil());
-
           gary.chat('squeak');
 
           return false;
