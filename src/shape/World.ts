@@ -1,13 +1,15 @@
 import { List, Set } from "immutable";
 import { inspect, isArray, isString } from "util";
-import { Any, Guard, Many, Never, Num, Str, Read, ReadExpand } from "../guards/Guard";
+import { Any, Guard, Many, Never, Num, Str } from "../guards/Guard";
 import { Id } from "../lib";
 import { $skip, MachineCtx, Peer } from "../MachineSpace";
 import { Handler, $data, $Data, $Fac, $Root, $root, $Incl, $incl, Projector, Fac } from "../shapeShared";
-import { DeepMerge, DeepSimplify, delay, IsAny, IsNever, Merge, Simplify } from "../util";
+import { DeepMerge, delay, IsAny, IsNever, Merge, Simplify } from "../util";
 import { BuiltWorld } from "./BuiltWorld";
-import { act, ctx, Data, FacContext, FacPath, formPath, Impls, incl, isDataNode, isInclNode, PathFac, SchemaNode } from "./common";
+import { act, ctx, FacContext, FacPath, incl, isDataNode, isInclNode, PathFac, SchemaNode, _Data } from "./common";
 import { mergeNodeVal, NodeVal, NodeView, Registry } from "./Registry";
+import * as Impls from './Impls'
+import * as NodeTree from "./NodeTree";
 
 export const separator = '_'
 export type Separator = typeof separator;
@@ -20,7 +22,7 @@ export module Builder {
       [k in (
         keyof N extends infer NK ?
           NK extends string ?
-          NK extends 'D' | _JoinPaths<'D', string> ?
+          NK extends 'D' | JoinPaths<'D', string> ?
             NK
           : never : never : never
       )]: N[k]
@@ -92,7 +94,7 @@ export module Builder {
         [k in (
               T extends infer TT
             ? TT extends string
-            ? _JoinPaths<TT, P>
+            ? JoinPaths<TT, P>
             : never : never
         )]:
           k extends keyof N ?
@@ -106,8 +108,8 @@ export module Builder {
   export type AtPath<P extends string, N> =
     Builder<{
       [k in keyof N as
-       k extends _JoinPaths<infer PH, infer PT>
-        ? _JoinPaths<PH, _JoinPaths<P, PT>>
+       k extends JoinPaths<infer PH, infer PT>
+        ? JoinPaths<PH, JoinPaths<P, PT>>
         : never
       ]: N[k]
     }>
@@ -139,158 +141,6 @@ export module Builder {
 
 
 //can only summon phases with string args
-export type RefHelper<N> = Summon.Helper<N>;
-
-module Summon {
-  export type Helper<N> = WalkData<'M', ExtractData<N>>
-
-  type WalkData<P extends string, D> = //DeepSimplify<
-    (
-      P extends keyof D
-        ? Creator<Read<D[P]>>
-        : never
-    ) extends infer Curr ?
-    (
-      [ExtractNextPrefixes<P,D>] extends [infer NPS] ?
-      IsNever<NPS> extends false ? {
-        [
-          T in (
-            NPS extends infer NP ?
-            NP extends string ?
-            [NP,WalkData<_JoinPaths<P,NP>, D>]
-            : never : never
-          ) as (
-            IsNever<T[1]> extends false ? T[0] : never
-          )
-        ]: T[1]
-      }
-      : never : never
-    ) extends infer Inner ?
-    (
-      [IsNever<Curr>, IsNever<Inner>] extends infer S ?
-          S extends [false, false] ? (Curr & Inner)
-        : S extends [true, false] ? Inner
-        : S extends [false, true] ? Curr
-      : never : never
-    )
-    : never : never
-  // >
-  ;
-
-  type ExtractNextPrefixes<P extends string, D> =
-    keyof D extends infer K ?
-    K extends _JoinPaths<P, _JoinPaths<infer N, any>> ?
-    N
-    : never : never;
-  
-  type ExtractData<N> = {
-    [k in keyof N as (k extends _JoinPaths<'D', infer P> ? P : never)]: N[k]
-  };
-
-  type Creator<V> = 
-    IsNotNever<V> extends false
-    ? (() => Id)
-    : (
-      V extends string ?
-        ((d: V) => Id)
-        : never
-    )
-  ;
-
-  try {
-    type W = {
-      D_M: [1]
-      D_M_hello_again: [typeof Num]
-      D_M_hello_moo: typeof Str
-      D_M_tara: [4]
-      D_M_tara_moo: never
-    };
-
-    type A = ExtractData<W>;
-    type B = ExtractNextPrefixes<'', A>
-    type C = ExtractNextPrefixes<'M', A>
-    type Z = Helper<W>
-
-    const z = <Z><unknown>undefined;
-    z.hello.moo('123')
-
-    // z.hello.again([2]);
-    // z.tara([4]);
-    // z.tara.moo();
-
-    type _ = [A,B,C,Z];
-  }
-  catch {}
-}
-
-
-
-
-export type PhaseHelper<N, Out> = Phase.Helper<N, Out>;
-
-module Phase {
-  export type Helper<N, Out> =
-    Simplify<WalkData<'', ExtractData<N>, Data<N>, Out> & { skip: () => Out }>
-  ;
-
-  type ExtractData<N> = {
-    [k in keyof N as (k extends _JoinPaths<_JoinPaths<'D','M'|'*'>, infer P> ? P : never)]: N[k]
-  };
-
-  type WalkData<P extends string, D, DAll, Out> = DeepSimplify<
-    (
-      P extends keyof D
-        ? Handler<ReadExpand<D[P], $Root, Out>, Out>
-        : unknown
-    )
-    & (
-      [ExtractNextPrefixes<P,D>] extends [infer NPS] ?
-      IsNever<NPS> extends false ? 
-        {
-          [N in ExtractNextPrefixes<P,D> & string]: WalkData<_JoinPaths<P,N>, D, DAll, Out>
-        }
-      : unknown : never)
-  >;
-
-  type Handler<V,Out> =
-    IsNotNever<V> extends true
-    ? ((d: V) => Out)
-    : (() => Out);
-
-  type ExtractNextPrefixes<P extends string, D> =
-    keyof D extends infer K ?
-    K extends _JoinPaths<P, _JoinPaths<infer N, any>> ?
-    N
-    : never : never;
-
-
-  try {
-    type W = {
-      D_M_: [1]
-      D_M_hello_again: [typeof Num]
-      D_M_hello_moo: [3]
-      D_M_tara: [4]
-      D_M_tara_moo: never
-    };
-
-    type A = ExtractData<W>;
-    type B = ExtractNextPrefixes<'', A>
-    type C = ExtractNextPrefixes<'hello', A>
-    type Z = WalkData<'',A,'DAll','OUT'>
-
-    const z = <Z><unknown>undefined;
-
-    z.hello.again([2]);
-    z.tara([4]);
-    z.tara.moo();
-
-    type _ = [A,B,C,Z];
-  }
-  catch {}
-
-}
-
-
 
 const $unique = Symbol('');
 interface AndNext {
@@ -299,7 +149,9 @@ interface AndNext {
 
 
 export class Builder<N> {
-  public readonly nodes: N = <N><unknown>{}
+  public readonly nodes = <N><unknown>{}
+  public readonly tree = <NodeTree.Form<N>><unknown>{}
+
   readonly reg: Registry
   
   constructor(reg?: Registry) {
@@ -319,7 +171,7 @@ export class Builder<N> {
     throw 'err';
   }
 
-  ctxImpl<P extends FacPath<N>, X extends Partial<PathFac<N,P>>>(path: P, fn: (x: FacContext<N,P,AndNext>)=>X) : Builder.MergeNode<N,_JoinPaths<'XI', 'M'>,P,X> {
+  ctxImpl<P extends FacPath<N>, X extends Partial<PathFac<N,P>>>(path: P, fn: (x: FacContext<NodeTree.Form<N>,N,P,AndNext>)=>X) : Builder.MergeNode<N,JoinPaths<'XI', 'M'>,P,X> {
     const pl = path.split(separator);
     
     return <Builder.MergeNode<N,'XI',P,X>>new Builder(
@@ -333,7 +185,7 @@ export class Builder<N> {
     );
   }
 
-  ctx<X>(fn: (x: FacContext<N,'',AndNext>)=>X): Builder.MergeNode<N, 'XA'|'XI', '', X> {
+  ctx<X>(fn: (x: FacContext<NodeTree.Form<N>,N,'',AndNext>)=>X): Builder.MergeNode<N, 'XA'|'XI', '', X> {
     return <Builder.MergeNode<N, 'XA'|'XI', '', X>>new Builder(
       this.reg.update(root => root
         .pushPath('M')
@@ -380,7 +232,7 @@ export class Builder<N> {
     }
   }
 
-  impl<S extends Impls.Form<N,AndNext>>(s: S): Builder<N> {
+  impl<S extends Impls.Form<NodeTree.Form<N>,N,AndNext>>(s: S): Builder<N> {
     return new Builder<N>(this.reg
       .update(root =>
         _walk(root.pushPath('M'), s, List()).popPath()!
@@ -602,7 +454,7 @@ export class Builder<N> {
 }
 
 
-type AnonCtx = MachineCtx<{}, AndNext>;
+type AnonCtx = MachineCtx<{}, '', AndNext>;
 
 
 export type BuiltIns = {
@@ -832,13 +684,13 @@ type _Walk<O, P extends string = ''> =
 
 type _DataWalk<O, P extends string> =
   $Data extends keyof O ?
-  [_JoinPaths<_JoinPaths<'D', 'M'>, P>, O[$Data]]
+  [JoinPaths<JoinPaths<'D', 'M'>, P>, O[$Data]]
   : never
 ;
 
 type _FacWalk<O, P extends string> =
   $Fac extends keyof O ?
-  [_JoinPaths<_JoinPaths<'XA', 'M'>, P>, O[$Fac]]
+  [JoinPaths<JoinPaths<'XA', 'M'>, P>, O[$Fac]]
   : never
 ;
 
@@ -852,10 +704,10 @@ type _InclWalk<O, P extends string> =
   IK extends keyof I ?
   [I[IK]] extends [infer IN] ?
   
-  IK extends _JoinPaths<infer IKH, infer IKT> ?
-  IKT extends _JoinPaths<'M', infer IKT2> ?
+  IK extends JoinPaths<infer IKH, infer IKT> ?
+  IKT extends JoinPaths<'M', infer IKT2> ?
 
-  [_JoinPaths<IKH, _JoinPaths<'M',_JoinPaths<P, IKT2>>>] extends [infer IK2] ?
+  [JoinPaths<IKH, JoinPaths<'M',JoinPaths<P, IKT2>>>] extends [infer IK2] ?
   
   [IK2, IN]
   
@@ -866,7 +718,7 @@ type _SpaceWalk<O, P extends string = ''> =
   Except<keyof O, $Fac|$Data> extends infer K ?
     K extends string ?
     K extends keyof O ?
-  _Walk<O[K], _JoinPaths<P, K>> extends infer Found ?
+  _Walk<O[K], JoinPaths<P, K>> extends infer Found ?
     [Found] extends [any] ?
       Found
       // ([`S${P}`, true] | Found)
@@ -920,7 +772,7 @@ type _Assemble<T extends readonly [string, unknown]> =
 
 
 type _UpstreamFacPaths<N, P extends string> =
-  _JoinPaths<'XA', P> extends infer XP ?
+  JoinPaths<'XA', P> extends infer XP ?
   XP extends string ?
   // _KnownRoutePaths<N, XP> extends infer Route ?
   TupExclude<_KnownRoutePaths<N, XP>, XP> extends infer Route ?
@@ -935,11 +787,11 @@ type _KnownRoutePaths<N, P extends string> =
 
 type _AllRoutePaths<P extends string, Path extends string = ''> =
   P extends `${infer Head}${Separator}${infer Tail}`
-  ? readonly [..._AllRoutePaths<Head, Path>, ..._AllRoutePaths<Tail, _JoinPaths<Path, Head>>]
-  : readonly [_JoinPaths<Path, P>];
+  ? readonly [..._AllRoutePaths<Head, Path>, ..._AllRoutePaths<Tail, JoinPaths<Path, Head>>]
+  : readonly [JoinPaths<Path, P>];
 
 
-type _JoinPaths<H extends string, T extends string> =
+export type JoinPaths<H extends string, T extends string> =
   H extends '' ? T
   : T extends '' ? H
   : `${H}${Separator}${T}`;
@@ -947,16 +799,14 @@ type _JoinPaths<H extends string, T extends string> =
 
 {
   type NN = {
-    XA: { a: 1 }
-    S: true,
-    XA_rat: { b: 2 },
-    S_rat: true,
-    S_rat_squeak: true
-    D_rat_squeak_quietly: 999,
-    XA_rat_squeak_quietly: { c: 3 },
-    S_rat_squeak_quietly: true,
-    D_rat_squeak_quietly_blah: 999,
+    XA_M: { a: 1 }
+    XA_M_rat: { b: 2 },
+    D_M_rat_squeak_quietly: 999,
+    XA_M_rat_squeak_quietly: { c: 3 },
+    D_M_rat_squeak_quietly_blah: 999,
   }
+
+  type TT = NodeTree.Form<NN>
 
   type A = FacPath<NN>
 
@@ -973,13 +823,12 @@ type _JoinPaths<H extends string, T extends string> =
   type J = _UpstreamFacPaths<NN, 'rat_squeak_quietly'>
   type K = _UpstreamFacPaths<NN, 'rat_squeak_quietly_blah'>
 
-  type L = FacContext<NN, 'rat', 0>
-  type M = FacContext<NN, 'rat_squeak_quietly', 0>
-  type N = FacContext<NN, 'rat_squeak_quietly_blah', 0>
+  type L = FacContext<TT, NN, 'rat', 0>
+  type M = FacContext<TT, NN, 'rat_squeak_quietly', 0>
+  type N = FacContext<TT, NN, 'rat_squeak_quietly_blah', 0>
 
   type _ = [A, B, C, D, E, F, G, H, I, J, K, L, M, N];
 }
-
 
 
 export type Except<A, B> =
@@ -1073,16 +922,16 @@ type TupExclude<R, Filter> =
 
 
 
-type PathList<PS extends string> =
+export type PathList<PS extends string> =
     PS extends '' ? []
   : PS extends `${infer PHead}${Separator}${infer PTail}` ? [PHead, ...PathList<PTail>]
   : [PS];
 
 
 
-type TupPopHead<L> =
-    L extends [] ? [[], false]
-  : L extends [infer H, ...infer T] ? [T, true, H]
+export type TupPopHead<L> =
+  L extends readonly [] ? readonly [[], false, never]
+  : L extends readonly [infer H, ...infer T] ? readonly [T, true, H]
   : never;
 
 {
@@ -1094,6 +943,6 @@ type TupPopHead<L> =
 }
 
 
-type IsNotNever<T> =
+export type IsNotNever<T> =
   [T] extends [never] ? false : true;
 

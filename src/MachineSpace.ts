@@ -9,10 +9,12 @@ import { inspect, isArray, isFunction } from 'util'
 import { Loader } from './Store'
 import { isString } from './util'
 import { Run, RunCtx, RunSpace } from './RunSpace'
-import { formPath, separator } from './shape/common'
-import { BuiltIns, PhaseHelper, RefHelper } from './shape/World'
+import { formPath } from './shape/common'
+import { RefHelper } from './shape/World'
 import { PreExpand } from './guards/Guard'
 import { $root } from './shapeShared'
+import * as NodeTree from './shape/NodeTree'
+import * as PhaseHelper from './shape/PhaseHelper'
 
 const log = console.debug;
 
@@ -36,7 +38,8 @@ export type Log = {
 }
 
 
-export class MachineSpace<N,O> {
+export class MachineSpace<N,O,NT=NodeTree.Form<N>> {
+  
   private readonly world: BuiltWorld<N,O>
   private readonly loader: Loader
   private readonly runs: RunSpace<DataMap,Frisked[]>;
@@ -72,10 +75,10 @@ export class MachineSpace<N,O> {
     return this._summon(ids);
   }
 
-  async runArbitrary<R>(fn: (x:ClientCtx<N,O>)=>Promise<R>): Promise<R> {
+  async runArbitrary<R>(fn: (x:ClientCtx<NT,O>)=>Promise<R>): Promise<R> {
     const result = await this.runs.newRun()
       .run(async x => {
-        const ctx = this.clientCtx(x);
+        const ctx = this.clientCtx(this.machineSpaceCtx(x));
         const r = await fn(ctx)
         return [[Map(),0], [], r];
       });
@@ -263,7 +266,7 @@ export class MachineSpace<N,O> {
     }
 
 
-    function machineCtx(x: PathCtx<N,O>, id: Id, v: number): MachineCtx<N,O> {
+    function machineCtx(x: MachineSpaceCtx, id: Id, v: number): MachineCtx<NT,'',O> {
       return {
         ...x,
         
@@ -271,14 +274,21 @@ export class MachineSpace<N,O> {
 
         isFresh() {
           return v == -1;
-        }
+        },
+
+        ..._this.pathCtx()
       };
     }
   }
 
-  private clientCtx(x: PathCtx<N,O>): ClientCtx<N,O> {
+  private pathCtx(): PathCtx<NT,'',O> {
+    throw 123;
+  }
+
+  private clientCtx(x: MachineSpaceCtx): ClientCtx<NT,O> {
     return {
-      ...x
+      ...x,
+      ...this.pathCtx()
     };
   }
 
@@ -404,15 +414,22 @@ export type MachineSpaceCtx = Extend<RunCtx<DataMap,Frisked[]>, {
 //PathCtx below to build up its own XAs
 //taking weight away from Impls
 //and making them available to clients
-export type PathCtx<N,P,O> = 
+
+//how about, instead of taking N directly
+//a predigested, pre-walked structure could be consumed
+//NodeTree and PathList
+//the NodeTree would be created by Impls as part of its walk
+//and then mapped into the Impls shape, with each leaf projected via below function
+
+export type PathCtx<NT,PL,O> = 
   {
-    and: PhaseHelper<N&BuiltIns,O>,
-    ref: RefHelper<N>,
+    and: PhaseHelper.Form<NT,O>,
+    ref: RefHelper<NT>,
     expandType: <T>(t:T)=>PreExpand<T,typeof $root,O>
   }
 ;
 
-export type MachineCtx<N,P,O> =
+export type MachineCtx<NT,P,O> =
   Extend<
     Extend<
       MachineSpaceCtx,
@@ -421,13 +438,13 @@ export type MachineCtx<N,P,O> =
         isFresh: () => boolean
       }
     >,
-    PathCtx<N,P,O>
+    PathCtx<NT,P,O>
   >;
 
-export type ClientCtx<N,O> =
+export type ClientCtx<NT,O> =
   Extend<
     MachineSpaceCtx,
-    PathCtx<N,'',O>
+    PathCtx<NT,'',O>
   >;
 
-type Extend<A, B> = Omit<A, keyof B> & B;
+export type Extend<A, B> = Omit<A, keyof B> & B;
