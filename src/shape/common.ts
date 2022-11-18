@@ -60,7 +60,11 @@ export type ReadResult = {
   fac?: Fac
 }
 
-export type CoreCtx<N, O> =
+// and below is specific to machines, not clients
+// though it _could_ just be omitted
+// would be better if it could be mixed in somehow as part of the tree
+// 
+export type ImplCtx<N, O> =
   {
     and: PhaseHelper<N&BuiltIns,O>,
     ref: RefHelper<N>,
@@ -68,18 +72,13 @@ export type CoreCtx<N, O> =
   } & MachineCtx
 ;
 
-export type PathCtx<N, P, O> =
-  CoreCtx<N, O>
-;
-
-
 export type Impls<N, O> =
   _Impls<N, _Data<N>, O>
 ;
 
 type _Impls<N, DOne, O> =
   [_ImplSplit<N>] extends [infer Tups] ?
-  _ImplCombine<[Tups], {}, DOne, _Data<N, DOne>, CoreCtx<N,O>, O>
+  _ImplCombine<[Tups], {}, DOne, _Data<N, DOne>, ImplCtx<N,O>, O>
   : never
 ;
 
@@ -224,7 +223,7 @@ export type PathFac<N, P extends string> =
 
 export type FacContext<N, P extends string, O> =
   Merge<
-    CoreCtx<N, O>,
+    ImplCtx<N, O>,
     Merge<
       _PathContextMerge<N, _UpstreamFacPaths<N, P>>,
       (

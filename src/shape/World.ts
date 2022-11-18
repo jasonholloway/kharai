@@ -572,10 +572,13 @@ export class Builder<N> {
 export type BuiltIns = {
   XA: MachineCtx //todo these could be collapsed into simple, single 'X' entry
   XI: MachineCtx
+
+  XA_$client: unknown,
+  XI_$client: unknown,
+  
   D_boot: never,
   D_end: typeof Any,
   D_wait: [typeof Num | typeof Str, $Root],
-
 
   //BELOW NEED TO BE ABLE TO DO ANDS IN GUARDS!
   D_$meetAt: [typeof Str, $Root],

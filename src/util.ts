@@ -83,8 +83,9 @@ type MergeObjects<A extends object, B extends object> =
   type B = Merge<[1], [1,2]>
   type C = Merge<1[], number[]>
   type D = Merge<number[], [1,2]>
+  type E = Merge<number[], never>
 
-  type _ = [A,B,C,D]
+  type _ = [A,B,C,D,E]
 }
 
 

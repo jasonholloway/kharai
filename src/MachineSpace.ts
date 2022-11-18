@@ -7,9 +7,9 @@ import { BuiltWorld, Found } from './shape/BuiltWorld'
 import { AtomRef } from './atoms'
 import { inspect, isArray, isFunction } from 'util'
 import { Loader } from './Store'
-import { isString } from './util'
+import { isString, Merge } from './util'
 import { Run, RunCtx, RunSpace } from './RunSpace'
-import { formPath } from './shape/common'
+import { formPath, PathFac } from './shape/common'
 
 const log = console.debug;
 
@@ -69,7 +69,7 @@ export class MachineSpace<N> {
     return this._summon(ids);
   }
 
-  async runArbitrary<R>(fn: (x:MachineSpaceCtx)=>Promise<R>): Promise<R> {
+  async runArbitrary<R>(fn: (x:Merge<PathFac<N,''>,PathFac<N,'$client'>>)=>Promise<R>): Promise<R> {
     const result = await this.runs.newRun()
       .run(async x => {
         const r = await fn(this.machineSpaceCtx(x))
@@ -271,6 +271,17 @@ export class MachineSpace<N> {
       };
     }
   }
+
+  //machineSpaceCtx gives you access to machine space (good!)
+  //machineCtx means you _are_ a machine
+  //so implctx needs to use machinectx
+  //but clientctx? some other way
+
+  //though we were saying: make client part of tree
+  //so we would have an id? the id would be shortlived however
+  //nah, then we'd basically have a machine but without the trappings
+  //
+  //
 
   private machineSpaceCtx(x: RunCtx<DataMap,Frisked[]>, id?: Id): MachineSpaceCtx {
     const _this = this;

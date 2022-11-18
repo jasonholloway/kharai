@@ -89,33 +89,44 @@ describe('machines - conversing', () => {
 
     const x = createRunner(w.build(), {save:false});
 
-    //problem: ref and other bits are created
-    //as normal ctx additions in World.ts
-    //and put in the fac tree
-    //whereas they are really another layer
-    //independent of machine, but shaped by the world
-
-    //so we have another layer of context
-    //to be mixed in up top
-    //but - this context is already worked out for actual
-    //machines 
-
-    //the issue is, for this to be contextual, everything points towards it expecting bits like 'id'
-    //it shouldn't be contextual for root context - it's a peculiar situation in fact
-
-    //we want to use the context of '/'
-    //but we have no id, and we don't want to see and options that rely on there being an addressable entity in play
-    //it's like: contextual bits not relying on ids should be added generally
-    //but, ref does rely on id, or rather on path - which is not the same thing in fact
     //
-    //id could be omitted, and anything deriving from it?
-    //though user-added bits would not be omitted
+    //a fresh context
+    //with most bits not injected in via facs
     //
-    //do we then want a freshly-created context? yup. and this means sharing submethods as much as possible
-    //if not the entire thing
+    //it's almost a mixin situtaion 
+    //we have a tree of contexts and this sidegrowth
+    //of a context without an address
+    //though it will be able to convene and attend and watch
+    //and everything else
+    //and so - could we just use the root context?
+    //or maybe a special sidebranch 
+    //though as soon as we have an address we are addressable!
+    //we're not addressable
+    //
+    //in fact, are we even attendable? possibly, yes
+    //we could be waiting for emissions
+    //and if so, we would need an address
+    //but how could multiple things be reachable on the same address?
+    //it actually sounds possible and doable and even desirable
+    //
+    //and so we'd have a special well-known address for outside 'runs'
+    //$client or somesuch
+    //which would have a fac, but no data
+    //(so it would be addressable, but wouldn't have a state)
+    //
+    //wait a sec...
+    //the special $client fac
+    //is just the address of a fac
+    //although as a mainstream fac, this would involve an 'id'
+    //so it does still imply addressability
     //
 
-    await x.run.space.runArbitrary(async ({meet,ref}) => {
+    await x.run.space.runArbitrary(async x => {
+      //ref isn't on root node apparently...
+      //todo: ref needs to add to root please
+
+      x
+
       const gary = await meet(ref.gerbil());
       gary.chat('squeak');
       //...
