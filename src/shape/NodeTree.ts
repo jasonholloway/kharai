@@ -11,7 +11,7 @@ type _Split<N> =
   keyof N extends infer K ?
   K extends keyof N ?
   K extends string ?
-  TupPopHead<PathList<K>> extends [infer Path, infer Popped, infer Type] ?
+  TupPopHead<PathList<K>> extends readonly [infer Popped, readonly [infer Type, infer Path]] ?
   Popped extends true ?
   readonly [Type, Path, N[K]]
   : never : never : never : never : never
@@ -28,7 +28,18 @@ type _Combine<Tups, X0> =
     : never
   )> extends infer X ?
 
-  Merge<(
+  {
+    [Next in
+      Tups extends readonly [infer I] ?
+      I extends readonly [infer Type2, readonly [infer PH, ...infer PT], infer V] ?
+      PH extends string ?
+      readonly [PH, readonly [Type2, PT, V]]
+      : never : never : never
+    as Next[0]
+    ]: _Combine<[Next[1]], X>
+  } extends infer Children ?
+
+  (
     [
       Tups extends readonly [infer I] ?
         I extends readonly ['D', [], infer V] ? [V]
@@ -36,24 +47,18 @@ type _Combine<Tups, X0> =
     ] extends readonly [infer DD] ?
       IsNotNever<DD> extends true ?
       DD extends readonly [infer D] ?
-        { X:X, D:D } //  { _: readonly [X,D] } // X:X, D:D }
+        { P: readonly [X,D] }
         : never : unknown
     : unknown
-  ),
-  (
-    {
-      [Next in
-        Tups extends readonly [infer I] ?
-        I extends readonly [infer Type2, readonly [infer PH, ...infer PT], infer V] ?
-        PH extends string ?
-        readonly [PH, readonly [Type2, PT, V]]
-        : never : never : never
-      as Next[0]
-      ]: _Combine<[Next[1]], X>
-    }
-  )>
+  ) extends infer Curr ?
 
-  : never
+  (
+    {} extends Children
+      ? Curr
+      : Merge<Curr, { S: Children }>
+  )
+
+  : never : never : never
 ;
 
 try {
@@ -64,11 +69,13 @@ try {
     // D_M_hello_again: [typeof Num]
     D_M_hello_moo: [3]
     D_M_tara: [4]
-    // D_M_tara_moo: never
+    D_M_tara_moo: never
   };
 
-  type A = Form<W>;
+  type A = _Split<W>;
 
-  type _ = [A];
+  type B = Form<W>;
+
+  type _ = [A,B];
 }
 catch {}

@@ -930,9 +930,10 @@ export type PathList<PS extends string> =
 
 
 export type TupPopHead<L> =
-  L extends readonly [] ? readonly [[], false, never]
-  : L extends readonly [infer H, ...infer T] ? readonly [T, true, H]
-  : never;
+  L extends readonly [] ? readonly [false, never]
+  : L extends readonly [infer H, ...infer T] ? readonly [true, [H, T]]
+  : never
+;
 
 {
   type A = TupPopHead<[]>
