@@ -75,7 +75,9 @@ type MergeArrays<A extends unknown[], B extends unknown[]> =
 
 
 type MergeObjects<A extends object, B extends object> =
-  Simplify<Omit<A, keyof B> & B>;
+    A extends Function ? Simplify<B>&A
+  : B extends Function ? Simplify<A>&B
+  : Simplify<Omit<A, keyof B> & B>;
   
 
 {
@@ -83,13 +85,15 @@ type MergeObjects<A extends object, B extends object> =
   type B = Merge<[1], [1,2]>
   type C = Merge<1[], number[]>
   type D = Merge<number[], [1,2]>
+  type E = MergeObjects<{},()=>{}>
 
-  type _ = [A,B,C,D]
+  type _ = [A,B,C,D,E]
 }
 
 
 export type Simplify<T> =
   T extends readonly unknown[] ? SimplifyArray<T>
+  : T extends Function ? T
   : { [k in keyof T]: T[k] };
 
 type SimplifyArray<R extends readonly unknown[]> =

@@ -1,52 +1,61 @@
 import { Num, Read, Str } from "../guards/Guard";
 import { Id } from "../lib";
-import { IsNever } from "../util";
-import { IsNotNever, JoinPaths } from "./World";
+import { Simplify } from "../util";
+import { IsNotNever } from "./World";
+import * as NodeTree from './NodeTree'
+import * as RelPaths from './RelPaths'
 
-export type Form<N> = WalkData<'M', ExtractData<N>>
+//todo RelPaths should path in space rather than node
+//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-type WalkData<P extends string, D> = //DeepSimplify<
-  (
-    P extends keyof D
-      ? Creator<Read<D[P]>>
-      : never
-  ) extends infer Curr ?
-  (
-    [ExtractNextPrefixes<P,D>] extends [infer NPS] ?
-    IsNever<NPS> extends false ? {
-      [
-        T in (
-          NPS extends infer NP ?
-          NP extends string ?
-          [NP,WalkData<JoinPaths<P,NP>, D>]
-          : never : never
-        ) as (
-          IsNever<T[1]> extends false ? T[0] : never
-        )
-      ]: T[1]
-    }
-    : never : never
-  ) extends infer Inner ?
-  (
-    [IsNever<Curr>, IsNever<Inner>] extends infer S ?
-        S extends [false, false] ? (Curr & Inner)
-      : S extends [true, false] ? Inner
-      : S extends [false, true] ? Curr
-    : never : never
-  )
-  : never : never
-// >
+export type Form<RDT> =
+  RDT extends { S:infer S } ?
+  _MapSpace<S>
+  : never
 ;
 
-type ExtractNextPrefixes<P extends string, D> =
-  keyof D extends infer K ?
-  K extends JoinPaths<P, JoinPaths<infer N, any>> ?
-  N
-  : never : never;
+type _MapNode<RDT> =
+  RDT extends { D?:infer DTup, S?:infer S } ?
 
-type ExtractData<N> = {
-  [k in keyof N as (k extends JoinPaths<'D', infer P> ? P : never)]: N[k]
-};
+  (
+    S extends {} ?
+    Simplify<_MapSpace<S>>
+    : never
+  ) extends infer VS ?
+
+  (
+    DTup extends [infer D] ?
+    Creator<Read<D>>
+    : never
+  ) extends infer VD ?
+
+  [IsNotNever<VS>, IsNotNever<VD>] extends infer V ?
+      V extends [true, true] ? (VS & VD)
+    : V extends [true, false] ? VS
+    : V extends [false, true] ? VD
+
+  : never : never : never : never : never
+;
+
+
+type _MapSpace<S> =
+  {
+    [
+      N in (
+        keyof S extends infer K ?
+        K extends keyof S ?
+        K extends string ?
+        _MapNode<S[K]> extends infer Inner ?
+        IsNotNever<Inner> extends true ?
+          [
+            K,
+            Inner
+          ]
+          : never : never : never : never : never
+      ) as N[0]
+    ]: N[1]
+  }
+;
 
 type Creator<V> = 
   IsNotNever<V> extends false
@@ -67,18 +76,15 @@ try {
     D_M_tara_moo: never
   };
 
-  type A = ExtractData<W>;
-  type B = ExtractNextPrefixes<'', A>
-  type C = ExtractNextPrefixes<'M', A>
-  type Z = Form<W>
+  type A = NodeTree.Form<W>;
+  type B = RelPaths.Form<A,['tara']>
+  type C = Form<B>;
 
-  const z = <Z><unknown>undefined;
-  z.hello.moo('123')
+  const c = <C><unknown>undefined;
+  c.hello.moo('123')
+  c.tara.moo();
+  c.moo();
 
-  // z.hello.again([2]);
-  // z.tara([4]);
-  // z.tara.moo();
-
-  type _ = [A,B,C,Z];
+  type _ = [A,B,C];
 }
 catch {}

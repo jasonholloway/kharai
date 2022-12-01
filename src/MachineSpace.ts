@@ -10,11 +10,12 @@ import { Loader } from './Store'
 import { isString } from './util'
 import { Run, RunCtx, RunSpace } from './RunSpace'
 import { formPath } from './shape/common'
-import { RefHelper } from './shape/World'
 import { PreExpand } from './guards/Guard'
 import { $root } from './shapeShared'
 import * as NodeTree from './shape/NodeTree'
+import * as RelPaths from './shape/RelPaths'
 import * as PhaseHelper from './shape/PhaseHelper'
+import * as RefHelper from './shape/RefHelper'
 
 const log = console.debug;
 
@@ -266,7 +267,7 @@ export class MachineSpace<N,O,NT=NodeTree.Form<N>> {
     }
 
 
-    function machineCtx(x: MachineSpaceCtx, id: Id, v: number): MachineCtx<NT,'',O> {
+    function machineCtx(x: MachineSpaceCtx, id: Id, v: number): MachineCtx<NT,string[],O> {
       return {
         ...x,
         
@@ -281,7 +282,7 @@ export class MachineSpace<N,O,NT=NodeTree.Form<N>> {
     }
   }
 
-  private pathCtx(): PathCtx<NT,'',O> {
+  private pathCtx(): PathCtx<NT,string[],O> {
     throw 123;
   }
 
@@ -421,15 +422,17 @@ export type MachineSpaceCtx = Extend<RunCtx<DataMap,Frisked[]>, {
 //the NodeTree would be created by Impls as part of its walk
 //and then mapped into the Impls shape, with each leaf projected via below function
 
-export type PathCtx<NT,PL,O> = 
+export type PathCtx<NT,PL extends string[],O> = 
+  RelPaths.Form<NT,PL> extends infer RT ?
   {
-    and: PhaseHelper.Form<NT,O>,
-    ref: RefHelper<NT>,
+    and: PhaseHelper.Form<RT,O>,
+    ref: RefHelper.Form<RT>,
     expandType: <T>(t:T)=>PreExpand<T,typeof $root,O>
   }
+  : never
 ;
 
-export type MachineCtx<NT,P,O> =
+export type MachineCtx<NT,PL extends string[],O> =
   Extend<
     Extend<
       MachineSpaceCtx,
@@ -438,13 +441,13 @@ export type MachineCtx<NT,P,O> =
         isFresh: () => boolean
       }
     >,
-    PathCtx<NT,P,O>
+    PathCtx<NT,PL,O>
   >;
 
 export type ClientCtx<NT,O> =
   Extend<
     MachineSpaceCtx,
-    PathCtx<NT,'',O>
+    PathCtx<NT,[],O>
   >;
 
 export type Extend<A, B> = Omit<A, keyof B> & B;

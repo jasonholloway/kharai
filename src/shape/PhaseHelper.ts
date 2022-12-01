@@ -1,68 +1,52 @@
 import { Num, ReadExpand } from "../guards/Guard";
 import { $Root } from "../shapeShared";
-import { DeepSimplify, IsNever, Simplify } from "../util";
-import { Data } from "./common";
-import { IsNotNever, JoinPaths } from "./World";
+import { DeepMerge } from "../util";
+import { IsNotNever } from "./World";
 import * as NodeTree from './NodeTree'
+import * as RelPaths from './RelPaths'
 
-export type Form<N, Out> =
-  Simplify<WalkData<'', ExtractData<N>, Data<N>, Out> & { skip: () => Out }>
+export type Form<RDT,Out> =
+  _Map<
+    DeepMerge<RDT, { S: { skip: { D: [never] } } }>,
+    Out
+  >;
+
+type _Map<RDT, O> =
+  RDT extends { D?:infer DTup, S?:infer S } ?
+
+  (DTup extends [infer D]
+    ? _Handler<ReadExpand<D,$Root,O>,O>
+    : unknown)
+  & (S extends {}
+    ? { [k in keyof S]: _Map<S[k],O> }
+    : unknown)
+  
+  : never
 ;
 
-type ExtractData<N> = {
-  [k in keyof N as (k extends JoinPaths<JoinPaths<'D','M'|'*'>, infer P> ? P : never)]: N[k]
-};
-
-type WalkData<P extends string, D, DAll, Out> = DeepSimplify<
-  (
-    P extends keyof D
-      ? Handler<ReadExpand<D[P], $Root, Out>, Out>
-      : unknown
-  )
-  & (
-    [ExtractNextPrefixes<P,D>] extends [infer NPS] ?
-    IsNever<NPS> extends false ? 
-      {
-        [N in ExtractNextPrefixes<P,D> & string]: WalkData<JoinPaths<P,N>, D, DAll, Out>
-      }
-    : unknown : never)
->;
-
-type Handler<V,Out> =
+type _Handler<V,Out> =
   IsNotNever<V> extends true
   ? ((d: V) => Out)
   : (() => Out);
 
-type ExtractNextPrefixes<P extends string, D> =
-  keyof D extends infer K ?
-  K extends JoinPaths<P, JoinPaths<infer N, any>> ?
-  N
-  : never : never;
-
-
 try {
   type N = {
-    D_M: [1]
-    D_M_hello_again: [typeof Num]
-    D_M_hello_moo: [3]
+    D_M: 1
+    D_M_hello_again: typeof Num
+    D_M_hello_moo: 3
     D_M_tara: [4]
     D_M_tara_moo: never
   };
 
-  type T = NodeTree.Form<N>;
+  type A = NodeTree.Form<N>;
+  type B = RelPaths.Form<A,['tara']>;
+  type C = Form<B,'OUT'>;
 
-  type A = ExtractData<N>;
-  type B = ExtractNextPrefixes<'', A>
-  type C = ExtractNextPrefixes<'hello', A>
+  const c = <C><unknown>undefined;
+  c.skip();
+  c.moo();
+  c.hello.moo(3);
 
-  type Z = WalkData<'',A,'DAll','OUT'>
-
-  const z = <Z><unknown>undefined;
-
-  // z.hello.again([2]);
-  z.tara([4]);
-  // z.tara.moo();
-
-  type _ = [A,B,C,Z];
+  type _ = [A,B,C];
 }
 catch {}

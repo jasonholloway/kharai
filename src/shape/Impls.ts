@@ -1,36 +1,54 @@
 import { ReadExpand } from "../guards/Guard";
-import { PathCtx } from "../MachineSpace";
 import { $Root } from "../shapeShared";
 import { Merge } from "../util";
 import * as NodeTree from './NodeTree'
+import * as RelPaths from './RelPaths'
+import * as PhaseHelper from './PhaseHelper'
+import * as RefHelper from './RefHelper'
 
-export type Form<T, N, O> =
+//todo: RDT coming through as never...
+
+//todo: filter out prefixed tree props...
+export type Form<T,O> =
   // _Data<N> extends infer DOne ?
   // _Data<N, DOne> extends infer DFull ?
-  _Form<T, T, O> extends { M?: infer M } ?
+  _MapNode<T,[],T,O> extends { M?: infer M } ?
   M
   : {}
   // : never : never
 ;
-//also need to extract 'M'
-//D and X need more special names
 
-type _Form<T0, T, O> =
-  (
-    T extends { D:infer TD, X:infer TX } ?
-    PathCtx<T0,[],O> extends infer PX ?
-    Merge<TX, PX> extends infer X ?
-      _Phase<TD,X,O>
-    : never : never : unknown
-  )
-  & (
-    {
-      [
-        K in keyof T
-        as K extends 'D'|'X' ? never : K
-      ]?: _Form<T0, T[K], O>
-    }
-  )
+
+//TODO
+//- calc RelPaths once per node
+
+type _MapNode<T0,PL extends string[],T,O> =
+  RelPaths.Form<T0,PL> extends infer RDT ?
+  _TryMapSpace<T0,PL,T,O> extends infer Space ?
+  _TryMapPhase<RDT,T,O> extends infer Phase ?
+  Merge<Space, Phase> extends infer Merged ?
+  unknown extends Merged ? never
+  : Merged
+: never : never : never : never
+;
+
+type _TryMapSpace<T0,PL extends string[],T,O> =
+  T extends { S: infer S } ?
+  {
+    [k in keyof S & string]?:
+      _MapNode<T0,[...PL,k],S[k],O>
+  }
+  : unknown
+;
+
+type _TryMapPhase<RDT,T,O> =
+  T extends { P: [infer X, infer D] } ?
+    PhaseHelper.Form<RDT,O> extends infer PH ?
+    RefHelper.Form<RDT> extends infer RH ?
+    Merge<X, { refs:RH, and:PH }> extends infer X2 ?
+      _Phase<D,X2,O>
+  : never: never : never
+  : unknown
 ;
 
 type _Phase<D, X, O> =
@@ -50,10 +68,10 @@ type _Handler<D, X, O> =
   };
 
   type T = NodeTree.Form<N>
-  type C = Form<T, N, 'O'>
+  type C = _MapNode<T,[],T,'O'>
 
   const c: C = <C><unknown>{};
-  c
+  c.M!.cat!.meeow!
 
   type _ = [C, T]
 }

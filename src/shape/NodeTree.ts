@@ -47,7 +47,8 @@ type _Combine<Tups, X0> =
     ] extends readonly [infer DD] ?
       IsNotNever<DD> extends true ?
       DD extends readonly [infer D] ?
-        { P: readonly [X,D] }
+        { P: [X,D] }
+        // { P: readonly [X,D] }
         : never : unknown
     : unknown
   ) extends infer Curr ?
@@ -67,7 +68,7 @@ try {
     D_M: [1]
     XA_M_tara: { i: 999 },
     // D_M_hello_again: [typeof Num]
-    D_M_hello_moo: [3]
+    D_M_hello_moo: never
     D_M_tara: [4]
     D_M_tara_moo: never
   };
