@@ -1,6 +1,6 @@
 import { ReadExpand } from "../guards/Guard";
 import { $Root } from "../shapeShared";
-import { DeepSimplify, Merge } from "../util";
+import { Merge } from "../util";
 import * as NodeTree from './NodeTree'
 import * as RelPaths from './RelPaths'
 import * as PhaseHelper from './PhaseHelper'
@@ -22,10 +22,6 @@ export type Form<T,O> =
   _MapNode<T,[],MT,O>
   : never
 ;
-
-
-//TODO
-//- calc RelPaths once per node
 
 type _MapNode<T0,PL extends string[],T,O> =
   RelPaths.Form<T0,PL> extends infer RDT ?
@@ -69,7 +65,7 @@ type _Handler<D, X, O> =
     XA: { a:1 },
     D_M_dog_woof: 999,
     XA_M_dog: { b:2 },
-    D_M_cat_meeow: 456
+    D_M_cat_meeow: $Root
   };
 
   type A = NodeTree.Form<N>
@@ -90,7 +86,8 @@ type _Handler<D, X, O> =
     },
     cat: {
       async meeow(x,d) {
-        return x.and.skip();
+        //x.ref not working todo
+        return x.and.meeow('O');
       }
     }
   });
