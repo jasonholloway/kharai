@@ -7,7 +7,7 @@ import * as RelPaths from './RelPaths'
 
 export type Form<RDT,Out> =
   _Map<
-    DeepMerge<RDT, { S: { skip: { D: [never] } } }>,
+  DeepMerge<Omit<RDT,'D'>, { S: { skip: { D: [never] } } }>,
     Out
   >;
 

@@ -1,21 +1,26 @@
 import { ReadExpand } from "../guards/Guard";
 import { $Root } from "../shapeShared";
-import { Merge } from "../util";
+import { DeepSimplify, Merge } from "../util";
 import * as NodeTree from './NodeTree'
 import * as RelPaths from './RelPaths'
 import * as PhaseHelper from './PhaseHelper'
 import * as RefHelper from './RefHelper'
 
+/*
+  soit's coming through as never because our PLs are from the root
+  while RelPath works from M
+  Impls should treat M as its root as well
+  the NodeTree should include all the accumulated stuff for us 
+*/
+
 //todo: RDT coming through as never...
 
 //todo: filter out prefixed tree props...
+
 export type Form<T,O> =
-  // _Data<N> extends infer DOne ?
-  // _Data<N, DOne> extends infer DFull ?
-  _MapNode<T,[],T,O> extends { M?: infer M } ?
-  M
-  : {}
-  // : never : never
+  NodeTree.Extract<T,['M']> extends infer MT ?
+  _MapNode<T,[],MT,O>
+  : never
 ;
 
 
@@ -67,11 +72,28 @@ type _Handler<D, X, O> =
     D_M_cat_meeow: 456
   };
 
-  type T = NodeTree.Form<N>
-  type C = _MapNode<T,[],T,'O'>
+  type A = NodeTree.Form<N>
+  type B = RelPaths.Form<A,[]>
+  type C = _MapNode<A,[],A,'O'>
+  type W = Form<A,'O'>
 
-  const c: C = <C><unknown>{};
+  const c = <C><unknown>{};
   c.M!.cat!.meeow!
 
-  type _ = [C, T]
+
+  const shape = (w:W)=>{};
+  shape({
+    dog: {
+      async woof(x,d) {
+        return x.and.woof(999);
+      }
+    },
+    cat: {
+      async meeow(x,d) {
+        return x.and.skip();
+      }
+    }
+  });
+
+  type _ = [A,B,C,W]
 }

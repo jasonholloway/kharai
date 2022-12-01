@@ -7,6 +7,13 @@ export type Form<N> =
   : never
 ;
 
+export type Extract<N,PL> =
+  PL extends [] ? N
+  : PL extends [infer PH, ...infer PT] ?
+    N extends { S: { [k in PH & string]: infer N2 } } ? Extract<N2, PT>
+  : never : never
+;
+
 type _Split<N> =
   keyof N extends infer K ?
   K extends keyof N ?
@@ -76,7 +83,8 @@ try {
   type A = _Split<W>;
 
   type B = Form<W>;
+  type C = Extract<B, ['M','tara']>
 
-  type _ = [A,B];
+  type _ = [A,B,C];
 }
 catch {}
