@@ -66,6 +66,9 @@ try {
     type R = RelPaths.Form<N,[]>;
     type Z = Form<R,'O'>
 
+    const z = <Z><unknown>0;
+    z.yo.hi(<T><unknown>0);
+
     type _ = Z
   }
 }

@@ -28,14 +28,15 @@ type _Form<PL,AC,NT> =
 ;
 
 type _MapDataTree<NT> =
-  NT extends { P?:infer P, S?:infer S } ?
+  NT extends { P?:infer P, S?:infer S, R?:infer R } ?
 
   (P extends readonly [unknown, infer D] ? { D:[D] } : {}) extends infer M0 ?
   (S extends {} ? { S:{ [k in keyof S]: _MapDataTree<S[k]> } } : {}) extends infer M1 ?
+  (R extends true ? { R:true } : {}) extends infer M2 ?
   
-  Merge<M0, M1>
+  Merge<M0, Merge<M1,M2>>
 
-  : never : never : never
+  : never : never : never : never
 ;
 
 
@@ -46,6 +47,7 @@ try {
     // D_M_hello_moo: [3]
     D_M_tara: 4
     D_M_tara_moo: never
+    R_M_tara_moo: true
   };
 
   type A = NodeTree.Form<N>;

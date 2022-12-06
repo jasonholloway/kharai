@@ -35,18 +35,7 @@ type _Combine<Tups, X0> =
     : never
   )> extends infer X ?
 
-  {
-    [Next in
-      Tups extends readonly [infer I] ?
-      I extends readonly [infer Type2, readonly [infer PH, ...infer PT], infer V] ?
-      PH extends string ?
-      readonly [PH, readonly [Type2, PT, V]]
-      : never : never : never
-    as Next[0]
-    ]: _Combine<[Next[1]], X>
-  } extends infer Children ?
-
-  (
+  [(
     [
       Tups extends readonly [infer I] ?
         I extends readonly ['D', [], infer V] ? [V]
@@ -54,30 +43,47 @@ type _Combine<Tups, X0> =
     ] extends readonly [infer DD] ?
       IsNotNever<DD> extends true ?
       DD extends readonly [infer D] ?
-        { P: [X,D] }
+      { P: [X,D] }
         // { P: readonly [X,D] }
         : never : unknown
     : unknown
-  ) extends infer Curr ?
+  )] extends [infer PhasePart] ?
 
-  (
-    {} extends Children
-      ? Curr
-      : Merge<Curr, { S: Children }>
-  )
+  
+  [
+    ['R', [], true] extends Tups[keyof Tups]
+      ? { R:true }
+      : {}
+  ] extends [infer RootPart] ?
 
-  : never : never : never
+  {
+    S: {
+      [Next in
+        Tups extends readonly [infer I] ?
+        I extends readonly [infer Type2, readonly [infer PH, ...infer PT], infer V] ?
+        PH extends string ?
+        readonly [PH, readonly [Type2, PT, V]]
+        : never : never : never
+      as Next[0]
+      ]: _Combine<[Next[1]], X>
+    }
+  } extends infer SpacePart ?
+
+  Merge<Merge<PhasePart, RootPart>, SpacePart>
+
+  : never : never : never : never
 ;
 
 try {
   type W = {
-    XA: { i: 123 },
-    D_M: [1]
-    XA_M_tara: { i: 999 },
-    // D_M_hello_again: [typeof Num]
-    D_M_hello_moo: never
+    XA: { i: 123, j: 456 },
+    // D_M: [1]
+    XA_M_tara: { i: 789 },
+    // // D_M_hello_again: [typeof Num]
+    // D_M_hello_moo: never
     D_M_tara: [4]
     D_M_tara_moo: never
+    R_M_tara_moo: true
   };
 
   type A = _Split<W>;
