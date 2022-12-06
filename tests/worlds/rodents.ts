@@ -4,6 +4,9 @@ import { Bool, Num, Str, Tup } from '../../src/guards/Guard'
 import { act } from '../../src/shape/common';
 import { World } from '../../src/shape/World';
 
+//TODO below SLOW SLOW SLOW!
+//since change to use relpaths, which should speed stuff up???
+
 export const rodents = World
   .shape({
     rat: {

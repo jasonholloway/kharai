@@ -667,8 +667,8 @@ function builtIns() {
 
 
 //temporary exclusion below
-// export const World = new Builder<BuiltIns>(Registry.empty)
-export const World = new Builder<{}>(Registry.empty)
+export const World = new Builder<BuiltIns>(Registry.empty)
+// export const World = new Builder<{}>(Registry.empty)
 
 
 

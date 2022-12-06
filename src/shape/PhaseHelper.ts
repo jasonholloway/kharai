@@ -1,25 +1,26 @@
 import { Guard, Num, ReadExpand } from "../guards/Guard";
 import { $Self } from "../shapeShared";
-import { DeepMerge } from "../util";
 import { IsNotNever } from "./World";
 import * as NodeTree from './NodeTree'
 import * as RelPaths from './RelPaths'
 
 export type Form<RDT,Out> =
-  _Map<
-    DeepMerge<Omit<RDT,'D'>, { S: { skip: { D: [never] } } }>,
-    Out
-  >;
+  _Map<Omit<RDT,'D'>,Out> & { skip(): Out }
+;
 
 type _Map<RDT, O> =
   RDT extends { D?:infer DTup, S?:infer S } ?
 
-  (DTup extends [infer D]
-    ? _Handler<ReadExpand<D,$Self,O>,O>
-    : unknown)
-  & (S extends {}
-    ? { [k in keyof S as _NormalizeName<k>]: _Map<S[k],O> }
-    : unknown)
+  (
+    DTup extends [infer D]
+      ? _Handler<ReadExpand<D,$Self,O>,O>
+      : unknown
+  ) & (
+    S extends {} ?
+      {} extends S ? unknown :
+      { [k in keyof S as _NormalizeName<k>]: _Map<S[k],O> }
+      : unknown
+  )
   
   : never
 ;
