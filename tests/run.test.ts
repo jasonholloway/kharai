@@ -3,7 +3,7 @@ import { rodents } from "./worlds/rodents";
 import { delay } from '../src/util';
 import { createRunner } from './shared'
 import { World } from '../src/shape/World';
-import { act, incl } from '../src/shape/common';
+import { act, incl, root } from '../src/shape/common';
 import { Str, Num } from '../src/guards/Guard'
 
 describe('running', () => {
@@ -72,7 +72,7 @@ describe('running', () => {
 		const w = World
 			.shape({
 				rat: act(),
-				mouse: act(Str)
+				mouse: root(Str)
 			})
 		  .impl({
 				async rat({and,convene,ref}) {

@@ -11,7 +11,7 @@ import { isString } from './util'
 import { Run, RunCtx, RunSpace } from './RunSpace'
 import { formPath } from './shape/common'
 import { PreExpand } from './guards/Guard'
-import { $root } from './shapeShared'
+import { $self } from './shapeShared'
 import * as NodeTree from './shape/NodeTree'
 import * as RelPaths from './shape/RelPaths'
 import * as PhaseHelper from './shape/PhaseHelper'
@@ -427,7 +427,7 @@ export type PathCtx<NT,PL extends string[],O> =
   {
     and: PhaseHelper.Form<RT,O>,
     ref: RefHelper.Form<RT>,
-    expandType: <T>(t:T)=>PreExpand<T,typeof $root,O>
+    expandType: <T>(t:T)=>PreExpand<T,typeof $self,O>
   }
   : never
 ;

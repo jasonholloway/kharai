@@ -1,5 +1,5 @@
 import { Guard, Num, ReadExpand } from "../guards/Guard";
-import { $Root } from "../shapeShared";
+import { $Self } from "../shapeShared";
 import { DeepMerge } from "../util";
 import { IsNotNever } from "./World";
 import * as NodeTree from './NodeTree'
@@ -15,7 +15,7 @@ type _Map<RDT, O> =
   RDT extends { D?:infer DTup, S?:infer S } ?
 
   (DTup extends [infer D]
-    ? _Handler<ReadExpand<D,$Root,O>,O>
+    ? _Handler<ReadExpand<D,$Self,O>,O>
     : unknown)
   & (S extends {}
     ? { [k in keyof S as _NormalizeName<k>]: _Map<S[k],O> }

@@ -1,10 +1,12 @@
 
-export const $root = Symbol('root');
-export type $Root = typeof $root;
-
+export const $self = Symbol('self');
+export type $Self = typeof $self;
 
 export const $data = Symbol('data')
 export type $Data = typeof $data;
+
+export const $root = Symbol('root')
+export type $Root = typeof $root;
 
 export const $space = Symbol('space')
 export type $Space = typeof $space;

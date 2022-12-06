@@ -1,7 +1,7 @@
 import { FacNode } from "../facs";
 import { Any, Guard, Narrowable, ReadExpand } from "../guards/Guard";
 import { PathCtx } from "../MachineSpace";
-import { Handler, $Root, Fac, $data, $space, $handler, $fac, $Fac, $incl, $Incl } from "../shapeShared";
+import { Handler, $Self, Fac, $data, $space, $handler, $fac, $Fac, $incl, $Incl, $root } from "../shapeShared";
 import { Merge } from "../util";
 import { Builder } from "./World";
 import * as Impls from './Impls'
@@ -44,15 +44,12 @@ type _ExtractPath<A extends string, K> =
 export type Data<N> =
   _Data<N, _Data<N>>
 ;
-  // MachineTree<N> extends infer M ?
-  // _Data<M, _Data<M>>
-  // : never
 
 export type _Data<N, Inner = unknown> =
   keyof N extends infer K ?
   K extends `D${Separator}${infer P}` ?
   K extends keyof N ?
-  _DataTuple<P, ReadExpand<N[K], $Root, Inner>>
+  _DataTuple<P, ReadExpand<N[K], $Self, Inner>>
   : never : never : never
 ;
 
@@ -389,8 +386,9 @@ type IsNotNever<T> =
 
 
 
-export type SchemaNode = DataNode<unknown> | object
+export type SchemaNode = DataNode<unknown> | RootNode<unknown> | object
 export type DataNode<D> = { [$data]: D }
+export type RootNode<D> = DataNode<D> & { [$root]: true }
 export type InclNode = { [$incl]: Builder<{}> }
 export type SpaceNode<I> = { [$space]: I }
 export type HandlerNode = { [$handler]: Handler }
@@ -398,6 +396,10 @@ export type ContextNode<X = unknown> = { [$fac]: FacNode<X> }
 
 export function act<S extends Narrowable = never>(s?: S): DataNode<S> { //   unknown extends S ? never : S> {
   return { [$data]: <S><unknown>(s === undefined ? Any : s) };
+}
+
+export function root<S extends Narrowable = never>(s?: S): RootNode<S> { //   unknown extends S ? never : S> {
+  return { [$data]: <S><unknown>(s === undefined ? Any : s), [$root]: true };
 }
 
 export function space<S extends { [k in keyof S]: SchemaNode }>(s: S): SpaceNode<S> {

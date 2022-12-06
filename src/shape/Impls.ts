@@ -1,19 +1,10 @@
 import { ReadExpand } from "../guards/Guard";
-import { $Root } from "../shapeShared";
-import { DeepSimplify, Merge } from "../util";
+import { $Self } from "../shapeShared";
+import { Merge } from "../util";
 import * as NodeTree from './NodeTree'
 import * as RelPaths from './RelPaths'
 import * as PhaseHelper from './PhaseHelper'
 import * as RefHelper from './RefHelper'
-
-/*
-  soit's coming through as never because our PLs are from the root
-  while RelPath works from M
-  Impls should treat M as its root as well
-  the NodeTree should include all the accumulated stuff for us 
-*/
-
-//todo: RDT coming through as never...
 
 //todo: filter out prefixed tree props...
 
@@ -53,11 +44,11 @@ type _TryMapPhase<RDT,T,O> =
 ;
 
 type _Phase<D, X, O> =
-  _Handler<D,X,O> | { act:_Handler<D,X,O>, show?: (d:ReadExpand<D,$Root,O>)=>unknown[] }
+  _Handler<D,X,O> | { act:_Handler<D,X,O>, show?: (d:ReadExpand<D,$Self,O>)=>unknown[] }
 ;
 
 type _Handler<D, X, O> = 
-  (x:X, d:ReadExpand<D,$Root,O>)=>Promise<O|false>
+  (x:X, d:ReadExpand<D,$Self,O>)=>Promise<O|false>
 ;
 
 {
@@ -65,7 +56,7 @@ type _Handler<D, X, O> =
     XA: { a:1 },
     D_M_dog_woof: 999,
     XA_M_dog: { b:2 },
-    D_M_cat_meeow: $Root
+    D_M_cat_meeow: $Self
   };
 
   type A = NodeTree.Form<N>
