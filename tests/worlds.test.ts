@@ -33,9 +33,16 @@ const genericThing = <T>(t:Guard<T>) => {
   w.nodes
 
   return w.impl({
-    async oof({and}, d) {
+
+    async oof({and,refs},d) {
+      refs //todo...
       return and.oof(d);
     }
+    
+    
+    // async oof({and}, d) {
+    //   return and.oof(d);
+    // }
   });
 }
 

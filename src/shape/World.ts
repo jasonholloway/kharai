@@ -142,8 +142,9 @@ export module Builder {
 
 //can only summon phases with string args
 
+//todo would be nice if below wasn't exported
 const $unique = Symbol('');
-interface AndNext {
+export interface AndNext {
   tag: typeof $unique
 }
 
@@ -232,7 +233,7 @@ export class Builder<N> {
     }
   }
 
-  impl<S extends Impls.Form<NodeTree.Form<N>,N,AndNext>>(s: S): Builder<N> {
+  impl<S extends Impls.Form<NodeTree.Form<N>,AndNext>>(s: S): Builder<N> {
     return new Builder<N>(this.reg
       .update(root =>
         _walk(root.pushPath('M'), s, List()).popPath()!
@@ -454,23 +455,23 @@ export class Builder<N> {
 }
 
 
-type AnonCtx = MachineCtx<{}, '', AndNext>;
+type AnonCtx = MachineCtx<{}, [], AndNext>;
 
 
 export type BuiltIns = {
   XA_M: AnonCtx //todo these could be collapsed into simple, single 'X' entry
   XI_M: AnonCtx
-  'D_*_boot': never,
-  'D_*_end': typeof Any,
-  'D_*_wait': [typeof Num | typeof Str, $Root],
+  'D_M_*boot': never,
+  'D_M_*end': typeof Any,
+  'D_M_*wait': [typeof Num | typeof Str, $Root],
 
 
   //BELOW NEED TO BE ABLE TO DO ANDS IN GUARDS!
-  'D_*_$meetAt': [typeof Str, $Root],
+  'D_M_$meetAt': [typeof Str, $Root],
 
-  'D_*_$m_place': never,
-  'D_*_$m_gather': [typeof Num, typeof Str[]], //[version, ids]
-  'D_*_$m_mediate': [typeof Num, typeof Str, typeof Str[], typeof Str[]] //[version, key, ids, remnants]
+  'D_M_$m_place': never,
+  'D_M_$m_gather': [typeof Num, typeof Str[]], //[version, ids]
+  'D_M_$m_mediate': [typeof Num, typeof Str, typeof Str[], typeof Str[]] //[version, key, ids, remnants]
 };
 
 
@@ -664,6 +665,8 @@ function builtIns() {
 }
 
 
+//temporary exclusion below
+// export const World = new Builder<BuiltIns>(Registry.empty)
 export const World = new Builder<{}>(Registry.empty)
 
 

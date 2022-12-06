@@ -1,6 +1,6 @@
 import { ReadExpand } from "../guards/Guard";
 import { $Root } from "../shapeShared";
-import { Merge } from "../util";
+import { DeepSimplify, Merge } from "../util";
 import * as NodeTree from './NodeTree'
 import * as RelPaths from './RelPaths'
 import * as PhaseHelper from './PhaseHelper'

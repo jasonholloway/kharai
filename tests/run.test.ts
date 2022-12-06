@@ -65,6 +65,9 @@ describe('running', () => {
 		]);
 	})
 
+	// root() would create an action
+	//
+
 	it('can refer by name, using helper', async () => {
 		const w = World
 			.shape({
