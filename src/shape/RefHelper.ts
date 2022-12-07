@@ -40,7 +40,7 @@ type _MapSpaceNode<S> =
 type _Retain<N> =
   N extends { R?:infer R, S?:infer S } ?
   R extends true ? true :
-  true extends _Retain<S[keyof S]> ? true :
+  _Retain<S[keyof S]> extends true ? true :
   false
   : never
 ;

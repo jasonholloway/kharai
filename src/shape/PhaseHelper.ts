@@ -17,7 +17,6 @@ type _Map<RDT, O> =
       : unknown
   ) & (
     S extends {} ?
-      {} extends S ? unknown :
       { [k in keyof S as _NormalizeName<k>]: _Map<S[k],O> }
       : unknown
   )
@@ -72,5 +71,27 @@ try {
 
     type _ = Z
   }
+}
+catch {}
+
+try {
+  type N = {
+    D_M: 1
+    D_M_hello_again: typeof Num
+    'D_M_hello_*moo': 3
+    D_M_tara: [4]
+    D_M_tara_moo: never
+  };
+
+  type A = NodeTree.Form<N>;
+  type B = RelPaths.Form<A,['tara']>;
+  type C = Form<B,'OUT'>;
+
+  const c = <C><unknown>undefined;
+  c.skip();
+  c.moo();
+  c.hello.moo(3);
+
+  type _ = [A,B,C];
 }
 catch {}

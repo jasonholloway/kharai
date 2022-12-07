@@ -44,8 +44,7 @@ type _Combine<Tups, X0> =
       IsNotNever<DD> extends true ?
       DD extends readonly [infer D] ?
       { P: [X,D] }
-        // { P: readonly [X,D] }
-        : never : unknown
+      : never : unknown
     : unknown
   )] extends [infer PhasePart] ?
 
@@ -56,8 +55,8 @@ type _Combine<Tups, X0> =
       : {}
   ] extends [infer RootPart] ?
 
-  {
-    S: {
+  (
+    {
       [Next in
         Tups extends readonly [infer I] ?
         I extends readonly [infer Type2, readonly [infer PH, ...infer PT], infer V] ?
@@ -66,8 +65,11 @@ type _Combine<Tups, X0> =
         : never : never : never
       as Next[0]
       ]: _Combine<[Next[1]], X>
-    }
-  } extends infer SpacePart ?
+    } extends infer Space ?
+    {} extends Space ? unknown :
+    { S: Space }
+    : never
+  ) extends infer SpacePart ?
 
   Merge<Merge<PhasePart, RootPart>, SpacePart>
 
