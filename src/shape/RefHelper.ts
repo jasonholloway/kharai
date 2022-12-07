@@ -2,7 +2,7 @@ import { Guard, Num, Read, Str } from "../guards/Guard";
 import { Id } from "../lib";
 import * as NodeTree from './NodeTree'
 import * as RelPaths from './RelPaths'
-import { IsNever, Simplify } from "../util";
+import { IsNever, Merge, Simplify } from "../util";
 
 // todo _Retain is inefficient: should premap new nodes with flags
 
@@ -11,29 +11,29 @@ export type Form<RDT> =
 ;
 
 type _MapNode<N> =
-  N extends { D?:infer D, S?:infer S, R?:infer R } ?
-  (
-    _Retain<S> extends true
-      ? Simplify<_MapSpaceNode<S>>
-      : unknown
-  ) & (
-    R extends true ? _MapDataNode<D> : unknown
+  true extends _Retain<N> ? (
+    _MapDataNode<N> extends infer M1 ?
+    _MapSpaceNode<N> extends infer M2 ?
+    M1 & M2 //Merge<M1,M2>
+    : never : never
   )
   : never
 ;
 
-type _MapDataNode<DTup> =
-  DTup extends [infer D]
-    ? _Referrer<Read<D>>
-    : never
+type _MapDataNode<N> =
+  N extends { D: [infer D] } ?
+  _Referrer<Read<D>>
+  : unknown
 ;
 
-type _MapSpaceNode<S> =
+type _MapSpaceNode<N> =
+  N extends { S: infer S } ?
   {
     [k in keyof S
      as _Retain<S[k]> extends true ? _NormalizeName<k> : never
     ]: _MapNode<S[k]>
   }
+  : unknown
 ;
 
 
@@ -46,10 +46,10 @@ type _Retain<N> =
 ;
 
 
-type _Referrer<V> = 
-  IsNever<V> extends true ? (() => Id)
-  : V extends string ? (<D extends string & V>(d: D) => Id)
-  : never
+type _Referrer<V> =
+  <D extends V & string>(d: D) => Id
+  // V extends string ? (<D extends string & V>(d: D) => Id) :
+  // unknown
 ;
 
 type _NormalizeName<S> =
@@ -77,6 +77,25 @@ try {
   d.hello.moo('123')
   d.tara.moo();
   d.moo();
+
+  // TODO
+  // let's just ignore phases with no args: to be a singleton, you need a stringable set of args
+  // which means a 'root' should insist on having a string arg???
+  // couldn't the arg just be a fragment of arbitrary json???
+  // which would mean, we can pass anything we like...
+  // ie no more string check!
+  // though maybe it could be checked for simple jsonness
+  //
+  // the problem with unbound generics:
+  // whatever constraint we put on V is unenforcable
+  //
+  // even if the arg is json, how do we allow nevers? we can't, is the simple answer
+  // if we have a root phase, it needs an expressable arg
+  //
+  // we should only retain when there's an arg about...
+  //
+
+  
 
   type _ = [A,B,C,D];
 }
@@ -129,6 +148,11 @@ try {
 }
 catch {}
 
+//
+//
+//
+//
+
 try {
   <T,S extends string>() => {
     type W = {
@@ -148,10 +172,12 @@ try {
     c.a.yup('moo')
     c.a.yarp(<S><unknown>0);
 
+    type Q = _Referrer<S>
+
     // c.a.nope(<T><unknown>0)
     // c.a.narp(<S><unknown>0)
 
-    type _ = [A,B,C];
+    type _ = [A,B,C,Q];
   }
 }
 catch {}
