@@ -1,7 +1,7 @@
 import _Monoid from '../../src/_Monoid'
 import { delay } from '../../src/util'
 import { Bool, Num, Str, Tup } from '../../src/guards/Guard'
-import { act } from '../../src/shape/common';
+import { act, root } from '../../src/shape/common';
 import { World } from '../../src/shape/World';
 
 //TODO below SLOW SLOW SLOW!
@@ -10,7 +10,7 @@ import { World } from '../../src/shape/World';
 export const rodents = World
   .shape({
     rat: {
-      wake: act(),
+      wake: root(),
       squeak: act(Num)
     },
 
@@ -109,8 +109,10 @@ export const rodents = World
       }
     },
 
-    async shrew({and,isFresh}, [v, _]) {
+    async shrew({and,isFresh,ref}, [v, _]) {
       if(v >= 2) {
+        ref
+        
         return and.end('yip');
       }
 

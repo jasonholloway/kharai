@@ -41,6 +41,9 @@ export type MergeMany<R extends readonly unknown[]> =
   : unknown
 
 export type Merge<A, B> =
+  unknown extends A ? B :
+  unknown extends B ? A :
+  
   [A,B] extends [unknown[], unknown[]] ? (
       A extends unknown[] ?
       B extends unknown[] ?

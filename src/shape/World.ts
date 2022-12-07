@@ -460,8 +460,8 @@ type AnonCtx = MachineCtx<{}, [], AndNext>;
 
 
 export type BuiltIns = {
-  XA_M: AnonCtx //todo these could be collapsed into simple, single 'X' entry
-  XI_M: AnonCtx
+  // XA_M: AnonCtx //todo these could be collapsed into simple, single 'X' entry
+  // XI_M: AnonCtx
   'D_M_*boot': never,
   'D_M_*end': typeof Any,
   'D_M_*wait': [typeof Num | typeof Str, $Self],
