@@ -132,3 +132,5 @@ class AtomView<V> {
 export function showData(av: AtomView<DataMap>) {
 	return av.val().map(p => p.data).toObject();
 }
+
+export function assertSubtype<A,B extends A>(a?:A, b?:B) {}

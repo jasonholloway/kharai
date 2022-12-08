@@ -58,10 +58,12 @@ export module Builder {
         k extends keyof A ?
         DeepMerge<A[k], B[k]>
         : B[k]
-
       //this is a shallow merge only of facs
       //and moreso it allows simple shadowing of props
       //this will then put XAs and XIs out of whack, which should be caught
+      )
+    : k extends `R${'_'|''}${string}` ? (
+      true
       )
     : never
 

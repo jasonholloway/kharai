@@ -6,7 +6,7 @@ import * as RelPaths from './RelPaths'
 // todo _Retain is inefficient: should premap new nodes with flags
 
 export type Form<RDT> =
-  _MapNode<RDT>
+  _MapNode<Omit<RDT,'D'>>
 ;
 
 type _MapNode<N> =
@@ -65,7 +65,7 @@ try {
   type C = _MapNode<B>
   type D = Form<B>;
 
-  const d = <D><unknown>undefined;
+  const d = <D><unknown>0;
   d.hello.moo('123')
 
   type _ = [A,B,C,D];
@@ -76,15 +76,15 @@ try {
   <T,S extends string>() => {
     type W = {
       D_M_hello_yep: Guard<S>
+      R_M_hello_yep: true
       D_M_hello_nope: Guard<T>
       D_M_hello_nah: typeof Num
       D_M_mmm: string
+      R_M_mmm: true
       D_M_mmm_yip: string
       D_M_mmm_yup: typeof Str
       D_M_mmm_nip: never
-      R_M_mmm: true
       R_M_mmm_nip: true
-      R_M_hello_yep: true
     }
     type N = NodeTree.Form<W>;
 
@@ -97,6 +97,8 @@ try {
     z.mmm('');
     z.hello.yep(<S><unknown>0)
 
+    z.mmm.nip
+
     type _ = [Z]
   }
 }
@@ -106,12 +108,10 @@ try {
   <T,S extends string>() => {
     type W = {
       D_M_a_yup: string
-      D_M_a_yarp: Guard<S>
-      D_M_a_narp: Guard<S>
-      D_M_a_nope: Guard<T>
       R_M_a_yup: true
-      R_M_a_nope: true
+      D_M_a_yarp: Guard<S>
       R_M_a_yarp: true
+      D_M_a_nope: Guard<T>
     }
     type A = NodeTree.Form<W>;
     type B = RelPaths.Form<A,[]>;

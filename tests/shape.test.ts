@@ -1,6 +1,7 @@
-import { act, incl } from "../src/shape/common";
+import { act, incl, root } from "../src/shape/common";
 import { Any, Num, Str } from "../src/guards/Guard";
 import { World } from "../src/shape/World";
+import { assertSubtype } from "./shared";
 
 describe('shape', () => {
 
@@ -114,6 +115,18 @@ describe('shape', () => {
     expect(cow.fac).toBeTruthy();
   })
   
+  it('roots represented, merge as true', () => {
+    const w = World
+      .shape({
+        baa: root(123),
+      })
+      .impl({
+        async baa() { return false },
+      });
+
+    assertSubtype(w.nodes.R_M_baa, true);
+  })
+
   // const w0 = World
   //   .shape({
   //     ...ctx<{ a:number }>(),

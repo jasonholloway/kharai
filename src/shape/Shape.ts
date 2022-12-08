@@ -26,7 +26,7 @@ type _DataWalk<O, P extends string> =
 
 type _RootWalk<O, P extends string> =
   $Root extends keyof O ?
-  [JoinPaths<JoinPaths<'R', 'M'>, P>, O[$Root]]
+  [JoinPaths<JoinPaths<'R', 'M'>, P>, true]
   : never
 ;
 

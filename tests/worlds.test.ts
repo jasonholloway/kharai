@@ -1,5 +1,5 @@
 import _Monoid from '../src/_Monoid'
-import { act, incl } from '../src/shape/common';
+import { act, incl, root } from '../src/shape/common';
 import { World } from '../src/shape/World';
 import { createRunner } from './shared'
 import { Guard, Narrowable, Str } from '../src/guards/Guard'
@@ -7,23 +7,25 @@ import { Guard, Narrowable, Str } from '../src/guards/Guard'
 const animal = (says:string) =>
   World
     .shape({
-      hello: act(Str),
+      hello: root(Str),
       responds: act()
     })
     .impl({
-      async hello({and}, d) {
+      async hello({and,ref}, d) {
+        ref
         return and.responds();
       },
 
       async responds({and}) {
         return and.end(says);
       }
-    });
+    })
+    .seal();
 
 const genericThing = <T>(t:Guard<T>) => {
   const w = World
     .shape({
-      oof: act(t),
+      oof: root(t),
       // wow: act()
     });
 
@@ -34,8 +36,8 @@ const genericThing = <T>(t:Guard<T>) => {
 
   return w.impl({
 
-    async oof({and,refs},d) {
-      refs //todo...
+    async oof({and,ref},d) {
+      ref //todo...
       return and.oof(d);
     }
     
@@ -59,7 +61,7 @@ const world =
       speakToAnimals: act(Str),
     })
     .impl({
-      async speakToAnimals({and}, greeting) {
+      async speakToAnimals({and,ref}, greeting) {
         return and.pig.hello(greeting);
       },
 
