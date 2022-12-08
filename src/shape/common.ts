@@ -398,7 +398,7 @@ export function act<S extends Narrowable = never>(s?: S): DataNode<S> { //   unk
   return { [$data]: <S><unknown>(s === undefined ? Any : s) };
 }
 
-export function root<S extends Narrowable = never>(s?: S): RootNode<S> { //   unknown extends S ? never : S> {
+export function root<S extends Narrowable>(s: S): RootNode<S> { //   unknown extends S ? never : S> {
   return { [$data]: <S><unknown>(s === undefined ? Any : s), [$root]: true };
 }
 
