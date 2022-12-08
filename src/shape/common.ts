@@ -60,8 +60,9 @@ type _DataTuple<P, D> =
 
 {
   type N = {
-    D_rat: 123
-    D_guineapig: ['hello', 123]
+    D_M_rat: 123
+    R_M_rat: true
+    D_M_guineapig: ['hello', 123]
   };
   
   type A = Data<N>;
@@ -119,7 +120,7 @@ export type ReadResult = {
 
   type A = NodePath<N>
   type B = DataPath<N>
-  type I = Impls.Form<T,N,'O'>
+  type I = Impls.Form<T,'O'>
 
   const i:I = {
     hamster: {
@@ -142,7 +143,7 @@ export type ReadResult = {
 
     type T1 = NodeTree.Form<N1>
 
-    type A = Impls.Form<T1,N1,123>;
+    type A = Impls.Form<T1,123>;
     type B = Data<N1>
 
     const a: A = {};
@@ -155,7 +156,7 @@ export type ReadResult = {
 
     type T2 = NodeTree.Form<N2>
 
-    type C = Impls.Form<T2,N2,123>;
+    type C = Impls.Form<T2,123>;
 
 
     type Z = T;
@@ -181,7 +182,7 @@ export type FacContext<NT, N, P extends string, O> =
   _JoinPaths<'M', P> extends infer MP ?
   MP extends string ?
   Merge<
-    PathCtx<NT, '', O>, //???
+    PathCtx<NT, [], O>, //???
     Merge<
       _PathContextMerge<N, _UpstreamFacPaths<N, MP>>,
       (

@@ -3,7 +3,7 @@ import { parakeet } from './worlds/parakeet'
 import { delay } from '../src/util';
 import { createRunner, showData } from './shared';
 import { World } from '../src/shape/World';
-import { act } from '../src/shape/common';
+import { act, root } from '../src/shape/common';
 
 describe('machines - conversing', () => {
   const world = parakeet.build();
@@ -28,7 +28,7 @@ describe('machines - conversing', () => {
 
     expect(showData(priscilla[1]))
       .toEqual({
-        Polly: ['*_end', 'chirped!'],
+        Polly: ['M_*end', 'chirped!'],
         Priscilla: ['M_chirp', [[], 'hello!']]
       })
 
@@ -40,7 +40,7 @@ describe('machines - conversing', () => {
 
     expect(showData(priscilla[2]))
       .toEqual({
-        Priscilla: ['*_end', 'no-one to chirp to!']
+        Priscilla: ['M_*end', 'no-one to chirp to!']
       })
 
     expect(priscilla[2].parents())
@@ -55,7 +55,7 @@ describe('machines - conversing', () => {
 
     await x.session(async () => {
       await Promise.all([
-        x.run.boot('skolmer', ['*_$m_place']),
+        x.run.boot('skolmer', ['M_$m_place']),
         x.run.boot('a', ['M_migrate', 'skolmer']),
         x.run.boot('b', ['M_migrate', 'skolmer']),
         x.run.summon(['a', 'b']).then(s => s.log$.toPromise()),
@@ -65,17 +65,17 @@ describe('machines - conversing', () => {
       const b = x.view('b');
 
       expect(showData(a[3]))
-        .toHaveProperty('a', ['*_end', {a:'hello', b:'hello'}])
+        .toHaveProperty('a', ['M_*end', {a:'hello', b:'hello'}])
 
       expect(showData(b[3]))
-        .toHaveProperty('b', ['*_end', {a:'hello', b:'hello'}])
+        .toHaveProperty('b', ['M_*end', {a:'hello', b:'hello'}])
     });
   })
 
   it('meet from outside', async () => {
     const w = World
       .shape({
-        gerbil: act()
+        gerbil: root(true)
       })
       .impl({
         async gerbil({attend}) {
@@ -90,7 +90,7 @@ describe('machines - conversing', () => {
     const x = createRunner(w.build(), {save:false});
 
     await x.run.space.runArbitrary(async ({meet,ref}) => {
-      const gary = await meet(ref.gerbil());
+      const gary = await meet(ref.gerbil(true));
       gary.chat('squeak');
       //...
       
@@ -101,11 +101,11 @@ describe('machines - conversing', () => {
     const w = World
       .shape({
         rat: act(),
-        gerbil: act()
+        gerbil: root(true)
       })
       .impl({
         async rat({meet,ref}) {
-          const gary = await meet(ref.gerbil());
+          const gary = await meet(ref.gerbil(true));
           gary.chat('squeak');
 
           return false;

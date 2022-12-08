@@ -2,18 +2,17 @@ import { Map, Set, List } from 'immutable'
 import _Monoid from '../src/_Monoid'
 import { Id, DataMap, RawDataMap } from '../src/lib'
 import { BehaviorSubject } from 'rxjs'
-import { tap, shareReplay, scan, groupBy, map, filter, takeWhile, mergeMap } from 'rxjs/operators'
+import { shareReplay, scan, groupBy, map, filter, takeWhile, mergeMap } from 'rxjs/operators'
 import { AtomRef, Atom, AtomLike } from '../src/atoms'
 import { gather } from './helpers'
 import { newRun, RunOpts } from '../src/Run'
 import { tracePath, renderAtoms } from '../src/AtomPath'
 import FakeStore from '../src/FakeStore'
 import { BuiltWorld } from '../src/shape/BuiltWorld'
-import { inspect } from 'node:util'
 
 type Opts = { maxBatchSize?: number, data?: RawDataMap } & RunOpts;
 
-export function createRunner<N>(world: BuiltWorld<N>, opts?: Opts) {
+export function createRunner<N>(world: BuiltWorld<N,unknown>, opts?: Opts) {
   
   const store = new FakeStore(opts?.maxBatchSize || 4, opts?.data);
 

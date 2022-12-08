@@ -130,7 +130,7 @@ describe('machines - watching', () => {
 
 			await Promise.all([
 				x.run.boot('Gord', ['M_runAround', 2]),
-				x.run.boot('Ed', ['*_wait', [100, ['M_follow', ['Gord', 1]]]])
+				x.run.boot('Ed', ['M_*wait', [100, ['M_follow', ['Gord', 1]]]])
 			]);
 
 			const logs = await x.allLogs();

@@ -14,12 +14,12 @@ describe('machines - running', () => {
     
     const [logs] = await Promise.all([
       x.allLogs(),
-      x.run.boot('bob', ['M_rat_wake'])
+      x.run.boot('bob', ['M_rat_wake', ''])
     ]);
 
     expect(logs).toEqual([
       ['bob', ['*_boot']],
-      ['bob', ['M_rat_wake']],
+      ['bob', ['M_rat_wake', '']],
       ['bob', ['M_rat_squeak', 123]],
       ['bob', ['*_end', 'I have squeaked 123!']]
     ]);
@@ -31,7 +31,7 @@ describe('machines - running', () => {
     const [logs] = await Promise.all([
       x.allLogs(),
       x.run.boot('nib', ['M_hamster_wake', 77]),
-      x.run.boot('bob', ['M_rat_wake'])
+      x.run.boot('bob', ['M_rat_wake', ''])
     ]);
 
     expect(logs).toEqual([
@@ -69,7 +69,7 @@ describe('machines - running', () => {
 
     const [logs] = await Promise.all([
       x.allLogs(),
-      x.run.boot('taz', ['*_wait', [1000, ['*_end', 123]]]),
+      x.run.boot('taz', ['M_*wait', [1000, ['M_*end', 123]]]),
     ]);
 
     expect(logs).toEqual([

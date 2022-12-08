@@ -109,7 +109,7 @@ describe('running', () => {
 		const beasties = World
 			.shape({
 				rat: act(),
-				mouse: act(Str)
+				mouse: root(Str)
 			})
 		  .impl({
 				async rat({and,convene,ref}) {
