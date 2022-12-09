@@ -1,6 +1,6 @@
 import { FacNode } from "../facs";
 import { Any, Guard, Narrowable, ReadExpand } from "../guards/Guard";
-import { PathCtx } from "../MachineSpace";
+import { MachineCtx, PathCtx } from "../MachineSpace";
 import { Handler, $Self, Fac, $data, $space, $handler, $fac, $Fac, $incl, $Incl, $root } from "../shapeShared";
 import { Merge } from "../util";
 import { Builder } from "./World";
@@ -166,8 +166,6 @@ export type ReadResult = {
   
 }
 
-
-
 export type PathFac<N, P extends string> =
   _JoinPaths<'M', P> extends infer MP ?
   MP extends string ?
@@ -177,12 +175,11 @@ export type PathFac<N, P extends string> =
   : never : never : never : never
 ;
 
-
 export type FacContext<NT, N, P extends string, O> =
   _JoinPaths<'M', P> extends infer MP ?
   MP extends string ?
   Merge<
-    PathCtx<NT, [], O>, //???
+    MachineCtx<NT, [], O>, //???
     Merge<
       _PathContextMerge<N, _UpstreamFacPaths<N, MP>>,
       (

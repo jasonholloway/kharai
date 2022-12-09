@@ -7,6 +7,12 @@ import { act } from '../src/shape/common';
 import { take, toArray } from 'rxjs/operators'
 import { delay } from '../src/util';
 
+//it's nice for builtins to have their own prefix
+//that was kind of the point of the 'M' after all
+//but to use a different prefix, PhaseHelper in particular needs to be wise to it
+//and first... I should clean up the context types...
+
+
 describe('machines - watching', () => {
 
 	describe('watches', () => {

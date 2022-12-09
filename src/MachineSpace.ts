@@ -422,6 +422,67 @@ export type MachineSpaceCtx = Extend<RunCtx<DataMap,Frisked[]>, {
 //the NodeTree would be created by Impls as part of its walk
 //and then mapped into the Impls shape, with each leaf projected via below function
 
+//clients need runctx
+//machines need machinectx
+//these are special additions mixed in based on path
+//but not in the tree (???)
+//
+//why couldn't the special contexts appear as an XA?
+//because they have fancy types(??)
+//but other nodes could have fancy types perhaps?
+//well, actually, they couldn't
+//because we would need type functions
+//so they have to be hardcoded
+//but this is fine
+//
+//but this the rub: our context layering has to depend on the full path
+//and so we don't have MachineCtx and ClientCtx exactly
+//but rather the same layering,but with additional options
+//
+//if we want to extend the possiblities for machines, we must put our extensions in the M subtree
+//and when we run as a client these extensions won't be offered
+//
+//eg id and isFresh make no sense to a client
+//
+//but all share root context without specialisations
+//this root context will effectively be the bare RunCtx
+//like the layering should be done as part of the walking of the tree
+//and the RunCtx root is applied as part ofthis walking, as opposed to being a fixture under _everything_
+//(it still effectively will be of course)
+//
+//special machine phases can live on a subtree under I or similar
+//these won't pull in any extended context at all
+//though they might still want to take the root machine context
+//so they should be a subtree under M: say: M_*_boot 
+//
+//and when machine phases are saved, jthe leading M wil be chopped, leaving just *_boot, *_wait
+//
+//SO, TODO:
+//the building up of the type of a situational context (the PathCtx?)
+//should have hard-coded rules, so that special contexts are injected at certain points
+//at the root, we have the RunCtx
+//at M, we have the MachineCtx
+//at C, do we even have anything extra to add? Not really (yet)
+
+
+type E = [1,2,3] extends [1,...unknown[]] ? 1 : 0;
+type __ = E;
+
+
+export type Ctx<NT,PL extends string[],O> =
+  PL extends ['M',...unknown[]] ? (
+    {}
+  ) :
+  PL extends ['C',...unknown[]] ? (
+    Extend<
+      MachineSpaceCtx,
+      PathCtx<NT,PL,O>
+    >
+  ) :
+  {}
+;
+
+
 export type PathCtx<NT,PL extends string[],O> = 
   RelPaths.Form<NT,PL> extends infer RT ?
   {
