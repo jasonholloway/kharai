@@ -200,6 +200,27 @@ export class Builder<N> {
     );
   }
 
+  //todo: get rid of the XI|XA thing as not needed
+  //which would remove the need to check types, I think
+  //
+  //
+  //
+
+
+  //todo: below to suggest possible paths, instead of loose string
+  ctxAt<P extends string, X>(path: P, fn: (x: FacContext<NodeTree.Form<N>,N,P,AndNext>)=>X): Builder.MergeNode<N, 'X', P, X> {
+    return <Builder.MergeNode<N, 'X', P, X>>new Builder(
+      this.reg.update(root => root
+        .pushPath('M')
+        .pushPath(path)
+        .update(v => ({
+          ...v,
+          facs: v.facs.push(fn)
+        })))
+    );
+  }
+
+
   debug(): Builder<N> {
     this.reg.debug();
     return this;

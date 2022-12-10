@@ -463,6 +463,24 @@ export type MachineSpaceCtx = Extend<RunCtx<DataMap,Frisked[]>, {
 //at the root, we have the RunCtx
 //at M, we have the MachineCtx
 //at C, do we even have anything extra to add? Not really (yet)
+//
+// so Ctx is a strategy-pattern thing
+// but where do the accumulated XAs come from?
+// simple - from the node tree!
+//
+// currently this accumulation is done as part of Impls (I think??)
+// and it shouldn't be - it should be done by Ctx with reference to NodeTree
+// and so Impls really does become disaggregated, simplified
+// and client actions can then be built up by the same code
+
+// and after this... we need to revivify the fancy meeting actions that we thought we might need 
+// the tests insist on it
+
+// 
+//
+//
+//
+
 
 
 type E = [1,2,3] extends [1,...unknown[]] ? 1 : 0;

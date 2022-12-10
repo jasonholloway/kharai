@@ -3,7 +3,7 @@ import { $Self } from "../shapeShared";
 import { Merge } from "../util";
 import * as NodeTree from './NodeTree'
 import * as RelPaths from './RelPaths'
-import { MachineCtx } from "../MachineSpace";
+import { Ctx } from "../MachineSpace";
 
 //todo: filter out prefixed tree props...
 
@@ -37,7 +37,7 @@ type _TryMapSpace<T0,PL extends string[],T,O> =
 
 type _TryMapPhase<T0,PL extends string[],T,O> =
   T extends { P: [infer X, infer D] } ?
-    Merge<MachineCtx<T0,PL,O>, X> extends infer MX ?
+    Merge<Ctx<T0,PL,O>, X> extends infer MX ?
     _Phase<D,MX,O>
     : never
   : unknown

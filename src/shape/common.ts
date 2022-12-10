@@ -175,6 +175,59 @@ export type PathFac<N, P extends string> =
   : never : never : never : never
 ;
 
+// below is used for ctx() amongst machines
+// so - does it always have id, etc? yep it does
+// but that should be picked up from tree
+//
+// so would just use the same?
+// no, it wouldn't, because ctxs get to use previously implemented facs apparently
+// 
+// so - next question is, what does the below do with XIs that's specail??
+// well, the code's there mate...
+// so what it does is... it adds the context currently declared at the current node
+// though this should be the case for actions too, yeah?
+// yes, it should
+//
+// but here the behaviour is slightly different from what you'd expect:
+// it ignores XAs (which we'd usually use, to only pick out XIs)
+// so if we haven't implemented, then we can't extend???
+//
+// because we are in the middle of forming the XIs, we can't rely on something later coming along and fulfilling an XA which we ourselves are fulfilling
+// the whole XA/XI thing is overcomplicated actually
+// it'd be nice if we just added X's via ctx()
+//
+// let's try and think of a case for XA/XI
+// guessing we were driven before by the common lot, which could only actually be provided after?
+// but - how about a data layer, pluggable only at the end?
+//
+// hmmm seems both useful and unnecessarily complicating
+// simpler would be some kind of DI as a separate layer
+// but wouldn't this itself be best as part of the NodeTree to limit the scopes of things?
+// I think it would
+//
+// and so we'd have different implementations for different subtrees (sounds nice)
+// but: this isn't actually possible with XA/XI, as the implementation must at each point
+// be locally provided there and then
+//
+// the use case must have been the builtins...
+// encouraged too by the thought of specifying as part of the shape
+// which we've done away with for reasons
+//
+// ctx wouldn't often be used
+// how would the DI be used then?
+// each node would have its dependencies accumulated as part of the tree
+// and seal would consolidate them, restate them as part of a single, embeddable node
+//
+// these would then be provided at nodes
+// and on build we would check that all are provided for
+// this would provide another way to modularise:
+// a template would be used, along with some new dependencies
+// providing an implementation would bind it to the dependency, which would then disappear from the graph
+//
+// so the upshot of this is, we can just do away with XA/XIs, in favour of Xs
+// a context would always be whatever the accumulated X is then
+//
+
 export type FacContext<NT, N, P extends string, O> =
   _JoinPaths<'M', P> extends infer MP ?
   MP extends string ?
