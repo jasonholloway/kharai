@@ -2,15 +2,16 @@ import { List, Set } from "immutable";
 import { inspect, isArray, isString } from "util";
 import { Any, Guard, Many, Never, Num, Str } from "../guards/Guard";
 import { Id } from "../lib";
-import { $skip, MachineCtx, Peer } from "../MachineSpace";
+import { $skip, Peer } from "../MachineSpace";
 import { Handler, $data, $Self, $self, $incl, Projector, Fac } from "../shapeShared";
 import { DeepMerge, delay, Merge, Simplify } from "../util";
 import { BuiltWorld } from "./BuiltWorld";
-import { FacContext, FacPath, isDataNode, isInclNode, PathFac, SchemaNode, _Data } from "./common";
+import { FacPath, isDataNode, isInclNode, SchemaNode, _Data } from "./common";
 import { mergeNodeVal, NodeVal, NodeView, Registry } from "./Registry";
 import * as Impls from './Impls'
 import * as NodeTree from "./NodeTree";
 import * as Shape from "./Shape";
+import { Ctx, MachineCtx } from "./Ctx";
 
 export const separator = '_'
 export type Separator = typeof separator;
@@ -175,22 +176,22 @@ export class Builder<N> {
     throw 'err';
   }
 
-  ctxImpl<P extends FacPath<N>, X extends Partial<PathFac<N,P>>>(path: P, fn: (x: FacContext<NodeTree.Form<N>,N,P,AndNext>)=>X) : Builder.MergeNode<N,JoinPaths<'XI', 'M'>,P,X> {
-    const pl = path.split(separator);
+  // ctxImpl<P extends FacPath<N>, X extends Partial<PathFac<N,P>>>(path: P, fn: (x: FacContext<NodeTree.Form<N>,N,P,AndNext>)=>X) : Builder.MergeNode<N,JoinPaths<'XI', 'M'>,P,X> {
+  //   const pl = path.split(separator);
     
-    return <Builder.MergeNode<N,'XI',P,X>>new Builder(
-      this.reg.update(root => root
-        .pushPath('M')
-        .summon(pl)
-        .update(v => ({
-          ...v,
-          facs: v.facs.push(fn)
-        })))
-    );
-  }
+  //   return <Builder.MergeNode<N,'XI',P,X>>new Builder(
+  //     this.reg.update(root => root
+  //       .pushPath('M')
+  //       .summon(pl)
+  //       .update(v => ({
+  //         ...v,
+  //         facs: v.facs.push(fn)
+  //       })))
+  //   );
+  // }
 
-  ctx<X>(fn: (x: FacContext<NodeTree.Form<N>,N,'',AndNext>)=>X): Builder.MergeNode<N, 'XA'|'XI', '', X> {
-    return <Builder.MergeNode<N, 'XA'|'XI', '', X>>new Builder(
+  ctx<X>(fn: (x: Ctx<NodeTree.Form<N>,['M'],AndNext>)=>X): Builder.MergeNode<N, 'X_M', '', X> {
+    return <Builder.MergeNode<N, 'X_M', '', X>>new Builder(
       this.reg.update(root => root
         .pushPath('M')
         .update(v => ({
@@ -208,17 +209,17 @@ export class Builder<N> {
 
 
   //todo: below to suggest possible paths, instead of loose string
-  ctxAt<P extends string, X>(path: P, fn: (x: FacContext<NodeTree.Form<N>,N,P,AndNext>)=>X): Builder.MergeNode<N, 'X', P, X> {
-    return <Builder.MergeNode<N, 'X', P, X>>new Builder(
-      this.reg.update(root => root
-        .pushPath('M')
-        .pushPath(path)
-        .update(v => ({
-          ...v,
-          facs: v.facs.push(fn)
-        })))
-    );
-  }
+  // ctxAt<P extends string, X>(path: P, fn: (x: FacContext<NodeTree.Form<N>,N,P,AndNext>)=>X): Builder.MergeNode<N, 'X', P, X> {
+  //   return <Builder.MergeNode<N, 'X', P, X>>new Builder(
+  //     this.reg.update(root => root
+  //       .pushPath('M')
+  //       .pushPath(path)
+  //       .update(v => ({
+  //         ...v,
+  //         facs: v.facs.push(fn)
+  //       })))
+  //   );
+  // }
 
 
   debug(): Builder<N> {
@@ -479,7 +480,7 @@ export class Builder<N> {
 }
 
 
-type AnonCtx = MachineCtx<{}, [], AndNext>;
+type AnonCtx = Ctx<{S:{M:{}}},['M'],AndNext>
 
 
 export type BuiltIns = {
@@ -732,8 +733,6 @@ export type JoinPaths<H extends string, T extends string> =
     D_M_rat_squeak_quietly_blah: 999,
   }
 
-  type TT = NodeTree.Form<NN>
-
   type A = FacPath<NN>
 
   type B = _AllRoutePaths<'XA'>
@@ -749,11 +748,7 @@ export type JoinPaths<H extends string, T extends string> =
   type J = _UpstreamFacPaths<NN, 'rat_squeak_quietly'>
   type K = _UpstreamFacPaths<NN, 'rat_squeak_quietly_blah'>
 
-  type L = FacContext<TT, NN, 'rat', 0>
-  type M = FacContext<TT, NN, 'rat_squeak_quietly', 0>
-  type N = FacContext<TT, NN, 'rat_squeak_quietly_blah', 0>
-
-  type _ = [A, B, C, D, E, F, G, H, I, J, K, L, M, N];
+  type _ = [A, B, C, D, E, F, G, H, I, J, K] //, L, M, N];
 }
 
 

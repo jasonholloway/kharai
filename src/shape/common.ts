@@ -1,6 +1,5 @@
 import { FacNode } from "../facs";
 import { Any, Guard, Narrowable, ReadExpand } from "../guards/Guard";
-import { MachineCtx, PathCtx } from "../MachineSpace";
 import { Handler, $Self, Fac, $data, $space, $handler, $fac, $Fac, $incl, $Incl, $root } from "../shapeShared";
 import { Merge } from "../util";
 import { Builder } from "./World";
@@ -228,44 +227,46 @@ export type PathFac<N, P extends string> =
 // a context would always be whatever the accumulated X is then
 //
 
-export type FacContext<NT, N, P extends string, O> =
-  _JoinPaths<'M', P> extends infer MP ?
-  MP extends string ?
-  Merge<
-    MachineCtx<NT, [], O>, //???
-    Merge<
-      _PathContextMerge<N, _UpstreamFacPaths<N, MP>>,
-      (
-        _JoinPaths<'XI', MP> extends infer XIP ?
-        XIP extends keyof N ?
-          N[XIP]
-          : {}
-        : never
-      )
-    >
-  >
-  : never : never
-;
+
+
+// export type FacContext<NT, N, P extends string, O> =
+//   _JoinPaths<'M', P> extends infer MP ?
+//   MP extends string ?
+//   Merge<
+//     MachineCtx<NT, [], O>, //???
+//     Merge<
+//       _PathContextMerge<N, _UpstreamFacPaths<N, MP>>,
+//       (
+//         _JoinPaths<'XI', MP> extends infer XIP ?
+//         XIP extends keyof N ?
+//           N[XIP]
+//           : {}
+//         : never
+//       )
+//     >
+//   >
+//   : never : never
+// ;
 
   
 
-type _PathContextMerge<N, PL> =
-    PL extends readonly [] ? {}
-  : PL extends readonly [infer H, ...infer T] ? (
-      H extends keyof N ?
-      Merge<N[H], _PathContextMerge<N, T>>
-      : never
-    )
-  : never;
+// type _PathContextMerge<N, PL> =
+//     PL extends readonly [] ? {}
+//   : PL extends readonly [infer H, ...infer T] ? (
+//       H extends keyof N ?
+//       Merge<N[H], _PathContextMerge<N, T>>
+//       : never
+//     )
+//   : never;
 
 
-type _UpstreamFacPaths<N, P extends string> =
-  _JoinPaths<'XA', P> extends infer XP ?
-  XP extends string ?
-  // _KnownRoutePaths<N, XP> extends infer Route ?
-  TupExclude<_KnownRoutePaths<N, XP>, XP> extends infer Route ?
-    Route
-  : never : never : never;
+// type _UpstreamFacPaths<N, P extends string> =
+//   _JoinPaths<'XA', P> extends infer XP ?
+//   XP extends string ?
+//   // _KnownRoutePaths<N, XP> extends infer Route ?
+//   TupExclude<_KnownRoutePaths<N, XP>, XP> extends infer Route ?
+//     Route
+//   : never : never : never;
 
 type _KnownRoutePaths<N, P extends string> =
   _AllRoutePaths<P> extends infer AS ?
@@ -287,10 +288,10 @@ type _JoinPaths<H extends string, T extends string> =
 
 {
   type NN = {
-    XA_M: { a: 1 }
-    XA_M_rat: { b: 2 },
+    X_M: { a: 1 }
+    X_M_rat: { b: 2 },
     D_M_rat_squeak_quietly: 999,
-    XA_M_rat_squeak_quietly: { c: 3 },
+    X_M_rat_squeak_quietly: { c: 3 },
     D_M_rat_squeak_quietly_blah: 999,
   }
 
@@ -298,24 +299,24 @@ type _JoinPaths<H extends string, T extends string> =
 
   type A = FacPath<NN>
 
-  type B = _AllRoutePaths<'XA'>
-  type C = _AllRoutePaths<'XA_rat'>
-  type D = _AllRoutePaths<'XA_rat_squeak_quietly_blah'>
+  type B = _AllRoutePaths<'X'>
+  type C = _AllRoutePaths<'X_rat'>
+  type D = _AllRoutePaths<'X_rat_squeak_quietly_blah'>
 
-  type E = _KnownRoutePaths<NN, 'XA'>
-  type F = _KnownRoutePaths<NN, 'XA_rat'>
-  type G = _KnownRoutePaths<NN, 'XA_rat_squeak_quietly_blah'>
+  type E = _KnownRoutePaths<NN, 'X'>
+  type F = _KnownRoutePaths<NN, 'X_rat'>
+  type G = _KnownRoutePaths<NN, 'X_rat_squeak_quietly_blah'>
 
-  type H = _UpstreamFacPaths<NN, ''>
-  type I = _UpstreamFacPaths<NN, 'rat'>
-  type J = _UpstreamFacPaths<NN, 'rat_squeak_quietly'>
-  type K = _UpstreamFacPaths<NN, 'rat_squeak_quietly_blah'>
+  // type H = _UpstreamFacPaths<NN, ''>
+  // type I = _UpstreamFacPaths<NN, 'rat'>
+  // type J = _UpstreamFacPaths<NN, 'rat_squeak_quietly'>
+  // type K = _UpstreamFacPaths<NN, 'rat_squeak_quietly_blah'>
 
-  type L = FacContext<TT, NN, 'M_rat', 0>
-  type M = FacContext<TT, NN, 'M_rat_squeak_quietly', 0>
-  type N = FacContext<TT, NN, 'M_rat_squeak_quietly_blah', 0>
+  // type L = CtxContext<TT, ['M','rat'], 0>
+  // type M = CtxContext<TT, ['M','rat','squeak','quietly'], 0>
+  // type N = CtxContext<TT, ['M','rat','squeak','quietly','blah'], 0>
 
-  type _ = [A, B, C, D, E, F, G, H, I, J, K, L, M, N];
+  type _ = [A, B, C, D, E, F, G] //, H, I, J, K, L, M, N];
 }
 
 

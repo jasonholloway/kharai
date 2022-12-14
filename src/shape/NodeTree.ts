@@ -1,17 +1,10 @@
-import { Merge, Simplify } from "../util";
+import { Merge } from "../util";
 import { IsNotNever, PathList, TupPopHead } from "./World";
 
 export type Form<N> =
   [_Split<N>] extends [infer Tups] ?
-  _Combine<[Tups], {}>
+  _Combine<[Tups]>
   : never
-;
-
-export type Extract<N,PL> =
-  PL extends [] ? N
-  : PL extends [infer PH, ...infer PT] ?
-    N extends { S: { [k in PH & string]: infer N2 } } ? Extract<N2, PT>
-  : never : never
 ;
 
 type _Split<N> =
@@ -24,16 +17,20 @@ type _Split<N> =
   : never : never : never : never : never
 ;
 
-type _Combine<Tups, X0> =
-  Simplify<(
+// todo: below could work generically across all possible keys
+// (with special rule for 'S')
+type _Combine<Tups> =
+  (
     [
       Tups extends readonly [infer I] ?
-        I extends readonly ['XA', [], infer V] ? V
+        I extends readonly ['X', [], infer X] ? X
       : never : never
-    ] extends readonly [infer X1] ?
-    IsNotNever<X1> extends true ? Merge<X0, X1> : X0
+    ] extends readonly [infer X] ?
+      IsNotNever<X> extends true ?
+        { X: X }
+        : unknown
     : never
-  )> extends infer X ?
+  ) extends infer XPart ?
 
   [(
     [
@@ -43,17 +40,16 @@ type _Combine<Tups, X0> =
     ] extends readonly [infer DD] ?
       IsNotNever<DD> extends true ?
       DD extends readonly [infer D] ?
-      { P: [X,D] }
+      { D:D }
       : never : unknown
     : unknown
-  )] extends [infer PhasePart] ?
-
+  )] extends [infer DPart] ?
   
   [
     ['R', [], true] extends Tups[keyof Tups]
       ? { R:true }
       : {}
-  ] extends [infer RootPart] ?
+  ] extends [infer RPart] ?
 
   (
     {
@@ -64,26 +60,41 @@ type _Combine<Tups, X0> =
         readonly [PH, readonly [Type2, PT, V]]
         : never : never : never
       as Next[0]
-      ]: _Combine<[Next[1]], X>
+      ]: _Combine<[Next[1]]>
     } extends infer Space ?
     {} extends Space ? unknown :
     { S: Space }
     : never
-  ) extends infer SpacePart ?
+  ) extends infer SPart ?
 
-  Merge<Merge<PhasePart, RootPart>, SpacePart>
+  Merge<XPart,Merge<Merge<DPart, RPart>, SPart>>
 
   : never : never : never : never
 ;
 
+export type Extract<N,PL,XAC=unknown> =
+  Merge<
+    XAC,
+    (N extends { X: infer NX } ? NX : unknown)
+    > extends infer X ?
+  PL extends [] ? Merge<N, { X: X }>
+  : (
+    PL extends [infer PLH, ...infer PLT] ?
+    N extends { S: { [k in PLH & string]: infer N2 } } ?
+    Extract<N2, PLT, X>
+    : never : never
+  ) : never
+;
+
+
 try {
   type W = {
-    XA: { i: 123, j: 456 },
+    X: { i: 123, j: 456 },
     // D_M: [1]
-    XA_M_tara: { i: 789 },
+    X_M_tara: { i: 789 },
     // // D_M_hello_again: [typeof Num]
     // D_M_hello_moo: never
-    D_M_tara: [4]
+    D_M_tara: 4
     D_M_tara_moo: never
     R_M_tara_moo: true
   };
@@ -91,7 +102,7 @@ try {
   type A = _Split<W>;
 
   type B = Form<W>;
-  type C = Extract<B, ['M','tara']>
+  type C = Extract<B, ['M']>
 
   type _ = [A,B,C];
 }

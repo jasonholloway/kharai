@@ -4,16 +4,16 @@ import { World } from "../src/shape/World";
 
 export const world = World
   .shape({
-    ...ctx<{ a:number }>(),
+    // ...ctx<{ a:number }>(),
 
     jerboa: {
-      ...ctx<{ b:readonly number[], bb:number }>(),
+      // ...ctx<{ b:readonly number[], bb:number }>(),
 
       squeak: act(Num),
       burrow: act(456),
 
       jump: {
-        ...ctx<{ c:string }>(),
+        // ...ctx<{ c:string }>(),
 
         quickly: act(789),
         slovenly: act('boo')
@@ -25,9 +25,9 @@ export const world = World
       // scrape: act(123)
     }
   })
-  .ctxImpl('', x => ({ a:1 }))
-  .ctxImpl('jerboa', x => ({ b:[0, x.a], bb:0 }))
-  .ctxImpl('jerboa_jump', () => ({ c:'hullo' }))
+  .ctx(x => ({ a:1 }))
+  .ctx(x => ({ b:[0, x.a], bb:0 }))
+  .ctx(() => ({ c:'hullo' }))
   .impl({
     jerboa: {
       async squeak({and}, d) {

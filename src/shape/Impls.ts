@@ -1,15 +1,15 @@
 import { ReadExpand } from "../guards/Guard";
 import { $Self } from "../shapeShared";
 import { Merge } from "../util";
+import { Ctx } from "./Ctx";
 import * as NodeTree from './NodeTree'
 import * as RelPaths from './RelPaths'
-import { Ctx } from "../MachineSpace";
 
 //todo: filter out prefixed tree props...
 
-export type Form<T,O> =
-  NodeTree.Extract<T,['M']> extends infer MT ?
-  _MapNode<T,[],MT,O>
+export type Form<T0,O> =
+  NodeTree.Extract<T0,['M']> extends infer T ?
+  _MapNode<T0,['M'],T,O>
   : never
 ;
 
@@ -35,11 +35,10 @@ type _TryMapSpace<T0,PL extends string[],T,O> =
   : unknown
 ;
 
+// TODO Ctx<> should accumulate X for all
 type _TryMapPhase<T0,PL extends string[],T,O> =
-  T extends { P: [infer X, infer D] } ?
-    Merge<Ctx<T0,PL,O>, X> extends infer MX ?
-    _Phase<D,MX,O>
-    : never
+  T extends { D: infer D } ?
+    _Phase<D,Ctx<T0,PL,O>,O>
   : unknown
 ;
 
@@ -53,36 +52,25 @@ type _Handler<D, X, O> =
 
 {
   type N = {
-    XA: { a:1 },
+    X: { a:1 },
     D_M_dog_woof: string,
     R_M_dog_woof: true
-    XA_M_dog: { b:2 },
+    X_M_dog: { b:2 },
     D_M_cat_meeow: $Self
   };
 
   type A = NodeTree.Form<N>
   type B = RelPaths.Form<A,[]>
-
-  // BELOW NEEDS TO BE *MUCH* TIDIER - expanse represents inefficiency
   type C = _MapNode<A,[],A,'O'>
-  type W = Form<A,'O'>
+  type D = NodeTree.Extract<A,['M']>;
+  type E = Form<A,'O'>
 
+  const shape = (_:E)=>{};
 
-  // the problem is then performance and how it degrades
-  // but first of all, how does below fail?
-
-  const w = <W><unknown>0;
-
-  const c = <C><unknown>{};
-
-
-  const shape = (w:W)=>{};
   shape({
     dog: {
       async woof(x,d) {
-
         x.ref.woof
-        
         return x.and.woof('grr');
       }
     },
@@ -94,5 +82,5 @@ type _Handler<D, X, O> =
     }
   });
 
-  type _ = [A,B,C,W]
+  type _ = [A,B,C,D,E]
 }

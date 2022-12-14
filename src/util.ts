@@ -58,6 +58,12 @@ export type Merge<A, B> =
   )
   : A & B;
 
+export type Extend<A, B> =
+  unknown extends A ? B :
+  unknown extends B ? A :
+  Omit<A, keyof B> & B
+;
+
 // below is bit ropey
 // eg number[] and [1,2] should merge to [1,2]
 // as the only result that satisfies both

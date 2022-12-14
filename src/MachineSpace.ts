@@ -7,15 +7,11 @@ import { BuiltWorld, Found } from './shape/BuiltWorld'
 import { AtomRef } from './atoms'
 import { inspect, isArray, isFunction } from 'util'
 import { Loader } from './Store'
-import { isString } from './util'
+import { isString, merge } from './util'
 import { Run, RunCtx, RunSpace } from './RunSpace'
 import { formPath } from './shape/common'
-import { PreExpand } from './guards/Guard'
-import { $self } from './shapeShared'
 import * as NodeTree from './shape/NodeTree'
-import * as RelPaths from './shape/RelPaths'
-import * as PhaseHelper from './shape/PhaseHelper'
-import * as RefHelper from './shape/RefHelper'
+import { Ctx, MachineCtx, MachineSpaceCtx } from './shape/Ctx'
 
 const log = console.debug;
 
@@ -37,7 +33,6 @@ export type Log = {
   phase: Found,
   atom: AtomRef<DataMap>
 }
-
 
 export class MachineSpace<N,O,NT=NodeTree.Form<N>> {
   
@@ -76,11 +71,13 @@ export class MachineSpace<N,O,NT=NodeTree.Form<N>> {
     return this._summon(ids);
   }
 
-  async runArbitrary<R>(fn: (x:ClientCtx<NT,O>)=>Promise<R>): Promise<R> {
+  async runArbitrary<R>(fn: (x: Ctx<NT,['C'],O>)=>Promise<R>): Promise<R> {
     const result = await this.runs.newRun()
-      .run(async x => {
-        const ctx = this.clientCtx(this.machineSpaceCtx(x));
-        const r = await fn(ctx)
+      .run(async runCtx => {
+        const machineSpaceCtx = this.machineSpaceCtx(runCtx);
+        const ctx1 = merge(runCtx,machineSpaceCtx);
+        const ctx2 = <Ctx<NT,['C'],O>>this.world.read('C').fac!(ctx1);
+        const r = await fn(ctx2)
         return [[Map(),0], [], r];
       });
 
@@ -267,38 +264,21 @@ export class MachineSpace<N,O,NT=NodeTree.Form<N>> {
     }
 
 
-    function machineCtx(x: MachineSpaceCtx, id: Id, v: number): MachineCtx<NT,string[],O> {
+    function machineCtx(x: MachineSpaceCtx, id: Id, v: number): MachineCtx {
       return {
-        ...x,
-        
         id: id,
 
         isFresh() {
           return v == -1;
         },
-
-        ..._this.pathCtx()
       };
     }
-  }
-
-  private pathCtx(): PathCtx<NT,string[],O> {
-    throw 123;
-  }
-
-  private clientCtx(x: MachineSpaceCtx): ClientCtx<NT,O> {
-    return {
-      ...x,
-      ...this.pathCtx()
-    };
   }
 
   private machineSpaceCtx(x: RunCtx<DataMap,Frisked[]>, id?: Id): MachineSpaceCtx {
     const _this = this;
     
     return {
-      ...x,
-
       attend<R>(arg: Attendee<R>|AttendedFn<R>) {
         const attended = isAttendee(arg) ? arg.attended : arg;
 
@@ -377,8 +357,6 @@ export class MachineSpace<N,O,NT=NodeTree.Form<N>> {
 }
 
 
-
-
 export type Signal = {
   stop: boolean
 }
@@ -402,131 +380,3 @@ export interface Attendee<R = unknown> {
 }
 
 export type AttendedFn<R> = (m:unknown, mid:Id|undefined, peers:Set<Peer>) => ([R]|[R,unknown]|false|undefined);
-
-
-export type MachineSpaceCtx = Extend<RunCtx<DataMap,Frisked[]>, {
-  attend: <R>(attend: Attendee<R>|AttendedFn<R>) => Promise<false|[R]>
-  convene: <R>(ids: string[], convene: Convener<R>|ConvenedFn<R>) => Promise<R>
-  watch: (id: Id) => Observable<unknown>
-  watchRaw: (id: Id) => Observable<PhaseData>
-}>;
-
-
-//PathCtx below to build up its own XAs
-//taking weight away from Impls
-//and making them available to clients
-
-//how about, instead of taking N directly
-//a predigested, pre-walked structure could be consumed
-//NodeTree and PathList
-//the NodeTree would be created by Impls as part of its walk
-//and then mapped into the Impls shape, with each leaf projected via below function
-
-//clients need runctx
-//machines need machinectx
-//these are special additions mixed in based on path
-//but not in the tree (???)
-//
-//why couldn't the special contexts appear as an XA?
-//because they have fancy types(??)
-//but other nodes could have fancy types perhaps?
-//well, actually, they couldn't
-//because we would need type functions
-//so they have to be hardcoded
-//but this is fine
-//
-//but this the rub: our context layering has to depend on the full path
-//and so we don't have MachineCtx and ClientCtx exactly
-//but rather the same layering,but with additional options
-//
-//if we want to extend the possiblities for machines, we must put our extensions in the M subtree
-//and when we run as a client these extensions won't be offered
-//
-//eg id and isFresh make no sense to a client
-//
-//but all share root context without specialisations
-//this root context will effectively be the bare RunCtx
-//like the layering should be done as part of the walking of the tree
-//and the RunCtx root is applied as part ofthis walking, as opposed to being a fixture under _everything_
-//(it still effectively will be of course)
-//
-//special machine phases can live on a subtree under I or similar
-//these won't pull in any extended context at all
-//though they might still want to take the root machine context
-//so they should be a subtree under M: say: M_*_boot 
-//
-//and when machine phases are saved, jthe leading M wil be chopped, leaving just *_boot, *_wait
-//
-//SO, TODO:
-//the building up of the type of a situational context (the PathCtx?)
-//should have hard-coded rules, so that special contexts are injected at certain points
-//at the root, we have the RunCtx
-//at M, we have the MachineCtx
-//at C, do we even have anything extra to add? Not really (yet)
-//
-// so Ctx is a strategy-pattern thing
-// but where do the accumulated XAs come from?
-// simple - from the node tree!
-//
-// currently this accumulation is done as part of Impls (I think??)
-// and it shouldn't be - it should be done by Ctx with reference to NodeTree
-// and so Impls really does become disaggregated, simplified
-// and client actions can then be built up by the same code
-
-// and after this... we need to revivify the fancy meeting actions that we thought we might need 
-// the tests insist on it
-
-// 
-//
-//
-//
-
-
-
-type E = [1,2,3] extends [1,...unknown[]] ? 1 : 0;
-type __ = E;
-
-
-export type Ctx<NT,PL extends string[],O> =
-  PL extends ['M',...unknown[]] ? (
-    {}
-  ) :
-  PL extends ['C',...unknown[]] ? (
-    Extend<
-      MachineSpaceCtx,
-      PathCtx<NT,PL,O>
-    >
-  ) :
-  {}
-;
-
-
-export type PathCtx<NT,PL extends string[],O> = 
-  RelPaths.Form<NT,PL> extends infer RT ?
-  {
-    and: PhaseHelper.Form<RT,O>,
-    ref: RefHelper.Form<RT>,
-    expandType: <T>(t:T)=>PreExpand<T,typeof $self,O>
-  }
-  : never
-;
-
-export type MachineCtx<NT,PL extends string[],O> =
-  Extend<
-    Extend<
-      MachineSpaceCtx,
-      {
-        id: Id
-        isFresh: () => boolean
-      }
-    >,
-    PathCtx<NT,PL,O>
-  >;
-
-export type ClientCtx<NT,O> =
-  Extend<
-    MachineSpaceCtx,
-    PathCtx<NT,[],O>
-  >;
-
-export type Extend<A, B> = Omit<A, keyof B> & B;

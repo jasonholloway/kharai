@@ -9,19 +9,16 @@ export type Form<RDT,Out> =
 ;
 
 type _Map<RDT, O> =
-  RDT extends { D?:infer DTup, S?:infer S } ?
-
   (
-    DTup extends [infer D]
+    RDT extends { D: infer D }
       ? _Handler<ReadExpand<D,$Self,O>,O>
       : unknown
   ) & (
+    RDT extends { S: infer S } ?
     S extends {} ?
       { [k in keyof S as _NormalizeName<k>]: _Map<S[k],O> }
-      : unknown
+    : unknown : unknown
   )
-  
-  : never
 ;
 
 type _Handler<V,Out> =
@@ -51,6 +48,7 @@ try {
   c.skip();
   c.moo();
   c.hello.moo(3);
+  c.hello.again(9)
 
   type _ = [A,B,C];
 }

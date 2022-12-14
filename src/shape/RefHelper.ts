@@ -20,8 +20,8 @@ type _MapNode<N> =
 ;
 
 type _MapDataNode<N> =
-  N extends { D: [infer D] } ?
-  (v: Read<D>) => Id
+  N extends { D: infer D } ?
+    (v: Read<D>) => Id
   : unknown
 ;
 
