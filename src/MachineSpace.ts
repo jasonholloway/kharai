@@ -279,6 +279,10 @@ export class MachineSpace<N,O,NT=NodeTree.Form<N>> {
     const _this = this;
     
     return {
+      meet(id: Id) {
+        throw 'todo'
+      },
+      
       attend<R>(arg: Attendee<R>|AttendedFn<R>) {
         const attended = isAttendee(arg) ? arg.attended : arg;
 

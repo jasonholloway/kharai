@@ -10,6 +10,7 @@ import { RunCtx } from "../RunSpace";
 import { DataMap, Id, PhaseData } from "../lib";
 import { AttendedFn, Attendee, ConvenedFn, Convener, Frisked } from "../MachineSpace";
 import { Observable } from "rxjs";
+import CancellablePromise from "../CancellablePromise";
 
 export type Ctx<N,PL extends string[],O> =
   RunCtx<DataMap,Frisked[]> extends infer XA ?
@@ -53,6 +54,14 @@ export type MachineSpaceCtx =
     convene: <R>(ids: string[], convene: Convener<R>|ConvenedFn<R>) => Promise<R>
     watch: (id: Id) => Observable<unknown>
     watchRaw: (id: Id) => Observable<PhaseData>
+
+    meet: (id: Id) => CancellablePromise<MetPeer>
+  }
+;
+
+export type MetPeer =
+  {
+    chat: (m: unknown) => unknown;
   }
 ;
 
