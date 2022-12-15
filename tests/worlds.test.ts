@@ -1,7 +1,7 @@
 import _Monoid from '../src/_Monoid'
 import { act, incl, root } from '../src/shape/common';
 import { World } from '../src/shape/World';
-import { createRunner } from './shared'
+import { run } from './shared'
 import { Guard, Narrowable, Str } from '../src/guards/Guard'
 
 const animal = (says:string) =>
@@ -73,39 +73,29 @@ const world =
 
 describe('worlds', () => {
 
-  it('run through phases', async () => {
-    const x = createRunner(world.build());
-    
-    const [logs] = await Promise.all([
-      x.allLogs(),
-      x.run.boot('bob', ['M_speakToAnimals', 'hullo!'])
-    ]);
+  it('run through phases', () =>
+    run(world.build())
+      .perform(x => x.boot('bob', x.and.speakToAnimals('hullo!')))
+      .then(s => expect(s.logs).toEqual([
+        ['bob', ['*_boot']],
+        ['bob', ['M_speakToAnimals', 'hullo!']],
+        ['bob', ['M_pig_hello', 'hullo!']],
+        ['bob', ['M_pig_responds']],
+        ['bob', ['*_end', 'oink']],
+      ]))
+    )
 
-    expect(logs).toEqual([
-      ['bob', ['*_boot']],
-      ['bob', ['M_speakToAnimals', 'hullo!']],
-      ['bob', ['M_pig_hello', 'hullo!']],
-      ['bob', ['M_pig_responds']],
-      ['bob', ['*_end', 'oink']],
-    ]);
-  })
-
-  it('run through phases, after seal', async () => {
-    const x = createRunner(world.seal().build());
-    
-    const [logs] = await Promise.all([
-      x.allLogs(),
-      x.run.boot('bob', ['M_speakToAnimals', 'hullo!'])
-    ]);
-
-    expect(logs).toEqual([
-      ['bob', ['*_boot']],
-      ['bob', ['M_speakToAnimals', 'hullo!']],
-      ['bob', ['M_pig_hello', 'hullo!']],
-      ['bob', ['M_pig_responds']],
-      ['bob', ['*_end', 'oink']],
-    ]);
-  })
+  it('run through phases, after seal', () =>
+    run(world.seal().build())
+      .perform(x => x.boot('bob', x.and.speakToAnimals('hullo!')))
+      .then(s => expect(s.logs).toEqual([
+        ['bob', ['*_boot']],
+        ['bob', ['M_speakToAnimals', 'hullo!']],
+        ['bob', ['M_pig_hello', 'hullo!']],
+        ['bob', ['M_pig_responds']],
+        ['bob', ['*_end', 'oink']],
+      ]))
+    )
 })
 
 

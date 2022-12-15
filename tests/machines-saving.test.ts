@@ -1,5 +1,5 @@
 import _Monoid from '../src/_Monoid'
-import { testRun, showData } from './shared'
+import { run, showData } from './shared'
 import { rodents } from './worlds/rodents'
 import { Map, Set, List } from 'immutable'
 import { World } from '../src/shape/World'
@@ -10,90 +10,85 @@ describe('machines - saving', () => {
 
 	const world = rodents.build();
 
-	it('atoms conjoin without consolidation (no saver or rewrites)', async () => {
-		const x = testRun(world, { save: false });
+	it('atoms conjoin without consolidation (no saver or rewrites)', () =>
+		run(world, {save:false})
+			.perform(x => Promise.all([
+				x.boot('baz', x.and.guineaPig.runAbout()),
+				x.boot('loz', x.and.guineaPig.gruntAt('baz'))
+			]))
+			.then(s => {
+				const baz = s.view('baz');
+				const loz = s.view('loz');
 
-		await Promise.all([
-			x.run.boot('baz', ['M_guineaPig_runAbout']),
-			x.run.boot('loz', ['M_guineaPig_gruntAt', 'baz']),
-			x.run.log$.toPromise()
-		]);
+				expect(baz.map(showData))
+					.toEqual([
+						{
+							baz: ['M_guineaPig_runAbout']
+						},
+						{
+							baz: ['*_end', 'grunt!'],
+							loz: ['*_end', 'squeak!']
+						}
+					]);
 
-		const baz = x.view('baz');
-		const loz = x.view('loz');
+				expect(baz[0].parents()).toHaveLength(0);
+				expect(baz[1].parents()).toContainEqual(baz[0]);
+				expect(baz[1].parents()).toContainEqual(loz[0]);
 
-		expect(baz.map(showData))
-			.toEqual([
-				{
-					baz: ['M_guineaPig_runAbout']
-				},
-				{
+				expect(loz.map(showData))
+					.toEqual([
+						{
+							loz: ['M_guineaPig_gruntAt', 'baz']
+						},
+						{
+							baz: ['*_end', 'grunt!'],
+							loz: ['*_end', 'squeak!']
+						}
+					]);
+
+				expect(loz[0].parents()).toHaveLength(0);
+				expect(loz[1].parents()).toContainEqual(loz[0]);
+				expect(loz[1].parents()).toContainEqual(baz[0]);
+			})
+		)
+
+	it('atoms consolidated (via saver)', () =>
+		run(world)
+			.perform(x => Promise.all([
+				x.boot('baz', x.and.guineaPig.runAbout()),
+				x.boot('loz', x.and.guineaPig.gruntAt('baz'))
+			]))
+			.then(s => {
+				const baz = x.view('baz');
+				const loz = x.view('loz');
+
+				expect(baz).toHaveLength(1);
+				expect(showData(baz[0])).toEqual({
 					baz: ['*_end', 'grunt!'],
 					loz: ['*_end', 'squeak!']
-				}
-			]);
+				});
+				expect(baz[0].parents()).toHaveLength(0);
 
-		expect(baz[0].parents()).toHaveLength(0);
-		expect(baz[1].parents()).toContainEqual(baz[0]);
-		expect(baz[1].parents()).toContainEqual(loz[0]);
-
-		expect(loz.map(showData))
-			.toEqual([
-				{
-					loz: ['M_guineaPig_gruntAt', 'baz']
-				},
-				{
+				expect(loz).toHaveLength(1);
+				expect(showData(loz[0])).toEqual({
 					baz: ['*_end', 'grunt!'],
 					loz: ['*_end', 'squeak!']
-				}
-			]);
+				});
+				expect(loz[0].parents()).toHaveLength(0);
+			})
+		)
 
-		expect(loz[0].parents()).toHaveLength(0);
-		expect(loz[1].parents()).toContainEqual(loz[0]);
-		expect(loz[1].parents()).toContainEqual(baz[0]);
-	})
-
-	it('atoms consolidated (via saver)', async () => {
-		const x = testRun(world);
-
-		await Promise.all([
-			x.run.boot('baz', ['M_guineaPig_runAbout']),
-			x.run.boot('loz', ['M_guineaPig_gruntAt', 'baz']),
-			x.run.log$.toPromise()
-		]);
-
-		const baz = x.view('baz');
-		const loz = x.view('loz');
-
-		expect(baz).toHaveLength(1);
-		expect(showData(baz[0])).toEqual({
-			baz: ['*_end', 'grunt!'],
-			loz: ['*_end', 'squeak!']
-		});
-		expect(baz[0].parents()).toHaveLength(0);
-
-		expect(loz).toHaveLength(1);
-		expect(showData(loz[0])).toEqual({
-			baz: ['*_end', 'grunt!'],
-			loz: ['*_end', 'squeak!']
-		});
-		expect(loz[0].parents()).toHaveLength(0);
-	})
-
-	it('doesn\'t save $boots', async () => {
-		const x = testRun(world, { maxBatchSize:2 });
-
-		await Promise.all([
-			x.run.boot('a', ['M_gerbil_spawn', [0, 2]]),
-			x.run.log$.toPromise()
-		]);
-
-		expect([...List(x.store.batches)
-			.flatMap(b => b.valueSeq())
-			.map(v => <[string]>v)
-			.map(([p]) => p)])
-			.not.toContain('*_boot')
-	})
+	it('doesn\'t save $boots', () =>
+		run(world, {maxBatchSize:2})
+			.perform(x => x.boot('a', x.and.gerbil.spawn([0,2])))
+			.then(s => {
+				expect([...List(s.batches)
+					.flatMap(b => b.valueSeq())
+					.map(v => <[string]>v)
+					.map(([p]) => p)])
+					.not.toContain('*_boot')
+			})
+		)
 
 	xit('too small batch size throws error', async () => {
 		const x = testRun(world, { maxBatchSize:1 });
