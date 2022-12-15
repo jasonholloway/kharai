@@ -7,9 +7,11 @@ import { Lump, runSaver } from './AtomSpace'
 import MonoidData from './MonoidData'
 import { Saver, Loader } from './Store'
 import { BuiltWorld } from './shape/BuiltWorld'
-import { Data } from './shape/common'
 import { RealTimer } from './Timer'
 import { RunSpace } from './RunSpace'
+import * as NodeTree from './shape/NodeTree'
+import * as RelPaths from './shape/RelPaths'
+import * as PhaseHelper from './shape/PhaseHelper'
 
 const MD = new MonoidData();
 
@@ -42,9 +44,9 @@ export function newRun<N,O>
   const lump$ = new ReplaySubject<Lump<DataMap>>(100); //could be better wired up this
 
   const runSpace = new RunSpace<DataMap,Frisked[]>(MD, new RealTimer(kill$), signal$, lump$);
-  const space = new MachineSpace(world, loader, runSpace, signal$);
+  const machineSpace = new MachineSpace(world, loader, runSpace, signal$);
 
-  const { machine$ } = space;
+  const { machine$ } = machineSpace;
 
   const log$ = machine$.pipe(
     mergeMap(m => m.log$.pipe(
@@ -94,7 +96,9 @@ export function newRun<N,O>
     complete,
 
     runSpace,
-    space,
+    machineSpace,
+
+    and: <PhaseHelper.Form<RelPaths.Form<NodeTree.Form<N>,[]>,O>><unknown>{},
 
     async session(fn: ()=>Promise<void>) {
       const release = this.keepAlive();
@@ -108,12 +112,12 @@ export function newRun<N,O>
     },
 
     async summon(ids: Id[]) {
-      const machines = space.summon(Set(ids));
+      const machines = machineSpace.summon(Set(ids));
 
       return {
         meet<R = unknown>(convener: Convener<R>|ConvenedFn<R>): Promise<R> {
           //below rubbishly resummons
-          return space.runArbitrary(x => {
+          return machineSpace.runArbitrary(x => {
             return x.convene(ids, convener);
           });
         },
@@ -130,9 +134,9 @@ export function newRun<N,O>
       }
     },
 
-    async boot(id: Id, p: Data<N>): Promise<boolean> {
+    async boot(id: Id, next: O): Promise<boolean> {
       const ms = await this.summon([id]);
-      const result = await ms.tell(p);
+      const result = await ms.tell(next);
       return result && !!result[0];
     },
 

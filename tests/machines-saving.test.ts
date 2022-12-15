@@ -1,5 +1,5 @@
 import _Monoid from '../src/_Monoid'
-import { createRunner, showData } from './shared'
+import { testRun, showData } from './shared'
 import { rodents } from './worlds/rodents'
 import { Map, Set, List } from 'immutable'
 import { World } from '../src/shape/World'
@@ -11,7 +11,7 @@ describe('machines - saving', () => {
 	const world = rodents.build();
 
 	it('atoms conjoin without consolidation (no saver or rewrites)', async () => {
-		const x = createRunner(world, { save: false });
+		const x = testRun(world, { save: false });
 
 		await Promise.all([
 			x.run.boot('baz', ['M_guineaPig_runAbout']),
@@ -54,7 +54,7 @@ describe('machines - saving', () => {
 	})
 
 	it('atoms consolidated (via saver)', async () => {
-		const x = createRunner(world);
+		const x = testRun(world);
 
 		await Promise.all([
 			x.run.boot('baz', ['M_guineaPig_runAbout']),
@@ -81,7 +81,7 @@ describe('machines - saving', () => {
 	})
 
 	it('doesn\'t save $boots', async () => {
-		const x = createRunner(world, { maxBatchSize:2 });
+		const x = testRun(world, { maxBatchSize:2 });
 
 		await Promise.all([
 			x.run.boot('a', ['M_gerbil_spawn', [0, 2]]),
@@ -96,7 +96,7 @@ describe('machines - saving', () => {
 	})
 
 	xit('too small batch size throws error', async () => {
-		const x = createRunner(world, { maxBatchSize:1 });
+		const x = testRun(world, { maxBatchSize:1 });
 
 		await Promise.all([
 			x.run.boot('m', ['M_gerbil_spawn', [0, 2]]),
@@ -108,7 +108,7 @@ describe('machines - saving', () => {
 	})
 
 	it('big enough batch saves once', async () => {
-		const x = createRunner(world, { maxBatchSize:24, threshold:10 });
+		const x = testRun(world, { maxBatchSize:24, threshold:10 });
 
 		await Promise.all([
 			x.run.boot('m', ['M_gerbil_spawn', [0, 2]]),
@@ -128,7 +128,7 @@ describe('machines - saving', () => {
 	})
 	
 	it('big enough batch, heads resolve to same atom', async () => {
-		const x = createRunner(world, { maxBatchSize:24, threshold:5 });
+		const x = testRun(world, { maxBatchSize:24, threshold:5 });
 
 		await Promise.all([
 			x.run.boot('a', ['M_gerbil_spawn', [0, 2]]),
@@ -153,7 +153,7 @@ describe('machines - saving', () => {
 	})
 
 	xit('further saving', async () => {
-		const x = createRunner(world, { maxBatchSize:5, threshold:4 });
+		const x = testRun(world, { maxBatchSize:5, threshold:4 });
 
 		await Promise.all([
 			x.run.boot('m', ['M_gerbil_spawn', [0, 2]]),
@@ -178,7 +178,7 @@ describe('machines - saving', () => {
 				})
 				.build();
 
-			const x = createRunner(w, { maxBatchSize:5, threshold:5 });
+			const x = testRun(w, { maxBatchSize:5, threshold:5 });
 
 			await Promise.all([
 				x.run.boot('a', ['M_blah', 0]),

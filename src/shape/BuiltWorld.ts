@@ -11,7 +11,12 @@ export class BuiltWorld<N,O> {
 
   constructor(reg: Registry) {
 
-    const withFacs = reg.root
+    //below hack needed so that 'C' node gets prepopulated
+    //todo: facs should be built lazily!
+    const reg2 = reg
+      .update(n => n.summon(['C']));
+
+    const withFacs = reg2.root
       .mapBreadthFirst<Found>(
         {},
         (v, upstreams) => {

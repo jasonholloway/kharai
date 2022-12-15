@@ -9,14 +9,28 @@ import { newRun, RunOpts } from '../src/Run'
 import { tracePath, renderAtoms } from '../src/AtomPath'
 import FakeStore from '../src/FakeStore'
 import { BuiltWorld } from '../src/shape/BuiltWorld'
+import { Ctx } from '../src/shape/Ctx'
+import * as NodeTree from '../src/shape/NodeTree'
 
 type Opts = { maxBatchSize?: number, data?: RawDataMap } & RunOpts;
 
-export function createRunner<N>(world: BuiltWorld<N,unknown>, opts?: Opts) {
+class AndNext { sym = Symbol('unique') };
+
+export type TestRun<N> = {
+  perform(fn: (x: Ctx<NodeTree.Form<N>,['C'],AndNext>)=>Promise<unknown>): Promise<Remnant>
+};
+
+export type Remnant = {
+  logs: unknown[]
+  saved: RawDataMap
+  batches: RawDataMap[]
+};
+
+export function run<N>(world: BuiltWorld<N,unknown>, opts?: Opts): TestRun<N> {
   
   const store = new FakeStore(opts?.maxBatchSize || 4, opts?.data);
 
-  const run = newRun(world, store, store, { ...opts });
+  const run = newRun<N,AndNext>(world, store, store, { ...opts });
 
   const atomSub = new BehaviorSubject<Map<string, AtomRef<DataMap>[]>>(Map()); 
 
@@ -43,7 +57,6 @@ export function createRunner<N>(world: BuiltWorld<N,unknown>, opts?: Opts) {
 
   return {
     store,
-    run,
 
     log$,
 
@@ -56,7 +69,7 @@ export function createRunner<N>(world: BuiltWorld<N,unknown>, opts?: Opts) {
       ));
     },
 
-    allLogs: () => gather(log$),
+    gatherLogs: () => gather(log$),
 
     view(id: Id) {
       return viewAtoms(List(atomSub.getValue()?.get(id) || []));

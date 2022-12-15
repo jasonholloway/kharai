@@ -189,12 +189,15 @@ export class MachineSpace<N,O,NT=NodeTree.Form<N>> {
           return of(<Step>{
             v: v + 1,
             log: { atom, data, phase },
-            next: () => run.run(async x => {
+            next: () => run.run(async x1 => {
               try {
                 const { fac, handler } = phase;
-                
-                const ctx = fac!(machineCtx(this.machineSpaceCtx(x, id), id, v));
-                const out = await handler!(ctx, data[1]);
+
+                const x2 = { ...x1, ...this.machineSpaceCtx(x1, id) };
+                const x3 = { ...x2, ...machineCtx(x2, id, v) };
+                const x4 = { ...x3, ...<object>(fac || ((o)=>o))(x3) };
+
+                const out = await handler!(x4, data[1]);
 
                 if(out === $skip) return [[Map(),0], [], result[1]];
 

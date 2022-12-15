@@ -14,7 +14,7 @@ import CancellablePromise from "../CancellablePromise";
 
 export type Ctx<N,PL extends string[],O> =
   RunCtx<DataMap,Frisked[]> extends infer XA ?
-  MachineSpaceCtx extends infer XB ?
+  MachineSpaceCtx<O> extends infer XB ?
   (
     PL extends ['M',...unknown[]] ? (
       Extend<
@@ -42,28 +42,28 @@ type PathCtx<N,PL extends string[],O> =
 ;
 
 export type MachineCtx =
-  {
-    id: Id
-    isFresh: () => boolean
-  }
-;
+{
+  id: Id
+  isFresh: () => boolean
+};
 
-export type MachineSpaceCtx =
-  {
-    attend: <R>(attend: Attendee<R>|AttendedFn<R>) => Promise<false|[R]>
-    convene: <R>(ids: string[], convene: Convener<R>|ConvenedFn<R>) => Promise<R>
-    watch: (id: Id) => Observable<unknown>
-    watchRaw: (id: Id) => Observable<PhaseData>
+export type MachineSpaceCtx<O> =
+{
+  attend: <R>(attend: Attendee<R>|AttendedFn<R>) => Promise<false|[R]>
+  convene: <R>(ids: string[], convene: Convener<R>|ConvenedFn<R>) => Promise<R>
+  watch: (id: Id) => Observable<unknown>
+  watchRaw: (id: Id) => Observable<PhaseData>
 
-    meet: (id: Id) => CancellablePromise<MetPeer>
-  }
-;
+  //stubs
+  meet: (id: Id) => CancellablePromise<MetPeer>
+  boot: (id: Id, phase: O) => CancellablePromise<void>
+  summon: (id: Id) => CancellablePromise<{}>
+};
 
 export type MetPeer =
-  {
-    chat: (m: unknown) => unknown;
-  }
-;
+{
+  chat: (m: unknown) => unknown;
+};
 
 try {
   type W = {

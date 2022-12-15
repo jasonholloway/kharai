@@ -1,5 +1,5 @@
 import { List, Set } from "immutable";
-import { inspect, isArray, isString } from "util";
+import { isArray, isString } from "util";
 import { Any, Guard, Many, Never, Num, Str } from "../guards/Guard";
 import { Id } from "../lib";
 import { $skip, Peer } from "../MachineSpace";
@@ -11,10 +11,17 @@ import { mergeNodeVal, NodeVal, NodeView, Registry } from "./Registry";
 import * as Impls from './Impls'
 import * as NodeTree from "./NodeTree";
 import * as Shape from "./Shape";
-import { Ctx, MachineCtx } from "./Ctx";
+import { Ctx } from "./Ctx";
 
 export const separator = '_'
 export type Separator = typeof separator;
+
+// problem now is in asking fo facs that don't exist...
+//
+//
+//
+//
+//
 
 export module Builder {
 
@@ -393,6 +400,14 @@ export class Builder<N> {
             paths
           ];
         });
+
+    //ands and refs need to be exposed
+    //or - when we run a test runner, we actually use a fac...
+    //this would be best like 
+    //
+    //so all actions happen as part of the client...
+    //but... exceptions need to propagate back
+    //
 
     const withoutPaths = withCtx
       .mapBreadthFirst({facs:List<Fac>()}, ([v]) => v);

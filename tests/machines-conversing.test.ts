@@ -1,7 +1,7 @@
 import _Monoid from '../src/_Monoid'
 import { parakeet } from './worlds/parakeet'
 import { delay } from '../src/util';
-import { createRunner, showData } from './shared';
+import { testRun, showData } from './shared';
 import { World } from '../src/shape/World';
 import { act, root } from '../src/shape/common';
 
@@ -9,7 +9,7 @@ describe('machines - conversing', () => {
   const world = parakeet.build();
 
   it('atom dependencies tracked', async () => {
-    const x = createRunner(world, { save: false });
+    const x = testRun(world, { save: false });
 
     await Promise.all([
       x.run.boot('Polly', ['M_listen']),
@@ -51,7 +51,7 @@ describe('machines - conversing', () => {
   })
 
   it('via rendesvous', async () => {
-    const x = createRunner(world, { save: false });
+    const x = testRun(world, { save: false });
 
     await x.session(async () => {
       await Promise.all([
@@ -87,7 +87,7 @@ describe('machines - conversing', () => {
         }
       });
 
-    const x = createRunner(w.build(), {save:false});
+    const x = testRun(w.build(), {save:false});
 
     await x.run.space.runArbitrary(async ({meet,ref}) => {
       const gary = await meet(ref.gerbil(true));
@@ -120,7 +120,7 @@ describe('machines - conversing', () => {
         }
       });
 
-    const x = createRunner(w.build(), {save:false});
+    const x = testRun(w.build(), {save:false});
 
     await x.run.session(async () => {
       //...
