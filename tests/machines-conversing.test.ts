@@ -1,79 +1,74 @@
 import _Monoid from '../src/_Monoid'
 import { parakeet } from './worlds/parakeet'
-import { delay } from '../src/util';
-import { testRun, showData } from './shared';
+import { run, showData } from './shared';
 import { World } from '../src/shape/World';
 import { act, root } from '../src/shape/common';
 
 describe('machines - conversing', () => {
   const world = parakeet.build();
 
-  it('atom dependencies tracked', async () => {
-    const x = testRun(world, { save: false });
+  it('atom dependencies tracked', () =>
+    run(world, { save: false })
+      .perform(({and,boot}) => Promise.all([
+        boot('Polly', and.listen()),
+        boot('Priscilla', and.listen()),
+        boot('Pete', and.chirp([['Polly','Priscilla'], 'hello!']))
+      ]))
+      .waitQuiet()
+      .then(({view}) => {
+        const polly = view('Polly').atoms;
+        const priscilla = view('Priscilla').atoms;
+        const pete = view('Pete').atoms;
 
-    await Promise.all([
-      x.run.boot('Polly', ['M_listen']),
-      x.run.boot('Priscilla', ['M_listen']),
-      x.run.boot('Pete', ['M_chirp', [['Polly', 'Priscilla'], 'hello!']])
-    ]);
+        expect(showData(priscilla[0]))
+          .toEqual({ Priscilla: ['M_listen'] })
 
-    await delay(200)
+        expect(showData(priscilla[1]))
+          .toEqual({
+            Polly: ['M_*end', 'chirped!'],
+            Priscilla: ['M_chirp', [[], 'hello!']]
+          })
 
-    const polly = x.view('Polly');
-    const priscilla = x.view('Priscilla');
-    const pete = x.view('Pete');
+        expect(priscilla[1].parents())
+          .toContainEqual(priscilla[0])
 
-    expect(showData(priscilla[0]))
-      .toEqual({ Priscilla: ['M_listen'] })
+        expect(priscilla[1].parents())
+          .toContainEqual(polly[1])
 
-    expect(showData(priscilla[1]))
-      .toEqual({
-        Polly: ['M_*end', 'chirped!'],
-        Priscilla: ['M_chirp', [[], 'hello!']]
-      })
+        expect(showData(priscilla[2]))
+          .toEqual({
+            Priscilla: ['M_*end', 'no-one to chirp to!']
+          })
 
-    expect(priscilla[1].parents())
-      .toContainEqual(priscilla[0])
-
-    expect(priscilla[1].parents())
-      .toContainEqual(polly[1])
-
-    expect(showData(priscilla[2]))
-      .toEqual({
-        Priscilla: ['M_*end', 'no-one to chirp to!']
-      })
-
-    expect(priscilla[2].parents())
-      .toContainEqual(priscilla[1])
-  })
+        expect(priscilla[2].parents())
+          .toContainEqual(priscilla[1])
+      }))
 
   xit('errors in peers mean \'false\'', async () => {
   })
 
-  it('via rendesvous', async () => {
-    const x = testRun(world, { save: false });
+  it('via rendesvous', () =>
+    run(world, { save: false })
+      .perform(({boot,and}) => Promise.all([
+        boot('skolmer', and.$m.place()),
+        boot('a', and.migrate('skolmer')),
+        boot('b', and.migrate('skolmer'))
+      ]))
+      .waitQuiet()
+      .then(({view}) => {
+        //need some way of waiting till the right time...
+        const a = view('a').atoms;
+        const b = view('b').atoms;
 
-    await x.session(async () => {
-      await Promise.all([
-        x.run.boot('skolmer', ['M_$m_place']),
-        x.run.boot('a', ['M_migrate', 'skolmer']),
-        x.run.boot('b', ['M_migrate', 'skolmer']),
-        x.run.summon(['a', 'b']).then(s => s.log$.toPromise()),
-      ]);
+        expect(showData(a[3]))
+          .toHaveProperty('a', ['M_*end', {a:'hello', b:'hello'}])
 
-      const a = x.view('a');
-      const b = x.view('b');
+        expect(showData(b[3]))
+          .toHaveProperty('b', ['M_*end', {a:'hello', b:'hello'}])
+      }))
 
-      expect(showData(a[3]))
-        .toHaveProperty('a', ['M_*end', {a:'hello', b:'hello'}])
-
-      expect(showData(b[3]))
-        .toHaveProperty('b', ['M_*end', {a:'hello', b:'hello'}])
-    });
-  })
-
-  it('meet from outside', async () => {
-    const w = World
+  it('meet from outside', () =>
+    run(World
       .shape({
         gerbil: root(true)
       })
@@ -85,19 +80,18 @@ describe('machines - conversing', () => {
 
           return false;
         }
-      });
+      }).build(),
+        {save:false}
+       )
+      .perform(async ({meet,ref}) => {
+        const gary = await meet(ref.gerbil(true));
+        gary.chat('squeak');
+        //todo...
+      })
+      .waitQuiet()
+    );
 
-    const x = testRun(w.build(), {save:false});
-
-    await x.run.space.runArbitrary(async ({meet,ref}) => {
-      const gary = await meet(ref.gerbil(true));
-      gary.chat('squeak');
-      //...
-      
-    });
-  })
-
-  it('meet from inside', async () => {
+  it('meet from inside', () => {
     const w = World
       .shape({
         rat: act(),
@@ -120,11 +114,11 @@ describe('machines - conversing', () => {
         }
       });
 
-    const x = testRun(w.build(), {save:false});
-
-    await x.run.session(async () => {
-      //...
-    });
+    return run(w.build(), {save:false})
+      .perform(async () => {
+        //todo...
+      })
+      .waitQuiet();
   })
 })
 

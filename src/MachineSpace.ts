@@ -267,7 +267,7 @@ export class MachineSpace<N,O,NT=NodeTree.Form<N>> {
     }
 
 
-    function machineCtx(x: MachineSpaceCtx, id: Id, v: number): MachineCtx {
+    function machineCtx(x: MachineSpaceCtx<O>, id: Id, v: number): MachineCtx {
       return {
         id: id,
 
@@ -278,11 +278,19 @@ export class MachineSpace<N,O,NT=NodeTree.Form<N>> {
     }
   }
 
-  private machineSpaceCtx(x: RunCtx<DataMap,Frisked[]>, id?: Id): MachineSpaceCtx {
+  private machineSpaceCtx(x: RunCtx<DataMap,Frisked[]>, id?: Id): MachineSpaceCtx<O> {
     const _this = this;
     
     return {
       meet(id: Id) {
+        throw 'todo'
+      },
+
+      boot(id:Id, phase:O) {
+        throw 'todo'
+      },
+
+      summon(id:Id) {
         throw 'todo'
       },
       

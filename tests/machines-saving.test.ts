@@ -16,9 +16,10 @@ describe('machines - saving', () => {
 				x.boot('baz', x.and.guineaPig.runAbout()),
 				x.boot('loz', x.and.guineaPig.gruntAt('baz'))
 			]))
-			.then(s => {
-				const baz = s.view('baz');
-				const loz = s.view('loz');
+			.waitQuiet()
+			.then(({view}) => {
+				const baz = view('baz').atoms;
+				const loz = view('loz').atoms;
 
 				expect(baz.map(showData))
 					.toEqual([
@@ -58,9 +59,10 @@ describe('machines - saving', () => {
 				x.boot('baz', x.and.guineaPig.runAbout()),
 				x.boot('loz', x.and.guineaPig.gruntAt('baz'))
 			]))
-			.then(s => {
-				const baz = x.view('baz');
-				const loz = x.view('loz');
+			.waitQuiet()
+			.then(({view}) => {
+				const baz = view('baz').atoms;
+				const loz = view('loz').atoms;
 
 				expect(baz).toHaveLength(1);
 				expect(showData(baz[0])).toEqual({
@@ -80,9 +82,11 @@ describe('machines - saving', () => {
 
 	it('doesn\'t save $boots', () =>
 		run(world, {maxBatchSize:2})
-			.perform(x => x.boot('a', x.and.gerbil.spawn([0,2])))
-			.then(s => {
-				expect([...List(s.batches)
+			.perform(({and,boot}) =>
+				boot('a', and.gerbil.spawn([0,2])))
+			.waitQuiet()
+			.then(({batches}) => {
+				expect([...List(batches)
 					.flatMap(b => b.valueSeq())
 					.map(v => <[string]>v)
 					.map(([p]) => p)])
@@ -90,75 +94,70 @@ describe('machines - saving', () => {
 			})
 		)
 
-	xit('too small batch size throws error', async () => {
-		const x = testRun(world, { maxBatchSize:1 });
+	xit('too small batch size throws error', () =>
+		run(world, {maxBatchSize:1})
+			.perform(({boot,and}) => Promise.all([
+				boot('m', and.gerbil.spawn([0,2])),
+				boot('a', and.gerbil.spawn([0,2]))
+			]))
+			.waitQuiet()
+			.then(s => {
+				throw 'TODO where will error appear?'
+			}))
 
-		await Promise.all([
-			x.run.boot('m', ['M_gerbil_spawn', [0, 2]]),
-			x.run.boot('a', ['M_gerbil_spawn', [0, 2]]),
-			x.run.log$.toPromise()
-		]);
+	it('big enough batch saves once', () =>
+		run(world, {maxBatchSize:24, threshold:10})
+			.perform(({boot,and}) => Promise.all([
+				boot('m', and.gerbil.spawn([0, 2])),
+				boot('a', and.gerbil.spawn([0, 2]))
+			]))
+			.waitQuiet()
+			.then(s => {
+				expect(s.saved.get('a')).toEqual(['M_gerbil_spawn', [2, 2]]);
+				expect(s.saved.get('m')).toEqual(['M_gerbil_spawn', [2, 2]]);
+				expect(s.saved.get('aa')).toEqual(['M_gerbil_spawn', [0, 2]]);
+				expect(s.saved.get('ma')).toEqual(['M_gerbil_spawn', [0, 2]]);
+				expect(s.saved.get('ab')).toEqual(['M_gerbil_spawn', [0, 2]]);
+				expect(s.saved.get('mb')).toEqual(['M_gerbil_spawn', [0, 2]]);
 
-		throw 'TODO where will error appear?'
-	})
-
-	it('big enough batch saves once', async () => {
-		const x = testRun(world, { maxBatchSize:24, threshold:10 });
-
-		await Promise.all([
-			x.run.boot('m', ['M_gerbil_spawn', [0, 2]]),
-			x.run.boot('a', ['M_gerbil_spawn', [0, 2]]),
-			x.run.log$.toPromise()
-		]);
-
-		expect(x.store.saved.get('a')).toEqual(['M_gerbil_spawn', [2, 2]]);
-		expect(x.store.saved.get('m')).toEqual(['M_gerbil_spawn', [2, 2]]);
-		expect(x.store.saved.get('aa')).toEqual(['M_gerbil_spawn', [0, 2]]);
-		expect(x.store.saved.get('ma')).toEqual(['M_gerbil_spawn', [0, 2]]);
-		expect(x.store.saved.get('ab')).toEqual(['M_gerbil_spawn', [0, 2]]);
-		expect(x.store.saved.get('mb')).toEqual(['M_gerbil_spawn', [0, 2]]);
-
-		expect(x.store.batches).toHaveLength(1)
-
-	})
+				expect(s.batches).toHaveLength(1)
+			}))
 	
-	it('big enough batch, heads resolve to same atom', async () => {
-		const x = testRun(world, { maxBatchSize:24, threshold:5 });
+	it('big enough batch, heads resolve to same atom', () =>
+		run(world, {maxBatchSize:24, threshold:5})
+			.perform(({and,boot}) => Promise.all([
+				boot('a', and.gerbil.spawn([0,2]))
+			]))
+			.waitQuiet()
+			.then(({view}) => {
+				const [a] = view('a').atoms;
+				const [aa] = view('aa').atoms;
+				const [ab] = view('ab').atoms;
 
-		await Promise.all([
-			x.run.boot('a', ['M_gerbil_spawn', [0, 2]]),
-			x.run.log$.toPromise()
-		]);
+				const atoms = Set([a, aa, ab])
+					.map(v => v.unpack());
 
-		const [a] = x.view('a');
-		const [aa] = x.view('aa');
-		const [ab] = x.view('ab');
+				expect(atoms.toArray()).toHaveLength(1);
 
-		const atoms = Set([a, aa, ab])
-		  .map(v => v.unpack());
+				const [atom] = atoms;
 
-		expect(atoms.toArray()).toHaveLength(1);
+				expect(Map(atom.val).keySeq().toSet())
+					.toStrictEqual(Set(['a', 'aa', 'ab']));
 
-		const [atom] = atoms;
+				expect(atom).toHaveProperty('weight', 5);
+			}))
 
-		expect(Map(atom.val).keySeq().toSet())
-			.toStrictEqual(Set(['a', 'aa', 'ab']));
-
-		expect(atom).toHaveProperty('weight', 5);
-	})
-
-	xit('further saving', async () => {
-		const x = testRun(world, { maxBatchSize:5, threshold:4 });
-
-		await Promise.all([
-			x.run.boot('m', ['M_gerbil_spawn', [0, 2]]),
-			x.run.boot('a', ['M_gerbil_spawn', [0, 2]]),
-			x.run.log$.toPromise()
-		]);
-
-		//TODO
-		//ordering of savables
-	})
+	xit('further saving', () =>
+		run(world, {maxBatchSize:5, threshold:4 })
+			.perform(({and,boot}) => Promise.all([
+				boot('m', and.gerbil.spawn([0,2])),
+				boot('a', and.gerbil.spawn([0,2]))
+			]))
+			.waitQuiet()
+			.then(s => {
+				//TODO
+				//ordering of savables
+			}))
 
 	it.each([[1],[2],[10]])
 		('saves all cleanly at end %i', async c => {
@@ -173,12 +172,15 @@ describe('machines - saving', () => {
 				})
 				.build();
 
-			const x = testRun(w, { maxBatchSize:5, threshold:5 });
+			await run(w, { maxBatchSize:5, threshold:5 })
+			  .perform(({and,boot}) => Promise.all([
+					boot('a', and.blah(0))
+				]))
+				.waitQuiet()
+				.then(({saved}) => {
+					expect(saved.get('a')).toEqual(['M_blah', c]);
+				})
 
-			await Promise.all([
-				x.run.boot('a', ['M_blah', 0]),
-				x.run.log$.toPromise()
-			]);
 
 			//the thing to do here
 			//is to save on close
@@ -194,7 +196,6 @@ describe('machines - saving', () => {
 			//so - when the log completes, the run should close the saver, which will trigger
 			//the final save(s)
 
-			expect(x.store.saved.get('a')).toEqual(['M_blah', c]);
 		})
 })
 

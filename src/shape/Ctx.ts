@@ -57,7 +57,7 @@ export type MachineSpaceCtx<O> =
   //stubs
   meet: (id: Id) => CancellablePromise<MetPeer>
   boot: (id: Id, phase: O) => CancellablePromise<void>
-  summon: (id: Id) => CancellablePromise<{}>
+  summon: (id: Id) => CancellablePromise<{ tell(m:unknown): CancellablePromise<unknown>  }>
 };
 
 export type MetPeer =

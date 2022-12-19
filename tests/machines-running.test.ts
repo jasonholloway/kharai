@@ -11,11 +11,11 @@ describe('machines - running', () => {
 
   it('run through phases', () =>
     run(world)
-      .perform(async ({and,boot}) => {
-        await boot('bob', and.rat.wake(''));
-      })
-      .then(s => {
-        expect(s.logs).toEqual([
+      .perform(({and,boot}) =>
+        boot('bob', and.rat.wake('')))
+      .waitQuiet()
+      .then(({logs}) => {
+        expect(logs).toEqual([
           ['bob', ['*_boot']],
           ['bob', ['M_rat_wake', '']],
           ['bob', ['M_rat_squeak', 123]],
@@ -30,6 +30,7 @@ describe('machines - running', () => {
         boot('nib', and.hamster.wake(77)),
         boot('bob', and.rat.wake(''))
       ]))
+      .waitQuiet()
       .then(s => {
         expect(s.logs).toEqual([
           ['nib', ['*_boot']],
@@ -49,8 +50,9 @@ describe('machines - running', () => {
         boot('gaz', and.guineaPig.runAbout()),
         boot('goz', and.guineaPig.gruntAt('gaz'))
       ]))
-      .then(s => {
-        expect(s.logs).toEqual([
+      .waitQuiet()
+      .then(({logs}) => {
+        expect(logs).toEqual([
           ['gaz', ['*_boot']],
           ['goz', ['*_boot']],
           ['gaz', ['M_guineaPig_runAbout']],
@@ -66,8 +68,9 @@ describe('machines - running', () => {
       .perform(({and,boot}) =>
         boot('taz', and.wait([1000, and.end(123)]))
       )
-      .then(s => {
-        expect(s.logs).toEqual([
+      .waitQuiet()
+      .then(({logs}) => {
+        expect(logs).toEqual([
           ['taz', ['*_boot']],
           ['taz', ['*_wait', [1000, ['*_end', 123]]]],
           ['taz', ['*_end', 123]],
@@ -92,8 +95,9 @@ describe('machines - running', () => {
       .perform(({and,boot}) =>
         boot('caz', and.capybara.nip(0))
       )
-      .then(s => {
-        expect(s.logs).toEqual([
+      .waitQuiet()
+      .then(({logs}) => {
+        expect(logs).toEqual([
           ['caz', ['*_boot']],
           ['caz', ['M_capybara_nip', 0]],
           ['caz', ['M_capybara_nip', 0]],
@@ -112,10 +116,10 @@ describe('machines - running', () => {
           saz: ['M_shrew', [0, false]]
         })
       })
-      .perform(({summon}) => summon(['saz'])
-      )
-      .then(s => {
-        expect(s.logs).toEqual([
+      .perform(({summon}) => summon('saz'))
+      .waitQuiet()
+      .then(({logs}) => {
+        expect(logs).toEqual([
           ['saz', ['M_shrew', [0, false]]],
           ['saz', ['M_shrew', [1, true]]], //sure sign that previous phase was 'fresh'
           ['saz', ['M_shrew', [2, false]]],
@@ -128,6 +132,7 @@ describe('machines - running', () => {
     run(world)
       .perform(({and,boot}) =>
         boot('saz', and.shrew([0, false])))
+      .waitQuiet()
       .then(s => {
         expect(s.logs).toEqual([
           ['saz', ['*_boot']],
@@ -164,29 +169,30 @@ describe('machines - running', () => {
       .perform(({and,boot,summon}) => Promise.all([
         boot('G', and.ghost(3)),
         (async () => {
-          const g0 = await summon(['G'])
+          const g0 = await summon('G')
           await g0.tell(true);
 
-          const g1 = await summon(['G'])
+          const g1 = await summon('G')
           await g1.tell(true);
 
-          const g2 = await summon(['G'])
+          const g2 = await summon('G')
           await g2.tell(false);
         })()
       ]))
-      .then(s => {
-        expect(s.logs).toEqual([
-          ['G', ['*_boot']],
-          ['G', ['M_ghost', 3]],
-          ['G', ['M_ghost', 3]],
-          ['G', ['M_ghost', 3]],
-          ['G', ['*_end', 'fin']]
-        ]);
+      .waitQuiet()
+        .then(({logs,batches}) => {
+          expect(logs).toEqual([
+            ['G', ['*_boot']],
+            ['G', ['M_ghost', 3]],
+            ['G', ['M_ghost', 3]],
+            ['G', ['M_ghost', 3]],
+            ['G', ['*_end', 'fin']]
+          ]);
 
-        expect(s.batches).toEqual([
-          Map([['G', ['M_ghost', 3]]]),
-          Map([['G', ['*_end', 'fin']]])
-        ]);
+          expect(batches).toEqual([
+            Map([['G', ['M_ghost', 3]]]),
+            Map([['G', ['*_end', 'fin']]])
+          ]);
       })
     )
 
@@ -207,8 +213,9 @@ describe('machines - running', () => {
 
       return run(w.build())
         .perform(({boot,and}) => boot('A', and.hello()))
-        .then(s => {
-          expect(s.logs).toEqual([
+        .waitQuiet()
+        .then(({logs}) => {
+          expect(logs).toEqual([
             ['A', ['*_boot']],
             ['A', ['M_hello']],
             ['A', ['*_end', 'moo!']]
@@ -235,8 +242,9 @@ describe('machines - running', () => {
 
       return run(w.build())
         .perform(({boot,and}) => boot('A', and.hello()))
-        .then(s => {
-          expect(s.logs).toEqual([
+        .waitQuiet()
+        .then(({logs}) => {
+          expect(logs).toEqual([
             ['A', ['*_boot']],
             ['A', ['M_hello']],
             ['A', ['*_end', ['moo!']]]
@@ -261,8 +269,9 @@ describe('machines - running', () => {
       return run(w.build())
         .perform(({boot,and}) =>
           boot('A', and.hello()))
-        .then(s => {
-          expect(s.logs).toEqual([
+        .waitQuiet()
+        .then(({logs}) => {
+          expect(logs).toEqual([
             ['A', ['*_boot']],
             ['A', ['M_hello']],
             ['A', ['*_end', 'moo A!']]

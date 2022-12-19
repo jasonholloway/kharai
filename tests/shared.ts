@@ -11,19 +11,23 @@ import FakeStore from '../src/FakeStore'
 import { BuiltWorld } from '../src/shape/BuiltWorld'
 import { Ctx } from '../src/shape/Ctx'
 import * as NodeTree from '../src/shape/NodeTree'
+import CancellablePromise from './CancellablePromise'
 
 type Opts = { maxBatchSize?: number, data?: RawDataMap } & RunOpts;
 
 class AndNext { sym = Symbol('unique') };
 
-export type TestRun<N> = {
-  perform(fn: (x: Ctx<NodeTree.Form<N>,['C'],AndNext>)=>Promise<unknown>): Promise<Remnant>
+export type TestRun<N,V=unknown> = {
+  perform<PV>(fn: (x: Ctx<NodeTree.Form<N>,['C'],AndNext>)=>Promise<PV>): TestRun<N,PV>
+  waitQuiet(): Promise<Remnant<V>>
 };
 
-export type Remnant = {
-  logs: unknown[]
+export type Remnant<V> = {
+  result: V
   saved: RawDataMap
   batches: RawDataMap[]
+  logs: [Id,unknown][]
+  view(id:Id): { atoms: AtomView<DataMap>[], logs: [Id,unknown][] }
 };
 
 export function run<N>(world: BuiltWorld<N,unknown>, opts?: Opts): TestRun<N> {
@@ -56,10 +60,27 @@ export function run<N>(world: BuiltWorld<N,unknown>, opts?: Opts): TestRun<N> {
   log$.subscribe();
 
   return {
-    store,
+    perform(fn) {
 
-    log$,
 
+      run.machineSpace.runArbitrary(fn)
+      
+      return new CancellablePromise(() => {
+      });
+
+      
+      const result = await fn()
+      throw 123;
+    },
+
+    waitQuiet() {
+      throw 123;
+    }
+  };
+
+
+
+  return {
     logs: (...ids: Id[]) => {
       const idSet = Set(ids);
       return gather(log$.pipe(

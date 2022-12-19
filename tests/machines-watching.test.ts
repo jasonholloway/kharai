@@ -1,5 +1,5 @@
 import _Monoid from '../src/_Monoid'
-import { createRunner, showData } from './shared';
+import { run, showData } from './shared';
 import { Map } from 'immutable'
 import { World } from '../src/shape/World';
 import { Any, Num, Str } from '../src/guards/Guard';
@@ -42,49 +42,44 @@ describe('machines - watching', () => {
 				}
 			});
 
-		it('one can watch the other', async () => {
-			const x = createRunner(animals.build());
+		it('one can watch the other', () =>
+			run(animals.build())
+				.perform(({and,boot}) => Promise.all([
+					boot('Mouse', and.runAround(3)),
+					boot('Cat', and.follow(['Mouse',10]))
+				]))
+				.waitQuiet()
+				.then(({view}) => {
+					const [,seen] = view('Cat').logs.find(([p]) => p == '*_end')!;
+					expect(seen).toEqual([
+						['M_runAround', 3],
+						['M_runAround', 2],
+						['M_runAround', 1],
+						['M_runAround', 0]
+					])
+				}))
 
-			const [cat] = await Promise.all([
-				x.logs('Cat'),
-				x.run.boot('Mouse', ['M_runAround', 3]),
-				x.run.boot('Cat', ['M_follow', ['Mouse', 10]]),
-			]);
+		it('loaded state immediately visible; implies dispatch', () =>
+			 run(animals.build(), {
+					data: Map({
+						Gwen: ['M_pauseThenRunAround', 13]
+					}),
+					save: false
+				})
+				.perform(({boot,and}) => boot('Gareth', and.follow(['Gwen',3])))
+				.waitQuiet()
+				.then(({view}) => {
+					const gareth = view('Gareth').atoms;
 
-			const [,seen] = cat.find(([p]) => p == '*_end')!;
-
-			expect(seen).toEqual([
-				['M_runAround', 3],
-				['M_runAround', 2],
-				['M_runAround', 1],
-				['M_runAround', 0]
-			])
-		})
-
-		it('loaded state immediately visible; implies dispatch', async () => {
-			const x = createRunner(animals.build(), {
-				data: Map({
-					Gwen: ['M_pauseThenRunAround', 13]
-				}),
-				save: false
-			});
-
-			await Promise.all([
-				x.run.boot('Gareth', ['M_follow', ['Gwen', 3]]),
-				x.run.log$.toPromise()
-			]);
-
-			const gareth = x.view('Gareth');
-
-			expect(showData(gareth[1]))
-				.toHaveProperty('Gareth', 
-					['*_end', [
-						['M_pauseThenRunAround', 13],
-						['M_runAround', 13],
-						['M_runAround', 12]
-					]]
-				);
-		})
+					expect(showData(gareth[1]))
+						.toHaveProperty('Gareth', 
+							['*_end', [
+								['M_pauseThenRunAround', 13],
+								['M_runAround', 13],
+								['M_runAround', 12]
+							]]
+						);
+				}))
 
 		// it('can watch several at once', async () => {
 		// 	const x = createRunner(animals.build());
@@ -107,51 +102,48 @@ describe('machines - watching', () => {
 		// 	])
 		// })
 
-		it('tracks causality in atom tree', async () => {
-			const x = createRunner(animals.build(), { save: false });
+		it('tracks causality in atom tree', () =>
+			run(animals.build(), {save:false})
+				.perform(({boot,and}) => Promise.all([
+					boot('Gord', and.runAround(1)),
+					boot('Ed', and.follow(['Gord',1]))
+				]))
+				.waitQuiet()
+				.then(({view}) => {
+					const gord =	view('Gord').atoms;
+					const ed = view('Ed').atoms;
 
-			await Promise.all([
-				x.run.boot('Gord', ['M_runAround', 1]),
-				x.run.boot('Ed', ['M_follow', ['Gord', 1]]),
-				x.run.log$.toPromise()
-			]);
+					expect(gord[1].parents())
+						.toEqual([
+							gord[0]
+						])
 
-			const gord =	x.view('Gord');
-			const ed = x.view('Ed');
+					expect(ed[1].parents())
+						.toEqual([
+							ed[0],
+							gord[0]
+						])
+				}))
 
-			expect(gord[1].parents())
-				.toEqual([
-					gord[0]
-				])
-
-			expect(ed[1].parents())
-				.toEqual([
-					ed[0],
-					gord[0]
-				])
-		})
-
-		it('past phases of target aren\'t seen', async () => {
-			const x = createRunner(animals.build(), { save: false });
-
-			await Promise.all([
-				x.run.boot('Gord', ['M_runAround', 2]),
-				x.run.boot('Ed', ['M_*wait', [100, ['M_follow', ['Gord', 1]]]])
-			]);
-
-			const logs = await x.allLogs();
-
-			expect(logs).toEqual([
-				['Gord', ['*_boot']],
-				['Ed', ['*_boot']],
-				['Gord', ['M_runAround', 2]],
-				['Ed', ['*_wait', [100, ['M_follow', ['Gord', 1]]]]],
-				['Gord', ['M_runAround', 1]],
-				['Gord', ['M_runAround', 0]],
-				['Ed', ['M_follow', ['Gord', 1]]],
-				['Ed', ['*_end', [['M_runAround', 0]]]],
-			]);
-		})
+		it('past phases of target aren\'t seen', () =>
+			run(animals.build(), {save:false})
+				.perform(({boot,and}) => Promise.all([
+					boot('Gord', and.runAround(2)),
+					boot('Ed', and.wait([100, and.follow(['Gord',1])]))
+				]))
+				.waitQuiet()
+				.then(({logs}) => {
+					expect(logs).toEqual([
+						['Gord', ['*_boot']],
+						['Ed', ['*_boot']],
+						['Gord', ['M_runAround', 2]],
+						['Ed', ['*_wait', [100, ['M_follow', ['Gord', 1]]]]],
+						['Gord', ['M_runAround', 1]],
+						['Gord', ['M_runAround', 0]],
+						['Ed', ['M_follow', ['Gord', 1]]],
+						['Ed', ['*_end', [['M_runAround', 0]]]],
+					]);
+				}))
 	});
 
 
@@ -200,32 +192,32 @@ describe('machines - watching', () => {
 			});
 
 
-		it('view offered projections', async () => {
-			const x = createRunner(starlings.build(), { save: false });
+		it('view offered projections', () =>
+			run(starlings.build(), {save:false})
+				.perform(({and,boot}) => Promise.all([
+					boot('bob', and.hopAbout(0)),
+					boot('babs', and.view(['bob',2]))
+				]))
+				.waitQuiet()
+				.then(({logs}) => {
+					expect(logs).toEqual([
+						['bob', ['*_boot']],
+						['babs', ['*_boot']],
+						['bob', ['M_hopAbout', 0]],
+						['babs', ['M_view', ['bob', 2]]],
+						['bob', ['M_hopAbout', 1]],
+						['bob', ['M_hopAbout', 2]],
+						['bob', ['M_chirp', 3]],
+						['bob', ['M_hopAbout', 4]],
+						['bob', ['M_hopAbout', 5]],
+						['bob', ['M_chirp', 6]],
+						['babs', ['M_seen', [
+							'chirp 3!',
+							'chirp 6!'
+						]]]
+					]);
+				}))
 
-			const [logs] = await Promise.all([
-				x.allLogs(),
-				x.run.boot('bob', ['M_hopAbout', 0]),
-				x.run.boot('babs', ['M_view', ['bob', 2]])
-			]);
-
-			expect(logs).toEqual([
-				['bob', ['*_boot']],
-				['babs', ['*_boot']],
-				['bob', ['M_hopAbout', 0]],
-				['babs', ['M_view', ['bob', 2]]],
-				['bob', ['M_hopAbout', 1]],
-				['bob', ['M_hopAbout', 2]],
-				['bob', ['M_chirp', 3]],
-				['bob', ['M_hopAbout', 4]],
-				['bob', ['M_hopAbout', 5]],
-				['bob', ['M_chirp', 6]],
-				['babs', ['M_seen', [
-					'chirp 3!',
-					'chirp 6!'
-				]]]
-			]);
-		})
 	})
 
 })

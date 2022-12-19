@@ -1,7 +1,7 @@
 import { Map } from 'immutable'
 import { rodents } from "./worlds/rodents";
 import { delay } from '../src/util';
-import { createRunner } from './shared'
+import { run } from './shared'
 import { World } from '../src/shape/World';
 import { act, incl, root } from '../src/shape/common';
 import { Str, Num } from '../src/guards/Guard'
@@ -9,26 +9,26 @@ import { Str, Num } from '../src/guards/Guard'
 describe('running', () => {
 	const world = rodents.build();
 
-	it('start and stop', async () => {
-		const x = createRunner(world);
+	it('start and stop', () =>
+		run(world)
+			.perform(({and,boot}) => Promise.all([
+				boot('a', and.gerbil.spawn([0,3])),
+				boot('b', and.gerbil.spawn([0,2]))
+			]))
+			.waitQuiet()
+		);
 
-		await Promise.all([
-			x.run.boot('a', ['M_gerbil_spawn', [0, 3]]),
-			x.run.boot('b', ['M_gerbil_spawn', [0, 2]]),
-		]);
-		
-		await x.run.log$.toPromise();
-		await x.run.machine$.toPromise();
-	})
+	it('starting fresh', () =>
+		run(world)
+			.perform(({and,boot}) =>
+				boot('fresh', and.guineaPig.runAbout()))
+			.waitQuiet()
+			.then(({result}) => {
+				expect(result).toBeTruthy();
+			})
+		);
 
-	it('starting fresh', async () => {
-		const x = createRunner(world);
-
-		const success = await x.run.boot('fresh', ['M_guineaPig_runAbout']);
-		expect(success).toBeTruthy();
-	})
-
-	it('can summon by name', async () => {
+	it('can summon by name', () => {
 		const w = World
 			.shape({
 				rat: act(),
@@ -49,26 +49,23 @@ describe('running', () => {
 				}
 			});
 
-		const x = createRunner(w.build());
-
-		const [logs] = await Promise.all([
-			x.allLogs(),
-			x.run.boot('R', ['M_rat'])
-		]);
-
-		expect(logs).toEqual([
-			['R', ['*_boot']],
-			['R', ['M_rat']],
-			['@M_mouse,123', ['M_mouse', '123']],
-			['R', ['*_end', 'dunrattin']],
-			['@M_mouse,123', ['*_end', '123 squeak']],
-		]);
+		return run(w.build())
+		  .perform(({and,boot}) => Promise.all([
+				boot('R', and.rat())
+			]))
+			.waitQuiet()
+			.then(({logs}) => {
+				expect(logs).toEqual([
+					['R', ['*_boot']],
+					['R', ['M_rat']],
+					['@M_mouse,123', ['M_mouse', '123']],
+					['R', ['*_end', 'dunrattin']],
+					['@M_mouse,123', ['*_end', '123 squeak']],
+				]);
+			})
 	})
 
-	// root() would create an action
-	//
-
-	it('can refer by name, using helper', async () => {
+	it('can refer by name, using helper', () => {
 		const w = World
 			.shape({
 				rat: act(),
@@ -89,20 +86,20 @@ describe('running', () => {
 				}
 			});
 
-		const x = createRunner(w.build());
-
-		const [logs] = await Promise.all([
-			x.allLogs(),
-			x.run.boot('R', ['M_rat'])
-		]);
-
-		expect(logs).toEqual([
-			['R', ['*_boot']],
-			['R', ['M_rat']],
-			['@M_mouse,123', ['M_mouse', '123']],
-			['R', ['*_end', 'dunrattin']],
-			['@M_mouse,123', ['*_end', '123 squeak']],
-		]);
+		return run(w.build())
+			.perform(({and,boot}) => Promise.all([
+				boot('R', and.rat())
+			]))
+			.waitQuiet()
+		  .then(({logs}) => {
+				expect(logs).toEqual([
+					['R', ['*_boot']],
+					['R', ['M_rat']],
+					['@M_mouse,123', ['M_mouse', '123']],
+					['R', ['*_end', 'dunrattin']],
+					['@M_mouse,123', ['*_end', '123 squeak']],
+				]);
+			})
 	})
 
 	it('can refer by name, from template', async () => {
@@ -131,20 +128,20 @@ describe('running', () => {
 				beasties: incl(beasties)
 			});
 
-		const x = createRunner(w.build());
-
-		const [logs] = await Promise.all([
-			x.allLogs(),
-			x.run.boot('R', ['M_beasties_rat'])
-		]);
-
-		expect(logs).toEqual([
-			['R', ['*_boot']],
-			['R', ['M_beasties_rat']],
-			['@M_beasties_mouse,123', ['M_beasties_mouse', '123']],
-			['R', ['*_end', 'dunrattin']],
-			['@M_beasties_mouse,123', ['*_end', '123 squeak']],
-		]);
+		await run(w.build())
+			.perform(({and,boot}) => Promise.all([
+				boot('R', and.beasties.rat())
+			]))
+			.waitQuiet()
+			.then(({logs}) => {
+				expect(logs).toEqual([
+					['R', ['*_boot']],
+					['R', ['M_beasties_rat']],
+					['@M_beasties_mouse,123', ['M_beasties_mouse', '123']],
+					['R', ['*_end', 'dunrattin']],
+					['@M_beasties_mouse,123', ['*_end', '123 squeak']],
+				]);
+			})
 	})
 
 	xit('refs can convene', () => {})
@@ -175,51 +172,53 @@ describe('running', () => {
 					return false;
 				}
 			});
-		
-		const x = createRunner(w.build(), {
-			data: Map({
-				existing: ['pootle']
-			})
-		});
 
-		const success = await x.run.boot('existing', ['M_blah']);
-		expect(success).toBeFalsy();
+		await run(w.build(), {
+				data: Map({
+					existing: ['pootle']
+				})
+			})
+			.perform(({and,boot}) => Promise.all([
+				boot('existing', and.blah())
+			]))
+			.waitQuiet()
+			.then(({result}) => {
+				expect(result).toBeFalsy();
+			})
 	})
 
-	xit('starting both fresh and existing', async () => {
-		const x = createRunner(world,
-		{
-			data: Map({
-				existing: ['M_rat_wake']
+	xit('starting both fresh and existing', () =>
+		run(world, {
+				data: Map({
+					existing: ['M_rat_wake']
+				})
 			})
-		});
+			.perform(({and,boot}) => Promise.all([
+				boot('existing', and.hamster.wake(123)),
+				boot('fresh', and.hamster.wake(123))
+			]))
+			.waitQuiet()
+			.then(({result,view}) => {
+				const [bootedExisting, bootedFresh] = result;
+				
+				expect(bootedExisting).toBeFalsy();
+				expect(bootedFresh).toBeTruthy();
 
-		await x.session(async () => {
-			const [bootedExisting, bootedFresh] = await Promise.all([
-				x.run.boot('existing', ['M_hamster_wake', 123]),
-				x.run.boot('fresh', ['M_hamster_wake', 123])
-			]); 
+				const existing = view('existing');
+				expect(existing).toEqual([
+					['M_rat_wake'],
+					['M_rat_squeak', 123],
+					['*_end', 'I have squeaked 123!']
+				]);
 
-			expect(bootedExisting).toBeFalsy();
-			expect(bootedFresh).toBeTruthy();
-
-			await delay(300);
-		});
-
-		const existing = await x.logs('existing');
-		expect(existing).toEqual([
-			['M_rat_wake'],
-			['M_rat_squeak', 123],
-			['*_end', 'I have squeaked 123!']
-		]);
-
-		const fresh = await x.logs('fresh');
-		expect(fresh).toEqual([
-			['*_boot'],
-			['M_hamster_wake', 123],
-			['*_end', 123]
-		]);
-	})
+				const fresh = view('fresh');
+				expect(fresh).toEqual([
+					['*_boot'],
+					['M_hamster_wake', 123],
+					['*_end', 123]
+				]);
+			})
+		 );
 
 	xit('graceful ending of deadlocks', async () => {
 		//

@@ -76,6 +76,7 @@ describe('worlds', () => {
   it('run through phases', () =>
     run(world.build())
       .perform(x => x.boot('bob', x.and.speakToAnimals('hullo!')))
+      .waitQuiet()
       .then(s => expect(s.logs).toEqual([
         ['bob', ['*_boot']],
         ['bob', ['M_speakToAnimals', 'hullo!']],
@@ -88,6 +89,7 @@ describe('worlds', () => {
   it('run through phases, after seal', () =>
     run(world.seal().build())
       .perform(x => x.boot('bob', x.and.speakToAnimals('hullo!')))
+      .waitQuiet()
       .then(s => expect(s.logs).toEqual([
         ['bob', ['*_boot']],
         ['bob', ['M_speakToAnimals', 'hullo!']],

@@ -47,10 +47,8 @@ const world = World
 const store = new LocalStore();
 const x = newRun(world, store, store);
 
-Promise.all([
-  x.log$,
-  x.boot('ao', ['M_AO_scrape', 0]),
-  x.boot('very', ['M_Very_scrape', 0])
-]);
-
+x.machineSpace.runArbitrary(({and,boot}) => Promise.all([
+  boot('ao', and.AO.scrape(0)),
+  boot('very', and.Very.scrape(0))
+]));
 

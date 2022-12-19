@@ -45,9 +45,8 @@ const world = World
 const store = new LocalStore();
 const x = newRun(world, store, store);
 
-Promise.all([
-  x.log$,
-  x.boot('morris', ['M_mole_sayHello', ['mary', 0]]),
-  x.boot('mary', ['M_mole_sayHello', ['morris', 0]])
-]);
+x.machineSpace.runArbitrary(({and,boot}) => Promise.all([
+  boot('morris', and.mole.sayHello(['mary',0])),
+  boot('mary', and.mole.sayHello(['morris',0]))
+]));
 
