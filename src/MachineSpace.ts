@@ -77,7 +77,8 @@ export class MachineSpace<N,O,NT=NodeTree.Form<N>> {
         const machineSpaceCtx = this.machineSpaceCtx(runCtx);
         const ctx1 = merge(runCtx,machineSpaceCtx);
         const ctx2 = <Ctx<NT,['C'],O>>this.world.read('C').fac!(ctx1);
-        const r = await fn(ctx2)
+        const ctx3 = <Ctx<NT,['M'],O>>this.world.read('M').fac!(ctx1);
+        const r = await fn({...ctx2,...ctx3})
         return [[Map(),0], [], r];
       });
 
@@ -281,17 +282,23 @@ export class MachineSpace<N,O,NT=NodeTree.Form<N>> {
   private machineSpaceCtx(x: RunCtx<DataMap,Frisked[]>, id?: Id): MachineSpaceCtx<O> {
     const _this = this;
     
-    return {
+    const _ctx = {
+      async boot(id:Id, phase:O) {
+        return !!await _ctx.convene([id], ([peer]) => {
+          return peer.chat(phase);
+        })
+      },
+
       meet(id: Id) {
         throw 'todo'
       },
 
-      boot(id:Id, phase:O) {
-        throw 'todo'
-      },
-
-      summon(id:Id) {
-        throw 'todo'
+      async summon(id:Id) {
+        //below is naff!
+        //summoning shouldn't actually talk to the object, just make sure it's running...
+        return !!await _ctx.convene([id], ([peer]) => {
+          return true;
+        })
       },
       
       attend<R>(arg: Attendee<R>|AttendedFn<R>) {
@@ -360,6 +367,8 @@ export class MachineSpace<N,O,NT=NodeTree.Form<N>> {
           );
       }
     };
+
+    return _ctx;
 
     function packInfo(id?: string): unknown {
       return id ? { id } : undefined;

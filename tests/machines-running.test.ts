@@ -11,8 +11,9 @@ describe('machines - running', () => {
 
   it('run through phases', () =>
     run(world)
-      .perform(({and,boot}) =>
-        boot('bob', and.rat.wake('')))
+      .perform(({and,boot}) => {
+        return boot('bob', and.rat.wake(''))
+      })
       .waitQuiet()
       .then(({logs}) => {
         expect(logs).toEqual([
@@ -36,7 +37,7 @@ describe('machines - running', () => {
           ['nib', ['*_boot']],
           ['bob', ['*_boot']],
           ['nib', ['M_hamster_wake', 77]],
-          ['bob', ['M_rat_wake']],
+          ['bob', ['M_rat_wake', '']],
           ['bob', ['M_rat_squeak', 123]],
           ['bob', ['*_end', 'I have squeaked 123!']],
           ['nib', ['*_end', 77]],

@@ -2,16 +2,14 @@ import { Map, Set, List } from 'immutable'
 import _Monoid from '../src/_Monoid'
 import { Id, DataMap, RawDataMap } from '../src/lib'
 import { BehaviorSubject } from 'rxjs'
-import { shareReplay, scan, groupBy, map, filter, takeWhile, mergeMap } from 'rxjs/operators'
+import { shareReplay, scan, groupBy, map, mergeMap, toArray } from 'rxjs/operators'
 import { AtomRef, Atom, AtomLike } from '../src/atoms'
-import { gather } from './helpers'
 import { newRun, RunOpts } from '../src/Run'
 import { tracePath, renderAtoms } from '../src/AtomPath'
 import FakeStore from '../src/FakeStore'
 import { BuiltWorld } from '../src/shape/BuiltWorld'
 import { Ctx } from '../src/shape/Ctx'
 import * as NodeTree from '../src/shape/NodeTree'
-import CancellablePromise from './CancellablePromise'
 
 type Opts = { maxBatchSize?: number, data?: RawDataMap } & RunOpts;
 
@@ -26,7 +24,7 @@ export type Remnant<V> = {
   result: V
   saved: RawDataMap
   batches: RawDataMap[]
-  logs: [Id,unknown][]
+  logs: (readonly [Id,[string,unknown]])[]
   view(id:Id): { atoms: AtomView<DataMap>[], logs: [Id,unknown][] }
 };
 
@@ -59,54 +57,40 @@ export function run<N>(world: BuiltWorld<N,unknown>, opts?: Opts): TestRun<N> {
 
   log$.subscribe();
 
-  return {
-    perform(fn) {
+  function _add<V>(prev: Promise<V>) {
+    return {
+      perform<R>(fn: (x:Ctx<NodeTree.Form<N>,['C'],AndNext>)=>Promise<R>) {
+        return _add(prev.then(async () => {
+          const result = await run.machineSpace.runArbitrary(fn);
+          return result;
+        }));
+      },
 
+      async waitQuiet(): Promise<Remnant<V>> {
+        //wait till quiet here...
+        
+        const result = await prev;
+        const logs = await log$.pipe(toArray()).toPromise();
+        return {
+          result,
+          saved: store.saved,
+          batches: store.batches,
+          logs,
 
-      run.machineSpace.runArbitrary(fn)
-      
-      return new CancellablePromise(() => {
-      });
-
-      
-      const result = await fn()
-      throw 123;
-    },
-
-    waitQuiet() {
-      throw 123;
+          view(id:Id) {
+            return {
+              atoms: viewAtoms(List(atomSub.getValue()?.get(id) || [])),
+              logs: logs
+                .filter(([lid,d]) => lid == id && !!d)
+                .map(([,d]) => <[string,unknown]>d)
+            }
+          }
+        };
+      }
     }
   };
 
-
-
-  return {
-    logs: (...ids: Id[]) => {
-      const idSet = Set(ids);
-      return gather(log$.pipe(
-        filter(([i]) => idSet.contains(i)),
-        map(([,p]) => p),
-        takeWhile((p): p is [string, unknown] => !!p),
-      ));
-    },
-
-    gatherLogs: () => gather(log$),
-
-    view(id: Id) {
-      return viewAtoms(List(atomSub.getValue()?.get(id) || []));
-    },
-
-    async session(fn: ()=>Promise<void>) {
-      const release = run.keepAlive();
-      try {
-        await fn();
-      }
-      finally {
-        release();
-        run.complete();
-      }
-    }
-  }
+  return _add(Promise.resolve(<unknown>{}));
 }
 
 export function resolveAtoms<V>(rs:AtomLike<V>[]|List<AtomLike<V>>|Set<AtomLike<V>>) {
