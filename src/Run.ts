@@ -1,6 +1,6 @@
 import { Id, DataMap } from './lib'
 import { ReplaySubject, of, concat, Subject, merge } from 'rxjs'
-import { tap, startWith, endWith, scan, takeWhile, finalize, map, ignoreElements, concatMap, filter, shareReplay, mergeMap } from 'rxjs/operators'
+import { tap, startWith, endWith, scan, takeWhile, finalize, map, ignoreElements, concatMap, filter, shareReplay, mergeMap, take } from 'rxjs/operators'
 import { Set } from 'immutable'
 import { ConvenedFn, Convener, Frisked, MachineSpace, Signal } from './MachineSpace'
 import { Lump, runSaver } from './AtomSpace'
@@ -38,7 +38,7 @@ export function newRun<N,O>
   if(opts?.save === false) saver = dummySaver;
 
   const signal$ = new ReplaySubject<Signal>(1);
-  const kill$ = signal$.pipe(filter(s => s.stop), shareReplay(1));
+  const kill$ = signal$.pipe(filter(s => s.stop), take(1), shareReplay(1));
   const complete = () => signal$.next({ stop: true });
 
   const lump$ = new ReplaySubject<Lump<DataMap>>(100); //could be better wired up this

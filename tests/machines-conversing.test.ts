@@ -9,11 +9,9 @@ describe('machines - conversing', () => {
 
   it('atom dependencies tracked', () =>
     run(world, { save: false })
-      .perform(({and,boot}) => Promise.all([
-        boot('Polly', and.listen()),
-        boot('Priscilla', and.listen()),
-        boot('Pete', and.chirp([['Polly','Priscilla'], 'hello!']))
-      ]))
+      .perform(({and,boot}) => boot('Polly', and.listen()))
+      .perform(({and,boot}) => boot('Priscilla', and.listen()))
+      .perform(({and,boot}) => boot('Pete', and.chirp([['Polly','Priscilla'], 'hello!'])))
       .waitQuiet()
       .then(({view}) => {
         const polly = view('Polly').atoms;
@@ -25,7 +23,7 @@ describe('machines - conversing', () => {
 
         expect(showData(priscilla[1]))
           .toEqual({
-            Polly: ['M_*end', 'chirped!'],
+            Polly: ['*_end', 'chirped!'],
             Priscilla: ['M_chirp', [[], 'hello!']]
           })
 
@@ -37,7 +35,7 @@ describe('machines - conversing', () => {
 
         expect(showData(priscilla[2]))
           .toEqual({
-            Priscilla: ['M_*end', 'no-one to chirp to!']
+            Priscilla: ['*_end', 'no-one to chirp to!']
           })
 
         expect(priscilla[2].parents())
@@ -49,11 +47,9 @@ describe('machines - conversing', () => {
 
   it('via rendesvous', () =>
     run(world, { save: false })
-      .perform(({boot,and}) => Promise.all([
-        boot('skolmer', and.$m.place()),
-        boot('a', and.migrate('skolmer')),
-        boot('b', and.migrate('skolmer'))
-      ]))
+      .perform(({boot,and}) => boot('skolmer', and.$m.place()))
+      .perform(({boot,and}) => boot('a', and.migrate('skolmer')))
+      .perform(({boot,and}) => boot('b', and.migrate('skolmer')))
       .waitQuiet()
       .then(({view}) => {
         //need some way of waiting till the right time...
@@ -61,13 +57,13 @@ describe('machines - conversing', () => {
         const b = view('b').atoms;
 
         expect(showData(a[3]))
-          .toHaveProperty('a', ['M_*end', {a:'hello', b:'hello'}])
+          .toHaveProperty('a', ['*_end', {a:'hello', b:'hello'}])
 
         expect(showData(b[3]))
-          .toHaveProperty('b', ['M_*end', {a:'hello', b:'hello'}])
+          .toHaveProperty('b', ['*_end', {a:'hello', b:'hello'}])
       }))
 
-  it('meet from outside', () =>
+  xit('meet from outside', () =>
     run(World
       .shape({
         gerbil: root(true)
@@ -91,7 +87,7 @@ describe('machines - conversing', () => {
       .waitQuiet()
     );
 
-  it('meet from inside', () => {
+  xit('meet from inside', () => {
     const w = World
       .shape({
         rat: act(),

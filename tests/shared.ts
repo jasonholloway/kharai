@@ -10,14 +10,15 @@ import FakeStore from '../src/FakeStore'
 import { BuiltWorld } from '../src/shape/BuiltWorld'
 import { Ctx } from '../src/shape/Ctx'
 import * as NodeTree from '../src/shape/NodeTree'
+import { delay } from './helpers'
 
 type Opts = { maxBatchSize?: number, data?: RawDataMap } & RunOpts;
 
 class AndNext { sym = Symbol('unique') };
 
 export type TestRun<N,V=unknown> = {
-  perform<PV>(fn: (x: Ctx<NodeTree.Form<N>,['C'],AndNext>)=>Promise<PV>): TestRun<N,PV>
-  waitQuiet(): Promise<Remnant<V>>
+  perform<PV>(...fns: ((x: Ctx<NodeTree.Form<N>,['C'],AndNext>)=>(PV|PromiseLike<PV>))[]): TestRun<N,PV>
+  waitQuiet(runMs?: number,saveMs?:number): Promise<Remnant<V>>
 };
 
 export type Remnant<V> = {
@@ -59,18 +60,27 @@ export function run<N>(world: BuiltWorld<N,unknown>, opts?: Opts): TestRun<N> {
 
   function _add<V>(prev: Promise<V>) {
     return {
-      perform<R>(fn: (x:Ctx<NodeTree.Form<N>,['C'],AndNext>)=>Promise<R>) {
+      perform<R>(...fns: ((x:Ctx<NodeTree.Form<N>,['C'],AndNext>)=>Promise<R>)[]) {
         return _add(prev.then(async () => {
-          const result = await run.machineSpace.runArbitrary(fn);
-          return result;
+          const results = await Promise.all(fns.map(fn => run.machineSpace.runArbitrary(fn)));
+          return results;
         }));
       },
 
-      async waitQuiet(): Promise<Remnant<V>> {
+      async waitQuiet(runMs:number = 100, saveMs:number = 100): Promise<Remnant<V>> {
         //wait till quiet here...
         
         const result = await prev;
+
+        await delay(runMs);
+
+        run.complete();
+        
         const logs = await log$.pipe(toArray()).toPromise();
+
+        //horrible little hack below
+        await delay(saveMs);
+        
         return {
           result,
           saved: store.saved,

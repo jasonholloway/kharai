@@ -5,7 +5,7 @@ import { Signal } from './MachineSpace';
 import { filter, shareReplay } from 'rxjs/operators';
 import CancellablePromise from './CancellablePromise';
 import { Preemptable } from './Preemptable';
-import { inspect, isString } from 'util';
+import { inspect } from 'util';
 
 const log = console.log;
 
@@ -19,7 +19,7 @@ const logFlow = (id0:{info?:unknown}, m:unknown, id1:{info?:unknown}, fromConven
 
 const stringify = (o: {info?:unknown}) => {
   const found = (<{ id:string }|undefined>o.info)?.id;
-  return isString(found) ? found : '';
+  return typeof found === 'string' ? found : '';
 }
 
 

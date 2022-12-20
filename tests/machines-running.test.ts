@@ -153,7 +153,9 @@ describe('machines - running', () => {
         })
         .impl({
           async ghost({and,attend}) {
+            console.debug('A1')
             const r = await attend(m => {
+              console.debug('A2')
               if(m) {
                 return [and.skip()]
               }
@@ -167,33 +169,24 @@ describe('machines - running', () => {
         }).build(),
         { threshold: 1 }
       )
-      .perform(({and,boot,summon}) => Promise.all([
-        boot('G', and.ghost(3)),
-        (async () => {
-          const g0 = await summon('G')
-          await g0.tell(true);
-
-          const g1 = await summon('G')
-          await g1.tell(true);
-
-          const g2 = await summon('G')
-          await g2.tell(false);
-        })()
-      ]))
+      .perform(({and,boot}) => boot('G', and.ghost(3)))
+      .perform(({summon}) => summon('G').tell(true))
+      .perform(({summon}) => summon('G').tell(true))
+      .perform(({summon}) => summon('G').tell(false))
       .waitQuiet()
-        .then(({logs,batches}) => {
-          expect(logs).toEqual([
-            ['G', ['*_boot']],
-            ['G', ['M_ghost', 3]],
-            ['G', ['M_ghost', 3]],
-            ['G', ['M_ghost', 3]],
-            ['G', ['*_end', 'fin']]
-          ]);
+      .then(({logs,batches}) => {
+        expect(logs).toEqual([
+          ['G', ['*_boot']],
+          ['G', ['M_ghost', 3]],
+          ['G', ['M_ghost', 3]],
+          ['G', ['M_ghost', 3]],
+          ['G', ['*_end', 'fin']]
+        ]);
 
-          expect(batches).toEqual([
-            Map([['G', ['M_ghost', 3]]]),
-            Map([['G', ['*_end', 'fin']]])
-          ]);
+        expect(batches).toEqual([
+          Map([['G', ['M_ghost', 3]]]),
+          Map([['G', ['*_end', 'fin']]])
+        ]);
       })
     )
 

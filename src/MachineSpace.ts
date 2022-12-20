@@ -1,7 +1,7 @@
 import { Id, DataMap, PhaseData } from './lib'
 import { MAttendee } from './Mediator'
 import { Observable, Subject, EMPTY, of } from 'rxjs'
-import { concatMap, filter, mergeMap, share, expand, takeUntil, finalize, shareReplay, catchError, map } from 'rxjs/operators'
+import { concatMap, filter, mergeMap, share, expand, take, tap, takeUntil, finalize, shareReplay, catchError, map } from 'rxjs/operators'
 import { Map, Seq, Set } from 'immutable'
 import { BuiltWorld, Found } from './shape/BuiltWorld'
 import { AtomRef } from './atoms'
@@ -12,6 +12,7 @@ import { Run, RunCtx, RunSpace } from './RunSpace'
 import { formPath } from './shape/common'
 import * as NodeTree from './shape/NodeTree'
 import { Ctx, MachineCtx, MachineSpaceCtx } from './shape/Ctx'
+import CancellablePromise from './CancellablePromise'
 
 const log = console.debug;
 
@@ -168,7 +169,7 @@ export class MachineSpace<N,O,NT=NodeTree.Form<N>> {
 
     const run = this.runs.newRun();
     
-    const kill$ = signal$.pipe(filter(s => s.stop), share());
+    const kill$ = signal$.pipe(filter(s => s.stop), take(1), tap(() => log('KILL')), share());
 
     type GetNext = ()=>Promise<[AtomRef<DataMap>,Frisked]|false>;
     type Step = { log?: Log, v: number, next: GetNext };
@@ -283,22 +284,36 @@ export class MachineSpace<N,O,NT=NodeTree.Form<N>> {
     const _this = this;
     
     const _ctx = {
-      async boot(id:Id, phase:O) {
-        return !!await _ctx.convene([id], ([peer]) => {
+      async boot(id: Id, phase: O) {
+        const result = await _ctx.convene([id], ([peer]) => {
           return peer.chat(phase);
         })
+
+        return !!result;
       },
 
       meet(id: Id) {
         throw 'todo'
       },
 
-      async summon(id:Id) {
-        //below is naff!
-        //summoning shouldn't actually talk to the object, just make sure it's running...
-        return !!await _ctx.convene([id], ([peer]) => {
-          return true;
-        })
+      summon(id: Id) {
+        const [machine] = _this._summon(Set([id]));
+        return {
+          tell(m: unknown) {
+            return new CancellablePromise((resolve, reject) => {
+              x.convene(
+                [machine.run],
+                {
+                  info: packInfo(id),
+                  convened: ([p]) => {
+                    return p.chat(m)
+                  }
+                })
+                .then(resolve)
+                .catch(reject)
+            });
+          }
+        }
       },
       
       attend<R>(arg: Attendee<R>|AttendedFn<R>) {

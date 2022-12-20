@@ -67,9 +67,14 @@ describe('machines - watching', () => {
 					save: false
 				})
 				.perform(({boot,and}) => boot('Gareth', and.follow(['Gwen',3])))
-				.waitQuiet()
+				.waitQuiet(400)
 				.then(({view}) => {
 					const gareth = view('Gareth').atoms;
+
+					expect(showData(gareth[0]))
+						.toHaveProperty('Gareth', 
+							['M_follow', ['Gwen',3]]
+						);
 
 					expect(showData(gareth[1]))
 						.toHaveProperty('Gareth', 
@@ -104,11 +109,11 @@ describe('machines - watching', () => {
 
 		it('tracks causality in atom tree', () =>
 			run(animals.build(), {save:false})
-				.perform(({boot,and}) => Promise.all([
-					boot('Gord', and.runAround(1)),
-					boot('Ed', and.follow(['Gord',1]))
-				]))
-				.waitQuiet()
+				.perform(
+					({boot,and}) => boot('Gord', and.runAround(1)),
+					({boot,and}) => boot('Ed', and.follow(['Gord',1]))
+				)
+				.waitQuiet(500,500)
 				.then(({view}) => {
 					const gord =	view('Gord').atoms;
 					const ed = view('Ed').atoms;

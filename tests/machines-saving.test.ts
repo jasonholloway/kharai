@@ -5,6 +5,7 @@ import { Map, Set, List } from 'immutable'
 import { World } from '../src/shape/World'
 import { act } from '../src/shape/common'
 import { Num } from '../src/guards/Guard'
+import { delay } from './helpers'
 
 describe('machines - saving', () => {
 
@@ -12,10 +13,8 @@ describe('machines - saving', () => {
 
 	it('atoms conjoin without consolidation (no saver or rewrites)', () =>
 		run(world, {save:false})
-			.perform(x => Promise.all([
-				x.boot('baz', x.and.guineaPig.runAbout()),
-				x.boot('loz', x.and.guineaPig.gruntAt('baz'))
-			]))
+			.perform(({boot,and}) => boot('baz', and.guineaPig.runAbout()))
+			.perform(({boot,and}) => boot('loz', and.guineaPig.gruntAt('baz')))
 			.waitQuiet()
 			.then(({view}) => {
 				const baz = view('baz').atoms;
@@ -24,7 +23,7 @@ describe('machines - saving', () => {
 				expect(baz.map(showData))
 					.toEqual([
 						{
-							baz: ['M_guineaPig_runAbout']
+							baz: ['M_guineaPig_runAbout'],
 						},
 						{
 							baz: ['*_end', 'grunt!'],
@@ -173,9 +172,7 @@ describe('machines - saving', () => {
 				.build();
 
 			await run(w, { maxBatchSize:5, threshold:5 })
-			  .perform(({and,boot}) => Promise.all([
-					boot('a', and.blah(0))
-				]))
+			  .perform(({and,boot}) => boot('a', and.blah(0)))
 				.waitQuiet()
 				.then(({saved}) => {
 					expect(saved.get('a')).toEqual(['M_blah', c]);
