@@ -16,8 +16,34 @@ type Opts = { maxBatchSize?: number, data?: RawDataMap } & RunOpts;
 
 class AndNext { sym = Symbol('unique') };
 
+
+type PerformFn<X> = (x:X)=>unknown;
+type PerformResult<FR extends PerformFn<never>[]> =
+  {
+    [n in keyof FR]: (
+      FR[n] extends ((x:never) => infer R) ? (
+        R extends Promise<infer PR> ? PR : R
+      )
+      : never
+    )
+  }
+;
+
+{
+  type A = [
+    (x:1) => 'hello',
+    (x:1) => Promise<'bye'>
+  ]
+
+  type B = PerformResult<A>
+
+  type _ = [A,B]
+}
+
+
+
 export type TestRun<N,V=unknown> = {
-  perform<PV>(...fns: ((x: Ctx<NodeTree.Form<N>,['C'],AndNext>)=>(PV|PromiseLike<PV>))[]): TestRun<N,PV>
+  perform<FR extends PerformFn<Ctx<NodeTree.Form<N>,['C'],AndNext>>[]>(...fns: FR): TestRun<N, PerformResult<FR>>
   waitQuiet(runMs?: number,saveMs?:number): Promise<Remnant<V>>
 };
 
@@ -60,10 +86,11 @@ export function run<N>(world: BuiltWorld<N,unknown>, opts?: Opts): TestRun<N> {
 
   function _add<V>(prev: Promise<V>) {
     return {
-      perform<R>(...fns: ((x:Ctx<NodeTree.Form<N>,['C'],AndNext>)=>Promise<R>)[]) {
+      perform<FR extends PerformFn<Ctx<NodeTree.Form<N>,['C'],AndNext>>[]>(...fns: FR): TestRun<N,PerformResult<FR>> {
         return _add(prev.then(async () => {
-          const results = await Promise.all(fns.map(fn => run.machineSpace.runArbitrary(fn)));
-          return results;
+          return <PerformResult<FR>>await Promise.all(
+            fns.map(fn => run.machineSpace.runArbitrary(x => Promise.resolve().then(() => fn(x))))
+          );
         }));
       },
 

@@ -193,10 +193,10 @@ describe('running', () => {
 					existing: ['M_rat_wake']
 				})
 			})
-			.perform(({and,boot}) => Promise.all([
-				boot('existing', and.hamster.wake(123)),
-				boot('fresh', and.hamster.wake(123))
-			]))
+			.perform(
+				({and,boot}) => boot('existing', and.hamster.wake(123)),
+				({and,boot}) => boot('fresh', and.hamster.wake(123))
+			)
 			.waitQuiet()
 			.then(({result,view}) => {
 				const [bootedExisting, bootedFresh] = result;
