@@ -1,6 +1,6 @@
-import CancellablePromise from './CancellablePromise'
+import CancellablePromise, { Cancellable } from './CancellablePromise'
 
-type CancellableFn<A> = (resolve: (v:A|PromiseLike<A>)=>void, reject: (r:any)=>void, onCancel: (h:()=>void)=>void ) => void
+type CancellableFn<V> = (resolve: (v:V)=>void, reject: (r:any)=>void, onCancel: (h:()=>void)=>void ) => void
 
 export namespace Preemptable {
   export function lift<A>(a: A): Preemptable<A> {
@@ -8,7 +8,7 @@ export namespace Preemptable {
   }
 
   export function liftFn<A>(fn: (()=>Promise<A>)): Preemptable<A> {
-    return new Continuable((resolve, reject, onCancel) => { fn().then(resolve).catch(onCancel) })
+    return new Continuable((resolve, reject, onCancel) => { fn().then(resolve).catch(reject) })
   }
 
   export function continuable<A>(fn: CancellableFn<A>): Preemptable<A> {
@@ -18,6 +18,7 @@ export namespace Preemptable {
 
 export interface Preemptable<A> {
   preempt(): readonly [true, A] | readonly [false, () => CancellablePromise<A>]
+  bind<B>(fn: ((a:A)=>Preemptable<B>)): Preemptable<B>
   map<B>(fn: (a:A) => B): Preemptable<B>
   promise(): CancellablePromise<A>
 }
@@ -33,8 +34,12 @@ class Value<A> implements Preemptable<A> {
     return [true, this.value];
   }
   
-  map<B>(fn: (a: A) => B): Value<B> {
-    return new Value(fn(this.value));
+  bind<B>(fn: (a: A) => Preemptable<B>): Preemptable<B> {
+    return fn(this.value);
+  }
+
+  map<B>(fn: (a: A) => B): Preemptable<B> {
+    return this.bind(a => Preemptable.lift(fn(a)));
   }
 
   promise(): CancellablePromise<A> {
@@ -53,28 +58,54 @@ class Continuable<A> implements Preemptable<A> {
   preempt(): [false, () => CancellablePromise<A>] {
     return [false, () => this.promise()];
   }
-  
-  map<B>(fn: (a: A) => B): Continuable<B> {
+
+  bind<B>(fn: (a: A) => Preemptable<B>): Preemptable<B> {
     return new Continuable((resolve, reject, onCancel) => {
-      this.run(a =>
-        resolve(
-          (isPromiseLike(a) ? a.then(fn) : fn(a))),
+      let cancelled: boolean = false;
+      onCancel(() => cancelled = true);
+      
+      try {
+        this.run(
+          a => {
+            if(cancelled) reject('CANCELLED');
+            else {
+              try {
+                fn(a).promise()
+                  .then(b => {
+                    if(cancelled) reject('CANCELLED');
+                    else resolve(b);
+                  })
+                  .catch(reject);
+              }
+              catch(e) {
+                reject(e);
+              }
+            }
+          },
           reject,
           onCancel
         );
-			});
+      }
+      catch(e) {
+        reject(e);
+      }
+    });
   }
 
-  promise(): CancellablePromise<A> {
+  //TODO proper testing of this stuff...
+  //TODO onCancel isn't propagating properly above
+  //TODO Cancellable should do more, leaving less to do here
+
+  map<B>(fn: (a: A) => B): Preemptable<B> {
+    return this.bind(a => Preemptable.lift(fn(a)));
+  }
+
+  promise(upstreams?: Cancellable[]): CancellablePromise<A> {
     if(this._promise) {
       return this._promise;
     }
     else {
-      return this._promise = new CancellablePromise(this.run);
+      return this._promise = new CancellablePromise(this.run, upstreams ?? []);
     }
   }
-}
-
-function isPromiseLike<V>(v: any): v is PromiseLike<V> {
-  return !!v.then;
 }

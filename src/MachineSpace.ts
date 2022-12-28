@@ -11,7 +11,7 @@ import { isString, merge } from './util'
 import { Run, RunCtx, RunSpace } from './RunSpace'
 import { formPath } from './shape/common'
 import * as NodeTree from './shape/NodeTree'
-import { Ctx, MachineCtx, MachineSpaceCtx } from './shape/Ctx'
+import { Ctx, MachineCtx, MachineSpaceCtx, MetPeer } from './shape/Ctx'
 import CancellablePromise from './CancellablePromise'
 
 const log = console.debug;
@@ -76,10 +76,10 @@ export class MachineSpace<N,O,NT=NodeTree.Form<N>> {
     const result = await this.runs.newRun()
       .run(async runCtx => {
         const machineSpaceCtx = this.machineSpaceCtx(runCtx);
-        const ctx1 = merge(runCtx,machineSpaceCtx);
-        const ctx2 = <Ctx<NT,['C'],O>>this.world.read('C').fac!(ctx1);
-        const ctx3 = <Ctx<NT,['M'],O>>this.world.read('M').fac!(ctx1);
-        const r = await fn({...ctx2,...ctx3})
+        const x1 = merge(runCtx,machineSpaceCtx);
+        const x2 = <Ctx<NT,['C'],O>>this.world.read('C').fac!(x1);
+        const x3 = <Ctx<NT,['M'],O>>this.world.read('M').fac!(x1);
+        const r = await fn({...x2,...x3})
         return [[Map(),0], [], r];
       });
 
@@ -285,15 +285,27 @@ export class MachineSpace<N,O,NT=NodeTree.Form<N>> {
     
     const _ctx = {
       async boot(id: Id, phase: O) {
-        const result = await _ctx.convene([id], ([peer]) => {
+        const result = await _ctx.convene([id], async ([peer]) => {
           return peer.chat(phase);
         })
 
         return !!result;
       },
 
-      meet(id: Id) {
-        throw 'todo'
+      meet(id: Id): CancellablePromise<MetPeer> {
+        return new CancellablePromise<MetPeer>((resolve, reject, onCancel) => {
+          _ctx.convene([id], ([peer]) => new Promise((innerResolve, innerReject) => {
+            x.hooks.onResult.push(innerResolve);
+            x.hooks.onError.push(innerReject);
+            resolve(mapPeer(peer));
+          })).catch(reject);
+
+          function mapPeer(p: Peer): MetPeer {
+            return {
+              ...p
+            };
+          }
+        });
       },
 
       summon(id: Id) {
@@ -305,7 +317,7 @@ export class MachineSpace<N,O,NT=NodeTree.Form<N>> {
                 [machine.run],
                 {
                   info: packInfo(id),
-                  convened: ([p]) => {
+                  async convened([p]) {
                     return p.chat(m)
                   }
                 })
@@ -411,7 +423,7 @@ export interface Convener<R = unknown> {
   convened: ConvenedFn<R>
 }
 
-export type ConvenedFn<R> = (peers: Set<Peer>) => R;
+export type ConvenedFn<R> = (peers: Set<Peer>) => Promise<R>;
 
 
 export interface Attendee<R = unknown> {

@@ -18,11 +18,138 @@
 
   which means as well that the Run must have its commit$, internally at least
 
-  
+* What now
+  - get inverted meet working
+  - meet fluently via ref
+  - a proper summon building on ref + fluent optional meet
+
+** a monad with nice cancellation
+*** (ie an explicit cancelled result)
+*** helpful converters to/from promises and observables
+
+  - wrap generics to allow summoning voids
+  - shouldn't have to build worlds before passing them some place - should be implicit
+  - boot should have a fluent 'and' (supplied from context)
+  - wait should have a fluent 'and' (supplied from context)
+  - BuiltIns shouldn't litter NodeTree
+  - facs should be fixed in modules
+  - a contract mechanism
+
+  -
+  -
   
 
-  ------
+* Probs
+** Calcification
+  in normal systems, storing is an explicit, considered checkpoint: and the contract around it is poured with concrete
+  while the contracts within the code can all change
+
+  in ours, each meaningful step forward is concreted-in, contract-wise
+  which must be offset by some helpful mechanism
+
+  it means we can't replace so easily
+  
+** Big Atomicity
+  deadlocks are an issue, as we lock on access of each machine, and don't release
+
 
 
   
-  
+* Probs 2
+
+** Calcification
+   Persistence is an anchor to the live communications of the system, which can otherwise be changed on redeployment
+   and we will persist everywhere, here, in order to think less of persistence.
+
+   Yet this forces us to think of the problems of persistence everywhere, as the problems are not diminished by being thinly spread.
+   really the persistable part should be canonical, less subject to change, and less intertwined with accidental implementation-specific
+   entanglements.
+
+   We have a set of references - the least problematic storage of these would be as a list
+   from which we can rehdrate or map to a set, a tree, anything that is useful
+
+   But such structures will preferably exist not within single machines, but across many of them.
+   If we want a specially-indexed collection, canonically stored as a chunked list across machines,
+   how would we do this? A machine would be charged with forming this index from the canonical list
+   to exist in-memory, and available for interaction only through this machine.
+
+   This machine would subscribe to the canonical list, and update its index as new items are committed.
+
+   Similarly, a machine containing processing logic should store canonical data less subject to change,
+   but we may also want to access views of this data that are specialised to the implementation,
+   without complicating the stored data
+
+   I imagine here a per-machine cache of mapped views of persisted data; when the persisted data changes,
+   then the view changes. The mechanism of such a cache is a challenge: it's like all data needs equatable
+   typesclasses, to opt into the convenient caching, and that all simple objects should have automatic
+   versions of these
+
+   I'm imagining then data to be less free-form, and more constructable
+   Updates to data are then composable operations.
+
+   This would separate data from views of the data
+   which is kind of what trad apps have in their layers
+
+   But right now we have no layering
+   
+** Atomicity
+   In a perfect world, every data operation would be an atomic step
+   and we would be able to program these in a nice manner
+
+   Each step would have its type expectations of the data
+   which might in fact change - but in this case, if it's wrong it's wrong, and the program can't continue
+
+   The expectations of the data should be deducable from the usage
+   basically - enforced at runtime
+   
+   A stringing together of steps, with expectations of the data - this is what we have right now, though not necessarily
+   concise in its expression
+
+   A step-by-step flow of phases doesn't need the schema declared separately - it seems like a case for a kind of macro for
+   stringing together phases and their implementations
+
+   Validation of data now needs to be done everywhere, as potential persistence and reloading happens everywhere.
+
+   The types of a phase need to be provided before reference to it. Currently we declare all the phase types up top at once per module,
+   then are free to use these types indiscrimately below. We also value locality of declarations and implementations, and this comes to
+   a point when we want super-concise declaratations of otherwise bitty phases.
+
+   Such helper declarations need to be provided outside of the shape/impl split, just as context facs are provided outside, as separate steps
+
+   ---
+
+   We also conceive of a data manipulation DSL, as well as a validation DSL. Or rather, instead of...
+
+   The validation DSL declares the shape of things, and also makes available certain composable operations.
+
+   And the shape of the data will allow us to build nice fluent interfaces for updates.
+   This fluent interface would be a specialisation of a monadic yieldable one.
+   The yieldable one would determine the persistence points of its declared phases
+
+   There is a freedom to the actors here currently, sufficient for a base layer for a better mode of programming
+
+   ---
+
+   The hiding of the phases would work against the strength of the approach, as in we /do/ want to be conscious of data
+   The possibility of macros will be there, though their cost should be ameliorated whenever poss
+
+
+   
+   
+
+   
+
+   
+
+
+
+
+   
+   
+
+   
+   
+
+   
+   
+   

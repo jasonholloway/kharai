@@ -42,7 +42,16 @@ export type RunCtx<V,L> = {
   attend: <R>(attend: MAttendee<R>) => Promise<false|[R]>
   convene: <R>(others: ArrayLike<Run<V,L>>, convene: MConvener<R>) => Promise<R>
   track: (target: Run<V,L>) => Observable<L>
+  hooks: RunHooks
 }
+
+class RunHooks {
+  onResult: RunHook<unknown> = []
+  onAtom: RunHook<unknown> = []
+  onError: RunHook<unknown> = []
+}
+
+type RunHook<V> = ((v:V)=>void)[];
 
 
 export type RunHandler<V,L,R> = (ctx: RunCtx<V,L>) => Promise<[[V,number]|false,L,R]|false>;
@@ -74,8 +83,11 @@ export class Run<V,L=V> {
 
         const commit = new Commit<V>(this.mv, this.sink, OrderedSet([a1]));
 
+        const hooks = new RunHooks();
+
         try {
-          const result = await fn(this.context(commit));
+          const result = await fn(this.context(hooks,commit));
+          hooks.onResult.forEach(fn => fn(result))
 
           if(result) {
             const [c, l, r] = result;
@@ -83,11 +95,13 @@ export class Run<V,L=V> {
             if(c) {
               const [v, w] = c;
               const a2 = await commit.complete(v, w);
+              hooks.onAtom.forEach(fn => fn(a2))
               this.log$.next([a2, l]);
               return [a2, r];
             }
             else {
               this.log$.next([a1, l]);
+              hooks.onAtom.forEach(fn => fn(a1))
               return [a1, r];
             }
           }
@@ -96,6 +110,7 @@ export class Run<V,L=V> {
           }
         }
         catch(e) {
+          hooks.onError.forEach(fn => fn(e))
           commit.abort();
           throw e;
         }
@@ -108,10 +123,12 @@ export class Run<V,L=V> {
     this.log$.complete();
   }
 
-  private context(commit: Commit<V>): RunCtx<V,L> {
+  private context(hooks: RunHooks, commit: Commit<V>): RunCtx<V,L> {
     const _this = this;
 
     return {
+      hooks,
+      
       side: {
         get() {
           return _this.sideData;

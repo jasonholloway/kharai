@@ -16,13 +16,6 @@ import { Ctx } from "./Ctx";
 export const separator = '_'
 export type Separator = typeof separator;
 
-// problem now is in asking fo facs that don't exist...
-//
-//
-//
-//
-//
-
 export module Builder {
 
   //below should leave hanging XAs...
@@ -586,7 +579,7 @@ function builtIns() {
       guard: [[Str, $self]],
       handler: async (x: AnonCtx, [spotId, hold]: [Id, [string,unknown]]) => {
         return x.convene([spotId], {
-          convened([spot]) {
+          async convened([spot]) {
             const resp = spot.chat('hi');
             if(!resp) throw `Meeting rejected by mediator ${spotId}`;
 
@@ -672,7 +665,7 @@ function builtIns() {
       guard: [[Num,Str,Many(Str),Many(Str)]],
       handler: async (x: AnonCtx, [v,k,ids,remnants]: [number,string,Id[],Id[]]) => {
         return x.convene(ids, {
-          convened(peers) {
+          async convened(peers) {
             const answers: { [id:Id]:unknown } = {};
 
             for(const p of peers) {

@@ -3,6 +3,7 @@ import { parakeet } from './worlds/parakeet'
 import { run, showData } from './shared';
 import { World } from '../src/shape/World';
 import { act, root } from '../src/shape/common';
+import { delay } from '../src/util';
 
 describe('machines - conversing', () => {
   const world = parakeet.build();
@@ -63,58 +64,127 @@ describe('machines - conversing', () => {
           .toHaveProperty('b', ['*_end', {a:'hello', b:'hello'}])
       }))
 
-  xit('meet from outside', () =>
+  it('meet from outside', () =>
     run(World
       .shape({
         gerbil: root(true)
       })
       .impl({
-        async gerbil({attend}) {
+        async gerbil({and,attend}) {
+					const ms: unknown[] = [];
+					
           await attend(m => {
-            return [`I heard ${m}`];
+						ms.push(`Received ${m}`);
+            return [,`Answered ${m}`];
           });
 
-          return false;
+          return and.end(ms);
         }
       }).build(),
         {save:false}
        )
       .perform(async ({meet,ref}) => {
-        const gary = await meet(ref.gerbil(true));
-        gary.chat('squeak');
-        //todo...
+        const g = await meet(ref.gerbil(true));
+        return g.chat('squeak');
       })
       .waitQuiet()
+		  .then(({view,result}) => {
+				expect(result).toEqual([['Answered squeak']]);
+				expect(view('@M_gerbil,true').logs)
+					.toEqual([
+						['M_gerbil', 'true'],
+						['*_end', ['Received squeak']]
+					]);
+			})
     );
 
-  xit('meet from inside', () => {
+  it('meet from inside', async () => {
     const w = World
       .shape({
-        rat: act(),
+        rat: root(true),
         gerbil: root(true)
       })
       .impl({
-        async rat({meet,ref}) {
-          const gary = await meet(ref.gerbil(true));
-          gary.chat('squeak');
+        async rat({meet,ref,and}) {
+          const g = await meet(ref.gerbil(true));
 
-          return false;
+          //chat now has to be async surely
+          const resp1 = g.chat('squeak');
+          const resp2 = g.chat('nip');
+
+          //TODO as peer can always cancel
+          //must return wraped type with possibility of 'no!'
+          //a Conversation<V> type needed?
+
+          return and.end([resp1,resp2]);
+        },
+
+        //how can an attendee chat?
+        //best would be an inverted receive
+        //first meets with a message
+        //const [gerb,resp] = summon.gerbil(true).greet('hello')
+        //const [gerb,resp] = meet(ref.gerbil(true)).greet('hello')
+
+        async gerbil({and,attend}) {
+          const ms: unknown[] = [];
+          
+          await attend(m => {
+            ms.push(`Received ${m}`);
+            return [,`Answered ${m}`];
+          });
+
+          return and.end(ms);
+        }
+      });
+
+    await run(w.build(), {save:false})
+      .perform(({summon,ref}) => summon(ref.rat(true)))
+      .waitQuiet()
+      .then(({view}) => {
+        expect(view('@M_rat,true').logs[1])
+          .toEqual(['*_end', [['Answered squeak'], ['Answered nip']]]);
+
+        expect(view('@M_gerbil,true').logs[1])
+          .toEqual(['*_end', ['Received squeak', 'Received nip']]);
+      });
+
+    //TODO returning false doesn't save properly
+    //test this
+  })
+
+  it('meet from inside, with peer returning false, doesnt commit', async () => {
+    const w = World
+      .shape({
+        rat: root(true),
+        gerbil: root(true)
+      })
+      .impl({
+        async rat({meet,ref,and}) {
+          const gerry = await meet(ref.gerbil(true));
+          const resp1 = gerry.chat('squeak');
+          const resp2 = gerry.chat('nip');
+          return and.end([resp1,resp2]);
         },
 
         async gerbil({attend}) {
           await attend(m => {
-            return [`I heard ${m}`];
+            return [,`Answered ${m}`];
           });
 
           return false;
         }
       });
 
-    return run(w.build(), {save:false})
-      .perform(async () => {
-        //todo...
-      })
-      .waitQuiet();
+    await run(w.build(), {save:false})
+      .perform(({summon,ref}) => summon(ref.rat(true)))
+      .waitQuiet()
+      .then(({view}) => {
+        expect(view('@M_rat,true').logs)
+          .toEqual([['M_rat', 'true']]);
+
+        expect(view('@M_gerbil,true').logs)
+          .toEqual([['M_gerbil', 'true']]);
+      });
   })
 })
 

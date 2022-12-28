@@ -26,7 +26,7 @@ const world = World
           // they should happily find each other, surely...
           //
 
-          await convene([friend], ([met]) => {
+          await convene([friend], async ([met]) => {
             if(met) {
               met.chat('hullo');
             }

@@ -25,7 +25,7 @@ const stringify = (o: {info?:unknown}) => {
 
 export interface MConvener<R = unknown> {
   info?: PeerInfo,
-  convened(peers: Set<MPeer>): R
+  convened(peers: Set<MPeer>): Promise<R>
 }
 
 export interface MAttendee<R = unknown> {
@@ -64,11 +64,11 @@ export class Mediator {
   convene2<R>(convener: MConvener<R>, others: Set<object>): Preemptable<R> {
     return this.locks
       .claim(...others)
-      .map(claim => {
+      .bind(claim => Preemptable.liftFn(async () => {
         try {
           const peers = claim.offers();
 
-          const answer = convener.convened(
+          const answer = await convener.convened(    //this could itself be preemptable
             peers.map(p => <MPeer>{
               chat(m: Msg) {
                 return p.chat([m, convener.info]);
@@ -85,7 +85,7 @@ export class Mediator {
         finally {
           claim.release(); //NOTE async!!!!
         }
-      })
+      }))
       // .cancelOn(this.kill$);
   }
 
@@ -98,7 +98,7 @@ export class Mediator {
     try {
       const peers = claim.offers();
 
-      const answer = convener.convened(
+      const answer = await convener.convened(
         peers.map(p => <MPeer>{
           info: p.info,
           chat(m: Msg) {
