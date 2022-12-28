@@ -13,7 +13,7 @@ describe('mediator', () => {
 
   it('simplest convene/attach', async () => {
     const p1: MConvener<string> = {
-      convened([peer]) {
+      async convened([peer]) {
         const [reply] = peer.chat(['hello']) || [];
         return <string>reply;
       }
@@ -32,7 +32,7 @@ describe('mediator', () => {
 
   it('convention occurs', async () => {
     const p1: MConvener<Set<any>> = {
-      convened(peers) {
+      async convened(peers) {
         const reply = peers.flatMap(p => p.chat(['hello']) || []);
         return reply;
       },
@@ -80,7 +80,7 @@ describe('mediator', () => {
 
   it('attendee released after chat', async () => {
     const convener: MConvener<number> = {
-      convened([peer]) {
+      async convened([peer]) {
         peer.chat(['hello']);
         return 1;
       }
@@ -104,14 +104,14 @@ describe('mediator', () => {
 
   it('conveners in series', async () => {
     const c1: MConvener<string> = {
-      convened([p]) {
+      async convened([p]) {
         p.chat('yo');
         return 'done';
       },
     }
 
     const c2: MConvener<string> = {
-      convened([p]) {
+      async convened([p]) {
         p.chat('boo');
         return 'done';
       },
@@ -136,14 +136,14 @@ describe('mediator', () => {
 
   it('conveners in parallel', async () => {
     const c1: MConvener<string> = {
-      convened([p]) {
+      async convened([p]) {
         p.chat('yo');
         return 'done';
       },
     }
 
     const c2: MConvener<string> = {
-      convened([p]) {
+      async convened([p]) {
         p.chat('boo');
         return 'done';
       },

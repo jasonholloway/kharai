@@ -26,7 +26,7 @@ const stringify = (o: {info?:unknown}) => {
 
 export interface MConvener<R = unknown> {
   info?: PeerInfo,
-  convened(peers: Set<MPeer>): R
+  convened(peers: Set<MPeer>): Promise<R>
 }
 
 export interface MAttendee<R = unknown> {
@@ -70,7 +70,7 @@ export class Mediator {
         try {
           const peers = claim.offers();
 
-          const answer = convener.convened(
+          const answer = await convener.convened(    //this could itself be preemptable
             peers.map(p => <MPeer>{
               info: p.info,
               chat(m: Msg) {

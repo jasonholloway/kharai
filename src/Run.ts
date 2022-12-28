@@ -123,7 +123,7 @@ export function newRun<N,O>
         },
 
         tell(m: unknown) {
-          return this.meet(([p]) => p.chat(m));
+          return this.meet(async ([p]) => p.chat(m));
         },
 
         log$: of(...machines).pipe(
