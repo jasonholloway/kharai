@@ -1,0 +1,19 @@
+
+What about a kind of fork mechanism?
+one machine can create many copies of itself
+
+but creation of others within an action
+obviously creates a causative link
+and therefore serialisation of saves
+
+but what if the created other is created
+but the parent then errors?
+
+this is why the usual meeting mechanism is used
+
+and wouldn't it be the same with forks?
+
+but a fork implies no communication; the other is just chucked into its new situation
+
+
+
