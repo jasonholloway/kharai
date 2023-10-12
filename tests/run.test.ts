@@ -36,7 +36,7 @@ describe('running', () => {
 			})
 		  .impl({
 				async rat({and,convene}) {
-					await convene(['@M_mouse,123'], ps => {
+					await convene(['@M_mouse,123'], async ps => {
 						return ps.first()?.chat('squeak');
 					});
 
@@ -73,7 +73,7 @@ describe('running', () => {
 			})
 		  .impl({
 				async rat({and,convene,ref}) {
-					await convene([ref.mouse('123')], ps => {
+					await convene([ref.mouse('123')], async ps => {
 						return ps.first()?.chat('squeak');
 					});
 
@@ -110,7 +110,7 @@ describe('running', () => {
 			})
 		  .impl({
 				async rat({and,convene,ref}) {
-					await convene([ref.mouse('123')], ps => {
+					await convene([ref.mouse('123')], async ps => {
 						return ps.first()?.chat('squeak');
 					});
 
