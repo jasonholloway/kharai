@@ -1,19 +1,25 @@
 import { Num, Read } from "../src/guards/Guard";
 
 describe('convos', () => {
+  
+  // N.B.
+  // initial calls (without underscores!) are banned from doing Or(...)
+  // which is only available on private handlers
 
-  it('bidirectional convo: simpler and more expressive', async () => {
+  it('bidirectional convo 2', async () => {
     const [client, server] = ConvoBuilder
       .withShape(
       {
-        sendNum: Convo.Send(Num, '_reply'),
+        send: Convo.Send('_reply', Num),
+        cancel: Convo.Send('_cancel'),
+        
         _fail: Convo.Return(),
         _ok: Convo.Return()
       },
       {
         _reply: Convo.Or(
-          Convo.Send(false, '_fail'),
-          Convo.Send(true, '_ok')
+          Convo.Send('_fail', false),
+          Convo.Send('_ok', true)
         )
       })
       .withServer({
@@ -30,6 +36,7 @@ describe('convos', () => {
     expect(clientResult).toBe(1);
     expect(serverResult).toBe(2);
   })
+
 })
 
 
@@ -37,7 +44,7 @@ namespace ConvoBuilder {
 
   export function withShape
     <Client extends Convo.Spec, Server extends Convo.Spec>
-    (client: Client, server: Server): Given<CheckAllHandlers<Client,Server>, BuiltWithShape<Client,Server>>
+    (client: Client, server: Server): Util.Given<CheckAllHandlers<Client,Server>, BuiltWithShape<Client,Server>>
   {
     //runtime check shapes match each other
     throw 1;
@@ -47,23 +54,27 @@ namespace ConvoBuilder {
   //each extracted next needs to exist in Other
 
 
-  type Given<Check, Pass> =
-    Check extends true ? Pass : Check
-    ;
-
   type CheckAllHandlers<C, S> =
     CheckHandlers<C,S,'Server'> | CheckHandlers<S,C,'Client'>
-    ;
+  ;
 
   type CheckHandlers<Spec, Other, OtherName extends string> =
     ExtractAllNext<Spec[keyof Spec]> extends infer N
     ? N extends string
+    ? N extends `_${infer _}`
     ? (
-      N extends keyof Other ? true
+      N extends keyof Other ? never
       : `Missing handler ${N} in ${OtherName}`
     )
+    : `Send target ${N} doesn\'t start with underscore`
     : 'Handler key must be string'
     : never
+  ;
+
+  type ExtractAllNext<T> =
+    ExtractAllSends<T> extends infer S ?
+    S extends ? Convo.Send<infer N, any> ? N
+    : never : never
   ;
 
   type ExtractAllSends<T> =
@@ -73,18 +84,35 @@ namespace ConvoBuilder {
   : never
   ;
 
-  type ExtractAllNext<T> =
-    ExtractAllSends<T> extends infer S ?
-    S extends ? Convo.Send<any, infer N> ? N
-    : never : never
-  ;
-
   namespace Tests {
+    
     const a = Convo.Return();
-    const b = Convo.Send(123, 'moo');
-    const c = Convo.Or(Convo.Send(1, 'baa'), Convo.Or(Convo.Send(2, 'oink'), Convo.Send(3, 'meeow')));
+    const b = Convo.Send('moo');
+    const c = Convo.Or(Convo.Send('baa', 123), Convo.Or(Convo.Send('oink'), Convo.Send('meeow')));
 
     type _ = [
+
+      Witness.Extends<
+        CheckAllHandlers<
+          {
+            start: Convo.Send<'_hello', true>
+            _done: Convo.Return
+          },
+          {
+            _hello: Convo.Send<'_done', true>
+          }>,
+        never>,
+
+      Witness.Extends<
+        CheckAllHandlers<
+          {
+            start: Convo.Send<'_hello', true>
+            _done: Convo.Return
+          },
+          {
+            _hello: Convo.Send<'done', true>
+          }>,
+        'Send target done doesn\'t start with underscore'>,
       
       Witness.Extends<ExtractAllNext<typeof a>, never>,
       Witness.Extends<ExtractAllNext<typeof b>, 'moo'>,
@@ -92,49 +120,78 @@ namespace ConvoBuilder {
 
       Witness.Extends<
         HandlerImpl<
-          {
-            send: Convo.Send<123, 'moo'>
-          },
-          {
-            receive: Convo.Return
-          }
+          { send: Convo.Send<'moo', 123> },
+          { receive: Convo.Return }
         >,
-        {
-          receive(a: 123): void
-        }
+        [
+          { receive(a: 123): void },
+          { moo(): void }
+        ]
       >
     ];
+
+    type __ = _
   }
 
 
+  type _Initials = 
+    Convo.Send<'shoo'> | Convo.Send<'fetch'>;
 
-  
+  type _ClientHandlers = {
+    receive: Convo.Send<'patHead'>
+  };
+
+  type _ServerHandlers = {
+    shoo: Convo.Return
+    fetch: Convo.Send<'receive', Slipper>
+    patHead: Convo.Return
+  };
+
+  type __ = [
+    HandlerImpl<_Initials,_ClientHandlers,_ServerHandlers>
+    // HandlerImpl<never,_ServerHandlers,_ClientHandlers>,
+  ];
+
+  type ___ = __
+
+
+  interface Slipper {}
+
 
   export interface BuiltWithShape<C,S> {
     withServer(server: HandlerImpl<S,C>): BuiltWithServer<C,S>
   }
 
-
-  type HandlerImpl<Spec,Other> =
-    Digest<{ [T in (ExtractAllSends<Other[keyof Other]> extends Convo.Send<infer M, infer N> ? [M, N] : never) as T[1]]: T[0] }>
+  type Spec2Sends<Spec> =
+    { [ T in Send2Tup<ExtractAllSends<Spec[keyof Spec]>> as T[0]]: T[1] }
   ;
 
-  
 
-  type Digest<T> =
-    [T] extends [infer I] ? I : never
-    ;
+  type HandlerImpl<InitialOther,Other,Me> =
+    [{ [ T in Send2Tup<Spec2Sends<Other>|InitialOther> as T[0]]: T[1] }] extends [infer Incoming] ?
+    [{ [ T in Send2Tup<Spec2Sends<Me>> as T[0]]: T[1] }] extends [infer Outgoing] ?
+
+    {
+      [k in keyof Incoming]:
+      [
+        k extends keyof Incoming ? Incoming[k] : void,
+        k extends keyof Outgoing ? Outgoing[k] : void
+      ]
+    }
+    
+    // [Incoming, Outgoing]
+    : never : never;
+
+  //TODO need to aggregate Outgoing and combine the two formed objects into one
+
+  //incoming are the messages other sends to me
+  //outgoing are the types I will send out
+  //so if 
 
 
-  // work out incomings first
-  // and then marry up with known response types
-  //
-  // so first aggregation is of incoming types per named handler
-  // we want tuples of targets and types, which can then be folded together
-
-
-  
-
+  type Send2Tup<S> =
+    S extends Convo.Send<infer N, infer M> ? readonly [N, M] : never
+  ;
 
   export interface BuiltWithServer<C,S> {
     withClient(client: {}): BuiltWithClient<C,S>
@@ -154,26 +211,16 @@ namespace ConvoBuilder {
 }
 
 
-namespace Witness {
-  export type Extends<U extends T, T> = U;
-}
-
-
 namespace Convo {
-
-
-
-  export type Send<readonly M, N extends string> = {
+  export type Send<N extends string, readonly M = void> = {
     _tag: 'send',
     message: M,
     next: N
   }
   
-  export function Send<T, N extends string>(send: T, next: N): Send<T,N> {
+  export function Send<Next extends string, Message = void>(next: Next, message: Message = undefined): Send<Next, Message> {
     throw 123;
   }
-
-
 
   export type Return {
     _tag: 'Return'
@@ -183,9 +230,6 @@ namespace Convo {
     throw 123;
   }
 
-
-
-
   export type Or<R extends unknown[]> = {
     _tag: 'Or'
     options: R
@@ -194,8 +238,6 @@ namespace Convo {
   export function Or<R extends unknown[]>(...r: R): Or<R> {
     throw 123;
   }
-
-  
 
   export function Shape<Spec extends Spec>
     (spec0: Spec, spec1: Spec): ReadConvo<Spec>
@@ -208,6 +250,20 @@ namespace Convo {
   }
 
   type ReadConvo<Spec extends Spec> = Read<Spec>;
+}
 
+
+namespace Witness {
+  export type Extends<U extends T, T> = U;
+}
+
+namespace Util {
+  export type IsNever<T> =
+    [T] extends [never] ? true : false
+  ;
+
+  export type Given<Check, Pass> =
+    IsNever<Check> extends true ? Pass : Check
+  ;
 }
 
