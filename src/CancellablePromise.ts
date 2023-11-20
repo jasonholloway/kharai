@@ -32,6 +32,9 @@ export default class CancellablePromise<A> implements PromiseLike<A>, Cancellabl
     this._cancel = () => {
       if(!complete && !cancelling) {
         this.log(`calling ${hooks.length} hooks`)
+
+        cancelling = Promise.resolve(); //just to have it set before hooks are called
+        
         cancelling = Promise
           .all(hooks.map(async (hook, i) => {
             this.log(`calling hook #${i}`);
@@ -45,7 +48,7 @@ export default class CancellablePromise<A> implements PromiseLike<A>, Cancellabl
     };
 
     const tryCompleteCancel = (makeError: ()=>Error) => {
-      if(!cancelled && cancelling) {
+      if(cancelling && !cancelled) {
         this.log('cancelled')
         cancelled = true;
         
