@@ -123,7 +123,7 @@ class Allocator<X> {
     let _lock: Lock;
 
     if(tryIncAllNow(items)) {
-      return Preemptable.lift(handle(items));
+      return Preemptable.lift(onSuccess(items));
     }
     else {
       return Preemptable.continuable((resolve, _, onCancel)=> {
@@ -152,7 +152,7 @@ class Allocator<X> {
 
         if(answers.every(([,[m]]) => m === 'canAdd')) {
           answers.forEach(([,[,fn]]) => (<DoTheInc>fn)());
-          return () => cb(handle(allItems));
+          return () => cb(onSuccess(allItems));
         }
         else {
           answers.forEach(([i, ans]) => {
@@ -173,7 +173,7 @@ class Allocator<X> {
         }));
     }
 
-    function handle(items: Set<object>): Lock {
+    function onSuccess(items: Set<object>): Lock {
       return _lock = {
         release: async () => {
           const entries = items.map(i => _this.summonEntry(i));
