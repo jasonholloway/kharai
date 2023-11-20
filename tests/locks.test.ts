@@ -85,11 +85,11 @@ describe('locks', () => {
 
 			await exchange.offer([_2], ['blocker']).promise();
 			const offering = exchange.offer([_2], [{}]).promise();
-
-			claiming.cancel();
-			offering.cancel();
 			
 			await Promise.all([
+				claiming.cancel(),
+				offering.cancel(),
+				
 				claiming
 					.catch(e => expect(e).toEqual(Error('Cancelled'))),
 
