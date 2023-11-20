@@ -1,6 +1,4 @@
-import CancellablePromise from './CancellablePromise'
-
-type CancellableFn<A> = (resolve: (v:A|PromiseLike<A>)=>void, reject: (r:any)=>void, onCancel: (h:()=>void)=>void ) => void
+import CancellablePromise, { CancellableFn } from './CancellablePromise'
 
 export namespace Preemptable {
   export function lift<A>(a: A): Preemptable<A> {
@@ -76,5 +74,5 @@ class Continuable<A> implements Preemptable<A> {
 }
 
 function isPromiseLike<V>(v: any): v is PromiseLike<V> {
-  return !!v.then;
+  return v && v.then && typeof v.then === 'function';
 }
