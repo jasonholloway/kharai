@@ -135,8 +135,8 @@ class Allocator<X> {
         onCancel(async () => {
           if(_lock) {
             console.info('UNTESTED PATH')
-            _lock.release().then(() => reject('Cancelled')); //correct error?
-            //does the above release the locking promise?
+            await _lock.release();
+            //todo does the above release the locking promise?
           }
           else {
             const pending = items
@@ -153,11 +153,13 @@ class Allocator<X> {
                 return [];
               });
 
-            await Promise.all(pending);
+            if(!pending.isEmpty()) {
+              await Promise.all(pending);
+            }
           }
 
-          //on success, need to release Promise
-          //todo
+          reject('CANCELLED!!!!')
+          //todo correct error above??
         })
       });
     }
