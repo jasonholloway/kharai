@@ -126,11 +126,39 @@ class Allocator<X> {
       return Preemptable.lift(onSuccess(items));
     }
     else {
-      return Preemptable.continuable((resolve, _, onCancel)=> {
+      return Preemptable.continuable((resolve, reject, onCancel)=> {
         const answers = items.map(i => [i, tryIncOne(i)] as const);
         answers.forEach(([i, ans]) => {
           if(ans[0] == 'mustWait') ans[1](adoptOneIncAll(i, items, resolve));
         });
+
+        onCancel(async () => {
+          if(_lock) {
+            console.info('UNTESTED PATH')
+            _lock.release().then(() => reject('Cancelled')); //correct error?
+            //does the above release the locking promise?
+          }
+          else {
+            const pending = items
+              .map(i => _this.summonEntry(i))
+              .flatMap(entry => {
+                const ans = entry.tryApp(token, getClaim(_lock).reverse());
+                if(ans[0] == 'canAdd') {
+                  ans[1]();
+                }
+                else if(ans[0] == 'mustWait') {
+                  return [new Promise<void>(res => ans[1](() => res))];
+                }
+
+                return [];
+              });
+
+            await Promise.all(pending);
+          }
+
+          //on success, need to release Promise
+          //todo
+        })
       });
     }
     
