@@ -1,4 +1,5 @@
 import { Set, OrderedMap } from 'immutable'
+import { CancelledError } from './CancellablePromise';
 import { Preemptable } from './Preemptable';
 
 type Token = object
@@ -139,27 +140,22 @@ class Allocator<X> {
             //todo does the above release the locking promise?
           }
           else {
-            const pending = items
+            items
               .map(i => _this.summonEntry(i))
-              .flatMap(entry => {
-                const ans = entry.tryApp(token, getClaim(_lock).reverse());
+              .forEach(entry => {
+                const removeToken = new Object();
+                
+                const ans = entry.tryApp(removeToken, getClaim(_lock).reverse());
                 if(ans[0] == 'canAdd') {
                   ans[1]();
                 }
                 else if(ans[0] == 'mustWait') {
-                  return [new Promise<void>(res => ans[1](() => res))];
+                  entry.removeWaitingApp(token);
                 }
-
-                return [];
               });
-
-            if(!pending.isEmpty()) {
-              await Promise.all(pending);
-            }
           }
 
-          reject('CANCELLED!!!!')
-          //todo correct error above??
+          reject(new CancelledError());
         })
       });
     }
@@ -278,7 +274,7 @@ class Entry<X> {
   tryApp(k:Token, c: Appl<X>): ['canAdd',()=>void] | ['mustWait',(cb:Waiter)=>void] {
     return c.canApp(this._x)
       ? ['canAdd', () => {
-          this.removeWait(k);
+          this.removeWaitingApp(k);
           this.app(c);
         }]
       : ['mustWait', waiter => {
@@ -291,7 +287,7 @@ class Entry<X> {
 
     for(const [k, [cc, waiter]] of this.waits()) { //this._waits) {
       if(cc.canApp(this._x)) {
-        this.removeWait(k);
+        this.removeWaitingApp(k);
         const cb = waiter();
         if(cb) {
           this.app(cc)
@@ -316,7 +312,7 @@ class Entry<X> {
       .concat(this._waits.entrySeq());
   }
   
-  private removeWait(k: Token) {
+  removeWaitingApp(k: Token) {
     if(this._vips.has(k)) {
       this._vips = this._vips.delete(k);
     }
