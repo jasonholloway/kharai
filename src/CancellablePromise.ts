@@ -73,7 +73,7 @@ export default class CancellablePromise<A> implements PromiseLike<A>, Cancellabl
         const makeError = () => //this is horrid; shouldn't be insisting on error type here
           err instanceof CancelledError ? err
           : err instanceof Error ? new CancellingError(err)
-          : typeof err === 'string' ? Error(err)
+          : typeof err === 'string' ? new CancellingError(Error(err))
           : Error('Some strange error')
         ;
 

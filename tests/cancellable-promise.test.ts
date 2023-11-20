@@ -27,7 +27,7 @@ describe('Cancellable Promises', () => {
         cancelled = true;
       })
 
-      setTimeout(() => resolve('blablabla should never get here...'), 1000);
+      setTimeout(() => resolve('blablabla should never get here...'), 200);
     });
 
     await delay(100);
@@ -35,6 +35,30 @@ describe('Cancellable Promises', () => {
 
     await expect(p).rejects.toBeInstanceOf(CancelledError);
     expect(cancelled).toBeTruthy();
+  })
+
+  it('can be cancelled, with explicit resolution by onCancel', async () => {
+    const p = CancellablePromise.create((resolve, _, onCancel) => {
+      onCancel(() => resolve('woof'));
+      setTimeout(() => resolve('blablabla should never get here...'), 1000);
+    });
+
+    await delay(50);
+    await p.cancel();
+
+    await expect(p).rejects.toBeInstanceOf(CancelledError);
+  })
+
+  it('can be cancelled, with explicit rejection by onCancel', async () => {
+    const p = CancellablePromise.create((resolve, reject, onCancel) => {
+      onCancel(() => reject('woof'));
+      setTimeout(() => resolve('blablabla should never get here...'), 1000);
+    });
+
+    await delay(50);
+    await p.cancel();
+
+    await expect(p).rejects.toBeInstanceOf(CancellingError);
   })
 
   it('flattens nested promises on await', async () => {
