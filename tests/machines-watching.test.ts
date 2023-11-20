@@ -113,7 +113,7 @@ describe('machines - watching', () => {
 					({boot,and}) => boot('Gord', and.runAround(1)),
 					({boot,and}) => boot('Ed', and.follow(['Gord',1]))
 				)
-				.waitQuiet(500,500)
+				.waitQuiet(250,250)
 				.then(({view}) => {
 					const gord =	view('Gord').atoms;
 					const ed = view('Ed').atoms;
