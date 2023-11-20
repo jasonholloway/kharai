@@ -6,7 +6,7 @@ export namespace Preemptable {
   }
 
   export function liftFn<A>(fn: (()=>Promise<A>)): Preemptable<A> {
-    return new Continuable((resolve, reject, onCancel) => { fn().then(resolve).catch(onCancel) })
+    return new Continuable((resolve, reject) => { fn().then(resolve).catch(reject) })
   }
 
   export function continuable<A>(fn: CancellableFn<A>): Preemptable<A> {
