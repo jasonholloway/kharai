@@ -2,11 +2,12 @@ import { Observable } from "rxjs";
 import { take } from "rxjs/operators";
 
 type Hook = ()=>void|PromiseLike<void>; //
-export type Cancellable = { cancel: Hook }
+
+export interface Cancellable { cancel: Hook };
 
 export type CancellableFn<A> = (resolve: (v:A|Promise<A>)=>void, reject: (r:any)=>void, onCancel: (h:Hook)=>void) => void;
 
-export default class CancellablePromise<A> implements PromiseLike<A>, Cancellable {
+export default class CancellablePromise<A> implements Promise<A>, Cancellable {
 
   private readonly _spawn: <B>(fn: CancellableFn<B>) => CancellablePromise<B>;
   private readonly _cancel: () => Promise<void>;
@@ -111,6 +112,8 @@ export default class CancellablePromise<A> implements PromiseLike<A>, Cancellabl
   cancel(): Promise<void> {
     return this._cancel();
   }
+
+  [Symbol.toStringTag] = 'CancellablePromise';
 
   private _mapInner<B>(fn: (p: Promise<A>, wrap: (orig: (a:A)=>B|PromiseLike<B>) => ((a:A)=>B|PromiseLike<B>) ) => Promise<B>) {
     return this._spawn<B>((resolve, reject, addHook) => {
