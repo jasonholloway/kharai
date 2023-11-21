@@ -1,5 +1,5 @@
 import { delay } from "../src/util";
-import { AttemptImpl } from "./Attempt";
+import { AttemptImpl } from "../src/Attempt";
 
 describe('attempts', () => {
 
