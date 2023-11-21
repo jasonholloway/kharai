@@ -390,7 +390,7 @@ describe('match' , () => {
     })
   })
 
-  describe('arrays of specal matchers', () => {
+  describe('arrays of special matchers', () => {
     test({
       pattern: Many(Str),
       yes: [
@@ -407,7 +407,7 @@ describe('match' , () => {
     })
   })
 
-  describe('nested arrays of specal matchers', () => {
+  describe('nested arrays of special matchers', () => {
     test({
       pattern: Many(Many(Num)),
       yes: [
