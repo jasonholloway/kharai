@@ -4,6 +4,7 @@ import { parakeet } from './worlds/parakeet'
 import { run, showData } from './shared';
 import { World } from '../src/shape/World';
 import { act, root } from '../src/shape/common';
+import { delay } from 'rxjs/operators';
 
 describe('machines - conversing', () => {
   const world = parakeet.build();
@@ -62,7 +63,22 @@ describe('machines - conversing', () => {
 
         expect(showData(b[3]))
           .toHaveProperty('b', ['*_end', {a:'hello', b:'hello'}])
-      }))
+      })
+  )
+
+  it('can cancel convene', () =>
+    run(world, { save: false })
+      .perform(({boot,and}) => boot('babs', and.flapAbout()))
+      .perform(async x => {
+        const convening = x.convene(['babs'], ps => {
+          throw 'SHOULD NEVER HAPPEN!!!';
+        });
+
+        await delay(50);
+        await convening.cancel();
+      })
+      .waitQuiet()
+  )
 
   xit('meet from outside', () =>
     run(World

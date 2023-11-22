@@ -3,6 +3,7 @@ import { World } from '../../src/shape/World';
 import { act } from '../../src/shape/common';
 import { Many, Str, Tup } from '../../src/guards/Guard';
 import { Id } from '../lib';
+import { delay } from '../helpers';
 
 export const parakeet = World
   .shape({
@@ -11,6 +12,8 @@ export const parakeet = World
 
     migrate: act(Str),
     nest: act(Tup({}, Str)),
+
+    flapAbout: act()
   })
   .impl({
 
@@ -58,7 +61,13 @@ export const parakeet = World
           }
         }
       }).else(and.migrate('somewhere...'));
+    },
+
+    async flapAbout(x) {
+      await delay(30); //would be nice to have a cancellable delay provided here...
+      return x.and.flapAbout();
     }
+
   });
 
 //a nicely typed phase factory

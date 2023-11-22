@@ -10,6 +10,7 @@ import _Monoid from './_Monoid'
 import { AtomRef } from './atoms'
 import { inspect } from 'node:util'
 import { Attempt } from './Attempt'
+import CancellablePromise from './CancellablePromise'
 
 const $Yo = Symbol('$Yo');
 
@@ -41,7 +42,7 @@ export type RunCtx<V,L> = {
   side: { get():unknown, set(d:unknown):void } 
   timer: Timer
   attend: <R>(attend: MAttendee<R>) => Attempt<R>
-  convene: <R>(others: ArrayLike<Run<V,L>>, convene: MConvener<R>) => Promise<R>
+  convene: <R>(others: ArrayLike<Run<V,L>>, convene: MConvener<R>) => CancellablePromise<R>
   track: (target: Run<V,L>) => Observable<L>
 }
 

@@ -59,19 +59,22 @@ export class Mediator {
     this.kill$ = signal$.pipe(filter(s => s.stop), shareReplay(1));
   }
 
-  //below is well-intentioned, but half-baked
-  //todo: map should be able to do async
-  //and cancellation should be appliable to preemptable
-  convene2<R>(convener: MConvener<R>, others: Set<object>): Preemptable<R> {
+  // TODO! below should return Attempt<R>
+  // with cancellations nicely wired up
+  convene<R>(convener: MConvener<R>, others: Set<object>): CancellablePromise<R> {
     return this.locks
       .claim(...others)
-      .map(claim => {
+      .promise()
+      .cancelOn(this.kill$)
+      .then(claim => {
         try {
           const peers = claim.offers();
 
           const answer = convener.convened(
             peers.map(p => <MPeer>{
+              info: p.info,
               chat(m: Msg) {
+                logFlow(convener, m, p, true);
                 return p.chat([m, convener.info]);
               }
             }));
@@ -84,48 +87,20 @@ export class Mediator {
           return answer;
         }
         finally {
-          claim.release(); //NOTE async!!!!
+          claim.release();
         }
-      })
-      // .cancelOn(this.kill$);
-  }
-
-  async convene<R>(convener: MConvener<R>, others: Set<object>): Promise<R> {
-    const claim = await this.locks
-      .claim(...others)
-      .promise()
-      .cancelOn(this.kill$);
-
-    try {
-      const peers = claim.offers();
-
-      const answer = convener.convened(
-        peers.map(p => <MPeer>{
-          info: p.info,
-          chat(m: Msg) {
-            logFlow(convener, m, p, true);
-            return p.chat([m, convener.info]);
-          }
-        }));
-
-      peers.forEach(p => {
-        const a = p.chat(false);
-        if(a) throw Error('peer responded badly to kill');
       });
-
-      return answer;
-    }
-    finally {
-      claim.release();
-    }
   }
 
+  //todo below to be refactored into style of convene above
   attend<R>(item: object, attend: MAttendee<R>): Attempt<R> { //instead of failing, should relock, retry till we get result - TODO
     return new Attempt(CancellablePromise.create<[R]|false>(
       (resolve, reject) => {
         let _active = true;
         let _state = <[R]|false>false;
         
+        // TODO!
+        // below should wire up cancel...
         this.locks.offer([item],
           lock => <_Peer>{
 

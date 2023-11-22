@@ -337,7 +337,7 @@ export class MachineSpace<N,O,NT=NodeTree.Form<N>> {
         }
       },
 
-      async convene<R>(ids: Id[], arg: Convener<R>|ConvenedFn<R>) {
+      convene<R>(ids: Id[], arg: Convener<R>|ConvenedFn<R>) {
         const convened = isConvener(arg) ? arg.convened : arg;
 
         const peerRuns = _this
@@ -345,7 +345,7 @@ export class MachineSpace<N,O,NT=NodeTree.Form<N>> {
           .toArray()
           .map(m => m.run);
 
-        return await x.convene(
+        return x.convene(
           peerRuns,
           {
             info: packInfo(id),
