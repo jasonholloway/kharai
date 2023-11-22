@@ -265,7 +265,7 @@ describe('running', () => {
     //deadlocks get in the way of graceful shutdown
     //and should be detectable in many cases
     //
-    //if all the peers a convener is waiting for have finnished
+    //if all the peers a convener is waiting for have finished
     //(or are waiting for other peers that are impossible) 
     //then we can give up, just throw an exception
     //
