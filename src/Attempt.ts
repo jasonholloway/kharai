@@ -20,10 +20,10 @@ export class Attempt<A> implements Promise<[A]|false>, Cancellable {
   }
 
   flatMap<B>(fn: (a:A)=>Attempt<B>): Attempt<B> {
-    //todo should be able to squeeze in other promises here
-    
     return new Attempt(
       this._inner.then(ar => {
+        //todo should be able to squeeze in distinguishing between other PromiseLikes here
+    
         if(ar) {
           const b = fn(ar[0]);
           return b;

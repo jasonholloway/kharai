@@ -29,14 +29,24 @@ describe('attempts', () => {
       .ok();
 
     expect(a).toBe(3);
+
+    const b = await Attempt
+      .succeed(7)
+      .flatMap(() => Attempt.fail())
+      .else(1);
+
+    expect(b).toBe(1);
   })
 
-  it('acts like promise', async () => {
+  it('acts like promise, exposing inner wrapping', async () => {
     const a = Attempt.succeed(7);
-    expect(await a).toBe(7);
+    expect(await a).toEqual([7]);
 
-    const b = a.then(i => i.toString());
-    expect(await b).toBe('7');
+    const b = a.map(i => i.toString());
+    expect(await b).toEqual(['7']);
+
+    const c = Attempt.fail();
+    expect(await c).toBe(false);
   })
 
   it('async flows skip on fail', async () => {
