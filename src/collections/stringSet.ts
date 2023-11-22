@@ -57,7 +57,7 @@ export default () =>
             }
 
             return [and.skip()];
-          }).assert();
+          }).ok();
         },
 
         show(d) {

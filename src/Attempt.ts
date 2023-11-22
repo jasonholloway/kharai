@@ -1,10 +1,15 @@
 import CancellablePromise, { Cancellable } from "./CancellablePromise";
 import { isPromise } from "./util";
 
-export interface Attempt<A> extends Promise<A>, Cancellable {
-  assert(): CancellablePromise<A>
-  orElse<B>(b: B): CancellablePromise<A|B>
-  then<B=A, C=never>(onfulfilled?: ((a:A) => B|Promise<B>) | null | undefined, onrejected?: ((reason: any) => C|Promise<C>) | null | undefined): Attempt<B|C>;
+export interface Attempt<A> extends Promise<[A]|false>, Cancellable {
+  ok(): CancellablePromise<A>
+
+  else<B>(b: B): CancellablePromise<A|B>
+
+  map<B>(fn: (a:A)=>B): Attempt<B>;
+  flatMap<B>(fn: (a:A)=>Attempt<B>): Attempt<B>;
+
+  //todo catch? though if we care about catch we're back outside the world of niceness and into promise-land
   finally(onfinally?: (() => void) | null | undefined): Attempt<A>;
 }
 
@@ -17,42 +22,35 @@ export class AttemptImpl<A> implements Attempt<A> {
     this._inner = inner;
   }
 
-  then<B=A, C=never>(onfulfilled?: ((a:A) => B|Promise<B>) | null | undefined, onrejected?: ((reason: any) => C|Promise<C>) | null | undefined): Attempt<B|C> {
-    const inner2 = onfulfilled
-      ? this._inner
-          .then<[B]|false>(y => {
-            if(!y) return false;
-
-            const r = onfulfilled(y[0]);
-            
-            if(isPromise(r)) { //todo should absorb Attempts here...
-              return r.then(x => [x] as [B]);
-            }
-            else {
-              return [r] as [B];
-            }
-          })
-      : <CancellablePromise<[B]|false>>this._inner;
-
-    const inner3 = onrejected
-      ? inner2
-        .catch(err => {
-          const r = onrejected(err);
-
-          if(isPromise(r)) { //todo should absorb Attempts here...
-            return r.then(x => [x] as [B|C]);
-          }
-          else {
-            return [r] as [B|C];
-          }
-        })
-      : <CancellablePromise<[B|C]|false>>inner2;
-
-    return new AttemptImpl(inner3);
+  map<B>(fn: (a:A)=>B): Attempt<B> {
+    return new AttemptImpl<B>(
+      this._inner.then(ar => {
+        if(ar) return [fn(ar[0])]; 
+        else return false;
+      })
+    );
   }
 
-  catch<C=never>(onrejected?: ((reason: any) => C|PromiseLike<C>) | null | undefined): Attempt<A|C> {
-    throw new Error("Method not implemented.");
+  flatMap<B>(fn: (a:A)=>Attempt<B>): Attempt<B> {
+    //todo should be able to squeeze in other promises here
+    
+    return new AttemptImpl(
+      this._inner.then(ar => {
+        if(ar) {
+          const b = fn(ar[0]);
+          return b;
+        }
+        else return false;
+      })
+    );
+  }
+
+  then<B = [A]|false, C = never>(onfulfilled?: ((value: [A]|false) => B|PromiseLike<B>) | undefined | null, onrejected?: ((reason: any) => C|PromiseLike<C>) | undefined | null): CancellablePromise<B|C> {
+    return this._inner.then(onfulfilled, onrejected);
+  }
+
+  catch<C = never>(onrejected?: ((reason: any) => C|PromiseLike<C>) | undefined | null): CancellablePromise<[A]|false|C> {
+    return this._inner.catch(onrejected);
   }
 
   finally(onfinally?: (() => void) | null | undefined): Attempt<A> {
@@ -62,7 +60,7 @@ export class AttemptImpl<A> implements Attempt<A> {
 
   private static AssertErr: string = 'Assertion on failed attempt';
 
-  assert(): CancellablePromise<A> {
+  ok(): CancellablePromise<A> {
     return this._inner.then(x => {
       if(x) {
         return x[0];
@@ -73,7 +71,7 @@ export class AttemptImpl<A> implements Attempt<A> {
     });
   }
 
-  orElse<B>(fallback: B): CancellablePromise<A|B> {
+  else<B>(fallback: B): CancellablePromise<A|B> {
     return this._inner.then(x => {
       if(x) {
         return x[0];

@@ -536,7 +536,7 @@ function builtIns() {
             attended(m) {
               return [m, true];
             }
-          }).orElse(false);
+          }).else(false);
 
           if(answer) {
             return answer;
@@ -656,7 +656,7 @@ function builtIns() {
 
             return [['*_$m_gather', [v, ids]]];
           }
-        }).orElse(false);
+        }).else(false);
       }
     }))
     .popPath()!

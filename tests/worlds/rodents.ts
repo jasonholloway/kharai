@@ -62,7 +62,7 @@ export const rodents = World
       runAbout({and,attend}) {
         return attend(m => [m, 'squeak!'])
           .then(a => and.end(a))
-          .orElse(and.end('BIG NASTY ERROR'));
+          .else(and.end('BIG NASTY ERROR'));
       },
 
       async gruntAt({and,convene}, id) {

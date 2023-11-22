@@ -37,7 +37,7 @@ export default <T extends Narrowable>(t:T) =>
             }
 
             return [and.skip()];
-          }).assert();
+          }).ok();
         },
 
         show(d) {

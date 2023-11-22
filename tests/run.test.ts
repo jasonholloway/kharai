@@ -47,7 +47,7 @@ describe('running', () => {
 				mouse({and,attend}, n) {
 					return attend(m => [m])
 					  .then(r => and.end(`${n} ${r}`))
-					  .orElse(false);
+					  .else(false);
 				}
 			});
 
@@ -85,7 +85,7 @@ describe('running', () => {
 				mouse({and,attend}, n) {
 					return attend(m => [m])
 					  .then(r => and.end(`${n} ${r}`))
-					  .orElse(false);
+					  .else(false);
 				}
 			});
 
@@ -123,7 +123,7 @@ describe('running', () => {
 				mouse({and,attend}, n) {
 					return attend(m => [m])
 					  .then(r => and.end(`${n} ${r}`))
-					  .orElse(false);
+					  .else(false);
 				}
 			});
 

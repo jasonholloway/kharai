@@ -163,7 +163,7 @@ describe('machines - running', () => {
               else {
                 return [and.end('fin')];
               }
-            }).assert();
+            }).ok();
           }
         }).build(),
         { threshold: 1 }

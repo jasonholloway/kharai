@@ -20,7 +20,7 @@ export const parakeet = World
           const [ids, m] = r;
           return and.chirp([ids, m]);
         })
-        .orElse(and.end(true));
+        .else(and.end(true));
     },
 
 
@@ -57,7 +57,7 @@ export const parakeet = World
               return [and.end(m[2])];
           }
         }
-      }).orElse(and.migrate('somewhere...'));
+      }).else(and.migrate('somewhere...'));
     }
   });
 
