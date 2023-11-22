@@ -1,3 +1,4 @@
+import { describe, expect, it } from '@jest/globals';
 import { isString } from 'util'
 import { Bool, Guard, Num, Str, Many, Any, And, Or, Dict } from '../../src/guards/Guard'
 import { tryMatch as test } from './helpers'

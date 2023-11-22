@@ -1,3 +1,4 @@
+import { describe, expect, it } from '@jest/globals';
 import { Map, Set, List } from 'immutable'
 import _Monoid from '../src/_Monoid'
 import { Id, DataMap, RawDataMap } from '../src/lib'

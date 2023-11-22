@@ -1,3 +1,4 @@
+import { describe, expect, it } from '@jest/globals';
 import _Monoid from '../src/_Monoid'
 import { act, incl, root } from '../src/shape/common';
 import { World } from '../src/shape/World';

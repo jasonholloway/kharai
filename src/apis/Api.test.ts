@@ -1,3 +1,4 @@
+import { it, xdescribe } from '@jest/globals';
 import { Num, Str } from '../guards/Guard'
 import { act } from '../shape/common';
 import { World } from '../shape/World';

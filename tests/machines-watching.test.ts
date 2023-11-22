@@ -1,3 +1,4 @@
+import { describe, expect, it } from '@jest/globals';
 import _Monoid from '../src/_Monoid'
 import { run, showData } from './shared';
 import { Map } from 'immutable'

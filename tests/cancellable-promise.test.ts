@@ -1,3 +1,4 @@
+import { describe, expect, it } from '@jest/globals';
 import CancellablePromise, { CancelledError, CancellingError } from "../src/CancellablePromise"
 import { delay } from "../src/util"
 

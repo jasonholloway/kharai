@@ -1,3 +1,4 @@
+import { describe, expect, it } from '@jest/globals';
 import _Monoid from '../../src/_Monoid'
 import { mergeMap, toArray, take } from 'rxjs/operators'
 import { Str, Num, Many } from '../../src/guards/Guard'

@@ -1,5 +1,6 @@
+import { describe, expect, it, beforeEach } from '@jest/globals';
 import { Locks, Semaphores, Exchange, Lock } from '../src/Locks'
-import {delay} from './helpers'
+import { delay } from './helpers'
 import { Chooser, many, seedChooser, gen, pick, integer} from '../src/genau'
 import { List, Set } from 'immutable'
 

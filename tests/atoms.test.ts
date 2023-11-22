@@ -1,3 +1,4 @@
+import { describe, expect, it, beforeEach } from '@jest/globals';
 import { List } from 'immutable'
 import { delay } from './helpers'
 import _Monoid from '../src/_Monoid'
@@ -134,7 +135,7 @@ describe('atoms and stuff', () => {
 	})
 
 	it('upstream joins visited once only', async () => {
-		const ref1 = new AtomRef(new Atom(List(), 'a0'));
+		const ref1 = new AtomRef(new Atom(List<never>(), 'a0'));
 		const ref2 = new AtomRef(new Atom(List([ref1]), 'b1'));
 		const ref3 = new AtomRef(new Atom(List([ref1]), 'B2'));
 		const ref4 = new AtomRef(new Atom(List([ref2, ref3]), 'c3'));
@@ -154,7 +155,7 @@ describe('atoms and stuff', () => {
 	})
 
 	it('paths can have multiple tips', async () => {
-		const ref1 = new AtomRef(new Atom(List(), 'a0'));
+		const ref1 = new AtomRef(new Atom(List<never>(), 'a0'));
 		const ref2 = new AtomRef(new Atom(List([ref1]), 'b1'));
 		const ref3 = new AtomRef(new Atom(List([ref1]), 'c2'));
 
@@ -274,7 +275,7 @@ describe('atoms and stuff', () => {
 		const path1 = await locking1;
 
 		path1.rewrite(_ => ([ref]) => {
-			return [,[[ref], new Atom(List(), '1').asRef()]];
+			return [,[[ref], new Atom(List<never>(), '1').asRef()]];
 		}, MU).complete();
 		
 		path1.release();

@@ -1,3 +1,4 @@
+import { describe, expect, it, xit } from '@jest/globals';
 import _Monoid from '../src/_Monoid'
 import { run, showData } from './shared'
 import { rodents } from './worlds/rodents'

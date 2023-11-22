@@ -1,3 +1,4 @@
+import { describe, expect, it } from '@jest/globals';
 import { act, incl, root } from "../src/shape/common";
 import { Any, Num, Str } from "../src/guards/Guard";
 import { World } from "../src/shape/World";

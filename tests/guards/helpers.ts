@@ -1,4 +1,5 @@
-import { Guard, match, Num, Str } from '../../src/guards/Guard'
+import { expect, it } from '@jest/globals';
+import { match } from '../../src/guards/Guard'
 import { inspect } from 'util'
 
 

@@ -1,3 +1,4 @@
+import { describe, expect, it, afterEach } from '@jest/globals';
 import Commit from '../src/Committer'
 import _Monoid from '../src/_Monoid'
 import { delay } from '../src/util'
@@ -148,8 +149,8 @@ describe('committable', () => {
 	it('accepts extra upstreams', async () => {
 		const h = newHead();
 
-		const u1 = new Atom(List(), 3);
-		const u2 = new Atom(List(), 4);
+		const u1 = new Atom(List<never>(), 3);
+		const u2 = new Atom(List<never>(), 4);
 
 		h.addUpstreams(OrderedSet([new AtomRef(u1), new AtomRef(u2)]));
 

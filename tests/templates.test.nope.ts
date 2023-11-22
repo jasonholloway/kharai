@@ -1,6 +1,7 @@
 // THIS IS COMMENTED OUT TEMPORARILY!
 // for the future...
 
+// import { describe, expect, it } from '@jest/globals';
 // import _Monoid from '../src/_Monoid'
 // import { act } from '../src/shape/common';
 // import { World } from '../src/shape/World';

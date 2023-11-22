@@ -1,3 +1,4 @@
+import { describe, expect, it } from '@jest/globals';
 import { incl } from '../shape/common';
 import { World } from '../shape/World';
 import { Str } from '../guards/Guard'
