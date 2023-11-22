@@ -1,3 +1,4 @@
+import { describe, it, expect } from "@jest/globals"
 import { Num, Read } from "../src/guards/Guard";
 
 describe('convos', () => {
@@ -222,7 +223,7 @@ namespace Convo {
     throw 123;
   }
 
-  export type Return {
+  export type Return = {
     _tag: 'Return'
   }
 
