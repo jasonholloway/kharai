@@ -25,15 +25,15 @@ export const Str = new Typ('str' as const);
 export const Never = new Typ('never' as const);
 
 export function And<R extends Narrowable[]>(...r: R) {
-  return new Typ(tup('and', r));
+  return new Typ(tup('and' as const, r));
 }
 
 export function Or<R extends Narrowable[]>(...r: R) {
-  return new Typ(tup('or', r));
+  return new Typ(tup('or' as const, r));
 }
 
 export function Many<V extends Narrowable>(m:V) {
-  return new Typ(tup('many', m));
+  return new Typ(tup('many' as const, m));
 }
 
 export function Tup<R extends Narrowable[]>(...r: R) : R {
@@ -41,7 +41,7 @@ export function Tup<R extends Narrowable[]>(...r: R) : R {
 }
 
 export function Dict<V extends Narrowable>(v:V) {
-  return new Typ(tup('dict', v));
+  return new Typ(tup('dict' as const, v));
 }
 
 export type PreExpand<S, X=never, Y=never> =
