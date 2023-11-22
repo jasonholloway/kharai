@@ -6,7 +6,7 @@ import { filter, shareReplay } from 'rxjs/operators';
 import CancellablePromise from './CancellablePromise';
 import { Preemptable } from './Preemptable';
 import { inspect } from 'util';
-import { Attempt, AttemptImpl } from './Attempt';
+import { Attempt } from './Attempt';
 
 const log = console.log;
 
@@ -121,7 +121,7 @@ export class Mediator {
   }
 
   attend<R>(item: object, attend: MAttendee<R>): Attempt<R> { //instead of failing, should relock, retry till we get result - TODO
-    return new AttemptImpl(CancellablePromise.create<[R]|false>(
+    return new Attempt(CancellablePromise.create<[R]|false>(
       (resolve, reject) => {
         let _active = true;
         let _state = <[R]|false>false;

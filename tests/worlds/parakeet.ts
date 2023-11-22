@@ -16,7 +16,7 @@ export const parakeet = World
 
     listen({and,attend}) {
       return attend(m => [<[Id[], string]>m])
-        .then(r => {
+        .map(r => {
           const [ids, m] = r;
           return and.chirp([ids, m]);
         })

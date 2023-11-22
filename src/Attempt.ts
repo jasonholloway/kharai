@@ -1,29 +1,17 @@
 import CancellablePromise, { Cancellable } from "./CancellablePromise";
 import { isPromise } from "./util";
 
-export interface Attempt<A> extends Promise<[A]|false>, Cancellable {
-  ok(): CancellablePromise<A>
-
-  else<B>(b: B): CancellablePromise<A|B>
-
-  map<B>(fn: (a:A)=>B): Attempt<B>;
-  flatMap<B>(fn: (a:A)=>Attempt<B>): Attempt<B>;
-
-  //todo catch? though if we care about catch we're back outside the world of niceness and into promise-land
-  finally(onfinally?: (() => void) | null | undefined): Attempt<A>;
-}
-
-export class AttemptImpl<A> implements Attempt<A> {
+export class Attempt<A> implements Promise<[A]|false>, Cancellable {
 
   private _inner: CancellablePromise<[A]|false>;
-  [Symbol.toStringTag] = 'AttemptImpl';
+  [Symbol.toStringTag] = 'Attempt';
 
   constructor(inner: CancellablePromise<[A]|false>) {
     this._inner = inner;
   }
 
   map<B>(fn: (a:A)=>B): Attempt<B> {
-    return new AttemptImpl<B>(
+    return new Attempt<B>(
       this._inner.then(ar => {
         if(ar) return [fn(ar[0])]; 
         else return false;
@@ -34,7 +22,7 @@ export class AttemptImpl<A> implements Attempt<A> {
   flatMap<B>(fn: (a:A)=>Attempt<B>): Attempt<B> {
     //todo should be able to squeeze in other promises here
     
-    return new AttemptImpl(
+    return new Attempt(
       this._inner.then(ar => {
         if(ar) {
           const b = fn(ar[0]);
@@ -55,7 +43,7 @@ export class AttemptImpl<A> implements Attempt<A> {
 
   finally(onfinally?: (() => void) | null | undefined): Attempt<A> {
     const inner2 = this._inner.finally(onfinally);
-    return new AttemptImpl(inner2);
+    return new Attempt(inner2);
   }
 
   private static AssertErr: string = 'Assertion on failed attempt';
@@ -66,7 +54,7 @@ export class AttemptImpl<A> implements Attempt<A> {
         return x[0];
       }
       else {
-        throw AttemptImpl.AssertErr;
+        throw Attempt.AssertErr;
       }
     });
   }
@@ -87,11 +75,11 @@ export class AttemptImpl<A> implements Attempt<A> {
   }
   
   static succeed<V>(v: V): Attempt<V> {
-    return new AttemptImpl(CancellablePromise.create(resolve => resolve([v])));
+    return new Attempt(CancellablePromise.create(resolve => resolve([v])));
   }
 
   static fail<V = never>(): Attempt<V> {
-    return new AttemptImpl(CancellablePromise.create(resolve => resolve(false)));
+    return new Attempt(CancellablePromise.create(resolve => resolve(false)));
   }
 
   

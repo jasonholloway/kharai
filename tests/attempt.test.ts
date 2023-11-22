@@ -1,11 +1,11 @@
 import { describe, expect, it } from '@jest/globals';
 import { delay } from "../src/util";
-import { AttemptImpl } from "../src/Attempt";
+import { Attempt } from "../src/Attempt";
 
 describe('attempts', () => {
 
   it('success', async () => {
-    const a = AttemptImpl.succeed(7);
+    const a = Attempt.succeed(7);
     expect(await a.ok()).toBe(7);
 
     const b = a.map(i => i.toString());
@@ -13,7 +13,7 @@ describe('attempts', () => {
   })
 
   it('can be mapped', async () => {
-    const a = await AttemptImpl
+    const a = await Attempt
       .succeed(7)
       .map(i => i * 2)
       .map(i => i + 1)
@@ -23,16 +23,16 @@ describe('attempts', () => {
   })
 
   it('can be flatmapped', async () => {
-    const a = await AttemptImpl
+    const a = await Attempt
       .succeed(7)
-      .flatMap(i => AttemptImpl.succeed(3))
+      .flatMap(i => Attempt.succeed(3))
       .ok();
 
     expect(a).toBe(3);
   })
 
   it('acts like promise', async () => {
-    const a = AttemptImpl.succeed(7);
+    const a = Attempt.succeed(7);
     expect(await a).toBe(7);
 
     const b = a.then(i => i.toString());
@@ -42,7 +42,7 @@ describe('attempts', () => {
   it('async flows skip on fail', async () => {
     let finished = 0;
 
-    const a = AttemptImpl.succeed(7);
+    const a = Attempt.succeed(7);
 
     (async () => {
       const x = await a.then(() => { throw 'woof' });
@@ -50,7 +50,7 @@ describe('attempts', () => {
     })().catch(() => {});
 
     (async () => {
-      const x = await a.then(() => AttemptImpl.fail());
+      const x = await a.then(() => Attempt.fail());
       finished++;
     })();
 
@@ -58,32 +58,32 @@ describe('attempts', () => {
   })
 
   it('asserts success', async () => {
-    const a = AttemptImpl.succeed(7);
+    const a = Attempt.succeed(7);
     expect(await a.ok()).toBe(7);
 
-    const b = AttemptImpl.succeed(7).map(i => i * 2);
+    const b = Attempt.succeed(7).map(i => i * 2);
     expect(await b.ok()).toBe(14);
   })
 
   it('assert throws', async () => {
-    const a = AttemptImpl.fail();
+    const a = Attempt.fail();
     expect(a.ok()).rejects.toBe('Assertion on failed attempt');
 
-    const b = AttemptImpl.fail().map(_ => 123);
+    const b = Attempt.fail().map(_ => 123);
     expect(b.ok()).rejects.toBe('Assertion on failed attempt');
   })
 
   it('defaults via else', async () => {
-    const a = await AttemptImpl.fail().else(7);
+    const a = await Attempt.fail().else(7);
     expect(a).toBe(7);
   })
 
   it('calls finally, even after failure', async () => {
     let called = 0;
 
-    AttemptImpl.succeed(1).finally(() => called++).finally(() => called++);
+    Attempt.succeed(1).finally(() => called++).finally(() => called++);
     
-    AttemptImpl.fail().finally(() => called++).finally(() => called++);
+    Attempt.fail().finally(() => called++).finally(() => called++);
 
     await delay(30);
 

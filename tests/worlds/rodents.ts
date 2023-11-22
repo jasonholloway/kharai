@@ -61,7 +61,7 @@ export const rodents = World
     guineaPig: {
       runAbout({and,attend}) {
         return attend(m => [m, 'squeak!'])
-          .then(a => and.end(a))
+          .map(a => and.end(a))
           .else(and.end('BIG NASTY ERROR'));
       },
 
