@@ -161,7 +161,7 @@ export default class CancellablePromise<A> implements Promise<A>, Cancellable {
     return this._mapInner(p => p.finally(fn));
   }
 
-	async cancelOn(kill$: Observable<any>): Promise<A> {
+	cancelOn(kill$: Observable<any>): CancellablePromise<A> {
     //TODO NEEDS REWORK!!! TODO TODO TODO
 		const sub = kill$.pipe(take(1)).subscribe(() => this.cancel());
 		return this.finally(() => sub.unsubscribe());

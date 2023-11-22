@@ -9,6 +9,7 @@ import Commit from './Committer'
 import _Monoid from './_Monoid'
 import { AtomRef } from './atoms'
 import { inspect } from 'node:util'
+import { Attempt } from './Attempt'
 
 const $Yo = Symbol('$Yo');
 
@@ -39,7 +40,7 @@ export class RunSpace<V, L=V> {
 export type RunCtx<V,L> = {
   side: { get():unknown, set(d:unknown):void } 
   timer: Timer
-  attend: <R>(attend: MAttendee<R>) => Promise<false|[R]>
+  attend: <R>(attend: MAttendee<R>) => Attempt<R>
   convene: <R>(others: ArrayLike<Run<V,L>>, convene: MConvener<R>) => Promise<R>
   track: (target: Run<V,L>) => Observable<L>
 }
@@ -123,7 +124,7 @@ export class Run<V,L=V> {
 
       timer: _this.timer,
 
-      attend<R>(attendee: MAttendee<R>): Promise<false|[R]> {
+      attend<R>(attendee: MAttendee<R>): Attempt<R> {
         return _this.mediator
           .attend<R>(_this, {
             info: attendee.info,

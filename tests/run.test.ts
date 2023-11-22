@@ -44,9 +44,10 @@ describe('running', () => {
 					return and.end('dunrattin');
 				},
 
-				async mouse({and,attend}, n) {
-					const r = await attend(m => [m]);
-					return r && and.end(`${n} ${r[0]}`);
+				mouse({and,attend}, n) {
+					return attend(m => [m])
+					  .then(r => and.end(`${n} ${r}`))
+					  .orElse(false);
 				}
 			});
 
@@ -81,9 +82,10 @@ describe('running', () => {
 					return and.end('dunrattin');
 				},
 
-				async mouse({and,attend}, n) {
-					const r = await attend(m => [m]);
-					return r && and.end(`${n} ${r[0]}`);
+				mouse({and,attend}, n) {
+					return attend(m => [m])
+					  .then(r => and.end(`${n} ${r}`))
+					  .orElse(false);
 				}
 			});
 
@@ -118,9 +120,10 @@ describe('running', () => {
 					return and.end('dunrattin');
 				},
 
-				async mouse({and,attend}, n) {
-					const r = await attend(m => [m]);
-					return r && and.end(`${n} ${r[0]}`);
+				mouse({and,attend}, n) {
+					return attend(m => [m])
+					  .then(r => and.end(`${n} ${r}`))
+					  .orElse(false);
 				}
 			});
 

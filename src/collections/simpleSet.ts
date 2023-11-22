@@ -21,8 +21,8 @@ export default <T extends Narrowable>(t:T) =>
       },
 
       run: {
-        async act({and,attend,isCommand}, data) {
-          const [next] = await attend(m => {
+        act({and,attend,isCommand}, data) {
+          return attend(m => {
             if(isCommand(m)) {
               const [cmd, v] = m;
 
@@ -37,9 +37,7 @@ export default <T extends Narrowable>(t:T) =>
             }
 
             return [and.skip()];
-          }) || [];
-
-          return next!;
+          }).assert();
         },
 
         show(d) {

@@ -24,10 +24,10 @@ describe('mediator', () => {
     }
 
     const convening = x.convene(p1, Set([p2]));
-    const attaching = x.attend(p2, p2);
+    const attaching = x.attend(p2, p2).assert();
 
     expect(await convening).toEqual('pineapple');
-    expect(await attaching).toEqual(['banana']);
+    expect(await attaching).toEqual('banana');
   })
 
   it('convention occurs', async () => {
@@ -57,11 +57,11 @@ describe('mediator', () => {
     const result1 = await meeting1;
     expect(result1).toEqual(Set(['reply2', 'reply3']));
 
-    const result2 = await meeting2;
-    expect(result2).toEqual(['hello2']);
+    const result2 = await meeting2.assert();
+    expect(result2).toEqual('hello2');
     
-    const result3 = await meeting3;
-    expect(result3).toEqual(['hello3']);
+    const result3 = await meeting3.assert();
+    expect(result3).toEqual('hello3');
   })
 
   it('attendee doesn\'t immediately release', async () => {
@@ -124,14 +124,14 @@ describe('mediator', () => {
     }
 
     const convening1 = x.convene(c1, Set([a]));
-    const result1 = await x.attend(a, a);
+    const result1 = await x.attend(a, a).assert();
     await convening1;
-    expect(result1).toEqual(['yo']);
+    expect(result1).toEqual('yo');
     
     const convening2 = x.convene(c2, Set([a]));
-    const result2 = await x.attend(a, a);
+    const result2 = await x.attend(a, a).assert();
     await convening2;
-    expect(result2).toEqual(['boo']);
+    expect(result2).toEqual('boo');
   })
 
   it('conveners in parallel', async () => {
@@ -168,11 +168,11 @@ describe('mediator', () => {
     const convening1 = x.convene(c1, Set([a]));
     const convening2 = x.convene(c2, Set([a]));
 
-    const result1 = await x.attend(a, a);
-    expect(result1).toEqual(['yo']);
+    const result1 = await x.attend(a, a).assert();
+    expect(result1).toEqual('yo');
     
-    const result2 = await x.attend(a, a);
-    expect(result2).toEqual(['boo']);
+    const result2 = await x.attend(a, a).assert();
+    expect(result2).toEqual('boo');
 
     await convening1;
     await convening2;

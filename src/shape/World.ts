@@ -536,13 +536,15 @@ function builtIns() {
             attended(m) {
               return [m, true];
             }
-          });
+          }).orElse(false);
 
           if(answer) {
-            return answer[0];
+            return answer;
           }
           else {
             await delay(30); //when we release properly, this can be removed (cryptic note!)
+            // this is some horrible retry mechanism, isn't it...
+            // wonder why?
           }
         }
       }
@@ -629,8 +631,8 @@ function builtIns() {
     .update(v => ({
       ...v,
       guard: [[Num, Many(Str)]],
-      handler: async (x: AnonCtx, [v, ids]: [number, Id[]]) => {
-        const result = await x.attend({
+      handler: (x: AnonCtx, [v, ids]: [number, Id[]]) => {
+        return x.attend({
           attended(m, mid) {
             if(isPeerMessage(m) && isString(mid)) {
               ids = [...ids, mid];
@@ -654,9 +656,7 @@ function builtIns() {
 
             return [['*_$m_gather', [v, ids]]];
           }
-        });
-
-        return isArray(result) ? result[0] : false;
+        }).orElse(false);
       }
     }))
     .popPath()!

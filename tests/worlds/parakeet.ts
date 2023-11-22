@@ -14,15 +14,13 @@ export const parakeet = World
   })
   .impl({
 
-    async listen({and,attend}) {
-      const r = await attend(m => [<[Id[], string]>m]);
-
-      if(r) {
-        const [[ids, m]] = r;
-        return and.chirp([ids, m]);
-      }
-
-      return and.end(true);
+    listen({and,attend}) {
+      return attend(m => [<[Id[], string]>m])
+        .then(r => {
+          const [ids, m] = r;
+          return and.chirp([ids, m]);
+        })
+        .orElse(and.end(true));
     },
 
 
@@ -46,8 +44,8 @@ export const parakeet = World
     },
 
 
-    async nest({and,attend}, d) {
-      const r = await attend(m => {
+    nest({and,attend}, d) {
+      return attend(m => {
         const k = d[1];
 
         if(Array.isArray(m) && m[0]==k) {
@@ -59,9 +57,7 @@ export const parakeet = World
               return [and.end(m[2])];
           }
         }
-      });
-
-      return r ? r[0] : and.migrate('somewhere...');
+      }).orElse(and.migrate('somewhere...'));
     }
   });
 

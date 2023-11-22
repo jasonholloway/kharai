@@ -153,9 +153,9 @@ describe('machines - running', () => {
           ghost: act(Num)
         })
         .impl({
-          async ghost({and,attend}) {
+          ghost({and,attend}) {
             console.debug('A1')
-            const r = await attend(m => {
+            return attend(m => {
               console.debug('A2')
               if(m) {
                 return [and.skip()]
@@ -163,9 +163,7 @@ describe('machines - running', () => {
               else {
                 return [and.end('fin')];
               }
-            });
-
-            return r && r[0];
+            }).assert();
           }
         }).build(),
         { threshold: 1 }

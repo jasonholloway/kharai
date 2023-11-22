@@ -41,8 +41,8 @@ export default () =>
       },
 
       run: {
-        async act({and,attend}, data) {
-          const [next] = await attend(m => {
+        act({and,attend}, data) {
+          return attend(m => {
             if(isCommand(m)) {
               const [cmd, str] = m;
 
@@ -57,9 +57,7 @@ export default () =>
             }
 
             return [and.skip()];
-          }) || [];
-
-          return next!;
+          }).assert();
         },
 
         show(d) {

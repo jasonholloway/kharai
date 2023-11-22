@@ -11,6 +11,7 @@ import { DataMap, Id, PhaseData } from "../lib";
 import { AttendedFn, Attendee, ConvenedFn, Convener, Frisked } from "../MachineSpace";
 import { Observable } from "rxjs";
 import CancellablePromise from "../CancellablePromise";
+import { Attempt } from "../Attempt";
 
 export type Ctx<N,PL extends string[],O> =
   RunCtx<DataMap,Frisked[]> extends infer XA ?
@@ -49,7 +50,7 @@ export type MachineCtx =
 
 export type MachineSpaceCtx<O> =
 {
-  attend: <R>(attend: Attendee<R>|AttendedFn<R>) => Promise<false|[R]>
+  attend: <R>(attend: Attendee<R>|AttendedFn<R>) => Attempt<R>
   convene: <R>(ids: string[], convene: Convener<R>|ConvenedFn<R>) => Promise<R>
   watch: (id: Id) => Observable<unknown>
   watchRaw: (id: Id) => Observable<PhaseData>

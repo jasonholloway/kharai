@@ -13,6 +13,7 @@ import { formPath } from './shape/common'
 import * as NodeTree from './shape/NodeTree'
 import { Ctx, MachineCtx, MachineSpaceCtx } from './shape/Ctx'
 import CancellablePromise from './CancellablePromise'
+import { Attempt } from './Attempt'
 
 const log = console.debug;
 
@@ -316,7 +317,7 @@ export class MachineSpace<N,O,NT=NodeTree.Form<N>> {
         }
       },
       
-      attend<R>(arg: Attendee<R>|AttendedFn<R>) {
+      attend<R>(arg: Attendee<R>|AttendedFn<R>): Attempt<R> {
         const attended = isAttendee(arg) ? arg.attended : arg;
 
         return x.attend(<MAttendee<R>>{
