@@ -41,6 +41,7 @@ export class RunSpace<V, L=V> {
 export type RunCtx<V,L> = {
   side: { get():unknown, set(d:unknown):void } 
   timer: Timer
+  pause: (ms:number)=>CancellablePromise<void>
   attend: <R>(attend: MAttendee<R>) => Attempt<R>
   convene: <R>(others: ArrayLike<Run<V,L>>, convene: MConvener<R>) => CancellablePromise<R>
   track: (target: Run<V,L>) => Observable<L>
@@ -124,6 +125,10 @@ export class Run<V,L=V> {
       },
 
       timer: _this.timer,
+
+      pause(ms: number) {
+        return _this.timer.schedule(ms, () => {});
+      },
 
       attend<R>(attendee: MAttendee<R>): Attempt<R> {
         return _this.mediator

@@ -8,236 +8,272 @@ import { act, incl, root } from '../src/shape/common';
 import { Str, Num } from '../src/guards/Guard'
 
 describe('running', () => {
-	const world = rodents.build();
+  const world = rodents.build();
 
-	it('start and stop', () =>
-		run(world)
-			.perform(({and,boot}) => Promise.all([
-				boot('a', and.gerbil.spawn([0,3])),
-				boot('b', and.gerbil.spawn([0,2]))
-			]))
-			.waitQuiet()
-		);
+  it('start and stop', () =>
+    run(world)
+      .perform(({and,boot}) => Promise.all([
+        boot('a', and.gerbil.spawn([0,3])),
+        boot('b', and.gerbil.spawn([0,2]))
+      ]))
+      .waitQuiet()
+    );
 
-	it('starting fresh', () =>
-		run(world)
-			.perform(({and,boot}) =>
-				boot('fresh', and.guineaPig.runAbout()))
-			.waitQuiet()
-			.then(({result}) => {
-				expect(result).toBeTruthy();
-			})
-		);
+  it('starting fresh', () =>
+    run(world)
+      .perform(({and,boot}) =>
+        boot('fresh', and.guineaPig.runAbout()))
+      .waitQuiet()
+      .then(({result}) => {
+        expect(result).toBeTruthy();
+      })
+    );
 
-	it('can summon by name', () => {
-		const w = World
-			.shape({
-				rat: act(),
-				mouse: act(Num)
-			})
-		  .impl({
-				async rat({and,convene}) {
-					await convene(['@M_mouse,123'], async ps => {
-						return ps.first()?.chat('squeak');
-					});
+  it('can summon by name', () => {
+    const w = World
+      .shape({
+        rat: act(),
+        mouse: act(Num)
+      })
+      .impl({
+        async rat({and,convene}) {
+          await convene(['@M_mouse,123'], async ps => {
+            return ps.first()?.chat('squeak');
+          });
 
-					return and.end('dunrattin');
-				},
+          return and.end('dunrattin');
+        },
 
-				mouse({and,attend}, n) {
-					return attend(m => [m])
-					  .map(r => and.end(`${n} ${r}`))
-					  .else(false);
-				}
-			});
+        mouse({and,attend}, n) {
+          return attend(m => [m])
+            .map(r => and.end(`${n} ${r}`))
+            .else(false);
+        }
+      });
 
-		return run(w.build())
-		  .perform(({and,boot}) => Promise.all([
-				boot('R', and.rat())
-			]))
-			.waitQuiet()
-			.then(({logs}) => {
-				expect(logs).toEqual([
-					['R', ['*_boot']],
-					['R', ['M_rat']],
-					['@M_mouse,123', ['M_mouse', '123']],
-					['R', ['*_end', 'dunrattin']],
-					['@M_mouse,123', ['*_end', '123 squeak']],
-				]);
-			})
-	})
+    return run(w.build())
+      .perform(({and,boot}) => Promise.all([
+        boot('R', and.rat())
+      ]))
+      .waitQuiet()
+      .then(({logs}) => {
+        expect(logs).toEqual([
+          ['R', ['*_boot']],
+          ['R', ['M_rat']],
+          ['@M_mouse,123', ['M_mouse', '123']],
+          ['R', ['*_end', 'dunrattin']],
+          ['@M_mouse,123', ['*_end', '123 squeak']],
+        ]);
+      })
+  })
 
-	it('can refer by name, using helper', () => {
-		const w = World
-			.shape({
-				rat: act(),
-				mouse: root(Str)
-			})
-		  .impl({
-				async rat({and,convene,ref}) {
-					await convene([ref.mouse('123')], async ps => {
-						return ps.first()?.chat('squeak');
-					});
+  it('can refer by name, using helper', () => {
+    const w = World
+      .shape({
+        rat: act(),
+        mouse: root(Str)
+      })
+      .impl({
+        async rat({and,convene,ref}) {
+          await convene([ref.mouse('123')], async ps => {
+            return ps.first()?.chat('squeak');
+          });
 
-					return and.end('dunrattin');
-				},
+          return and.end('dunrattin');
+        },
 
-				mouse({and,attend}, n) {
-					return attend(m => [m])
-					  .map(r => and.end(`${n} ${r}`))
-					  .else(false);
-				}
-			});
+        mouse({and,attend}, n) {
+          return attend(m => [m])
+            .map(r => and.end(`${n} ${r}`))
+            .else(false);
+        }
+      });
 
-		return run(w.build())
-			.perform(({and,boot}) => Promise.all([
-				boot('R', and.rat())
-			]))
-			.waitQuiet()
-		  .then(({logs}) => {
-				expect(logs).toEqual([
-					['R', ['*_boot']],
-					['R', ['M_rat']],
-					['@M_mouse,123', ['M_mouse', '123']],
-					['R', ['*_end', 'dunrattin']],
-					['@M_mouse,123', ['*_end', '123 squeak']],
-				]);
-			})
-	})
+    return run(w.build())
+      .perform(({and,boot}) => Promise.all([
+        boot('R', and.rat())
+      ]))
+      .waitQuiet()
+      .then(({logs}) => {
+        expect(logs).toEqual([
+          ['R', ['*_boot']],
+          ['R', ['M_rat']],
+          ['@M_mouse,123', ['M_mouse', '123']],
+          ['R', ['*_end', 'dunrattin']],
+          ['@M_mouse,123', ['*_end', '123 squeak']],
+        ]);
+      })
+  })
 
-	it('can refer by name, from template', async () => {
-		const beasties = World
-			.shape({
-				rat: act(),
-				mouse: root(Str)
-			})
-		  .impl({
-				async rat({and,convene,ref}) {
-					await convene([ref.mouse('123')], async ps => {
-						return ps.first()?.chat('squeak');
-					});
+  it('can refer by name, from template', async () => {
+    const beasties = World
+      .shape({
+        rat: act(),
+        mouse: root(Str)
+      })
+      .impl({
+        async rat({and,convene,ref}) {
+          await convene([ref.mouse('123')], async ps => {
+            return ps.first()?.chat('squeak');
+          });
 
-					return and.end('dunrattin');
-				},
+          return and.end('dunrattin');
+        },
 
-				mouse({and,attend}, n) {
-					return attend(m => [m])
-					  .map(r => and.end(`${n} ${r}`))
-					  .else(false);
-				}
-			});
+        mouse({and,attend}, n) {
+          return attend(m => [m])
+            .map(r => and.end(`${n} ${r}`))
+            .else(false);
+        }
+      });
 
-		const w = World
-		  .shape({
-				beasties: incl(beasties)
-			});
+    const w = World
+      .shape({
+        beasties: incl(beasties)
+      });
 
-		await run(w.build())
-			.perform(({and,boot}) => Promise.all([
-				boot('R', and.beasties.rat())
-			]))
-			.waitQuiet()
-			.then(({logs}) => {
-				expect(logs).toEqual([
-					['R', ['*_boot']],
-					['R', ['M_beasties_rat']],
-					['@M_beasties_mouse,123', ['M_beasties_mouse', '123']],
-					['R', ['*_end', 'dunrattin']],
-					['@M_beasties_mouse,123', ['*_end', '123 squeak']],
-				]);
-			})
-	})
+    await run(w.build())
+      .perform(({and,boot}) => Promise.all([
+        boot('R', and.beasties.rat())
+      ]))
+      .waitQuiet()
+      .then(({logs}) => {
+        expect(logs).toEqual([
+          ['R', ['*_boot']],
+          ['R', ['M_beasties_rat']],
+          ['@M_beasties_mouse,123', ['M_beasties_mouse', '123']],
+          ['R', ['*_end', 'dunrattin']],
+          ['@M_beasties_mouse,123', ['*_end', '123 squeak']],
+        ]);
+      })
+  })
 
-	xit('refs can convene', () => {})
 
-	//refs should be handles, with possible operations available
-	//
-	//
-	
-	
+  it('delay is cancellable', async () => {
+    let errs: unknown[] = [];
+    
+    const w = World
+      .shape({
+        sloth: { hang: act(Num) }
+      })
+      .impl({
+        sloth: {
+          async hang({pause}, ms) {
+            try {
+              await pause(ms);
+            }
+            catch(err) {
+              errs.push(err);
+            }
+            return false;
+          }
+        }
+      });
 
-	//TODO
-	//below requires boot() to be ''preemptable'
-	//or rather - it can't just opaquely summon and run
-	//summoning should be separate and awaitable
-	//while convening, as a separate step, should be preemptable
-	xit('starting existing', async () => {
-		const w = World
-		  .shape({
-				pootle: act(),
-				blah: act()
-			})
-		  .impl({
-				async pootle() {
-					await delay(1000);
-					return false;
-				},
-				async blah() {
-					return false;
-				}
-			});
+    await run(w.build())
+      .perform(({and,boot}) => boot('Cyril', and.sloth.hang(5000)))
+      .waitQuiet(0)
+      .then(async () => {
+        await delay(50);
+        expect(errs).toHaveLength(1);
+        expect(errs[0]).toBeInstanceOf(Error);
+        expect(errs[0]).toHaveProperty('message', 'Cancelled');
+      });
+  })
 
-		await run(w.build(), {
-				data: Map({
-					existing: ['pootle']
-				})
-			})
-			.perform(({and,boot}) => Promise.all([
-				boot('existing', and.blah())
-			]))
-			.waitQuiet()
-			.then(({result}) => {
-				expect(result).toBeFalsy();
-			})
-	})
 
-	xit('starting both fresh and existing', () =>
-		run(world, {
-				data: Map({
-					existing: ['M_rat_wake']
-				})
-			})
-			.perform(
-				({and,boot}) => boot('existing', and.hamster.wake(123)),
-				({and,boot}) => boot('fresh', and.hamster.wake(123))
-			)
-			.waitQuiet()
-			.then(({result,view}) => {
-				const [bootedExisting, bootedFresh] = result;
-				
-				expect(bootedExisting).toBeFalsy();
-				expect(bootedFresh).toBeTruthy();
+  
 
-				const existing = view('existing');
-				expect(existing).toEqual([
-					['M_rat_wake'],
-					['M_rat_squeak', 123],
-					['*_end', 'I have squeaked 123!']
-				]);
+  xit('refs can convene', () => {})
 
-				const fresh = view('fresh');
-				expect(fresh).toEqual([
-					['*_boot'],
-					['M_hamster_wake', 123],
-					['*_end', 123]
-				]);
-			})
-		 );
+  //refs should be handles, with possible operations available
+  //
+  //
+  
+  
 
-	xit('graceful ending of deadlocks', async () => {
-		//
-		//deadlocks get in the way of graceful shutdown
-		//and should be detectable in many cases
-		//
-		//if all the peers a convener is waiting for have finnished
-		//(or are waiting for other peers that are impossible) 
-		//then we can give up, just throw an exception
-		//
-		//but attaching deadlocks too - attaching can be cancelled if
-		//there are no machines that can possibly convene
-		//(ie all existing are attaching)
-		//
-		//TODO
-	})
-	
+  //TODO
+  //below requires boot() to be ''preemptable'
+  //or rather - it can't just opaquely summon and run
+  //summoning should be separate and awaitable
+  //while convening, as a separate step, should be preemptable
+  xit('starting existing', async () => {
+    const w = World
+      .shape({
+        pootle: act(),
+        blah: act()
+      })
+      .impl({
+        async pootle({pause}) {
+          await pause(1000);
+          return false;
+        },
+        async blah() {
+          return false;
+        }
+      });
+
+    await run(w.build(), {
+        data: Map({
+          existing: ['pootle']
+        })
+      })
+      .perform(({and,boot}) => Promise.all([
+        boot('existing', and.blah())
+      ]))
+      .waitQuiet()
+      .then(({result}) => {
+        expect(result).toBeFalsy();
+      })
+  })
+
+  xit('starting both fresh and existing', () =>
+    run(world, {
+        data: Map({
+          existing: ['M_rat_wake']
+        })
+      })
+      .perform(
+        ({and,boot}) => boot('existing', and.hamster.wake(123)),
+        ({and,boot}) => boot('fresh', and.hamster.wake(123))
+      )
+      .waitQuiet()
+      .then(({result,view}) => {
+        const [bootedExisting, bootedFresh] = result;
+        
+        expect(bootedExisting).toBeFalsy();
+        expect(bootedFresh).toBeTruthy();
+
+        const existing = view('existing');
+        expect(existing).toEqual([
+          ['M_rat_wake'],
+          ['M_rat_squeak', 123],
+          ['*_end', 'I have squeaked 123!']
+        ]);
+
+        const fresh = view('fresh');
+        expect(fresh).toEqual([
+          ['*_boot'],
+          ['M_hamster_wake', 123],
+          ['*_end', 123]
+        ]);
+      })
+     );
+
+  xit('graceful ending of deadlocks', async () => {
+    //
+    //deadlocks get in the way of graceful shutdown
+    //and should be detectable in many cases
+    //
+    //if all the peers a convener is waiting for have finnished
+    //(or are waiting for other peers that are impossible) 
+    //then we can give up, just throw an exception
+    //
+    //but attaching deadlocks too - attaching can be cancelled if
+    //there are no machines that can possibly convene
+    //(ie all existing are attaching)
+    //
+    //TODO
+  })
+  
 })

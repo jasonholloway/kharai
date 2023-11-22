@@ -44,8 +44,8 @@ export const rodents = World
     },
 
     hamster: {
-      async wake({and}, d) {
-        await delay(100);
+      async wake({and,pause}, d) {
+        await pause(100);
         return and.end(d);
       },
 

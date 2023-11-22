@@ -1,9 +1,10 @@
 import { Set } from 'immutable'
 import { Observable } from 'rxjs';
-import CancellablePromise from './CancellablePromise';
+import CancellablePromise, { CancelledError } from './CancellablePromise';
+import { isDate } from 'node:util/types';
 
 export interface Timer {
-  schedule<V>(when: Date, fn: ()=>V): Promise<V>
+  schedule<V>(when: number|Date, fn: ()=>V): CancellablePromise<V>
 }
 
 export class RealTimer implements Timer {
@@ -22,12 +23,14 @@ export class RealTimer implements Timer {
     });
   }
   
-  schedule<V>(when: Date, fn: ()=>V): Promise<V> {
+  schedule<V>(when: number|Date, fn: ()=>V): CancellablePromise<V> {
     return new CancellablePromise<V>(
-      (resolve, reject) => {
-        const nowMs = Date.now();
-        const dueMs = when.valueOf();
-        const delayMs = Math.max(dueMs - nowMs, 0);
+      (resolve, reject, onCancel) => {
+        const delayMs = Math.max(
+          isDate(when)
+            ? when.valueOf() - Date.now()
+            : when,
+          0);
 
         const t = setTimeout(() => {
           if(this.active) {
@@ -43,6 +46,11 @@ export class RealTimer implements Timer {
             reject(Error('RealTimer deactivated'));
           }
         }, delayMs);
+
+        onCancel(() => {
+          clearTimeout(t)
+          reject(new CancelledError());
+        });
 
         this.timeouts = this.timeouts.add(t);
       }).cancelOn(this.kill$);

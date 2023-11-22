@@ -3,7 +3,6 @@ import { World } from '../../src/shape/World';
 import { act } from '../../src/shape/common';
 import { Many, Str, Tup } from '../../src/guards/Guard';
 import { Id } from '../lib';
-import { delay } from '../helpers';
 
 export const parakeet = World
   .shape({
@@ -41,11 +40,9 @@ export const parakeet = World
       return and.end('no-one to chirp to!');
     },
 
-
     async migrate({and}, destination) {
       return and.$meetAt([destination, and.nest([{}, ''])]);
     },
-
 
     nest({and,attend}, d) {
       return attend(m => {
@@ -64,13 +61,7 @@ export const parakeet = World
     },
 
     async flapAbout(x) {
-      await delay(30); //would be nice to have a cancellable delay provided here...
+      await x.pause(30);
       return x.and.flapAbout();
     }
-
   });
-
-//a nicely typed phase factory
-//would solve many of our woes above:
-//it would always have a nice type
-//no stress on ts to come up with common base tuple 
