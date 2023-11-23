@@ -1,6 +1,6 @@
 import { describe, it, expect } from "@jest/globals"
 import CancellablePromise, { Cancellable } from "../src/CancellablePromise";
-import { Narrowable, Num, Str } from "../src/guards/Guard";
+import { Bool, Narrowable, Num, Read, Str, Typ } from "../src/guards/Guard";
 import { Attempt } from "../src/Attempt";
 import { Map } from "immutable";
 
@@ -13,74 +13,122 @@ namespace Interfaces {
 
   
   export class Contract<S extends Spec> {
+    spec:S;
+
+    constructor(spec: S) {
+      this.spec = spec;
+    }
     //nothing actually needed in here?
   };
 
-  export type Client<S extends Spec> = {}
+  export type Client<S extends Spec> = {
+    iface: Interface<S>
+  };
+
+  export type Pipeline = (m:unknown, next:Pipeline)=>unknown;
+
+  export type Interface<S extends Spec> =
+    {
+      [k in keyof S]: ReadFn<S[k]>
+    }
   ;
 
-  export type Interface<S extends Spec> = {}
+  type ReadFn<F> =
+      F extends Typ<['fn', infer ParamGuards]>
+    ? ReadFnArgs<ParamGuards> extends infer Params
+    ? Params extends [...infer Args, infer Return]
+    ? (...args: Args)=>Return
+    : never : never : never
   ;
+
+  type ReadFnArgs<R> =
+      R extends [infer Head] ? [Read<Head>]
+    : R extends [infer Head, ...infer Tail] ? [Read<Head>, ...ReadFnArgs<Tail>]
+    : never
+    ;
+
+  {
+    const fn = Fn(Num, Str, Bool);
+    
+    type R = ReadFn<typeof fn>;
+
+    type _ = [R];
+  }
+  
 
   export class Server {
     private _handlers: Map<Contract<Spec>, Interface<Spec>> = Map();
 
     addHandler<S extends Spec>(c: Contract<S>, handler: Interface<S>): void {
-      this._handlers.set(c, handler);
+      this._handlers = this._handlers.set(c, handler);
     }
 
     getHandler<S extends Spec>(c: Contract<S>): Attempt<Interface<S>> {
-      return Attempt.fail();
+      const found = this._handlers.get(c, false);
+      return found ? Attempt.succeed(<Interface<S>>found) : Attempt.fail();
     }
   };
 
-  export function Fn<I, O>(i: I, o: O): {} {
-    return tup('fn', i, o);
+  export function Fn<R extends unknown[]>(...params: R) {
+    return new Typ(tup('fn' as const, params));
   }
 
 
   export function spec<S extends Spec>(spec: S): Contract<S> {
-    return new Contract<S>();
+    return new Contract<S>(spec);
   }
 
+  export function bindToServer<S extends Spec>(contract: Contract<S>, pipeline: Pipeline, server: Server): Attempt<Client<S>> {
+    return server.getHandler(contract).map(createClient);
 
-  // this itself is a negotation, ironically
-  // except we are in a simpler space here:
-  // the client asks the server, and the server says yes or no, providing an implementation or not
-  // so... we only need bindServer!
+    function createClient(h: Interface<S>): Client<S> {
+      const s = contract.spec;
+      const props = Object.getOwnPropertyNames(s);
 
-  // export function bindClient<S extends Spec>(contract: Contract<S>): Attempt<Client<S>> {
-  //   return Attempt.fail();
-  // }
+      return {
+        iface: <Interface<S>>props.reduce(
+          (ac, pn) => ({
+            ...ac,
+            [pn]: (m) => {
+              //should turn to message here todo
 
-  export function bindToServer<S extends Spec>(contract: Contract<S>, server: Server): Attempt<Client<S>> {
-    const s = server.getHandler(contract);
-    //opportuniy to interject here!
-    return s;
+              return pipeline(m, m => {
+                //turn back from message here todo
+
+                if(pn in h) {
+                  return (<any>h)[pn](m);
+                }
+                {
+                  throw 123;
+                }
+              });
+            }
+          }),
+          {})
+      }
+    }
   }
 }
 
-
-
 describe('interfaces', () => {
-
-  it('spec', () => {
+  it('can be added and bound', async () => {
     const contract = Interfaces.spec({
-      sayHello: Interfaces.Fn(Str, true)
+      countChars: Interfaces.Fn(Str, Num)
     });
 
     const server = new Interfaces.Server();
+    server.addHandler(contract, {
+      countChars(str: string) {
+        return str.length;
+      }
+    });
 
-    server.addHandler(contract, {});
+    //TODO next pattern below is iffy!
+    const pipeline: Interfaces.Pipeline = (m, next) => next(m);
 
-    //opens the question, what's the point (or possibility) of bind, it all it's currently doing is looking into a map?
-    //contracts could have a graph...
-    //but also the interpellation of middleware, instead of giving the two parties direct access to one another
-    //such mediation is necessary, potentially, to track causation etc
-    //or we could use the chat protocol? this would ensure causation tracking for us
-    //this seems right though: we shouldn't call directly: rather we should send messages
+    const client = await Interfaces.bindToServer(contract, pipeline, server).ok();
 
-    const client = Interfaces.bindToServer(contract, server).ok();
-    expect(client).toBeDefined();
+    const result = client.iface.countChars('hello');
+    expect(result).toBe(5);
   })
 })
