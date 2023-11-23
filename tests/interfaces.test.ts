@@ -2,6 +2,7 @@ import { describe, it, expect } from "@jest/globals"
 import { Bool, Narrowable, Num, Read, Str, Typ } from "../src/guards/Guard";
 import { Attempt } from "../src/Attempt";
 import { Map } from "immutable";
+import CancellablePromise from "./CancellablePromise";
 
 namespace Interfaces {
 
@@ -27,6 +28,10 @@ namespace Interfaces {
   export type Handler = (m:[string,unknown[]])=>unknown;
 
   export type Pipeline = (next: Handler) => Handler;
+
+  // export type Transport = 
+
+  
 
   export type Interface<S extends Spec> =
     {
@@ -57,6 +62,27 @@ namespace Interfaces {
   }
   
 
+
+  type ReturnTypes<R> = never; //todo
+
+  export class Receiver<R=never> {
+
+    constructor() {
+      //should take transport here
+    }
+
+    serve<S extends Spec, Impl extends Interface<S>>(contract: Contract<S>, impl: Impl): Receiver<R|ReturnTypes<Impl>> {
+      throw 123;
+    }
+
+    wait(): CancellablePromise<R> { //could be implicit
+      throw 123;
+    }
+
+  }
+
+  
+
   export class Server {
     private _handlers: Map<Contract<Spec>, Interface<Spec>> = Map();
 
@@ -68,6 +94,20 @@ namespace Interfaces {
       const found = this._handlers.get(c, false);
       return found ? Attempt.succeed(<Interface<S>>found) : Attempt.fail();
     }
+
+    waitTillNext(): CancellablePromise<unknown> {
+      throw 123;
+    }
+
+    // the waiting needs to returned a well-typed response
+    // so it's not just adding the handler that's needed: its the processing as well
+    // OR the type of the Server needs to be built up via the builder pattern (also good)
+    // in fact it has to be the latter (even if there's an implicit builder)
+
+    // the handlers and their types need to be accumulated before anything is done with them
+    // so there has to be some kind of hook at the end (possibly on the await?!)
+    //
+    
   };
 
   export function Fn<R extends unknown[]>(...params: R) {
@@ -86,11 +126,24 @@ namespace Interfaces {
       const s = contract.spec;
       const props = Object.getOwnPropertyNames(s);
 
+
+
+
       return {
         iface: <Interface<S>>props.reduce(
           (ac, pn) => ({
             ...ac,
             [pn]: (...args: unknown[]) => {
+
+              // this is the client proxy
+              // and the pipeline should dictate what happens to the introduced messages
+              // we can imagine dispatch-at-a-distance
+              // which would mean the binding to the server is done indirectly
+              //
+              // instead of injecting just one part, that does both send and recieve
+              // there should be two parts (possibly with transport inbetween...)
+
+              
               const result = pipeline(m => {
                 const handler = <Record<string, unknown|undefined>>h;
                 const found = handler[m[0]];
@@ -134,5 +187,26 @@ describe('interfaces', () => {
 
     const result = client.iface.countChars('hello');
     expect(result).toBe(5);
+  })
+
+
+
+  it('can set up receiver', async () => {
+    const contract = Interfaces.spec({
+      countChars: Interfaces.Fn(Str, Num)
+    });
+
+
+
+    const received = await new Interfaces.Receiver()
+      .serve(contract, {
+        countChars(s) {
+          return s.length;
+        }
+      })
+      .wait()
+    ;
+
+
   })
 })
