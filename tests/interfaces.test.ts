@@ -1,5 +1,4 @@
 import { describe, it, expect } from "@jest/globals"
-import CancellablePromise, { Cancellable } from "../src/CancellablePromise";
 import { Bool, Narrowable, Num, Read, Str, Typ } from "../src/guards/Guard";
 import { Attempt } from "../src/Attempt";
 import { Map } from "immutable";
@@ -25,7 +24,9 @@ namespace Interfaces {
     iface: Interface<S>
   };
 
-  export type Pipeline = (m:unknown, next:Pipeline)=>unknown;
+  export type Handler = (m:[string,unknown[]])=>unknown;
+
+  export type Pipeline = (next: Handler) => Handler;
 
   export type Interface<S extends Spec> =
     {
@@ -78,7 +79,7 @@ namespace Interfaces {
     return new Contract<S>(spec);
   }
 
-  export function bindToServer<S extends Spec>(contract: Contract<S>, pipeline: Pipeline, server: Server): Attempt<Client<S>> {
+  export function bindToServer<S extends Spec>(contract: Contract<S>, server: Server, pipeline: Pipeline): Attempt<Client<S>> {
     return server.getHandler(contract).map(createClient);
 
     function createClient(h: Interface<S>): Client<S> {
@@ -89,19 +90,25 @@ namespace Interfaces {
         iface: <Interface<S>>props.reduce(
           (ac, pn) => ({
             ...ac,
-            [pn]: (m) => {
-              //should turn to message here todo
+            [pn]: (...args: unknown[]) => {
+              const result = pipeline(m => {
+                const handler = <Record<string, unknown|undefined>>h;
+                const found = handler[m[0]];
 
-              return pipeline(m, m => {
-                //turn back from message here todo
+                if(found && typeof found === 'function') {
+                  return found(...m[1]);
+                }
+                else {
+                  throw Error(`No function prop ${pn} found on handler`);
+                }
+              })([pn, args]);
 
-                if(pn in h) {
-                  return (<any>h)[pn](m);
-                }
-                {
-                  throw 123;
-                }
-              });
+              //need to unpack result here?
+              //possibly not, actually
+              //as there's no info except from the payload being returned...
+              //so it can just flow as is
+
+              return result;
             }
           }),
           {})
@@ -123,10 +130,7 @@ describe('interfaces', () => {
       }
     });
 
-    //TODO next pattern below is iffy!
-    const pipeline: Interfaces.Pipeline = (m, next) => next(m);
-
-    const client = await Interfaces.bindToServer(contract, pipeline, server).ok();
+    const client = await Interfaces.bindToServer(contract, server, next=>next).ok();
 
     const result = client.iface.countChars('hello');
     expect(result).toBe(5);
