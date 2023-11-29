@@ -1,16 +1,15 @@
 import { describe, it, expect } from "@jest/globals"
 import { Bool, Narrowable, Num, Read, Str, Typ } from "../src/guards/Guard";
 import { Attempt } from "../src/Attempt";
-import { Map } from "immutable";
-import CancellablePromise from "./CancellablePromise";
+import { Map, Set } from "immutable";
+import { AttendedFn } from "../src/MachineSpace";
+import CancellablePromise from "../src/CancellablePromise";
 
-namespace Interfaces {
+const tup = <R extends Narrowable[]>(...r: R) => r;
 
-  const tup = <R extends Narrowable[]>(...r: R) => r;
+namespace Calls {
 
-
-  export type Spec = {};
-
+  export type Spec = ReturnType<typeof Fn>;
   
   export class Contract<S extends Spec> {
     spec:S;
@@ -18,195 +17,159 @@ namespace Interfaces {
     constructor(spec: S) {
       this.spec = spec;
     }
-    //nothing actually needed in here?
   };
 
-  export type Client<S extends Spec> = {
-    iface: Interface<S>
-  };
+  export type Handler<S extends Spec> =
+    ReadFn<S> extends { args: infer Args, ret: infer Ret }
+  ? Args extends unknown[]
+  ? (...args: Args)=>[unknown, Ret]
+  : never : never;
 
-  export type Handler = (m:[string,unknown[]])=>unknown;
 
-  export type Pipeline = (next: Handler) => Handler;
-
-  // export type Transport = 
-
-  
-
-  export type Interface<S extends Spec> =
-    {
-      [k in keyof S]: ReadFn<S[k]>
-    }
-  ;
 
   type ReadFn<F> =
-      F extends Typ<['fn', infer ParamGuards]>
-    ? ReadFnArgs<ParamGuards> extends infer Params
-    ? Params extends [...infer Args, infer Return]
-    ? (...args: Args)=>Return
-    : never : never : never
+      unknown extends F ? { args:unknown[], ret:unknown, fn:(...args:unknown[])=>unknown } //return type could be narrower here
+    : F extends Typ<['fn', infer ArgGuards, infer RetGuard]>
+    ? Read<ArgGuards> extends infer Args
+    ? Args extends unknown[] 
+    ? Read<RetGuard> extends infer Ret
+    ? { args:Args, ret:Ret, fn:(...args:Args)=>Ret }
+    : never : never : never : never
   ;
 
-  type ReadFnArgs<R> =
-      R extends [infer Head] ? [Read<Head>]
-    : R extends [infer Head, ...infer Tail] ? [Read<Head>, ...ReadFnArgs<Tail>]
-    : never
-    ;
+
+  // type ReadFnArgs<R> =
+  //     R extends [infer Head] ? [Read<Head>]
+  //   : R extends [infer Head, ...infer Tail] ? [Read<Head>, ...ReadFnArgs<Tail>]
+  //   : never
+  //   ;
 
   {
-    const fn = Fn(Num, Str, Bool);
-    
+    const fn = Fn(tup(Num, Str), Bool);
+
     type R = ReadFn<typeof fn>;
 
-    type _ = [R];
+    type Y = ReadFn<unknown>;
+
+    type _ = [R, Y];
   }
   
 
 
   type ReturnTypes<R> = never; //todo
 
-  export class Receiver<R=never> {
-
-    constructor() {
-      //should take transport here
-    }
-
-    serve<S extends Spec, Impl extends Interface<S>>(contract: Contract<S>, impl: Impl): Receiver<R|ReturnTypes<Impl>> {
-      throw 123;
-    }
-
-    wait(): CancellablePromise<R> { //could be implicit
-      throw 123;
-    }
-
-  }
-
   
+  export type RunReceiver<R> = (fn: AttendedFn<R>)=>Attempt<R>;
 
-  export class Server {
-    private _handlers: Map<Contract<Spec>, Interface<Spec>> = Map();
+  const $bind = Symbol();
+  
+  export type BindCall = [typeof $bind, Contract<Spec>, unknown[]];
+  export type BindReply = [typeof $bind, Contract<Spec>, unknown];
 
-    addHandler<S extends Spec>(c: Contract<S>, handler: Interface<S>): void {
-      this._handlers = this._handlers.set(c, handler);
+  function isBindCall(m: any): m is BindCall {
+    return Array.isArray(m)
+      && m.length == 3
+      && m[0] === $bind
+      && m[1] instanceof Contract
+      && Array.isArray(m[2]);
+  }
+
+  export class Receiver<R=never> {
+    private _run: RunReceiver<R>;
+    private _handlers: Map<Contract<Spec>, Handler<Spec>>;
+
+    constructor(add: RunReceiver<R>, reg: Map<Contract<Spec>, Handler<Spec>>) {
+      this._run = add;
+      this._handlers = reg ?? Map();
     }
 
-    getHandler<S extends Spec>(c: Contract<S>): Attempt<Interface<S>> {
-      const found = this._handlers.get(c, false);
-      return found ? Attempt.succeed(<Interface<S>>found) : Attempt.fail();
+    serve<S extends Spec, Impl extends Handler<S>>(contract: Contract<S>, impl: Impl): Receiver<R|ReturnTypes<Impl>> {
+      return new Receiver(this._run, this._handlers.set(contract, impl));
     }
 
-    waitTillNext(): CancellablePromise<unknown> {
-      throw 123;
+    wait(): Attempt<R> { //could be implicit
+      return this._run(m => {
+        if(!isBindCall(m)) return false;
+        else {
+          const [, contract, args] = m;
+
+          const handler = this._handlers.get(contract, false);
+          if(!handler) return false;
+
+          const r = <[R, unknown]>handler(...args);
+          //todo
+          //test args here
+
+          return r;
+        }
+      });
     }
-
-    // the waiting needs to returned a well-typed response
-    // so it's not just adding the handler that's needed: its the processing as well
-    // OR the type of the Server needs to be built up via the builder pattern (also good)
-    // in fact it has to be the latter (even if there's an implicit builder)
-
-    // the handlers and their types need to be accumulated before anything is done with them
-    // so there has to be some kind of hook at the end (possibly on the await?!)
-    //
-    
-  };
-
-  export function Fn<R extends unknown[]>(...params: R) {
-    return new Typ(tup('fn' as const, params));
   }
 
 
-  export function spec<S extends Spec>(spec: S): Contract<S> {
-    return new Contract<S>(spec);
+
+
+  export function Fn<Args extends unknown[], Return>(args: Args, ret: Return) {
+    return new Typ(tup('fn' as const, args, ret));
   }
 
-  export function bindToServer<S extends Spec>(contract: Contract<S>, server: Server, pipeline: Pipeline): Attempt<Client<S>> {
-    return server.getHandler(contract).map(createClient);
 
-    function createClient(h: Interface<S>): Client<S> {
-      const s = contract.spec;
-      const props = Object.getOwnPropertyNames(s);
+  export type Target = (m:unknown)=>Attempt<unknown>;
 
-
-
-
-      return {
-        iface: <Interface<S>>props.reduce(
-          (ac, pn) => ({
-            ...ac,
-            [pn]: (...args: unknown[]) => {
-
-              // this is the client proxy
-              // and the pipeline should dictate what happens to the introduced messages
-              // we can imagine dispatch-at-a-distance
-              // which would mean the binding to the server is done indirectly
-              //
-              // instead of injecting just one part, that does both send and recieve
-              // there should be two parts (possibly with transport inbetween...)
-
-              
-              const result = pipeline(m => {
-                const handler = <Record<string, unknown|undefined>>h;
-                const found = handler[m[0]];
-
-                if(found && typeof found === 'function') {
-                  return found(...m[1]);
-                }
-                else {
-                  throw Error(`No function prop ${pn} found on handler`);
-                }
-              })([pn, args]);
-
-              //need to unpack result here?
-              //possibly not, actually
-              //as there's no info except from the payload being returned...
-              //so it can just flow as is
-
-              return result;
-            }
-          }),
-          {})
-      }
-    }
+  export function bindAndCall<S extends Spec, F extends ReadFn<S>=ReadFn<S>>(attaching: Attempt<Target>, contract: Contract<S>, args: F['args']): Attempt<F['ret']> {
+    return attaching
+      .flatMap(target => target([$bind, contract, args]))
+      .flatMap(r => {
+        //test response here
+        return Attempt.succeed(r);
+      })
   }
 }
 
+
 describe('interfaces', () => {
-  it('can be added and bound', async () => {
-    const contract = Interfaces.spec({
-      countChars: Interfaces.Fn(Str, Num)
-    });
-
-    const server = new Interfaces.Server();
-    server.addHandler(contract, {
-      countChars(str: string) {
-        return str.length;
-      }
-    });
-
-    const client = await Interfaces.bindToServer(contract, server, next=>next).ok();
-
-    const result = client.iface.countChars('hello');
-    expect(result).toBe(5);
-  })
-
-
 
   it('can set up receiver', async () => {
-    const contract = Interfaces.spec({
-      countChars: Interfaces.Fn(Str, Num)
-    });
+    const countChars = new Calls.Contract(Calls.Fn(tup(Str), Num));
 
+    const receivers: ((m:unknown)=>Attempt<unknown>)[] = [];
 
+    const runReceiver: Calls.RunReceiver<unknown> = fn => {
+      return new Attempt(CancellablePromise.create(resolve => {
+        receivers.push(m => {
+          const r = fn(m, 'mid', Set())
+          if(r) {
+            resolve([r[0]]);
+            return Attempt.succeed(r[1]);
+          }
+          else {
+            resolve(false)
+            return Attempt.fail();
+          };
+        });
+      }));
+    };
 
-    const received = await new Interfaces.Receiver()
-      .serve(contract, {
-        countChars(s) {
-          return s.length;
-        }
+    const target: Calls.Target = m => {
+      return receivers[0](m);
+    };
+
+    const receiving = new Calls.Receiver(runReceiver, Map())
+      .serve(countChars, s => {
+        return ['forServer', s.length];
       })
       .wait()
-    ;
+      .ok();
 
+    const result = await Calls
+      .bindAndCall(Attempt.succeed(target), countChars, ['woof'])
+      .ok();
 
+    const received = await receiving;
+
+    expect(result).toBe(4);
+    expect(received).toBe('forServer');
   })
+
+  
 })

@@ -25,7 +25,6 @@ export const parakeet = World
         .else(and.end(true));
     },
 
-
     async chirp({and,convene}, [ids, message]) {
       const [id, ...otherIds] = ids;
 
@@ -44,21 +43,20 @@ export const parakeet = World
       return and.$meetAt([destination, and.nest([{}, ''])]);
     },
 
-    nest({and,attend}, d) {
-      return attend(m => {
+    nest: ({and,attend}, d) =>
+      attend(m => {
         const k = d[1];
 
         if(Array.isArray(m) && m[0]==k) {
           switch(m[1]) {
             case 'contribute':
               return [and.nest([{},k]), 'hello'];
-
             case 'fin':
               return [and.end(m[2])];
           }
         }
-      }).else(and.migrate('somewhere...'));
-    },
+      })
+      .else(and.migrate('somewhere...')),
 
     async flapAbout(x) {
       await x.pause(30);

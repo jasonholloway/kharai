@@ -74,7 +74,7 @@ export class Attempt<A> implements Promise<[A]|false>, Cancellable {
     return this._inner.cancel();
   }
   
-  static succeed<V>(v: V): Attempt<V> {
+  static succeed<V>(v?: V): Attempt<V> {
     return new Attempt(CancellablePromise.create(resolve => resolve([v])));
   }
 
