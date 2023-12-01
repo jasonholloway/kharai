@@ -16,8 +16,8 @@ export namespace Preemptable {
 
 export interface Preemptable<A> {
   preempt(): readonly [true, A] | readonly [false, () => CancellablePromise<A>]
-  bind<B>(fn: ((a:A)=>Preemptable<B>)): Preemptable<B>
   map<B>(fn: (a:A) => B): Preemptable<B>
+  flatMap<B>(fn: ((a:A)=>Preemptable<B>)): Preemptable<B>
   promise(): CancellablePromise<A>
 }
 
@@ -32,12 +32,12 @@ class Value<A> implements Preemptable<A> {
     return [true, this.value];
   }
   
-  bind<B>(fn: (a: A) => Preemptable<B>): Preemptable<B> {
+  flatMap<B>(fn: (a: A) => Preemptable<B>): Preemptable<B> {
     return fn(this.value);
   }
 
   map<B>(fn: (a: A) => B): Preemptable<B> {
-    return this.bind(a => Preemptable.lift(fn(a)));
+    return this.flatMap(a => Preemptable.lift(fn(a)));
   }
 
   promise(): CancellablePromise<A> {
@@ -57,10 +57,10 @@ class Continuable<A> implements Preemptable<A> {
     return [false, () => this.promise()];
   }
 
-  bind<B>(fn: (a: A) => Preemptable<B>): Preemptable<B> {
+  flatMap<B>(fn: (a: A) => Preemptable<B>): Preemptable<B> {
     return new Continuable((resolve, reject, onCancel) => {
       let cancelled: boolean = false;
-      onCancel(() => cancelled = true);
+      onCancel(() => { cancelled = true });
       
       try {
         this.run(
@@ -95,7 +95,7 @@ class Continuable<A> implements Preemptable<A> {
   //TODO Cancellable should do more, leaving less to do here
 
   map<B>(fn: (a: A) => B): Preemptable<B> {
-    return this.bind(a => Preemptable.lift(fn(a)));
+    return this.flatMap(a => Preemptable.lift(fn(a)));
   }
 
   promise(upstreams?: Cancellable[]): CancellablePromise<A> {

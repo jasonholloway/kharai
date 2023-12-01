@@ -3,8 +3,8 @@ import _Monoid from '../src/_Monoid'
 import { parakeet } from './worlds/parakeet'
 import { run, showData } from './shared';
 import { World } from '../src/shape/World';
-import { act, root } from '../src/shape/common';
-import { delay } from './util';
+import { root } from '../src/shape/common';
+import { delay } from '../src/util';
 
 describe('machines - conversing', () => {
   const world = parakeet.build();

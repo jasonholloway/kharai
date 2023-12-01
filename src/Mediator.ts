@@ -66,7 +66,7 @@ export class Mediator {
       .claim(...others)
       .promise()
       .cancelOn(this.kill$)
-      .then(claim => {
+      .then(async claim => {
         try {
           const peers = claim.offers();
 

@@ -220,8 +220,7 @@ describe('Cancellable Promises', () => {
       runs.push('a');
       onCancel(() => { cancellations.push('a') });
       
-      setTimeout(() => resolve(
-        CancellablePromise.create(
+      setTimeout(() => resolve(CancellablePromise.create(
           (resolve, reject, onCancel2) => {
             runs.push('b');
             const tid = setTimeout(() => resolve('blablabla should never get here...'), 2000);
