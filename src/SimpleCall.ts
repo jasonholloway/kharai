@@ -1,6 +1,5 @@
 import { Map } from "immutable";
 import { Attempt } from "./Attempt";
-import { AttendedFn } from "./MachineSpace";
 import { Guard, Read } from "./guards/Guard";
 
 
@@ -23,7 +22,6 @@ type ContractArgs<C extends Contract> = C extends Contract<infer Args, unknown> 
 type ContractRet<C extends Contract> = C extends Contract<unknown[], infer Ret> ? Ret : never;
 
 
-
 export type Handler<C extends Contract = Contract> =
   (...args: ContractArgs<C>) => [unknown, ContractRet<C>]
 ;
@@ -35,28 +33,7 @@ type HandlerRet<H> =
 ;
 
 
-export type RunReceiver = <R>(fn: AttendedFn<R>)=>Attempt<R>;
-
-const $bindCall = Symbol();
-const $bindReply = Symbol();
-
-type BindCall = [typeof $bindCall, Contract, unknown[]];
-type BindReply = [typeof $bindReply, Contract, unknown];
-
-function isBindCall(m: any): m is BindCall {
-  return Array.isArray(m)
-    && m.length == 3
-    && m[0] === $bindCall
-    && m[1] instanceof Contract
-    && Array.isArray(m[2]);
-}
-
-function isBindReply(m: any): m is BindReply {
-  return Array.isArray(m)
-    && m.length == 3
-    && m[0] === $bindReply
-    && m[1] instanceof Contract;
-}
+export type RunReceiver = <R>(fn: (m:unknown)=>([R]|[R,unknown]|false))=>Attempt<R>;
 
 export class Receiver<R=never> {
   private _run: RunReceiver;
@@ -97,17 +74,39 @@ export function bindAndCall<A extends unknown[], R, C extends Contract<A,R>>(att
     .flatMap(target => target([$bindCall, contract, args]))
     .flatMap(r => {
       if(!isBindReply(r)) return Attempt.fail(); //todo really need reasons!
-
-      const [, c, ret] = r;
-
-      if(c !== contract) return Attempt.fail();
-      
-      //question here: do we actually need to use the guards? and perhaps for all contracts: if we've compared $bind, then all types should be safe...
-      if(contract.guards.ret(ret)) {
-        return Attempt.succeed(ret);
-      }
       else {
-        return Attempt.fail(); //really need to capture errors here
+        const [, c, ret] = r;
+
+        if(c !== contract) return Attempt.fail();
+
+        //question here: do we actually need to use the guards? and perhaps for all contracts: if we've compared $bind, then all types should be safe...
+        if(contract.guards.ret(ret)) {
+          return Attempt.succeed(ret);
+        }
+        else {
+          return Attempt.fail(); //really need to capture errors here
+        }
       }
     })
+}
+
+const $bindCall = Symbol();
+const $bindReply = Symbol();
+
+type BindCall = [typeof $bindCall, Contract, unknown[]];
+type BindReply = [typeof $bindReply, Contract, unknown];
+
+function isBindCall(m: any): m is BindCall {
+  return Array.isArray(m)
+    && m.length == 3
+    && m[0] === $bindCall
+    && m[1] instanceof Contract
+    && Array.isArray(m[2]);
+}
+
+function isBindReply(m: any): m is BindReply {
+  return Array.isArray(m)
+    && m.length == 3
+    && m[0] === $bindReply
+    && m[1] instanceof Contract;
 }

@@ -1,8 +1,7 @@
 import { describe, it, expect } from "@jest/globals"
-import { Map, Set } from "immutable";
-import { Bool, Guard, Num, Read, Str, Typ } from "../src/guards/Guard";
+import { Map } from "immutable";
+import { Num, Str } from "../src/guards/Guard";
 import { Attempt } from "../src/Attempt";
-import { AttendedFn } from "../src/MachineSpace";
 import CancellablePromise from "../src/CancellablePromise";
 import { tup } from "../src/util";
 import { Witness } from "./shared.js";
@@ -80,7 +79,7 @@ describe('SimpleCall', () => {
     const runReceiver: SimpleCall.RunReceiver = fn => {
       return new Attempt(CancellablePromise.create(resolve => {
         receivers.push(m => {
-          const r = fn(m, 'mid', Set())
+          const r = fn(m)
           if(r) {
             resolve([r[0]]);
             return Attempt.succeed(r[1]);
