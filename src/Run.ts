@@ -118,7 +118,7 @@ export function newRun<N,O>
         meet<R = unknown>(convener: Convener<R>|ConvenedFn<R>): Promise<R> {
           //below rubbishly resummons
           return machineSpace.runArbitrary(x => {
-            return x.convene(ids, convener);
+            return x.convene(ids, convener).ok();
           });
         },
 

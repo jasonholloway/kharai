@@ -52,7 +52,7 @@ export type MachineCtx =
 export type MachineSpaceCtx<O> =
 {
   attend: <R>(attend: Attendee<R>|AttendedFn<R>) => Attempt<R>
-  convene: <R>(ids: string[], convene: Convener<R>|ConvenedFn<R>) => CancellablePromise<R>
+  convene: <R>(ids: string[], convene: Convener<R>|ConvenedFn<R>) => Attempt<R>
   watch: (id: Id) => Observable<unknown>
   watchRaw: (id: Id) => Observable<PhaseData>
 

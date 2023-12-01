@@ -43,7 +43,7 @@ export type RunCtx<V,L> = {
   timer: Timer
   pause: (ms:number)=>CancellablePromise<void>
   attend: <R>(attend: MAttendee<R>) => Attempt<R>
-  convene: <R>(others: ArrayLike<Run<V,L>>, convene: MConvener<R>) => CancellablePromise<R>
+  convene: <R>(others: ArrayLike<Run<V,L>>, convene: MConvener<R>) => Attempt<R>
   track: (target: Run<V,L>) => Observable<L>
   hooks: RunHooks
 }

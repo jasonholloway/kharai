@@ -60,36 +60,37 @@ export class Mediator {
   }
 
   // TODO! below should return Attempt<R>
-  // with cancellations nicely wired up
-  convene<R>(convener: MConvener<R>, others: Set<object>): CancellablePromise<R> {
-    return this.locks
-      .claim(...others)
-      .promise()
-      .cancelOn(this.kill$)
-      .then(async claim => {
-        try {
-          const peers = claim.offers();
+  convene<R>(convener: MConvener<R>, others: Set<object>): Attempt<R> {
+    return new Attempt(
+      this.locks
+        .claim(...others)
+        .promise()
+        .cancelOn(this.kill$)
+        .then(async claim => {
+          try {
+            const peers = claim.offers();
 
-          const answer = await convener.convened(    //this could itself be preemptable
-            peers.map(p => <MPeer>{
-              info: p.info,
-              chat(m: Msg) {
-                logFlow(convener, m, p, true);
-                return p.chat([m, convener.info]);
-              }
-            }));
+            const answer = await convener.convened(    //this could itself be preemptable
+              peers.map(p => <MPeer>{
+                info: p.info,
+                chat(m: Msg) {
+                  logFlow(convener, m, p, true);
+                  return p.chat([m, convener.info]);
+                }
+              }));
 
-          peers.forEach(p => {
-            const a = p.chat(false);
-            if(a) throw Error('peer responded badly to kill');
-          });
+            peers.forEach(p => {
+              const a = p.chat(false);
+              if(a) throw Error('peer responded badly to kill');
+            });
 
-          return answer;
-        }
-        finally {
-          claim.release();
-        }
-      });
+            return [answer];
+          }
+          finally {
+            claim.release();
+          }
+        })
+    );
   }
 
   //todo below to be refactored into style of convene above

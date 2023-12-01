@@ -14,6 +14,7 @@ import * as NodeTree from './shape/NodeTree'
 import { Ctx, MachineCtx, MachineSpaceCtx, MetPeer } from './shape/Ctx'
 import CancellablePromise from './CancellablePromise'
 import { Attempt } from './Attempt'
+import * as SimpleCall from "./SimpleCall"
 
 const log = console.debug;
 
@@ -284,7 +285,7 @@ export class MachineSpace<N,O,NT=NodeTree.Form<N>> {
   private machineSpaceCtx(x: RunCtx<DataMap,Frisked[]>, id?: Id): MachineSpaceCtx<O> {
     const _this = this;
     
-    const _ctx = {
+    const _ctx: MachineSpaceCtx<O> = {
       async boot(id: Id, phase: O) {
         const result = await _ctx.convene([id], async ([peer]) => {
           return peer.chat(phase);
@@ -396,7 +397,13 @@ export class MachineSpace<N,O,NT=NodeTree.Form<N>> {
               .pipe(concatMap(fs => fs))),
             map(f => f.data)
           );
-      }
+      },
+
+      server: new SimpleCall.Receiver(
+        fn => _ctx.attend(fn),
+        Map()
+      ) 
+
     };
 
     return _ctx;
