@@ -1,9 +1,10 @@
 import { Map } from "immutable";
 import { Attempt } from "./Attempt";
-import { Guard, Read } from "./guards/Guard";
+import { Guard, Narrowable, Read } from "./guards/Guard";
+import CancellablePromise from "./CancellablePromise";
 
 
-export function spec<A extends unknown[],R>(args: A, ret: R): Contract<Read<A>, Read<R>> {
+export function Call<A extends unknown[],R>(args: A, ret: R): Contract<Read<A>, Read<R>> {
   return new Contract(Guard(args), Guard(ret));
 }
 
@@ -45,11 +46,11 @@ export class Receiver<R=never> {
     this._handlers = reg ?? Map();
   }
 
-  serve<C extends Contract, H extends Handler<C>>(contract: C, handler: H): Receiver<R|HandlerRet<H>> {
+  given<C extends Contract, H extends Handler<C>>(contract: C, handler: H): Receiver<R|HandlerRet<H>> {
     return new Receiver(this._run, this._handlers.set(contract, handler));
   }
 
-  wait(): Attempt<R> { //could be implicit
+  else<V extends Narrowable>(fallback: V): CancellablePromise<R|V> {
     return this._run(m => {
       if(!isBindCall(m)) return false;
       else {
@@ -64,7 +65,7 @@ export class Receiver<R=never> {
 
         return [result, [$bindReply, contract, response]];
       }
-    });
+    }).else(fallback);
   }
 }
 

@@ -4,7 +4,9 @@ import { parakeet } from './worlds/parakeet'
 import { run, showData } from './shared';
 import { World } from '../src/shape/World';
 import { root } from '../src/shape/common';
-import { delay } from '../src/util';
+import { delay, tup } from '../src/util';
+import { Call } from "../src/SimpleCall";
+import { Num } from '../src/guards/Guard';
 
 describe('machines - conversing', () => {
   const world = parakeet.build();
@@ -190,6 +192,47 @@ describe('machines - conversing', () => {
           return false;
         }
       });
+
+    await run(w.build(), {save:false})
+      .perform(({summon,ref}) => summon(ref.rat(true)))
+      .waitQuiet()
+      .then(({view}) => {
+        expect(view('@M_rat,true').logs)
+          .toEqual([['M_rat', 'true']]);
+
+        expect(view('@M_gerbil,true').logs)
+          .toEqual([['M_gerbil', 'true']]);
+      });
+  })
+
+
+  it('simple calls', async () => {
+    const Calls = {
+      Add: Call(tup(Num, Num), Num),
+      Subtract: Call(tup(Num, Num), Num)
+    };
+    
+    const w = World
+      .shape({
+        rat: root(true),
+        gerbil: root(true)
+      })
+      .impl({
+        async rat({meet,ref,and}) {
+          const gerry = await meet(ref.gerbil(true));
+          const resp1 = gerry.chat('squeak');
+          const resp2 = gerry.chat('nip');
+          return and.end([resp1,resp2]);
+        },
+
+        gerbil: x => x.server
+          .given(Calls.Add, (a, b) => [x.and.skip(), a + b])
+          .given(Calls.Subtract, (a, b) => [x.and.skip(), a - b])
+          .else(x.and.skip())
+
+      });
+
+    throw 123;
 
     await run(w.build(), {save:false})
       .perform(({summon,ref}) => summon(ref.rat(true)))

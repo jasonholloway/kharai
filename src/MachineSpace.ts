@@ -294,6 +294,9 @@ export class MachineSpace<N,O,NT=NodeTree.Form<N>> {
       },
 
       meet(id: Id): CancellablePromise<MetPeer> {
+        //todo below should hook into contextual observables
+        // const z = _ctx.convene([id], ([p]) => Promise.resolve(p)).cancelOn(x.hooks.onResult)
+        
         return new CancellablePromise<MetPeer>((resolve, reject, onCancel) => {
           _ctx.convene([id], ([peer]) => new Promise((innerResolve, innerReject) => {
             x.hooks.onResult.push(innerResolve);

@@ -5,23 +5,20 @@ import { Attempt } from "../src/Attempt";
 import CancellablePromise from "../src/CancellablePromise";
 import { tup } from "../src/util";
 import { Witness } from "./shared.js";
-import * as SimpleCall from "../src/SimpleCall"
+import { Call, Receiver, bindAndCall, RunReceiver, Target } from "../src/SimpleCall"
 
 describe('SimpleCall', () => {
 
   it('can set up receiver', async () => {
     const { runReceiver, target } = runChat();
 
-    const countChars = SimpleCall.spec(tup(Str), Num);
+    const countChars = Call(tup(Str), Num);
 
-    const receiving = new SimpleCall.Receiver(runReceiver, Map())
-      .serve(countChars, s => ['forServer', s.length])
-      .wait()
-      .ok();
+    const receiving = new Receiver(runReceiver, Map())
+      .given(countChars, s => ['forServer', s.length])
+      .else(false);
 
-    const result = await SimpleCall
-      .bindAndCall(Attempt.succeed(target), countChars, ['woof'])
-      .ok();
+    const result = await bindAndCall(Attempt.succeed(target), countChars, ['woof']).ok();
 
     const received = await receiving;
 
@@ -32,15 +29,14 @@ describe('SimpleCall', () => {
   it('fails if contract not served', async () => {
     const { runReceiver, target } = runChat();
 
-    const countChars = SimpleCall.spec(tup(Str), Num);
-    const sayWoof = SimpleCall.spec(tup(), 'WOOF' as const);
+    const countChars = Call(tup(Str), Num);
+    const sayWoof = Call(tup(), 'WOOF' as const);
 
-    const receiving = new SimpleCall.Receiver(runReceiver, Map())
-      .serve(countChars, s => ['forServer', s.length])
-      .wait();
+    const receiving = new Receiver(runReceiver, Map())
+      .given(countChars, s => ['forServer', s.length])
+      .else(false);
 
-    const result = await SimpleCall
-      .bindAndCall(Attempt.succeed(target), sayWoof, []);
+    const result = await bindAndCall(Attempt.succeed(target), sayWoof, []);
 
     const received = await receiving;
 
@@ -51,22 +47,19 @@ describe('SimpleCall', () => {
   it('can serve many contracts', async () => {
     const { runReceiver, target } = runChat();
 
-    const countChars = SimpleCall.spec(tup(Str), Num);
-    const sayWoof = SimpleCall.spec(tup(), 'WOOF' as const);
+    const countChars = Call(tup(Str), Num);
+    const sayWoof = Call(tup(), 'WOOF' as const);
 
-    const receiving = new SimpleCall.Receiver(runReceiver, Map())
-      .serve(countChars, s => ['forServer' as const, s.length])
-      .serve(sayWoof, () => ['forServerAgain' as const, 'WOOF'])
-      .wait()
-      .ok();
+    const receiving = new Receiver(runReceiver, Map())
+      .given(countChars, s => ['forServer' as const, s.length])
+      .given(sayWoof, () => ['forServerAgain' as const, 'WOOF'])
+      .else(false);
 
-    const result = await SimpleCall
-      .bindAndCall(Attempt.succeed(target), sayWoof, [])
-      .ok();
+    const result = await bindAndCall(Attempt.succeed(target), sayWoof, []).ok();
 
     const received = await receiving;
 
-    type _ = Witness.Extends<typeof received, 'forServer'|'forServerAgain'>;
+    type _ = Witness.Extends<typeof received, 'forServer'|'forServerAgain'|false>;
 
     expect(result).toBe('WOOF');
     expect(received).toBe('forServerAgain');
@@ -76,7 +69,7 @@ describe('SimpleCall', () => {
   function runChat() {
     const receivers: ((m:unknown)=>Attempt<unknown>)[] = [];
 
-    const runReceiver: SimpleCall.RunReceiver = fn => {
+    const runReceiver: RunReceiver = fn => {
       return new Attempt(CancellablePromise.create(resolve => {
         receivers.push(m => {
           const r = fn(m)
@@ -92,7 +85,7 @@ describe('SimpleCall', () => {
       }));
     };
 
-    const target: SimpleCall.Target = m => {
+    const target: Target = m => {
       return receivers[0](m);
     };
 

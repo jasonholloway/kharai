@@ -12,6 +12,7 @@ import { AttendedFn, Attendee, ConvenedFn, Convener, Frisked } from "../MachineS
 import { Observable } from "rxjs";
 import CancellablePromise from "../CancellablePromise";
 import { Attempt } from "../Attempt";
+import * as SimpleCall from "../SimpleCall";
 
 export type Ctx<N,PL extends string[],O> =
   RunCtx<DataMap,Frisked[]> extends infer XA ?
@@ -59,6 +60,8 @@ export type MachineSpaceCtx<O> =
   meet: (id: Id) => CancellablePromise<MetPeer>
   boot: (id: Id, phase: O) => Promise<boolean>
   summon: (id: Id) => { tell(m:unknown): CancellablePromise<unknown> }
+
+  server: SimpleCall.Receiver
 };
 
 export type MetPeer =

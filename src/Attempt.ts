@@ -1,5 +1,4 @@
 import CancellablePromise, { Cancellable } from "./CancellablePromise";
-import { isPromise } from "./util";
 
 export class Attempt<A> implements Promise<[A]|false>, Cancellable {
 
@@ -73,12 +72,12 @@ export class Attempt<A> implements Promise<[A]|false>, Cancellable {
   cancel(): void | PromiseLike<void> {
     return this._inner.cancel();
   }
-  
-  static succeed<V>(v: V): Attempt<V> {
-    return new Attempt(CancellablePromise.create(resolve => resolve([v])));
+
+  static succeed<V=void>(v?: V): Attempt<V> {
+    return new Attempt(CancellablePromise.create(resolve => resolve(v ? [v] : [<V>undefined])));
   }
 
-  static fail<V = never>(): Attempt<V> {
+  static fail<V=never>(): Attempt<V> {
     return new Attempt(CancellablePromise.create(resolve => resolve(false)));
   }
 
