@@ -12,7 +12,7 @@ describe('SimpleCall', () => {
   it('can set up receiver', async () => {
     const { runReceiver, target } = runChat();
 
-    const countChars = SimpleCall.Contract.create(tup(Str), Num);
+    const countChars = SimpleCall.spec(tup(Str), Num);
 
     const receiving = new SimpleCall.Receiver(runReceiver, Map())
       .serve(countChars, s => ['forServer', s.length])
@@ -32,8 +32,8 @@ describe('SimpleCall', () => {
   it('fails if contract not served', async () => {
     const { runReceiver, target } = runChat();
 
-    const countChars = SimpleCall.Contract.create(tup(Str), Num);
-    const sayWoof = SimpleCall.Contract.create(tup(), 'WOOF' as const);
+    const countChars = SimpleCall.spec(tup(Str), Num);
+    const sayWoof = SimpleCall.spec(tup(), 'WOOF' as const);
 
     const receiving = new SimpleCall.Receiver(runReceiver, Map())
       .serve(countChars, s => ['forServer', s.length])
@@ -51,8 +51,8 @@ describe('SimpleCall', () => {
   it('can serve many contracts', async () => {
     const { runReceiver, target } = runChat();
 
-    const countChars = SimpleCall.Contract.create(tup(Str), Num);
-    const sayWoof = SimpleCall.Contract.create(tup(), 'WOOF' as const);
+    const countChars = SimpleCall.spec(tup(Str), Num);
+    const sayWoof = SimpleCall.spec(tup(), 'WOOF' as const);
 
     const receiving = new SimpleCall.Receiver(runReceiver, Map())
       .serve(countChars, s => ['forServer' as const, s.length])

@@ -3,6 +3,11 @@ import { Attempt } from "./Attempt";
 import { Guard, Read } from "./guards/Guard";
 
 
+export function spec<A extends unknown[],R>(args: A, ret: R): Contract<Read<A>, Read<R>> {
+  return new Contract(Guard(args), Guard(ret));
+}
+
+
 export class Contract<Args extends unknown[]=unknown[], Ret=unknown> {
   guards: {
     args: Guard<Args>,
@@ -11,10 +16,6 @@ export class Contract<Args extends unknown[]=unknown[], Ret=unknown> {
 
   constructor(args: Guard<Args>, ret: Guard<Ret>) {
     this.guards = { args, ret };
-  }
-
-  static create<A extends unknown[],R>(args: A, ret: R): Contract<Read<A>, Read<R>> {
-    return new Contract(Guard(args), Guard(ret));
   }
 };
 
