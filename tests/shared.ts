@@ -189,3 +189,18 @@ export function showData(av: AtomView<DataMap>) {
 }
 
 export function assertSubtype<A,B extends A>(a?:A, b?:B) {}
+
+
+export namespace Witness {
+  export type Extends<U extends T, T> = U;
+}
+
+export namespace Util {
+  export type IsNever<T> =
+    [T] extends [never] ? true : false
+  ;
+
+  export type Given<Check, Pass> =
+    IsNever<Check> extends true ? Pass : Check
+  ;
+}

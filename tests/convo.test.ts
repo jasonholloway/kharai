@@ -1,5 +1,6 @@
 import { describe, it, expect } from "@jest/globals"
 import { Num, Read } from "../src/guards/Guard";
+import { Util, Witness } from "./shared";
 
 describe('convos', () => {
   
@@ -253,18 +254,4 @@ namespace Convo {
   type ReadConvo<Spec extends Spec> = Read<Spec>;
 }
 
-
-namespace Witness {
-  export type Extends<U extends T, T> = U;
-}
-
-namespace Util {
-  export type IsNever<T> =
-    [T] extends [never] ? true : false
-  ;
-
-  export type Given<Check, Pass> =
-    IsNever<Check> extends true ? Pass : Check
-  ;
-}
 

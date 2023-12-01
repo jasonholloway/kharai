@@ -1,11 +1,105 @@
 import { describe, it, expect } from "@jest/globals"
-import { Bool, Narrowable, Num, Read, Str, Typ } from "../src/guards/Guard";
-import { Attempt } from "../src/Attempt";
 import { Map, Set } from "immutable";
+import { Bool, Num, Read, Str, Typ } from "../src/guards/Guard";
+import { Attempt } from "../src/Attempt";
 import { AttendedFn } from "../src/MachineSpace";
 import CancellablePromise from "../src/CancellablePromise";
+import { tup } from "../src/util";
+import { Witness } from "./shared.js";
 
-const tup = <R extends Narrowable[]>(...r: R) => r;
+describe('interfaces', () => {
+
+  it('can set up receiver', async () => {
+    const { runReceiver, target } = runChat();
+
+    const countChars = new Calls.Contract(Calls.Fn(tup(Str), Num));
+
+    const receiving = new Calls.Receiver(runReceiver, Map())
+      .serve(countChars, s => ['forServer', s.length])
+      .wait()
+      .ok();
+
+    const result = await Calls
+      .bindAndCall(Attempt.succeed(target), countChars, ['woof'])
+      .ok();
+
+    const received = await receiving;
+
+    expect(result).toBe(4);
+    expect(received).toBe('forServer');
+  })
+
+  it('fails if contract not served', async () => {
+    const { runReceiver, target } = runChat();
+
+    const countChars = new Calls.Contract(Calls.Fn(tup(Str), Num));
+    const sayWoof = new Calls.Contract(Calls.Fn(tup(), 'WOOF' as const));
+
+    const receiving = new Calls.Receiver(runReceiver, Map())
+      .serve(countChars, s => ['forServer', s.length])
+      .wait();
+
+    const result = await Calls
+      .bindAndCall(Attempt.succeed(target), sayWoof, []);
+
+    const received = await receiving;
+
+    expect(result).toBe(false);
+    expect(received).toBe(false);
+  })
+
+  it('can serve many contracts', async () => {
+    const { runReceiver, target } = runChat();
+
+    const countChars = new Calls.Contract(Calls.Fn(tup(Str), Num));
+    const sayWoof = new Calls.Contract(Calls.Fn(tup(), 'WOOF' as const));
+
+    const receiving = new Calls.Receiver(runReceiver, Map())
+      .serve(countChars, s => ['forServer' as const, s.length])
+      .serve(sayWoof, () => ['forServerAgain' as const, 'WOOF'])
+      .wait()
+      .ok();
+
+    const result = await Calls
+      .bindAndCall(Attempt.succeed(target), sayWoof, [])
+      .ok();
+
+    const received = await receiving;
+
+    type _ = Witness.Extends<typeof received, 'forServer'|'forServerAgain'>;
+
+    expect(result).toBe('WOOF');
+    expect(received).toBe('forServerAgain');
+  })
+
+
+  function runChat() {
+    const receivers: ((m:unknown)=>Attempt<unknown>)[] = [];
+
+    const runReceiver: Calls.RunReceiver = fn => {
+      return new Attempt(CancellablePromise.create(resolve => {
+        receivers.push(m => {
+          const r = fn(m, 'mid', Set())
+          if(r) {
+            resolve([r[0]]);
+            return Attempt.succeed(r[1]);
+          }
+          else {
+            resolve(false)
+            return Attempt.fail();
+          };
+        });
+      }));
+    };
+
+    const target: Calls.Target = m => {
+      return receivers[0](m);
+    };
+
+    return { runReceiver, target };
+  }
+})
+
 
 namespace Calls {
 
@@ -25,6 +119,10 @@ namespace Calls {
   ? (...args: Args)=>[unknown, Ret]
   : never : never;
 
+  export type ReturnTypes<H> =
+    H extends (...a:never[])=>[infer R, ...unknown[]]
+    ? R
+    : never;
 
 
   type ReadFn<F> =
@@ -51,15 +149,17 @@ namespace Calls {
 
     type Y = ReadFn<unknown>;
 
-    type _ = [R, Y];
+    type H = (s:string)=>['woof',123];
+
+    type Z = ReturnTypes<H>;
+
+    type _ = [R, Y, Z];
   }
   
 
 
-  type ReturnTypes<R> = never; //todo
-
   
-  export type RunReceiver<R> = (fn: AttendedFn<R>)=>Attempt<R>;
+  export type RunReceiver = <R>(fn: AttendedFn<R>)=>Attempt<R>;
 
   const $bind = Symbol();
   
@@ -75,10 +175,10 @@ namespace Calls {
   }
 
   export class Receiver<R=never> {
-    private _run: RunReceiver<R>;
+    private _run: RunReceiver;
     private _handlers: Map<Contract<Spec>, Handler<Spec>>;
 
-    constructor(add: RunReceiver<R>, reg: Map<Contract<Spec>, Handler<Spec>>) {
+    constructor(add: RunReceiver, reg: Map<Contract<Spec>, Handler<Spec>>) {
       this._run = add;
       this._handlers = reg ?? Map();
     }
@@ -97,8 +197,8 @@ namespace Calls {
           if(!handler) return false;
 
           const r = <[R, unknown]>handler(...args);
-          //todo
-          //test args here
+
+          //test args here? but types should be protected
 
           return r;
         }
@@ -107,12 +207,9 @@ namespace Calls {
   }
 
 
-
-
   export function Fn<Args extends unknown[], Return>(args: Args, ret: Return) {
     return new Typ(tup('fn' as const, args, ret));
   }
-
 
   export type Target = (m:unknown)=>Attempt<unknown>;
 
@@ -127,49 +224,3 @@ namespace Calls {
 }
 
 
-describe('interfaces', () => {
-
-  it('can set up receiver', async () => {
-    const countChars = new Calls.Contract(Calls.Fn(tup(Str), Num));
-
-    const receivers: ((m:unknown)=>Attempt<unknown>)[] = [];
-
-    const runReceiver: Calls.RunReceiver<unknown> = fn => {
-      return new Attempt(CancellablePromise.create(resolve => {
-        receivers.push(m => {
-          const r = fn(m, 'mid', Set())
-          if(r) {
-            resolve([r[0]]);
-            return Attempt.succeed(r[1]);
-          }
-          else {
-            resolve(false)
-            return Attempt.fail();
-          };
-        });
-      }));
-    };
-
-    const target: Calls.Target = m => {
-      return receivers[0](m);
-    };
-
-    const receiving = new Calls.Receiver(runReceiver, Map())
-      .serve(countChars, s => {
-        return ['forServer', s.length];
-      })
-      .wait()
-      .ok();
-
-    const result = await Calls
-      .bindAndCall(Attempt.succeed(target), countChars, ['woof'])
-      .ok();
-
-    const received = await receiving;
-
-    expect(result).toBe(4);
-    expect(received).toBe('forServer');
-  })
-
-  
-})

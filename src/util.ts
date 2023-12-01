@@ -1,5 +1,6 @@
 import { isArray } from 'util'
 import { List } from 'immutable'
+import { Narrowable } from './guards/Guard';
 
 export const peek = <V>(tag: string, lens?: (v: V) => any) => (v: V) => {
     console.log(tag, lens ? lens(v) : v)
@@ -22,6 +23,8 @@ export const clone = <X>(x: X): X =>
 
 export const isTuple2 = <A, B>(v: any): v is readonly [A, B] =>
     isArray(v) && v.length == 2;
+
+export const tup = <R extends Narrowable[]>(...r: R) => r;
 
 // export const lift = <V>(v: V|undefined) => (v ? [v] : []);
 
