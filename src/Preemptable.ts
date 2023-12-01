@@ -1,16 +1,14 @@
-import CancellablePromise, { Cancellable, CancellableFn } from './CancellablePromise'
+import { isPromise } from 'util/types';
+import CancellablePromise from './CancellablePromise'
 
 export namespace Preemptable {
-  export function lift<A>(a: A): Preemptable<A> {
-    return new Value(a);
-  }
-
-  export function liftFn<A>(fn: (()=>Promise<A>)): Preemptable<A> {
-    return new Continuable((resolve, reject) => { fn().then(resolve).catch(reject) })
-  }
-
-  export function continuable<A>(fn: CancellableFn<A>): Preemptable<A> {
-    return new Continuable(fn);
+  export function lift<A>(a: A|CancellablePromise<A>): Preemptable<A> {
+    if(a instanceof CancellablePromise) {
+      return new Continuable(a);
+    }
+    else {
+      return new Value(a);
+    }
   }
 }
 
@@ -46,64 +44,25 @@ class Value<A> implements Preemptable<A> {
 }
 
 class Continuable<A> implements Preemptable<A> {
-	run: CancellableFn<A>
-  private _promise: CancellablePromise<A>|undefined
+  private _inner: CancellablePromise<A>;
 
-  constructor(fn: CancellableFn<A>) {
-    this.run = fn;
+  constructor(inner: CancellablePromise<A>) {
+    this._inner = inner;
   }
 
   preempt(): [false, () => CancellablePromise<A>] {
-    return [false, () => this.promise()];
+    return [false, () => this._inner];
   }
 
   flatMap<B>(fn: (a: A) => Preemptable<B>): Preemptable<B> {
-    return new Continuable((resolve, reject, onCancel) => {
-      let cancelled: boolean = false;
-      onCancel(() => { cancelled = true });
-      
-      try {
-        this.run(
-          a => {
-            if(cancelled) reject('CANCELLED');
-            else {
-              try {
-                fn(a).promise()
-                  .then(b => {
-                    if(cancelled) reject('CANCELLED');
-                    else resolve(b);
-                  })
-                  .catch(reject);
-              }
-              catch(e) {
-                reject(e);
-              }
-            }
-          },
-          reject,
-          onCancel
-        );
-      }
-      catch(e) {
-        reject(e);
-      }
-    });
+    return new Continuable(this._inner.then(a => fn(a).promise()));
   }
-
-  //TODO proper testing of this stuff...
-  //TODO onCancel isn't propagating properly above
-  //TODO Cancellable should do more, leaving less to do here
 
   map<B>(fn: (a: A) => B): Preemptable<B> {
     return this.flatMap(a => Preemptable.lift(fn(a)));
   }
 
-  promise(upstreams?: Cancellable[]): CancellablePromise<A> {
-    if(this._promise) {
-      return this._promise;
-    }
-    else {
-      return this._promise = new CancellablePromise(this.run, upstreams ?? []);
-    }
+  promise(): CancellablePromise<A> {
+    return this._inner;
   }
 }

@@ -1,5 +1,5 @@
 import { Set, OrderedMap } from 'immutable'
-import { CancelledError } from './CancellablePromise';
+import CancellablePromise, { CancelledError } from './CancellablePromise';
 import { Preemptable } from './Preemptable';
 
 type Token = object
@@ -127,37 +127,39 @@ class Allocator<X> {
       return Preemptable.lift(onSuccess(items));
     }
     else {
-      return Preemptable.continuable((resolve, reject, onCancel)=> {
-        const answers = items.map(i => [i, tryIncOne(i)] as const);
-        answers.forEach(([i, ans]) => {
-          if(ans[0] == 'mustWait') ans[1](adoptOneIncAll(i, items, resolve));
-        });
+      return Preemptable.lift(
+        CancellablePromise.create((resolve, reject, onCancel)=> {
+          const answers = items.map(i => [i, tryIncOne(i)] as const);
+          answers.forEach(([i, ans]) => {
+            if(ans[0] == 'mustWait') ans[1](adoptOneIncAll(i, items, resolve));
+          });
 
-        onCancel(async () => {
-          if(_lock) {
-            console.info('UNTESTED PATH')
-            await _lock.release();
-            //todo does the above release the locking promise?
-          }
-          else {
-            items
-              .map(i => _this.summonEntry(i))
-              .forEach(entry => {
-                const removeToken = new Object();
-                
-                const ans = entry.tryApp(removeToken, getClaim(_lock).reverse());
-                if(ans[0] == 'canAdd') {
-                  ans[1]();
-                }
-                else if(ans[0] == 'mustWait') {
-                  entry.removeWaitingApp(token);
-                }
-              });
-          }
+          onCancel(async () => {
+            if(_lock) {
+              console.info('UNTESTED PATH')
+              await _lock.release();
+              //todo does the above release the locking promise?
+            }
+            else {
+              items
+                .map(i => _this.summonEntry(i))
+                .forEach(entry => {
+                  const removeToken = new Object();
 
-          reject(new CancelledError());
+                  const ans = entry.tryApp(removeToken, getClaim(_lock).reverse());
+                  if(ans[0] == 'canAdd') {
+                    ans[1]();
+                  }
+                  else if(ans[0] == 'mustWait') {
+                    entry.removeWaitingApp(token);
+                  }
+                });
+            }
+
+            reject(new CancelledError());
+          })
         })
-      });
+      );
     }
     
 
