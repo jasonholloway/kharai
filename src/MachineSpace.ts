@@ -11,7 +11,7 @@ import { isString, merge } from './util'
 import { Run, RunCtx, RunSpace } from './RunSpace'
 import { formPath } from './shape/common'
 import * as NodeTree from './shape/NodeTree'
-import { Ctx, MachineCtx, MachineSpaceCtx, MetPeer } from './shape/Ctx'
+import { Ctx, MachineCtx, MachineSpaceCtx, MeetingPeer, MetPeer } from './shape/Ctx'
 import CancellablePromise from './CancellablePromise'
 import { Attempt } from './Attempt'
 import * as SimpleCall from "./SimpleCall"
@@ -294,15 +294,15 @@ export class MachineSpace<N,O,NT=NodeTree.Form<N>> {
         return !!result;
       },
 
-      meet(id: Id): CancellablePromise<MetPeer> {
+      meet(id: Id): MeetingPeer {
         //todo below should hook into contextual observables
         // const z = _ctx.convene([id], ([p]) => Promise.resolve(p)).cancelOn(x.hooks.onResult)
-        
-        return new CancellablePromise<MetPeer>((resolve, reject, onCancel) => {
+
+        const meeting = new Attempt<MetPeer>(new CancellablePromise<[MetPeer]|false>((resolve, reject, onCancel) => {
           _ctx.convene([id], ([peer]) => new Promise((innerResolve, innerReject) => {
             x.hooks.onResult.push(innerResolve);
             x.hooks.onError.push(innerReject);
-            resolve(mapPeer(peer));
+            resolve([mapPeer(peer)]);
           })).catch(reject);
 
           function mapPeer(p: Peer): MetPeer {
@@ -310,7 +310,25 @@ export class MachineSpace<N,O,NT=NodeTree.Form<N>> {
               ...p
             };
           }
-        });
+        }));
+
+        return <MeetingPeer>{
+          peer: meeting,
+
+          call(contract, args) {
+            const gettingTarget = meeting
+              .flatMap(met => {
+                return Attempt.succeed((m: unknown) => {
+                  const r = met.chat(m);
+                  return r
+                    ? Attempt.succeed(r[0])
+                    : Attempt.fail();
+                });
+              });
+
+            return SimpleCall.bindAndCall(gettingTarget, contract, args);
+          }
+        };
       },
 
       summon(id: Id) {
@@ -442,3 +460,6 @@ export interface Attendee<R = unknown> {
 }
 
 export type AttendedFn<R> = (m:unknown, mid:Id|undefined, peers:Set<Peer>) => ([R]|[R,unknown]|false|undefined);
+
+
+

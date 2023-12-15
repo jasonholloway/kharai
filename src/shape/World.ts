@@ -597,7 +597,7 @@ function builtIns() {
             h1[h1.length-1] = key;
             return [h0, h1];
           }
-        });
+        }).ok();
       }
     }))
     .popPath()!);
@@ -688,7 +688,7 @@ function builtIns() {
               return ['*_$m_gather', [v+1, [remnants, ...peers.subtract(p.kickOut)]]] as const;
             }
           }
-        });
+        }).ok();
       }
     }))
     .popPath()!

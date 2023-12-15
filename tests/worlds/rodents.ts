@@ -70,7 +70,8 @@ export const rodents = World
           const a = p.chat('grunt!');
           if(a) return a;
           else throw Error('bad response from attendee')
-        });
+        }).ok();
+
         return and.end(resp[0]);
       }
     },
@@ -85,7 +86,7 @@ export const rodents = World
 
             await convene([other], async ([p]) => {
               p.chat(and.gerbil.spawn([0, max]));
-            });
+            }).ok();
 
             return and.gerbil.spawn([step + 1, max]);
           }

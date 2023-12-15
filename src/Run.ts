@@ -114,6 +114,13 @@ export function newRun<N,O>
     async summon(ids: Id[]) {
       const machines = machineSpace.summon(Set(ids));
 
+      // problem with summoning is that we can't really call more than once
+      // unless there's some kind of server-side offload thing going on
+      // (in which case the receiver would pass the work on and, by not changing its own state, drop out of the commit)
+      // this unchanging statelessness would allow requests to be quickly served and sent on to multiple workers
+      // it also means that simple machines could be available, and work, without being saved at all
+      // (eg worker nodes could be very quickly scaled out)
+
       return {
         meet<R = unknown>(convener: Convener<R>|ConvenedFn<R>): Promise<R> {
           //below rubbishly resummons

@@ -57,7 +57,7 @@ export type MachineSpaceCtx<O> =
   watchRaw: (id: Id) => Observable<PhaseData>
 
   //stubs
-  meet: (id: Id) => CancellablePromise<MetPeer>
+  meet: (id: Id) => MeetingPeer
   boot: (id: Id, phase: O) => Promise<boolean>
   summon: (id: Id) => { tell(m:unknown): CancellablePromise<unknown> }
 
@@ -66,8 +66,15 @@ export type MachineSpaceCtx<O> =
 
 export type MetPeer =
 {
-  chat: (m: unknown) => unknown;
+  id?: Id,
+  chat(m: unknown): false|readonly [unknown]
 };
+
+export interface MeetingPeer {
+  peer: Attempt<MetPeer>
+  call<C extends SimpleCall.Contract>(contract: C, args: SimpleCall.ContractArgs<C>): Attempt<SimpleCall.ContractRet<C>>;
+  //could expose tell and chat here as well
+}
 
 try {
   type W = {

@@ -3,10 +3,10 @@ import _Monoid from '../src/_Monoid'
 import { parakeet } from './worlds/parakeet'
 import { run, showData } from './shared';
 import { World } from '../src/shape/World';
-import { root } from '../src/shape/common';
+import { act, root } from '../src/shape/common';
 import { delay, tup } from '../src/util';
 import { Call } from "../src/SimpleCall";
-import { Num } from '../src/guards/Guard';
+import { Bool, Num, Str } from '../src/guards/Guard';
 
 describe('machines - conversing', () => {
   const world = parakeet.build();
@@ -102,7 +102,7 @@ describe('machines - conversing', () => {
         {save:false}
        )
       .perform(async ({meet,ref}) => {
-        const g = await meet(ref.gerbil(true));
+        const g = await meet(ref.gerbil(true)).peer.ok();
         return g.chat('squeak');
       })
       .waitQuiet()
@@ -124,7 +124,7 @@ describe('machines - conversing', () => {
       })
       .impl({
         async rat({meet,ref,and}) {
-          const g = await meet(ref.gerbil(true));
+          const g = await meet(ref.gerbil(true)).peer.ok();
 
           //chat now has to be async surely
           const resp1 = g.chat('squeak');
@@ -178,7 +178,7 @@ describe('machines - conversing', () => {
       })
       .impl({
         async rat({meet,ref,and}) {
-          const gerry = await meet(ref.gerbil(true));
+          const gerry = await meet(ref.gerbil(true)).peer.ok();
           const resp1 = gerry.chat('squeak');
           const resp2 = gerry.chat('nip');
           return and.end([resp1,resp2]);
@@ -214,35 +214,58 @@ describe('machines - conversing', () => {
     
     const w = World
       .shape({
-        rat: root(true),
-        gerbil: root(true)
+        rat: {
+          ...root(Str),
+          doAdd: act(Num),
+          doSub: act(Num)
+        },
+        gerbil: root(Str)
       })
       .impl({
-        async rat({meet,ref,and}) {
-          const gerry = await meet(ref.gerbil(true));
-          const resp1 = gerry.chat('squeak');
-          const resp2 = gerry.chat('nip');
-          return and.end([resp1,resp2]);
+        rat: {
+          //todo below could optionally be called 'root' to make it understandable
+          //also should make promise optional
+          act: async (x, name) => x
+            .and.doAdd(name.length),
+
+          doAdd: (x, num) => x
+            .meet(x.ref.gerbil('Gerry'))
+            .call(Calls.Add, [num, 4])
+            .map(r => x.and.doSub(r))
+            .ok(),
+
+          doSub: (x, num) => x
+            .meet(x.ref.gerbil('Gerry'))
+            .call(Calls.Subtract, [num, 7])
+            .map(r => x.and.end(r))
+            .ok()
         },
 
-        gerbil: x => x.server
+        gerbil: x => x
+          .server
           .given(Calls.Add, (a, b) => [x.and.skip(), a + b])
           .given(Calls.Subtract, (a, b) => [x.and.skip(), a - b])
           .else(x.and.skip())
-
       });
 
-    throw 123;
-
     await run(w.build(), {save:false})
-      .perform(({summon,ref}) => summon(ref.rat(true)))
+      .perform(({summon,ref}) => summon(ref.rat('Roderick')))
       .waitQuiet()
       .then(({view}) => {
-        expect(view('@M_rat,true').logs)
-          .toEqual([['M_rat', 'true']]);
+        expect(view('@M_rat,Roderick').logs)
+          .toEqual([
+            ['M_rat', 'Roderick'],
+            ['M_rat_doAdd', 8],
+            ['M_rat_doSub', 12],
+            ['*_end', 5]
+          ]);
 
-        expect(view('@M_gerbil,true').logs)
-          .toEqual([['M_gerbil', 'true']]);
+        expect(view('@M_gerbil,Gerry').logs)
+          .toEqual([
+            ['M_gerbil', 'Gerry'],
+            ['M_gerbil', 'Gerry'],
+            ['M_gerbil', 'Gerry']
+          ]);
       });
   })
 })

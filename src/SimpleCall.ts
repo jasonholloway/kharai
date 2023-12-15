@@ -20,8 +20,8 @@ export class Contract<Args extends unknown[]=unknown[], Ret=unknown> {
   }
 };
 
-type ContractArgs<C extends Contract> = C extends Contract<infer Args, unknown> ? Args : never;
-type ContractRet<C extends Contract> = C extends Contract<unknown[], infer Ret> ? Ret : never;
+export type ContractArgs<C extends Contract> = C extends Contract<infer Args, unknown> ? Args : never;
+export type ContractRet<C extends Contract> = C extends Contract<unknown[], infer Ret> ? Ret : never;
 
 
 export type Handler<C extends Contract = Contract> =
@@ -71,10 +71,12 @@ export class Receiver<R=never> {
 
 export type Target = (m:unknown)=>Attempt<unknown>;
 
-export function bindAndCall<A extends unknown[], R, C extends Contract<A,R>>(attaching: Attempt<Target>, contract: C, args: A): Attempt<R> {
+export function bindAndCall<C extends Contract>(attaching: Attempt<Target>, contract: C, args: ContractArgs<C>): Attempt<ContractRet<C>> {
   return attaching
     .flatMap(target => target([$bindCall, contract, args]))
     .flatMap(r => {
+      console.log('r', r)
+      
       if(!isBindReply(r)) return Attempt.fail(); //todo really need reasons!
       else {
         const [, c, ret] = r;
@@ -83,7 +85,7 @@ export function bindAndCall<A extends unknown[], R, C extends Contract<A,R>>(att
 
         //question here: do we actually need to use the guards? and perhaps for all contracts: if we've compared $bind, then all types should be safe...
         if(contract.guards.ret(ret)) {
-          return Attempt.succeed(ret);
+          return Attempt.succeed(<ContractRet<C>>ret);
         }
         else {
           return Attempt.fail(); //really need to capture errors here
@@ -92,8 +94,8 @@ export function bindAndCall<A extends unknown[], R, C extends Contract<A,R>>(att
     })
 }
 
-const $bindCall = Symbol();
-const $bindReply = Symbol();
+const $bindCall = Symbol('bindCall');
+const $bindReply = Symbol('bindReply');
 
 type BindCall = [typeof $bindCall, Contract, unknown[]];
 type BindReply = [typeof $bindReply, Contract, unknown];

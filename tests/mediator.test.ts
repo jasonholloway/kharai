@@ -23,7 +23,7 @@ describe('mediator', () => {
       attended() { return ['banana', 'pineapple']; }
     }
 
-    const convening = x.convene(p1, Set([p2]));
+    const convening = x.convene(p1, Set([p2])).ok();
     const attaching = x.attend(p2, p2).ok();
 
     expect(await convening).toEqual('pineapple');
@@ -50,17 +50,17 @@ describe('mediator', () => {
       }
     }
 
-    const meeting1 = x.convene(p1, Set([p2, p3]));
-    const meeting2 = x.attend(p2, p2);
-    const meeting3 = x.attend(p3, p3);
+    const meeting1 = x.convene(p1, Set([p2, p3])).ok();
+    const meeting2 = x.attend(p2, p2).ok();
+    const meeting3 = x.attend(p3, p3).ok();
 
     const result1 = await meeting1;
     expect(result1).toEqual(Set(['reply2', 'reply3']));
 
-    const result2 = await meeting2.ok();
+    const result2 = await meeting2;
     expect(result2).toEqual('hello2');
     
-    const result3 = await meeting3.ok();
+    const result3 = await meeting3;
     expect(result3).toEqual('hello3');
   })
 

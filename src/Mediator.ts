@@ -59,7 +59,6 @@ export class Mediator {
     this.kill$ = signal$.pipe(filter(s => s.stop), shareReplay(1));
   }
 
-  // TODO! below should return Attempt<R>
   convene<R>(convener: MConvener<R>, others: Set<object>): Attempt<R> {
     return new Attempt(
       this.locks
