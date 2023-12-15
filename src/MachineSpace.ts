@@ -320,9 +320,10 @@ export class MachineSpace<N,O,NT=NodeTree.Form<N>> {
               .flatMap(met => {
                 return Attempt.succeed((m: unknown) => {
                   const r = met.chat(m);
+                  
                   return r
                     ? Attempt.succeed(r[0])
-                    : Attempt.fail();
+                    : Attempt.fail<unknown>();
                 });
               });
 
