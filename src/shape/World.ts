@@ -24,7 +24,7 @@ export module Builder {
       [k in (
         keyof N extends infer NK ?
           NK extends string ?
-          NK extends 'D' | JoinPaths<'D', string> ?
+          NK extends 'D' | 'R' | JoinPaths<'D' | 'R', string> ?
             NK
           : never : never : never
       )]: N[k]

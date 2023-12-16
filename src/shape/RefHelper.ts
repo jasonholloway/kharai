@@ -5,32 +5,32 @@ import * as RelPaths from './RelPaths'
 
 // todo _Retain is inefficient: should premap new nodes with flags
 
-export type Form<RDT> =
-  _MapNode<Omit<RDT,'D'>>
+export type Form<RDT,O=Id> =
+  _MapNode<Omit<RDT,'D'>,O>
 ;
 
-type _MapNode<N> =
+type _MapNode<N,O> =
   true extends _Retain<N> ? (
-    _MapDataNode<N> extends infer M1 ?
-    _MapSpaceNode<N> extends infer M2 ?
+    _MapDataNode<N,O> extends infer M1 ?
+      _MapSpaceNode<N,O> extends infer M2 ?
     M1 & M2 //Merge<M1,M2>
     : never : never
   )
   : never
 ;
 
-type _MapDataNode<N> =
+type _MapDataNode<N,O> =
   N extends { D: infer D } ?
-    (v: Read<D>) => Id
+    (v: Read<D>) => O
   : unknown
 ;
 
-type _MapSpaceNode<N> =
+type _MapSpaceNode<N,O> =
   N extends { S: infer S } ?
   {
     [k in keyof S
      as true extends _Retain<S[k]> ? _NormalizeName<k> : never
-    ]: _MapNode<S[k]>
+    ]: _MapNode<S[k],O>
   }
   : unknown
 ;
@@ -62,7 +62,7 @@ try {
 
   type A = NodeTree.Form<W>;
   type B = RelPaths.Form<A,['tara']>
-  type C = _MapNode<B>
+  type C = _MapNode<B,Id>
   type D = Form<B>;
 
   const d = <D><unknown>0;

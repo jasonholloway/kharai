@@ -47,13 +47,20 @@ type _InclWalk<O, P extends string> =
   [I[IK]] extends [infer IN] ?
   
   IK extends JoinPaths<infer IKH, infer IKT> ?
-  IKT extends JoinPaths<'M', infer IKT2> ?
 
-  [JoinPaths<IKH, JoinPaths<'M',JoinPaths<P, IKT2>>>] extends [infer IK2] ?
+  IKT extends JoinPaths<'M', infer IKT2> ? (
+    [JoinPaths<IKH, JoinPaths<'M',JoinPaths<P, IKT2>>>] extends [infer IK2]
+      ? [IK2, IN]
+      : never
+  )
+
+  : IKT extends 'M' ? (
+    [JoinPaths<IKH, JoinPaths<'M', P>>] extends [infer IK2]
+      ? [IK2, IN]
+      : never
+  )
   
-  [IK2, IN]
-  
-  : never : never : never : never : never : never : never : never
+  : never : never : never : never : never : never : never
 ;
 
 type _SpaceWalk<O, P extends string = ''> =
@@ -73,13 +80,14 @@ type _Assemble<T extends readonly [string, unknown]> =
 
 {
   const s1 = {
+    ...root(123 as const),
     hamster: {
       nibble: root('123' as const),
     },
-    rabbit: {
-      ...ctx<123>(),
-      jump: act(7 as const),
-    }
+    // rabbit: {
+    //   ...ctx<123>(),
+    //   jump: act(7 as const),
+    // }
   };
 
   type A = _SpaceWalk<typeof s1>

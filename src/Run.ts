@@ -12,6 +12,8 @@ import { RunSpace } from './RunSpace'
 import * as NodeTree from './shape/NodeTree'
 import * as RelPaths from './shape/RelPaths'
 import * as PhaseHelper from './shape/PhaseHelper'
+import * as RefHelper from './shape/RefHelper'
+import { Attempt } from './Attempt'
 
 const MD = new MonoidData();
 
@@ -111,35 +113,41 @@ export function newRun<N,O>
       }
     },
 
-    async summon(ids: Id[]) {
-      const machines = machineSpace.summon(Set(ids));
+    summon: Object.assign(
+      async (ids: Id[]) => {
+        const machines = machineSpace.summon(Set(ids));
 
-      // problem with summoning is that we can't really call more than once
-      // unless there's some kind of server-side offload thing going on
-      // (in which case the receiver would pass the work on and, by not changing its own state, drop out of the commit)
-      // this unchanging statelessness would allow requests to be quickly served and sent on to multiple workers
-      // it also means that simple machines could be available, and work, without being saved at all
-      // (eg worker nodes could be very quickly scaled out)
+        // problem with summoning is that we can't really call more than once
+        // unless there's some kind of server-side offload thing going on
+        // (in which case the receiver would pass the work on and, by not changing its own state, drop out of the commit)
+        // this unchanging statelessness would allow requests to be quickly served and sent on to multiple workers
+        // it also means that simple machines could be available, and work, without being saved at all
+        // (eg worker nodes could be very quickly scaled out)
 
-      return {
-        meet<R = unknown>(convener: Convener<R>|ConvenedFn<R>): Promise<R> {
-          //below rubbishly resummons
-          return machineSpace.runArbitrary(x => {
-            return x.convene(ids, convener).ok();
-          });
-        },
+        return {
+          meet<R = unknown>(convener: Convener<R>|ConvenedFn<R>): Promise<R> {
+            //below rubbishly resummons
+            return machineSpace.runArbitrary(x => {
+              return x.convene(ids, convener).ok();
+            });
+          },
 
-        tell(m: unknown) {
-          return this.meet(async ([p]) => p.chat(m));
-        },
+          tell(m: unknown) {
+            return this.meet(async ([p]) => p.chat(m));
+          },
 
-        log$: of(...machines).pipe(
-          mergeMap(m => m.log$)),
+          log$: of(...machines).pipe(
+            mergeMap(m => m.log$)),
 
-        api<A>(api:A) {
+          api<A>(api:A) {
+          }
         }
+      },
+      {
+        root: <RefHelper.Form<RelPaths.Form<NodeTree.Form<N>, []>, Attempt<123>>><unknown>{}
       }
-    },
+    ),
+
 
     async boot(id: Id, next: O): Promise<boolean> {
       const ms = await this.summon([id]);

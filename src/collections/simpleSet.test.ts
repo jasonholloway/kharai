@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@jest/globals';
-import { incl } from '../shape/common';
+import { incl, root } from '../shape/common';
 import { World } from '../shape/World';
 import { Str } from '../guards/Guard'
 import simpleSet from './simpleSet'
@@ -21,12 +21,19 @@ describe('stringSet', () => {
     await run.session(async () => {
       const m = await run.summon(['@M_strs']);
 
-      const r = run.summon.root.strs();
+      const r = await run.summon.root.strs('morris').ok();
+
+      // TODO TODO
+      // the summoning expression above needs to actually summon, not just return a ref! 
+
+
+
+      run.summon.root.oink('hello');
 
       //summoning and binding all sounds great
       //but it's a different approach to the one-shot call familiarity we seek momentarily
-      //
-      //
+      //if you summon, you can chat
+      //you can also call, but this involves giving up on the summoning
 
       const r0 = await m.tell(['add', 'hello']);
       expect(r0).toEqual([true]);

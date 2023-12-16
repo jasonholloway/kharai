@@ -1,5 +1,5 @@
-import { Many, Guard, Narrowable, Or, Tup } from "../guards/Guard";
-import { act } from "../shape/common";
+import { Many, Guard, Narrowable, Or, Tup, Str } from "../guards/Guard";
+import { act, root } from "../shape/common";
 import { World } from "../shape/World";
 import { Call } from "../SimpleCall"
 import { Set } from 'immutable'
@@ -27,8 +27,9 @@ export namespace Calls {
 export default <T extends Narrowable>(t:T) =>
   World
     .shape({
-      ...act(),
+      ...root(Str),
       run: act(Many(t)),
+      moo: act(123)
     })
     .ctx(({expandType}) => ({
       isCommand: Guard(Or(
